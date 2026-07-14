@@ -375,6 +375,10 @@ impl DamageNumberManager {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.numbers.clear();
+    }
+
     pub fn add(&mut self, number: DamageNumber) {
         let removes_combo = number.number_type.is_total() || number.number_type.is_combo();
         if removes_combo {
@@ -559,6 +563,15 @@ mod tests {
                 .iter()
                 .any(|n| n.number_type == DamageNumberType::ComboFinal)
         );
+    }
+
+    #[test]
+    fn clear_drops_all_numbers() {
+        let mut mgr = DamageNumberManager::new();
+        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0));
+        mgr.add(DamageNumber::new(2, 50, DamageNumberType::Combo, 0));
+        mgr.clear();
+        assert!(mgr.numbers.is_empty());
     }
 
     #[test]

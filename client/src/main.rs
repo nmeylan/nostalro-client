@@ -10,7 +10,7 @@ mod sound;
 mod sprite;
 
 use config::Config;
-use game_state::GameState;
+use game_state::{GameState, PendingGuildConfirm};
 use input::InputState;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
@@ -58,8 +58,9 @@ use ragnarok_network::{
     build_req_guild_menu, build_req_guild_menuinterface, build_guild_notice,
     build_req_leave_guild, build_req_ban_guild, build_req_change_memberpos,
     build_reg_change_guild_positioninfo, build_make_guild, build_req_disorganize_guild,
-    build_register_guild_emblem, build_req_join_guild,
-    build_req_ally_guild, build_req_hostile_guild, build_req_delete_related_guild,
+    build_register_guild_emblem, build_req_join_guild, build_ans_join_guild,
+    build_req_ally_guild, build_ally_guild, build_req_hostile_guild,
+    build_req_delete_related_guild,
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
@@ -1271,6 +1272,14 @@ impl App {
                         self.config.packetver,
                     ));
                 }
+                GameEvent::RespondGuildInvite { gdid, accept } => {
+                    self.channel
+                        .send_packet(build_ans_join_guild(gdid, accept, self.config.packetver));
+                }
+                GameEvent::RespondGuildAlly { aid, accept } => {
+                    self.channel
+                        .send_packet(build_ally_guild(aid, accept, self.config.packetver));
+                }
                 GameEvent::RequestLeaveParty => {
                     self.channel
                         .send_packet(build_leave_party_packet(self.config.packetver));
@@ -1358,7 +1367,8 @@ impl App {
                         .map(|s| s.account_id)
                         .unwrap_or(0);
                     let mut items = Vec::new();
-                    if gid != local_gid {
+                    let is_self = gid == local_gid;
+                    if !is_self {
                         items.push(ContextMenuItem {
                             label: "Whisper".to_string(),
                             action: ContextMenuAction::Whisper { name: name.clone() },
@@ -1369,6 +1379,12 @@ impl App {
                             .member_by_gid(gid)
                             .map(|m| m.position_id == 0)
                             .unwrap_or(false);
+                        if is_self && !g.is_master(local_gid) {
+                            items.push(ContextMenuItem {
+                                label: "Leave Guild".to_string(),
+                                action: ContextMenuAction::GuildLeave,
+                            });
+                        }
                         if g.is_master(local_gid) && !target_master {
                             for p in &g.positions {
                                 items.push(ContextMenuItem {
@@ -1399,6 +1415,34 @@ impl App {
                     }
                 }
                 GameEvent::RequestGuildLeave => {
+                    let name = self
+                        .game
+                        .guild
+                        .as_ref()
+                        .map(|g| g.name.clone())
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or_else(|| "the guild".to_string());
+                    self.game.guild_confirm_result.set(None);
+                    self.game.pending_guild_confirm = Some(PendingGuildConfirm::Leave);
+                    self.game.confirm_dialog.show_with_out(
+                        &format!("Leave {name}?"),
+                        true,
+                        self.game.guild_confirm_result.clone(),
+                        |_| {},
+                    );
+                }
+                GameEvent::RequestGuildExpel { aid, gid, name } => {
+                    self.game.guild_confirm_result.set(None);
+                    self.game.pending_guild_confirm =
+                        Some(PendingGuildConfirm::Expel { aid, gid, name: name.clone() });
+                    self.game.confirm_dialog.show_with_out(
+                        &format!("Expel {name} from the guild?"),
+                        true,
+                        self.game.guild_confirm_result.clone(),
+                        |_| {},
+                    );
+                }
+                GameEvent::ConfirmedGuildLeave => {
                     if let Some(g) = &self.game.guild {
                         let aid = self
                             .game
@@ -1415,7 +1459,7 @@ impl App {
                         ));
                     }
                 }
-                GameEvent::RequestGuildExpel { aid, gid, name } => {
+                GameEvent::ConfirmedGuildExpel { aid, gid, name } => {
                     if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
                         self.channel.send_packet(build_req_ban_guild(
                             gdid,
@@ -1467,6 +1511,22 @@ impl App {
                         .send_packet(build_req_hostile_guild(target_aid, self.config.packetver));
                 }
                 GameEvent::RequestDeleteGuildRelation { gdid, relation } => {
+                    let msg = if relation == 0 {
+                        "Cancel this alliance?"
+                    } else {
+                        "Cancel this antagonist declaration?"
+                    };
+                    self.game.guild_confirm_result.set(None);
+                    self.game.pending_guild_confirm =
+                        Some(PendingGuildConfirm::DeleteRelation { gdid, relation });
+                    self.game.confirm_dialog.show_with_out(
+                        msg,
+                        true,
+                        self.game.guild_confirm_result.clone(),
+                        |_| {},
+                    );
+                }
+                GameEvent::ConfirmedDeleteGuildRelation { gdid, relation } => {
                     self.channel.send_packet(build_req_delete_related_guild(
                         gdid,
                         relation,
@@ -1474,7 +1534,10 @@ impl App {
                     ));
                 }
                 GameEvent::RequestSelectEmblem => {
-                    self.upload_guild_emblem();
+                    self.open_emblem_picker();
+                }
+                GameEvent::RequestUploadEmblem { path } => {
+                    self.upload_emblem_file(&path);
                 }
                 GameEvent::RequestAddFriend { name } => {
                     self.channel
@@ -1535,25 +1598,91 @@ impl App {
         (aid, aid)
     }
 
-    fn upload_guild_emblem(&mut self) {
-        let dir = &self.config.emblem_path;
-        let resolved = std::path::Path::new(dir);
-        let entry = std::fs::read_dir(resolved).ok().and_then(|rd| {
-            rd.filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .find(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("bmp")))
-        });
-        match entry.and_then(|p| std::fs::read(p).ok()) {
-            Some(bmp) => {
-                self.channel
-                    .send_packet(build_register_guild_emblem(bmp, self.config.packetver));
+    fn open_emblem_picker(&mut self) {
+        use ragnarok_ui_component::game::emblem_picker_window::EmblemEntry;
+
+        let dir = std::path::PathBuf::from(&self.config.emblem_path);
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("bmp")))
+            .collect();
+        files.sort();
+
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        let mut entries = Vec::new();
+        for path in files {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            let (valid, verdict) = match ragnarok_game::guild::validate_emblem_bmp(&bytes) {
+                Ok(()) => (true, String::new()),
+                Err(e) => (false, e),
+            };
+            let key = format!("__emblem_file_{name}");
+            if renderer.texture_cache.texture_size(&key).is_none()
+                && let Some(rgba) = ragnarok_renderer::texture::decode_emblem(&bytes)
+            {
+                let (w, h) = (rgba.width(), rgba.height());
+                let bg = ragnarok_renderer::texture::create_texture_bind_group_from_rgba(
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    rgba.as_raw(),
+                    w,
+                    h,
+                    &renderer.texture_cache.bind_group_layout,
+                    &key,
+                    ragnarok_renderer::wgpu::FilterMode::Nearest,
+                    ragnarok_renderer::wgpu::TextureFormat::Rgba8Unorm,
+                    ragnarok_renderer::wgpu::AddressMode::ClampToEdge,
+                );
+                renderer.texture_cache.insert(&key, bg, w, h);
             }
-            None => {
-                self.game.chat_window.add_system(format!(
-                    "No emblem .bmp found in '{}'.",
-                    resolved.display()
-                ));
-            }
+            entries.push(EmblemEntry {
+                name,
+                path: path.to_string_lossy().to_string(),
+                key,
+                valid,
+                verdict,
+            });
+        }
+        if entries.is_empty() {
+            self.game.chat_window.add_system(format!(
+                "No emblem .bmp found in '{}'.",
+                dir.display()
+            ));
+        }
+        self.game.emblem_picker_window.open(entries);
+    }
+
+    fn upload_emblem_file(&mut self, path: &str) {
+        let Ok(bmp) = std::fs::read(path) else {
+            self.game
+                .chat_window
+                .add_system(format!("Failed to read emblem '{path}'."));
+            return;
+        };
+        if let Err(e) = ragnarok_game::guild::validate_emblem_bmp(&bmp) {
+            self.game.chat_window.add_system(e);
+            return;
+        }
+        let compressed = ragnarok_formats::zlib_compress(&bmp);
+        self.channel
+            .send_packet(build_register_guild_emblem(compressed, self.config.packetver));
+        if let Some(guild) = &self.game.guild {
+            self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
+                guild.gdid,
+                self.config.packetver,
+            ));
         }
     }
 
@@ -2311,6 +2440,10 @@ impl ApplicationHandler for App {
                     && !entity.name_requested
                 {
                     entity.name_requested = true;
+                    tracing::info!(
+                        "hover reqname: entity_id={entity_id} type={:?}",
+                        entity.entity_type
+                    );
                     self.channel
                         .send_packet(build_reqname_packet(entity_id, self.config.packetver));
                 }

@@ -1382,6 +1382,88 @@ impl EntitySprite {
         batches
     }
 
+    /// Composes only the head (+ headgear) layers, auto-fitted into a square of
+    /// side `target_px` centered on `center`. Used for the face icons shown in
+    /// member/roster list rows.
+    pub fn build_head_batches(
+        &self,
+        animation: &ragnarok_formats::act::SpriteAnimationState,
+        camera_dir: Option<u8>,
+        head_dir: u8,
+        center: [f32; 2],
+        target_px: f32,
+        depth: f32,
+    ) -> Vec<SpriteBatch<'_>> {
+        let action_idx = match camera_dir {
+            Some(dir) => animation.action_index(&self.body_act, dir),
+            None => animation.flat_action_index(&self.body_act),
+        };
+        let Some(clips) = build_composite_clips(
+            self,
+            action_idx,
+            animation.motion_index(),
+            head_dir,
+            [0.0, 0.0],
+            depth,
+        ) else {
+            return Vec::new();
+        };
+
+        let mut groups: Vec<(&SpriteTextures, Vec<ClipQuad>)> = Vec::new();
+        if let Some(t) = &self.head_textures {
+            groups.push((t, clips.head));
+        }
+        if let Some(t) = &self.headgear_bottom_textures {
+            groups.push((t, clips.headgear_bottom));
+        }
+        if let Some(t) = &self.headgear_mid_textures {
+            groups.push((t, clips.headgear_mid));
+        }
+        if let Some(t) = &self.headgear_top_textures {
+            groups.push((t, clips.headgear_top));
+        }
+
+        let mut min = [f32::MAX, f32::MAX];
+        let mut max = [f32::MIN, f32::MIN];
+        for (_, quads) in &groups {
+            for (verts, _, _) in quads {
+                for v in verts {
+                    min[0] = min[0].min(v.position[0]);
+                    min[1] = min[1].min(v.position[1]);
+                    max[0] = max[0].max(v.position[0]);
+                    max[1] = max[1].max(v.position[1]);
+                }
+            }
+        }
+        if min[0] > max[0] {
+            return Vec::new();
+        }
+        let span = (max[0] - min[0]).max(max[1] - min[1]).max(1.0);
+        let fit = target_px / span;
+        let cx = (min[0] + max[0]) / 2.0;
+        let cy = (min[1] + max[1]) / 2.0;
+
+        let mut batches = Vec::new();
+        for (tex, quads) in groups {
+            for (mut verts, indices, tex_idx) in quads {
+                if tex_idx >= tex.bind_groups.len() {
+                    continue;
+                }
+                for v in &mut verts {
+                    v.position[0] = (v.position[0] - cx) * fit + center[0];
+                    v.position[1] = (v.position[1] - cy) * fit + center[1];
+                }
+                batches.push(SpriteBatch {
+                    vertices: verts,
+                    indices,
+                    texture: &tex.bind_groups[tex_idx],
+                    additive: false,
+                });
+            }
+        }
+        batches
+    }
+
     /// Render only the weapon-trail (`검광`) layer — the Quicken swing arc. The
     /// caller draws it additively on top of the body and tints it (yellow under
     /// Quicken). Empty when the weapon has no trail sprite or the current motion

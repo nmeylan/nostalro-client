@@ -944,8 +944,9 @@ pub fn build_req_guild_emblem_img(gdid: u32, packetver: u32) -> Vec<u8> {
 pub fn build_register_guild_emblem(bmp: Vec<u8>, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRegisterGuildEmblemImg::new(packetver);
     pkt.set_packet_length((4 + bmp.len()) as i16);
-    pkt.set_img_raw(bmp);
+    // fill_raw rebuilds img_raw from the (empty) img string, so append the body after.
     pkt.fill_raw();
+    pkt.raw.extend_from_slice(&bmp);
     pkt.raw
 }
 
@@ -958,11 +959,27 @@ pub fn build_req_join_guild(target_aid: u32, my_aid: u32, my_gid: u32, packetver
     pkt.raw
 }
 
+pub fn build_ans_join_guild(gdid: u32, accept: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzJoinGuild::new(packetver);
+    pkt.set_gdid(gdid);
+    pkt.set_answer(if accept { 1 } else { 0 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_req_ally_guild(target_aid: u32, my_aid: u32, my_gid: u32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqAllyGuild::new(packetver);
     pkt.set_aid(target_aid);
     pkt.set_my_aid(my_aid);
     pkt.set_my_gid(my_gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_ally_guild(other_aid: u32, accept: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAllyGuild::new(packetver);
+    pkt.set_other_aid(other_aid);
+    pkt.set_answer(if accept { 1 } else { 0 });
     pkt.fill_raw();
     pkt.raw
 }

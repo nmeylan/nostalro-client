@@ -115,11 +115,18 @@ impl App {
         self.game.companion_attack_target = [None; 2];
         self.game.homunculus_window.set_visible(false);
         self.game.mercenary_window.set_visible(false);
+        self.game.guild = None;
+        self.game.guild_head_sprites.clear();
+        self.game.guild_window.open = false;
         self.game.current_map = None;
         self.game.map_coords = None;
         self.game.gat = None;
         self.effect_holder.clear();
         self.effect_queue = EffectQueue::new();
+        self.game.ambient_effects = ragnarok_game::effects::AmbientEffectScheduler::empty();
+        self.game.ambient_sounds =
+            ragnarok_game::sound::ambient::AmbientSoundScheduler::empty();
+        self.game.repeat_sounds.clear();
         self.game.status_buff_keys.clear();
         self.game.next_status_buff_key = 0;
         self.game.level_aura_keys.clear();
@@ -269,6 +276,7 @@ impl App {
             preload_window(&mut self.game.party_friends_window, renderer, grf);
             preload_window(&mut self.game.party_helper_window, renderer, grf);
             preload_window(&mut self.game.guild_window, renderer, grf);
+            preload_window(&mut self.game.emblem_picker_window, renderer, grf);
             preload_window(&mut self.game.homunculus_window, renderer, grf);
             preload_window(&mut self.game.mercenary_window, renderer, grf);
             preload_window(&mut self.game.mercenary_skill_window, renderer, grf);
@@ -313,7 +321,17 @@ impl App {
             .send_packet(build_map_loaded_packet(self.config.packetver));
     }
 
+    fn clear_transient_effects_and_sounds(&mut self) {
+        self.effect_queue.clear();
+        self.effect_holder.clear();
+        self.sound_queue.clear();
+        self.sound.stop_all_sfx();
+        self.game.arrows.clear();
+        self.game.damage_numbers.clear();
+    }
+
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
+        self.clear_transient_effects_and_sounds();
         self.game.map_properties = MapProperties::default();
         self.game.pending_skill_target = None;
         self.game.pending_skill_id = None;

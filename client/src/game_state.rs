@@ -58,6 +58,9 @@ use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotificatio
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::emblem_picker_window::{
+    EMBLEM_PICKER_WINDOW_ID, EmblemPickerWindow,
+};
 use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
 use ragnarok_ui_component::game::party_friends_window::{PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow};
 use ragnarok_ui_component::game::party_helper_window::{PARTY_HELPER_WINDOW_ID, PartyHelperWindow};
@@ -86,6 +89,12 @@ pub struct FreezeShatter {
     pub started_at: Option<f32>,
 }
 
+pub enum PendingGuildConfirm {
+    Expel { aid: u32, gid: u32, name: String },
+    Leave,
+    DeleteRelation { gdid: u32, relation: i32 },
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -96,6 +105,7 @@ pub struct GameState {
     pub gat: Option<GatFile>,
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
+    pub guild_head_sprites: HashMap<u32, Rc<EntitySprite>>,
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
     pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
@@ -186,6 +196,7 @@ pub struct GameState {
     pub guild: Option<ragnarok_game::guild::Guild>,
     pub guild_menu_flag: i32,
     pub guild_window: GuildWindow,
+    pub emblem_picker_window: EmblemPickerWindow,
     pub friends: ragnarok_game::friends::FriendList,
     pub party_friends_window: PartyFriendsWindow,
     pub party_helper_window: PartyHelperWindow,
@@ -205,6 +216,12 @@ pub struct GameState {
     pub context_menu: ContextMenu,
     pub pending_party_invite: Option<u32>,
     pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_guild_invite: Option<u32>,
+    pub guild_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_guild_ally: Option<u32>,
+    pub guild_ally_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_guild_confirm: Option<PendingGuildConfirm>,
+    pub guild_confirm_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub homun_delete_pending: bool,
     pub homun_delete_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_invite_aid: Option<u32>,
@@ -248,6 +265,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     STATUS_WINDOW_ID,
     PARTY_FRIENDS_WINDOW_ID,
     GUILD_WINDOW_ID,
+    EMBLEM_PICKER_WINDOW_ID,
     PARTY_HELPER_WINDOW_ID,
     HOMUN_WINDOW_ID,
     MERCENARY_WINDOW_ID,
@@ -433,6 +451,45 @@ impl GameState {
                 accept: result == ConfirmResult::Ok,
             });
             self.pending_party_invite = None;
+        }
+
+        if let Some(gdid) = self.pending_guild_invite
+            && let Some(result) = self.guild_invite_result.take()
+        {
+            events.push(GameEvent::RespondGuildInvite {
+                gdid,
+                accept: result == ConfirmResult::Ok,
+            });
+            self.pending_guild_invite = None;
+        }
+
+        if let Some(aid) = self.pending_guild_ally
+            && let Some(result) = self.guild_ally_result.take()
+        {
+            events.push(GameEvent::RespondGuildAlly {
+                aid,
+                accept: result == ConfirmResult::Ok,
+            });
+            self.pending_guild_ally = None;
+        }
+
+        if self.pending_guild_confirm.is_some()
+            && let Some(result) = self.guild_confirm_result.take()
+        {
+            let pending = self.pending_guild_confirm.take().unwrap();
+            if result == ConfirmResult::Ok {
+                match pending {
+                    PendingGuildConfirm::Expel { aid, gid, name } => {
+                        events.push(GameEvent::ConfirmedGuildExpel { aid, gid, name });
+                    }
+                    PendingGuildConfirm::Leave => {
+                        events.push(GameEvent::ConfirmedGuildLeave);
+                    }
+                    PendingGuildConfirm::DeleteRelation { gdid, relation } => {
+                        events.push(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation });
+                    }
+                }
+            }
         }
 
         if let Some((req_aid, req_gid)) = self.pending_friend_request
@@ -675,6 +732,13 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            EMBLEM_PICKER_WINDOW_ID => {
+                events.extend(self.emblem_picker_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             COMPANION_AI_CONFIG_WINDOW_ID => {
                 events.extend(
                     self.companion_ai_config_window
@@ -750,6 +814,7 @@ impl GameState {
             gat: None,
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
+            guild_head_sprites: HashMap::new(),
             carts: HashMap::new(),
             falcons: HashMap::new(),
             trap_units: HashMap::new(),
@@ -829,6 +894,7 @@ impl GameState {
             guild: None,
             guild_menu_flag: 0,
             guild_window: GuildWindow::new(),
+            emblem_picker_window: EmblemPickerWindow::new(),
             friends: ragnarok_game::friends::FriendList::default(),
             party_friends_window: PartyFriendsWindow::new(),
             party_helper_window: PartyHelperWindow::new(),
@@ -848,6 +914,12 @@ impl GameState {
             context_menu: ContextMenu::new(),
             pending_party_invite: None,
             party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            pending_guild_invite: None,
+            guild_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            pending_guild_ally: None,
+            guild_ally_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            pending_guild_confirm: None,
+            guild_confirm_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             homun_delete_pending: false,
             homun_delete_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             pending_invite_aid: None,

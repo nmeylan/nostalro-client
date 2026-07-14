@@ -8,6 +8,7 @@ pub mod chat_window;
 pub mod confirm_dialog;
 pub mod context_menu;
 pub mod drop_quantity_dialog;
+pub mod emblem_picker_window;
 pub mod equipment_window;
 pub mod guild_window;
 pub mod homun_skill_window;

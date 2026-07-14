@@ -100,7 +100,7 @@ impl Default for Config {
             bgm_enabled: true,
             sfx_enabled: true,
             bgm_path: "BGM".to_string(),
-            emblem_path: "Emblem".to_string(),
+            emblem_path: "emblem".to_string(),
             free_camera: false,
             dpi_scale: 120.0,
             grf_paths: vec!["data/data.grf".to_string()],

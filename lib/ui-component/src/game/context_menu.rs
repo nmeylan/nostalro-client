@@ -14,6 +14,7 @@ pub enum ContextMenuAction {
     Whisper { name: String },
     ChangeGuildPosition { aid: u32, gid: u32, position_id: i32 },
     ExpelFromGuild { aid: u32, gid: u32, name: String },
+    GuildLeave,
     GuildInvite { target_aid: u32 },
     GuildAlly { target_aid: u32 },
     GuildHostile { target_aid: u32 },
@@ -115,6 +116,9 @@ impl ContextMenu {
                 }
                 ContextMenuAction::ExpelFromGuild { aid, gid, name } => {
                     events.push(GameEvent::RequestGuildExpel { aid, gid, name });
+                }
+                ContextMenuAction::GuildLeave => {
+                    events.push(GameEvent::RequestGuildLeave);
                 }
                 ContextMenuAction::GuildInvite { target_aid } => {
                     events.push(GameEvent::RequestGuildInvite { target_aid });

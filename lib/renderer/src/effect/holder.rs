@@ -595,6 +595,9 @@ impl EffectHolder {
             b.drop_all();
         }
         self.effects.clear();
+        self.shake = ShakeController::default();
+        self.afterimages.clear();
+        self.pending_sfx.clear();
     }
 
     pub fn update(

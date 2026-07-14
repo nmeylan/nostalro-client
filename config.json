@@ -6,10 +6,10 @@
   "screen_height": 768,
   "bgm_volume": 0.28157103,
   "sfx_volume": 0.09425334,
-  "bgm_enabled": true,
+  "bgm_enabled": false,
   "sfx_enabled": true,
-  "bgm_path": "BGM",
-  "emblem_path": "Emblem",
+  "bgm_path": "data/BGM",
+  "emblem_path": "data/emblem",
   "free_camera": false,
   "dpi_scale": 150.0,
   "grf_paths": [
@@ -21,28 +21,20 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1200": {
+    "10": {
       "position": [
-        699.7044,
-        90.59766
+        344.0,
+        344.66666
       ],
-      "open": true,
+      "open": false,
       "collapsed": false
     },
-    "1400": {
+    "900": {
       "position": [
         0.0,
-        0.0
+        469.32422
       ],
-      "open": false,
-      "collapsed": false
-    },
-    "3400": {
-      "position": [
-        429.08203,
-        404.75
-      ],
-      "open": false,
+      "open": true,
       "collapsed": false
     },
     "1300": {
@@ -56,9 +48,17 @@
     "210": {
       "position": [
         665.1133,
-        372.4453
+        346.0
       ],
       "open": false,
+      "collapsed": false
+    },
+    "1200": {
+      "position": [
+        699.7044,
+        90.59766
+      ],
+      "open": true,
       "collapsed": false
     },
     "110": {
@@ -69,10 +69,18 @@
       "open": false,
       "collapsed": false
     },
-    "10": {
+    "1400": {
       "position": [
-        344.0,
-        344.66666
+        0.0,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "3400": {
+      "position": [
+        80.0,
+        50.0
       ],
       "open": false,
       "collapsed": false
@@ -81,14 +89,6 @@
       "position": [
         0.0,
         152.72656
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "900": {
-      "position": [
-        0.0,
-        469.32422
       ],
       "open": true,
       "collapsed": false

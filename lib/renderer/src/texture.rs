@@ -142,6 +142,39 @@ impl TextureCache {
     }
 }
 
+pub fn decode_emblem(blob: &[u8]) -> Option<image::RgbaImage> {
+    let bytes = ragnarok_formats::zlib_decompress(blob).unwrap_or_else(|| blob.to_vec());
+    let img = image::load_from_memory_with_format(&bytes, image::ImageFormat::Bmp).ok()?;
+    let mut rgba = img.to_rgba8();
+    ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
+    Some(rgba)
+}
+
+#[cfg(test)]
+mod emblem_tests {
+    use super::*;
+
+    fn bmp_24x24() -> Vec<u8> {
+        let mut img = image::RgbImage::new(24, 24);
+        img.put_pixel(0, 0, image::Rgb([255, 0, 255]));
+        img.put_pixel(1, 1, image::Rgb([10, 20, 30]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut out, image::ImageFormat::Bmp)
+            .unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn decode_emblem_zlib_bmp_makes_magenta_transparent() {
+        let blob = ragnarok_formats::zlib_compress(&bmp_24x24());
+        let rgba = decode_emblem(&blob).expect("decode");
+        assert_eq!(rgba.dimensions(), (24, 24));
+        assert_eq!(rgba.get_pixel(0, 0).0, [0, 0, 0, 0]);
+        assert_eq!(rgba.get_pixel(1, 1).0, [10, 20, 30, 255]);
+    }
+}
+
 pub fn load_keyed_texture(
     path: &str,
     grf: &GrfArchive,

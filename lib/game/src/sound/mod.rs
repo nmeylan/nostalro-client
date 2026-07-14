@@ -89,4 +89,8 @@ impl SoundQueue {
     pub fn drain(&mut self) -> std::vec::Drain<'_, SoundRequest> {
         self.pending.drain(..)
     }
+
+    pub fn clear(&mut self) {
+        self.pending.clear();
+    }
 }

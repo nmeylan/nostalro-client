@@ -19,6 +19,7 @@ pub(crate) fn vending_board_rect(entry: &RenderEntry) -> [f32; 4] {
 const HP_BAR_WIDTH: f32 = 60.0;
 pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
 const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
+const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
 
 impl App {
     pub(crate) fn build_world_overlays(
@@ -77,7 +78,7 @@ impl App {
         {
             let text_width = renderer.font_atlas.measure_text(name);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
-            let text_y = bar_y + HP_BAR_HEIGHT + 13.0;
+            let mut text_y = bar_y + HP_BAR_HEIGHT + 13.0;
             build_outlined_text(
                 name,
                 text_x,
@@ -86,6 +87,21 @@ impl App {
                 &renderer.font_atlas,
                 calls,
             );
+
+            if let Some(guild_name) = &entity.guild_name {
+                let guild_text = format!("<{guild_name}>");
+                let guild_width = renderer.font_atlas.measure_text(&guild_text);
+                let guild_x = entry.screen_anchor[0] - guild_width / 2.0;
+                text_y += renderer.font_atlas.line_height;
+                build_outlined_text(
+                    &guild_text,
+                    guild_x,
+                    text_y,
+                    GUILD_NAME_COLOR,
+                    &renderer.font_atlas,
+                    calls,
+                );
+            }
         }
     }
 

@@ -4,6 +4,37 @@ pub const GUILD_PERM_INVITE: i32 = 0x001;
 pub const GUILD_PERM_EXPEL: i32 = 0x010;
 pub const GUILD_PERM_STORAGE: i32 = 0x100;
 
+pub fn emblem_texture_key(gdid: u32, version: i32) -> String {
+    format!("__guild_emblem_{gdid}_{version}")
+}
+
+pub fn validate_emblem_bmp(bmp: &[u8]) -> Result<(), String> {
+    const MAX_LEN: usize = 1782;
+    if bmp.len() < 54 {
+        return Err("emblem file is too small to be a valid BMP.".to_string());
+    }
+    if bmp[0] != 0x42 || bmp[1] != 0x4D {
+        return Err("emblem is not a BMP image.".to_string());
+    }
+    let bf_size = u32::from_le_bytes([bmp[2], bmp[3], bmp[4], bmp[5]]) as usize;
+    if bf_size != bmp.len() {
+        return Err("emblem BMP header size does not match the file.".to_string());
+    }
+    let bf_off_bits = u32::from_le_bytes([bmp[10], bmp[11], bmp[12], bmp[13]]) as usize;
+    if bf_off_bits >= bmp.len() {
+        return Err("emblem BMP pixel offset is invalid.".to_string());
+    }
+    if bmp.len() > MAX_LEN {
+        return Err("emblem is too large; it must be 24x24.".to_string());
+    }
+    let width = i32::from_le_bytes([bmp[18], bmp[19], bmp[20], bmp[21]]).abs();
+    let height = i32::from_le_bytes([bmp[22], bmp[23], bmp[24], bmp[25]]).abs();
+    if width != 24 || height != 24 {
+        return Err(format!("emblem must be 24x24 (got {width}x{height})."));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Guild {
     pub gdid: u32,
@@ -15,6 +46,8 @@ pub struct Guild {
     pub max_member_num: i32,
     pub avg_level: i32,
     pub point: i32,
+    pub honor: i32,
+    pub virtue: i32,
     pub master_name: String,
     pub manage_land: String,
     pub emblem_version: i32,

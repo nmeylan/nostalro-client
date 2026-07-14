@@ -152,6 +152,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
             gid: p.gid,
+            aid: p.aid,
             job: p.job as u16,
             speed: p.speed as u16,
             sex: p.sex,
@@ -177,6 +178,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
             gid: p.gid,
+            aid: p.aid,
             job: p.job as u16,
             speed: p.speed as u16,
             sex: p.sex,
@@ -202,6 +204,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
             gid: p.gid,
+            aid: p.gid,
             job: p.job as u16,
             speed: p.speed as u16,
             sex: p.sex,
@@ -227,6 +230,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
             gid: p.gid,
+            aid: p.gid,
             job: p.job as u16,
             speed: p.speed as u16,
             sex: p.sex,
@@ -252,6 +256,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let (x, y, dir) = decode_pos(&p.pos_dir);
         return vec![GameEvent::EntitySpawned {
             gid: p.gid,
+            aid: p.aid,
             job: p.job as u16,
             speed: p.speed as u16,
             sex: p.sex,
@@ -280,6 +285,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![
             GameEvent::EntitySpawned {
                 gid: p.gid,
+                aid: p.gid,
                 job: p.job as u16,
                 speed: p.speed as u16,
                 sex: p.sex,
@@ -400,6 +406,22 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcAckReqname>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::EntityNameReceived { gid: p.aid, name }];
+    }
+
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqnameall>() {
+        let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
+        let guild_name: String = p.gname.iter().take_while(|c| **c != '\0').collect();
+        let position_name: String = p.rname.iter().take_while(|c| **c != '\0').collect();
+        tracing::info!(
+            "recv ZcAckReqnameall aid={} name={name:?} guild={guild_name:?} pos={position_name:?}",
+            p.aid
+        );
+        return vec![GameEvent::EntityNamesReceived {
+            gid: p.aid,
+            name,
+            guild_name,
+            position_name,
+        }];
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcNotifyVanish>() {
@@ -839,6 +861,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             max_member_num: p.max_user_num,
             avg_level: p.user_average_level,
             point: p.point,
+            honor: p.honor,
+            virtue: p.virtue,
             master_name: cstr(&p.master_name),
             manage_land: cstr(&p.manage_land),
             emblem_version: p.emblem_version,
@@ -855,6 +879,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             max_member_num: p.max_user_num,
             avg_level: p.user_average_level,
             point: p.point,
+            honor: p.honor,
+            virtue: p.virtue,
             master_name: cstr(&p.master_name),
             manage_land: cstr(&p.manage_land),
             emblem_version: p.emblem_version,
@@ -897,6 +923,36 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             })
             .collect();
         return vec![GameEvent::GuildPositions { positions }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckChangeGuildPositioninfo>() {
+        let positions = p
+            .member_list
+            .iter()
+            .map(|pos| GuildPosition {
+                id: pos.position_id,
+                name: String::new(),
+                right: pos.right,
+                ranking: pos.ranking,
+                pay_rate: pos.pay_rate,
+            })
+            .collect();
+        let names = p
+            .member_list
+            .iter()
+            .map(|pos| (pos.position_id, cstr(&pos.pos_name)))
+            .collect();
+        return vec![
+            GameEvent::GuildPositions { positions },
+            GameEvent::GuildPositionNames { names },
+        ];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqChangeMembers>() {
+        let entries = p
+            .member_info
+            .iter()
+            .map(|m| (m.aid as u32, m.gid as u32, m.position_id))
+            .collect();
+        return vec![GameEvent::GuildMemberPositionsChanged { entries }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcPositionIdNameInfo>() {
         let names = p
@@ -953,9 +1009,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .related_guild_list
             .iter()
             .map(|r| GuildRelation {
-                gdid: r.gdid,
+                // wire order is <relation>.L <gdid>.L; the generated struct swaps them
+                gdid: r.relation,
                 name: cstr(&r.guild_name),
-                relation: r.relation,
+                relation: r.gdid,
             })
             .collect();
         return vec![GameEvent::GuildRelations { relations }];
@@ -986,9 +1043,22 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckBanGuild>() {
-        return vec![GameEvent::GuildMemberLeft {
+        return vec![GameEvent::GuildMemberExpelled {
             name: cstr(&p.char_name),
             reason: cstr(&p.reason_desc),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckBanGuildSso>() {
+        return vec![GameEvent::GuildMemberExpelled {
+            name: cstr(&p.char_name),
+            reason: cstr(&p.reason_desc),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcChangeGuild>() {
+        return vec![GameEvent::EntityGuildChanged {
+            aid: p.aid,
+            gdid: p.gdid,
+            emblem_version: p.emblem_version as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckDisorganizeGuildResult>() {
@@ -1004,6 +1074,28 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::GuildAllyRequestReceived {
             aid: p.other_aid,
             name: cstr(&p.guild_name),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqAllyGuild>() {
+        return vec![GameEvent::GuildAllyResult { answer: p.answer }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqHostileGuild>() {
+        return vec![GameEvent::GuildHostileResult { result: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqJoinGuild>() {
+        return vec![GameEvent::GuildJoinResult { answer: p.answer }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteRelatedGuild>() {
+        return vec![GameEvent::GuildRelationDeleted {
+            gdid: p.opponent_gdid,
+            relation: p.relation,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddRelatedGuild>() {
+        return vec![GameEvent::GuildRelationAdded {
+            gdid: p.info.gdid as u32,
+            relation: p.info.relation,
+            name: cstr(&p.info.guildname),
         }];
     }
 
@@ -1955,6 +2047,41 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_guild_emblem_img_carries_blob() {
+        let packetver = 20120307;
+        let blob = vec![0x78, 0x9c, 0x01, 0x02, 0x03, 0x04, 0x05];
+        let mut pkt = PacketZcGuildEmblemImg::new(packetver);
+        pkt.set_gdid(42);
+        pkt.set_emblem_version(7);
+        pkt.set_img_raw(blob.clone());
+        let result = dispatch_packet(&pkt, packetver);
+        let [GameEvent::GuildEmblem { gdid, version, bmp }] = result.as_slice() else {
+            panic!("expected GuildEmblem, got {result:?}");
+        };
+        assert_eq!((*gdid, *version), (42, 7));
+        assert_eq!(*bmp, blob);
+    }
+
+    #[test]
+    fn dispatch_change_members_ack_yields_position_changes() {
+        let packetver = 20120307;
+        let mut row = MemberPositionInfo::new(packetver);
+        row.set_aid(2000000);
+        row.set_gid(150001);
+        row.set_position_id(3);
+        row.fill_raw();
+        let mut pkt = PacketZcAckReqChangeMembers::new(packetver);
+        pkt.set_packet_length(4 + 12);
+        pkt.set_member_info(vec![row]);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        let [GameEvent::GuildMemberPositionsChanged { entries }] = result.as_slice() else {
+            panic!("expected GuildMemberPositionsChanged, got {result:?}");
+        };
+        assert_eq!(entries.as_slice(), &[(2000000, 150001, 3)]);
+    }
+
+    #[test]
     fn dispatch_cart_normal_itemlist3_yields_cart_items() {
         let packetver = 20120307;
         let mut pkt = PacketZcCartNormalItemlist3::new(packetver);
@@ -2567,6 +2694,40 @@ mod tests {
                 assert_eq!(name, "Poring");
             }
             other => panic!("expected EntityNameReceived, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_ack_reqnameall_returns_entity_names_received() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAckReqnameall::new(packetver);
+        pkt.set_aid(42);
+        let fill = |s: &str| {
+            let mut buf = ['\0'; 24];
+            for (i, c) in s.chars().enumerate() {
+                buf[i] = c;
+            }
+            buf
+        };
+        pkt.set_cname(fill("Alice"));
+        pkt.set_gname(fill("Knights"));
+        pkt.set_rname(fill("Leader"));
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntityNamesReceived {
+                gid,
+                name,
+                guild_name,
+                position_name,
+            } => {
+                assert_eq!(*gid, 42);
+                assert_eq!(name, "Alice");
+                assert_eq!(guild_name, "Knights");
+                assert_eq!(position_name, "Leader");
+            }
+            other => panic!("expected EntityNamesReceived, got {other:?}"),
         }
     }
 

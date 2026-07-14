@@ -716,6 +716,33 @@ impl App {
             _ => {}
         }
 
+        let mut guild_head_calls: Vec<UiDrawCall> = Vec::new();
+        if self.game.app_state == AppState::InGame && self.game.guild_window.is_open() {
+            let idle = ragnarok_formats::act::SpriteAnimationState::new(0);
+            for &(gid, center) in self.game.guild_window.member_head_slots() {
+                let Some(sprite) = self.game.guild_head_sprites.get(&gid) else {
+                    continue;
+                };
+                for batch in sprite.build_head_batches(&idle, None, 0, center, 26.0, 0.0) {
+                    let idx = inline_textures.len();
+                    inline_textures.push(batch.texture);
+                    guild_head_calls.push(UiDrawCall {
+                        vertices: batch
+                            .vertices
+                            .iter()
+                            .map(|sv| UiVertex {
+                                position: [sv.position[0], sv.position[1]],
+                                tex_coord: sv.tex_coord,
+                                color: sv.color,
+                            })
+                            .collect(),
+                        indices: batch.indices,
+                        texture: UiTextureRef::Inline(idx),
+                    });
+                }
+            }
+        }
+
         {
             use ragnarok_game::damage_number::{
                 DamageNumberRenderEntry, build_damage_number_quads,
@@ -807,6 +834,8 @@ impl App {
             }
         }
 
+        let cart_len = cart_select_calls.len();
+        let mut cart_abs: Option<usize> = None;
         if let Some(insert_idx) = self.game.cart_select_window.preview_insert_index() {
             let mut abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
             // The paperdoll insertion above shifts later indices forward.
@@ -814,7 +843,24 @@ impl App {
                 abs_idx += paperdoll_len;
             }
             let abs_idx = abs_idx.min(all_ui_calls.len());
+            cart_abs = Some(abs_idx);
             for (i, dc) in cart_select_calls.into_iter().enumerate() {
+                all_ui_calls.insert(abs_idx + i, dc);
+            }
+        }
+
+        if let Some(insert_idx) = self.game.guild_window.head_insert_index()
+            && !guild_head_calls.is_empty()
+        {
+            let mut abs_idx = overlay_len + insert_idx;
+            if paperdoll_abs.is_some_and(|pd| abs_idx >= pd) {
+                abs_idx += paperdoll_len;
+            }
+            if cart_abs.is_some_and(|c| abs_idx >= c) {
+                abs_idx += cart_len;
+            }
+            let abs_idx = abs_idx.min(all_ui_calls.len());
+            for (i, dc) in guild_head_calls.into_iter().enumerate() {
                 all_ui_calls.insert(abs_idx + i, dc);
             }
         }

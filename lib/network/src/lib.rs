@@ -45,8 +45,8 @@ pub use sender::{
     build_guild_notice, build_req_leave_guild, build_req_ban_guild,
     build_req_change_memberpos, build_reg_change_guild_positioninfo,
     build_make_guild, build_req_disorganize_guild, build_req_guild_emblem_img,
-    build_register_guild_emblem, build_req_join_guild, build_req_ally_guild,
-    build_req_hostile_guild, build_req_delete_related_guild,
+    build_register_guild_emblem, build_req_join_guild, build_ans_join_guild, build_req_ally_guild,
+    build_ally_guild, build_req_hostile_guild, build_req_delete_related_guild,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;

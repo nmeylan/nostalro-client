@@ -12,7 +12,7 @@ use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
-use ragnarok_renderer::build_entity_sprite;
+use ragnarok_renderer::{EntitySprite, build_entity_sprite};
 use std::rc::Rc;
 
 impl App {
@@ -61,9 +61,33 @@ impl App {
         head_bottom: u16,
         shield_id: u16,
     ) {
+        if let Some(sprite) = self.build_player_entity_sprite(
+            job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom,
+            shield_id,
+        ) {
+            self.game.sprites.insert(gid, sprite);
+        } else {
+            tracing::warn!("load_player_sprite: failed to load sprite data for gid={gid} job={job}");
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_player_entity_sprite(
+        &self,
+        job: u16,
+        sex: u8,
+        head: u16,
+        hair_color: u16,
+        cloth_color: u16,
+        weapon: Option<WeaponType>,
+        head_top: u16,
+        head_mid: u16,
+        head_bottom: u16,
+        shield_id: u16,
+    ) -> Option<Rc<EntitySprite>> {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
-            _ => return,
+            _ => return None,
         };
         let empty_table = AccessoryTable::empty();
         let accessory_table = self
@@ -72,8 +96,7 @@ impl App {
             .accessory
             .as_ref()
             .unwrap_or(&empty_table);
-        tracing::debug!("load_player_sprite: gid={gid} job={job} sex={sex}");
-        let data = match sprite_loader::load_player_sprite_data(
+        let data = sprite_loader::load_player_sprite_data(
             grf,
             accessory_table,
             job,
@@ -86,16 +109,8 @@ impl App {
             head_mid,
             head_bottom,
             shield_id,
-        ) {
-            Some(d) => d,
-            None => {
-                tracing::warn!(
-                    "load_player_sprite: failed to load sprite data for gid={gid} job={job}"
-                );
-                return;
-            }
-        };
-        let sprite = Rc::new(build_entity_sprite(
+        )?;
+        Some(Rc::new(build_entity_sprite(
             &renderer.device.device,
             &renderer.device.queue,
             &renderer.texture_cache.bind_group_layout,
@@ -108,8 +123,37 @@ impl App {
             data.headgear_bottom,
             data.shield,
             data.shadow,
-        ));
-        self.game.sprites.insert(gid, sprite);
+        )))
+    }
+
+    /// Load the head/body sprite of every current guild member into a dedicated
+    /// cache keyed by member GID, for the face icons in the guild roster. Kept
+    /// separate from `game.sprites` so it never collides with on-screen entities.
+    pub(crate) fn load_guild_member_sprites(&mut self) {
+        self.game.guild_head_sprites.clear();
+        let members: Vec<(u32, u16, u8, u16, u16)> = match &self.game.guild {
+            Some(g) => g
+                .members
+                .iter()
+                .map(|m| {
+                    (
+                        m.gid,
+                        m.job.max(0) as u16,
+                        m.sex.max(0) as u8,
+                        m.head.max(0) as u16,
+                        m.head_palette.max(0) as u16,
+                    )
+                })
+                .collect(),
+            None => return,
+        };
+        for (gid, job, sex, head, hair_color) in members {
+            if let Some(sprite) =
+                self.build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0)
+            {
+                self.game.guild_head_sprites.insert(gid, sprite);
+            }
+        }
     }
 
     pub(crate) fn load_mercenary_sprite(&mut self, gid: u32, job: u16) {

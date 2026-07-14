@@ -1340,25 +1340,27 @@ fn create_single(name: &str) -> State {
                 GuildPosition { id: 1, name: "Officer".to_string(), right: 0x001, ranking: 1, pay_rate: 10 },
                 GuildPosition { id: 2, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 0 },
             ];
-            let gmember = |gid: u32, name: &str, level: i16, position_id: i32, pos_name: &str,
-                           online: bool, map: &str, contrib: i32| GuildMember {
+            #[allow(clippy::too_many_arguments)]
+            let gmember = |gid: u32, name: &str, job: i16, level: i16, position_id: i32,
+                           pos_name: &str, online: bool, note: &str, contrib: i32| GuildMember {
                 aid: gid,
                 gid,
                 name: name.to_string(),
+                job,
                 level,
                 position_id,
                 position_name: pos_name.to_string(),
                 online,
-                cur_map: map.to_string(),
+                note: note.to_string(),
                 contribution_exp: contrib,
                 ..Default::default()
             };
             guild.members = vec![
-                gmember(local_gid, "Walkiry", 99, 0, "Master", true, "prontera.gat", 1500),
-                gmember(2000002, "Lidia", 88, 1, "Officer", true, "payon.gat", 900),
-                gmember(2000003, "Garm", 71, 2, "Member", false, "", 300),
-                gmember(2000004, "Sohee", 65, 2, "Member", true, "geffen.gat", 250),
-                gmember(2000005, "Poring", 42, 2, "Member", false, "", 60),
+                gmember(local_gid, "Walkiry", 7, 99, 0, "Master", true, "GM", 1500),
+                gmember(2000002, "Lidia", 4, 88, 1, "Officer", true, "2nd", 900),
+                gmember(2000003, "Garm", 12, 71, 2, "Member", false, "", 300),
+                gmember(2000004, "Sohee", 8, 65, 2, "Member", true, "alt", 250),
+                gmember(2000005, "Poring", 1, 42, 2, "Member", false, "", 60),
             ];
             guild.relations = vec![
                 GuildRelation { gdid: 7, name: "Geffen Mages".to_string(), relation: 0 },

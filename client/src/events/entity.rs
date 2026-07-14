@@ -34,6 +34,7 @@ impl App {
     pub(super) fn handle_entity_spawned(
         &mut self,
         gid: u32,
+        aid: u32,
         job: u16,
         speed: u16,
         sex: u8,
@@ -115,6 +116,7 @@ impl App {
             _ => {}
         }
         self.game.entities.insert(entity);
+        self.game.entities.register_account_id(aid, gid);
         let sprite_job = visual_job(job, effect_state);
         self.load_entity_sprite(
             gid,

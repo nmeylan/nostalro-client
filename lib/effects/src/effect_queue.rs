@@ -41,6 +41,11 @@ impl EffectQueue {
         self.pending.push(request);
     }
 
+    pub fn clear(&mut self) {
+        self.pending.clear();
+        self.despawns.clear();
+    }
+
     pub fn spawn_at(&mut self, effect_id: EffectId, world_pos: [f32; 3]) {
         self.push(SpawnRequest::new(effect_id, Attach::WorldPos(world_pos)));
     }
@@ -223,6 +228,16 @@ mod tests {
         q.spawn_on_keyed_with_count(EffectId::Chookgi2, 42, 5, 5);
         q.despawn(5);
         assert!(q.drain().is_empty(), "count→0 leaves no pending spheres");
+    }
+
+    #[test]
+    fn clear_drops_pending_spawns_and_despawns() {
+        let mut q = EffectQueue::new();
+        q.spawn_on_keyed_with_count(EffectId::Chookgi2, 42, 1, 1);
+        q.despawn(9);
+        q.clear();
+        assert!(q.drain().is_empty());
+        assert!(q.drain_despawns().is_empty());
     }
 
     #[test]

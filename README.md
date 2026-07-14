@@ -2,9 +2,7 @@ The goal is to have a playable client to retrieve the classic ro experience (200
 
 It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, data structure, proc-macro.
 
-If you seek for the best/most promising client implementation check-out [korangar](https://github.com/vE5li/korangar)
-
-This repository does not provide any game assets
+**This repository does not and will not provide any game assets**.
 
 # Why yet another client?
 I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
@@ -60,6 +58,7 @@ Features:
 - Grid mode (view all elements in grid to ease finding of resources)
 - Export element
 - Add element
+- Play sound
 
 ```bash
 cargo run --bin ragnarok-grf-editor
@@ -72,6 +71,11 @@ Creation of UI is something that can takes lot of iteration, for this reason it 
 lib/ui-component/dev.sh game
 # Login/char select UI
 lib/ui-component/dev.sh account
+# Homunculus/Mercenary/Pet
+lib/ui-component/dev.sh companion
+# Guild
+lib/ui-component/dev.sh guild
+
 ```
 
 ## Effect viewer hot reload

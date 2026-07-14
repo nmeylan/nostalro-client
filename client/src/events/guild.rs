@@ -35,6 +35,8 @@ impl App {
         max_member_num: i32,
         avg_level: i32,
         point: i32,
+        honor: i32,
+        virtue: i32,
         master_name: String,
         manage_land: String,
         emblem_version: i32,
@@ -53,6 +55,8 @@ impl App {
             guild.max_member_num = max_member_num;
             guild.avg_level = avg_level;
             guild.point = point;
+            guild.honor = honor;
+            guild.virtue = virtue;
             guild.master_name = master_name;
             guild.manage_land = manage_land;
             guild.emblem_version = emblem_version;
@@ -70,6 +74,7 @@ impl App {
         let guild = self.guild_mut();
         guild.members = members;
         Self::apply_position_names(guild);
+        self.load_guild_member_sprites();
     }
 
     pub(super) fn handle_guild_positions(&mut self, positions: Vec<GuildPosition>) {
@@ -80,6 +85,23 @@ impl App {
                 *existing = GuildPosition { name, ..pos };
             } else {
                 guild.positions.push(pos);
+            }
+        }
+        Self::apply_position_names(guild);
+    }
+
+    pub(super) fn handle_guild_member_positions_changed(
+        &mut self,
+        entries: Vec<(u32, u32, i32)>,
+    ) {
+        let guild = self.guild_mut();
+        for (aid, gid, position_id) in entries {
+            if let Some(m) = guild
+                .members
+                .iter_mut()
+                .find(|m| m.gid == gid && m.aid == aid)
+            {
+                m.position_id = position_id;
             }
         }
         Self::apply_position_names(guild);
@@ -102,9 +124,19 @@ impl App {
     }
 
     pub(super) fn handle_guild_skills(&mut self, point: i16, skills: Vec<GuildSkill>) {
+        let icon_paths = skills
+            .iter()
+            .map(|s| {
+                format!(
+                    "data/texture/유저인터페이스/item/{}.bmp",
+                    s.name.to_lowercase()
+                )
+            })
+            .collect();
         let guild = self.guild_mut();
         guild.skill_point = point;
         guild.skills = skills;
+        self.preload_item_icons(icon_paths);
     }
 
     pub(super) fn handle_guild_ban_list(&mut self, entries: Vec<GuildBanEntry>) {
@@ -132,11 +164,39 @@ impl App {
     }
 
     pub(super) fn handle_guild_emblem(&mut self, gdid: u32, version: i32, bmp: Vec<u8>) {
-        let guild = self.guild_mut();
-        if guild.gdid == gdid {
-            guild.emblem_version = version;
-            guild.emblem_bmp = Some(bmp);
+        let guild = self.game.guild.get_or_insert_with(Guild::default);
+        if guild.gdid != gdid {
+            return;
         }
+        guild.emblem_version = version;
+        guild.emblem_bmp = Some(bmp);
+
+        let key = ragnarok_game::guild::emblem_texture_key(gdid, version);
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        if renderer.texture_cache.texture_size(&key).is_some() {
+            return;
+        }
+        let blob = guild.emblem_bmp.as_ref().unwrap();
+        let Some(rgba) = ragnarok_renderer::texture::decode_emblem(blob) else {
+            tracing::warn!("Failed to decode guild emblem for guild {gdid}");
+            return;
+        };
+        let (w, h) = (rgba.width(), rgba.height());
+        let bg = ragnarok_renderer::texture::create_texture_bind_group_from_rgba(
+            &renderer.device.device,
+            &renderer.device.queue,
+            rgba.as_raw(),
+            w,
+            h,
+            &renderer.texture_cache.bind_group_layout,
+            &key,
+            ragnarok_renderer::wgpu::FilterMode::Nearest,
+            ragnarok_renderer::wgpu::TextureFormat::Rgba8Unorm,
+            ragnarok_renderer::wgpu::AddressMode::ClampToEdge,
+        );
+        renderer.texture_cache.insert(&key, bg, w, h);
     }
 
     pub(super) fn handle_guild_identity_updated(
@@ -149,6 +209,7 @@ impl App {
     ) {
         if gdid == 0 {
             self.game.guild = None;
+            self.game.guild_head_sprites.clear();
             return;
         }
         let guild = self.guild_mut();
@@ -179,6 +240,7 @@ impl App {
         let is_self = name == self.game.character.name;
         if is_self {
             self.game.guild = None;
+            self.game.guild_head_sprites.clear();
             self.game
                 .chat_window
                 .add_system("You have left the guild.".to_string());
@@ -195,9 +257,36 @@ impl App {
         self.game.chat_window.add_system(text);
     }
 
+    pub(super) fn handle_guild_member_expelled(&mut self, name: String, reason: String) {
+        let is_self = name == self.game.character.name;
+        if is_self {
+            self.game.guild = None;
+            self.game.guild_head_sprites.clear();
+            self.game
+                .chat_window
+                .add_system("You have been expelled from the guild.".to_string());
+            return;
+        }
+        if let Some(guild) = &mut self.game.guild {
+            guild.members.retain(|m| m.name != name);
+            guild.ban_list.push(GuildBanEntry {
+                char_name: name.clone(),
+                account: String::new(),
+                reason: reason.clone(),
+            });
+        }
+        let text = if reason.is_empty() {
+            format!("{name} has been expelled from the guild.")
+        } else {
+            format!("{name} has been expelled from the guild. ({reason})")
+        };
+        self.game.chat_window.add_system(text);
+    }
+
     pub(super) fn handle_guild_disband_result(&mut self, reason: i32) {
         if reason == 0 {
             self.game.guild = None;
+            self.game.guild_head_sprites.clear();
             self.game
                 .chat_window
                 .add_system("The guild has been disbanded.".to_string());
@@ -208,15 +297,83 @@ impl App {
         }
     }
 
-    pub(super) fn handle_guild_invite_received(&mut self, _gdid: u32, name: String) {
-        self.game
-            .chat_window
-            .add_system(format!("You have been invited to join guild \"{name}\"."));
+    pub(super) fn handle_guild_invite_received(&mut self, gdid: u32, name: String) {
+        self.game.pending_guild_invite = Some(gdid);
+        self.game.guild_invite_result.set(None);
+        let msg = format!("Join guild \"{name}\"?");
+        self.game.confirm_dialog.show_with_out(
+            &msg,
+            true,
+            self.game.guild_invite_result.clone(),
+            |_| {},
+        );
     }
 
-    pub(super) fn handle_guild_ally_request_received(&mut self, _aid: u32, name: String) {
-        self.game
-            .chat_window
-            .add_system(format!("Guild \"{name}\" requests an alliance."));
+    pub(super) fn handle_guild_ally_request_received(&mut self, aid: u32, name: String) {
+        self.game.pending_guild_ally = Some(aid);
+        self.game.guild_ally_result.set(None);
+        let msg = format!("Guild \"{name}\" requests an alliance. Accept?");
+        self.game.confirm_dialog.show_with_out(
+            &msg,
+            true,
+            self.game.guild_ally_result.clone(),
+            |_| {},
+        );
+    }
+
+    pub(super) fn handle_guild_join_result(&mut self, answer: u8) {
+        let msg = match answer {
+            0 => "That character is already in a guild.",
+            1 => "The guild invitation was rejected.",
+            2 => return,
+            _ => "The guild is full.",
+        };
+        self.game.chat_window.add_system(msg.to_string());
+    }
+
+    pub(super) fn handle_guild_relation_deleted(&mut self, gdid: u32, relation: i32) {
+        if let Some(guild) = &mut self.game.guild {
+            guild
+                .relations
+                .retain(|r| !(r.gdid as u32 == gdid && r.relation == relation));
+        }
+    }
+
+    pub(super) fn handle_guild_relation_added(&mut self, gdid: u32, relation: i32, name: String) {
+        if let Some(guild) = &mut self.game.guild {
+            let exists = guild
+                .relations
+                .iter()
+                .any(|r| r.gdid as u32 == gdid && r.relation == relation);
+            if !exists {
+                guild.relations.push(GuildRelation {
+                    gdid: gdid as i32,
+                    relation,
+                    name,
+                });
+            }
+        }
+    }
+
+    pub(super) fn handle_guild_hostile_result(&mut self, result: u8) {
+        let msg = match result {
+            0 => "The guild has been set as an antagonist.",
+            1 => "Your guild has too many antagonists.",
+            2 => "This guild is already an antagonist.",
+            _ => "Antagonist declarations are currently disabled.",
+        };
+        self.game.chat_window.add_system(msg.to_string());
+    }
+
+    pub(super) fn handle_guild_ally_result(&mut self, answer: u8) {
+        let msg = match answer {
+            0 => "Your guild is already allied with this guild.",
+            1 => "The alliance offer was rejected.",
+            2 => "The alliance offer was accepted.",
+            3 => "The other guild has too many alliances.",
+            4 => "Your guild has too many alliances.",
+            _ => "Alliance requests are currently disabled.",
+        };
+        self.game.chat_window.add_system(msg.to_string());
     }
 }

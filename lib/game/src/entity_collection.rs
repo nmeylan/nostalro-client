@@ -7,6 +7,9 @@ use models::enums::skill_enums::SkillEnum;
 pub struct EntityCollection {
     entities: HashMap<u32, Entity>,
     player_id: Option<u32>,
+    /// Maps a player's account id (the actor id used by name/guild packets) to
+    /// the entity key. For players the two differ; for other actors they match.
+    account_to_key: HashMap<u32, u32>,
 }
 
 impl Default for EntityCollection {
@@ -20,7 +23,20 @@ impl EntityCollection {
         Self {
             entities: HashMap::new(),
             player_id: None,
+            account_to_key: HashMap::new(),
         }
+    }
+
+    pub fn register_account_id(&mut self, account_id: u32, key: u32) {
+        if account_id != key {
+            self.account_to_key.insert(account_id, key);
+        }
+    }
+
+    /// Resolves an actor id from a name/guild packet to an entity key, following
+    /// the account-id bridge when the id is a player's account id.
+    fn resolve_key(&self, id: u32) -> u32 {
+        self.account_to_key.get(&id).copied().unwrap_or(id)
     }
 
     pub fn set_player_id(&mut self, id: u32) {
@@ -44,6 +60,7 @@ impl EntityCollection {
     }
 
     pub fn remove(&mut self, id: u32) -> Option<Entity> {
+        self.account_to_key.retain(|_, key| *key != id);
         self.entities.remove(&id)
     }
 
@@ -65,6 +82,7 @@ impl EntityCollection {
 
     pub fn clear(&mut self) {
         self.entities.clear();
+        self.account_to_key.clear();
         self.player_id = None;
     }
 
@@ -81,8 +99,10 @@ impl EntityCollection {
     pub fn clear_non_player(&mut self) {
         if let Some(pid) = self.player_id {
             self.entities.retain(|&id, _| id == pid);
+            self.account_to_key.retain(|_, key| *key == pid);
         } else {
             self.entities.clear();
+            self.account_to_key.clear();
         }
     }
 
@@ -103,8 +123,45 @@ impl EntityCollection {
     }
 
     pub fn apply_entity_name_received(&mut self, gid: u32, name: String) {
-        if let Some(entity) = self.entities.get_mut(&gid) {
+        let key = self.resolve_key(gid);
+        let found = self.entities.contains_key(&key);
+        tracing::info!(
+            "apply_entity_name_received gid={gid} resolved_key={key} found={found} name={name:?} known_keys={:?}",
+            self.entities.keys().collect::<Vec<_>>()
+        );
+        if let Some(entity) = self.entities.get_mut(&key) {
             entity.name = Some(name);
+        }
+    }
+
+    pub fn apply_entity_guild_changed(&mut self, aid: u32, gdid: u32, emblem_version: i32) {
+        let key = self.resolve_key(aid);
+        if let Some(entity) = self.entities.get_mut(&key) {
+            entity.guild_id = gdid;
+            entity.guild_emblem_version = emblem_version;
+            if gdid < 1 {
+                entity.guild_name = None;
+            }
+        }
+    }
+
+    pub fn apply_entity_names_received(
+        &mut self,
+        gid: u32,
+        name: String,
+        guild_name: String,
+        position_name: String,
+    ) {
+        let key = self.resolve_key(gid);
+        let found = self.entities.contains_key(&key);
+        tracing::info!(
+            "apply_entity_names_received gid={gid} resolved_key={key} found={found} name={name:?} guild={guild_name:?} known_keys={:?}",
+            self.entities.keys().collect::<Vec<_>>()
+        );
+        if let Some(entity) = self.entities.get_mut(&key) {
+            entity.name = Some(name);
+            entity.guild_name = (!guild_name.is_empty()).then_some(guild_name);
+            entity.position_name = (!position_name.is_empty()).then_some(position_name);
         }
     }
 
@@ -286,6 +343,30 @@ mod tests {
     }
 
     #[test]
+    fn names_resolve_through_account_id_bridge() {
+        let mut col = EntityCollection::new();
+        col.insert(make_entity(2000100));
+        col.register_account_id(2000101, 2000100);
+
+        col.apply_entity_names_received(
+            2000101,
+            "Stalker".to_string(),
+            "rg".to_string(),
+            "GuildMaster".to_string(),
+        );
+
+        let e = col.get(2000100).unwrap();
+        assert_eq!(e.name.as_deref(), Some("Stalker"));
+        assert_eq!(e.guild_name.as_deref(), Some("rg"));
+        assert_eq!(e.position_name.as_deref(), Some("GuildMaster"));
+
+        col.remove(2000100);
+        col.insert(make_entity(2000101));
+        col.apply_entity_name_received(2000101, "Other".to_string());
+        assert_eq!(col.get(2000101).unwrap().name.as_deref(), Some("Other"));
+    }
+
+    #[test]
     fn stop_move_updates_position_and_state() {
         let mut col = EntityCollection::new();
         let mut entity = make_entity(100);
@@ -324,6 +405,25 @@ mod tests {
         assert_eq!(e.state, EntityState::Standing);
         assert_eq!(e.state_timer, 0.0);
         assert!(e.active_skill_id.is_none());
+    }
+
+    #[test]
+    fn guild_changed_sets_emblem_and_clears_tag_on_leave() {
+        let mut col = EntityCollection::new();
+        let mut entity = make_entity(100);
+        entity.guild_name = Some("Knights".to_string());
+        col.insert(entity);
+
+        col.apply_entity_guild_changed(100, 7, 42);
+        let e = col.get(100).unwrap();
+        assert_eq!(e.guild_id, 7);
+        assert_eq!(e.guild_emblem_version, 42);
+        assert_eq!(e.guild_name.as_deref(), Some("Knights"));
+
+        col.apply_entity_guild_changed(100, 0, 0);
+        let e = col.get(100).unwrap();
+        assert_eq!(e.guild_id, 0);
+        assert!(e.guild_name.is_none());
     }
 
     #[test]

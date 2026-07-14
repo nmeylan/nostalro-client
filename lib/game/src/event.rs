@@ -118,6 +118,7 @@ pub enum GameEvent {
     },
     EntitySpawned {
         gid: u32,
+        aid: u32,
         job: u16,
         speed: u16,
         sex: u8,
@@ -179,6 +180,12 @@ pub enum GameEvent {
     EntityNameReceived {
         gid: u32,
         name: String,
+    },
+    EntityNamesReceived {
+        gid: u32,
+        name: String,
+        guild_name: String,
+        position_name: String,
     },
     EntityHpChanged {
         gid: u32,
@@ -782,6 +789,8 @@ pub enum GameEvent {
         max_member_num: i32,
         avg_level: i32,
         point: i32,
+        honor: i32,
+        virtue: i32,
         master_name: String,
         manage_land: String,
         emblem_version: i32,
@@ -794,6 +803,9 @@ pub enum GameEvent {
     },
     GuildPositionNames {
         names: Vec<(i32, String)>,
+    },
+    GuildMemberPositionsChanged {
+        entries: Vec<(u32, u32, i32)>,
     },
     GuildSkills {
         point: i16,
@@ -831,6 +843,15 @@ pub enum GameEvent {
         name: String,
         reason: String,
     },
+    GuildMemberExpelled {
+        name: String,
+        reason: String,
+    },
+    EntityGuildChanged {
+        aid: u32,
+        gdid: u32,
+        emblem_version: i32,
+    },
     GuildDisbandResult {
         reason: i32,
     },
@@ -838,8 +859,34 @@ pub enum GameEvent {
         gdid: u32,
         name: String,
     },
+    RespondGuildInvite {
+        gdid: u32,
+        accept: bool,
+    },
     GuildAllyRequestReceived {
         aid: u32,
+        name: String,
+    },
+    RespondGuildAlly {
+        aid: u32,
+        accept: bool,
+    },
+    GuildAllyResult {
+        answer: u8,
+    },
+    GuildHostileResult {
+        result: u8,
+    },
+    GuildJoinResult {
+        answer: u8,
+    },
+    GuildRelationDeleted {
+        gdid: u32,
+        relation: i32,
+    },
+    GuildRelationAdded {
+        gdid: u32,
+        relation: i32,
         name: String,
     },
     /// UI → client: window opened, fetch all guild tab data.
@@ -886,8 +933,22 @@ pub enum GameEvent {
         gdid: u32,
         relation: i32,
     },
-    /// UI → client: upload the first valid emblem BMP from the configured folder.
+    ConfirmedGuildExpel {
+        aid: u32,
+        gid: u32,
+        name: String,
+    },
+    ConfirmedGuildLeave,
+    ConfirmedDeleteGuildRelation {
+        gdid: u32,
+        relation: i32,
+    },
+    /// UI → client: open the emblem picker for the configured folder.
     RequestSelectEmblem,
+    /// UI → client: upload the chosen emblem BMP file.
+    RequestUploadEmblem {
+        path: String,
+    },
 
     // --- Skill-triggered production / selection windows ---
     ItemIdentifyList {

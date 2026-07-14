@@ -13,6 +13,7 @@ use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
+use ragnarok_ui_component::game::guild_window::GuildWindow;
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::cart_window::CartWindow;
 use ragnarok_ui_component::game::homun_window::HomunWindow;
@@ -158,6 +159,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "mercenary" => MercenaryWindow::grf_texture_paths(),
         "mercenary_skill" => MercenarySkillWindow::grf_texture_paths(),
         "homun" => HomunWindow::grf_texture_paths(),
+        "guild" => GuildWindow::grf_texture_paths(),
         "basic_info" => BasicInfoWindow::grf_texture_paths(),
         "hotkey_bar" => {
             let mut paths = HotkeyBarWindow::grf_texture_paths();

@@ -14,9 +14,12 @@ pub mod rsw;
 pub mod spr;
 pub mod str_effect;
 
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 
 use byteorder::{LittleEndian as LE, ReadBytesExt};
+use flate2::Compression;
+use flate2::read::ZlibDecoder;
+use flate2::write::ZlibEncoder;
 
 pub type Vec2 = [f32; 2];
 pub type Vec3 = [f32; 3];
@@ -74,6 +77,21 @@ pub fn apply_magenta_transparency(rgba_data: &mut [u8]) {
     }
 }
 
+pub fn zlib_compress(data: &[u8]) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    if encoder.write_all(data).is_err() {
+        return Vec::new();
+    }
+    encoder.finish().unwrap_or_default()
+}
+
+pub fn zlib_decompress(data: &[u8]) -> Option<Vec<u8>> {
+    let mut decoder = ZlibDecoder::new(data);
+    let mut out = Vec::new();
+    decoder.read_to_end(&mut out).ok()?;
+    Some(out)
+}
+
 pub(crate) fn read_string(cursor: &mut Cursor<&[u8]>, len: usize) -> Result<String, FormatError> {
     let mut buf = vec![0u8; len];
     cursor.read_exact(&mut buf)?;
@@ -112,4 +130,18 @@ pub(crate) fn read_vec3(cursor: &mut Cursor<&[u8]>) -> Result<Vec3, FormatError>
 
 pub(crate) fn version_at_least(version: (u8, u8), major: u8, minor: u8) -> bool {
     version.0 > major || (version.0 == major && version.1 >= minor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zlib_round_trip_small_buffer() {
+        let data = b"BM emblem payload \x00\x01\x02\x03 magenta".to_vec();
+        let compressed = zlib_compress(&data);
+        assert_ne!(compressed, data);
+        assert_eq!(zlib_decompress(&compressed), Some(data));
+        assert_eq!(zlib_decompress(b"not zlib data"), None);
+    }
 }

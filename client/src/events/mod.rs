@@ -127,6 +127,7 @@ impl App {
 
                 GameEvent::EntitySpawned {
                     gid,
+                    aid,
                     job,
                     speed,
                     sex,
@@ -149,6 +150,7 @@ impl App {
                 } => {
                     self.handle_entity_spawned(
                         gid,
+                        aid,
                         job,
                         speed,
                         sex,
@@ -223,6 +225,19 @@ impl App {
                 }
                 GameEvent::EntityNameReceived { gid, name } => {
                     self.game.entities.apply_entity_name_received(gid, name);
+                }
+                GameEvent::EntityNamesReceived {
+                    gid,
+                    name,
+                    guild_name,
+                    position_name,
+                } => {
+                    self.game.entities.apply_entity_names_received(
+                        gid,
+                        name,
+                        guild_name,
+                        position_name,
+                    );
                 }
                 GameEvent::EntityHpChanged { gid, hp, max_hp } => {
                     self.handle_entity_hp_changed(gid, hp, max_hp);
@@ -849,6 +864,8 @@ impl App {
                     max_member_num,
                     avg_level,
                     point,
+                    honor,
+                    virtue,
                     master_name,
                     manage_land,
                     emblem_version,
@@ -863,6 +880,8 @@ impl App {
                         max_member_num,
                         avg_level,
                         point,
+                        honor,
+                        virtue,
                         master_name,
                         manage_land,
                         emblem_version,
@@ -876,6 +895,9 @@ impl App {
                 }
                 GameEvent::GuildPositionNames { names } => {
                     self.handle_guild_position_names(names);
+                }
+                GameEvent::GuildMemberPositionsChanged { entries } => {
+                    self.handle_guild_member_positions_changed(entries);
                 }
                 GameEvent::GuildSkills { point, skills } => {
                     self.handle_guild_skills(point, skills);
@@ -910,6 +932,18 @@ impl App {
                 GameEvent::GuildMemberLeft { name, reason } => {
                     self.handle_guild_member_left(name, reason);
                 }
+                GameEvent::GuildMemberExpelled { name, reason } => {
+                    self.handle_guild_member_expelled(name, reason);
+                }
+                GameEvent::EntityGuildChanged {
+                    aid,
+                    gdid,
+                    emblem_version,
+                } => {
+                    self.game
+                        .entities
+                        .apply_entity_guild_changed(aid, gdid, emblem_version);
+                }
                 GameEvent::GuildDisbandResult { reason } => {
                     self.handle_guild_disband_result(reason);
                 }
@@ -918,6 +952,25 @@ impl App {
                 }
                 GameEvent::GuildAllyRequestReceived { aid, name } => {
                     self.handle_guild_ally_request_received(aid, name);
+                }
+                GameEvent::GuildAllyResult { answer } => {
+                    self.handle_guild_ally_result(answer);
+                }
+                GameEvent::GuildHostileResult { result } => {
+                    self.handle_guild_hostile_result(result);
+                }
+                GameEvent::GuildJoinResult { answer } => {
+                    self.handle_guild_join_result(answer);
+                }
+                GameEvent::GuildRelationDeleted { gdid, relation } => {
+                    self.handle_guild_relation_deleted(gdid, relation);
+                }
+                GameEvent::GuildRelationAdded {
+                    gdid,
+                    relation,
+                    name,
+                } => {
+                    self.handle_guild_relation_added(gdid, relation, name);
                 }
 
                 GameEvent::AutoCastSkill { skill_id, level } => {
