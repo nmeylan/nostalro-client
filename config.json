@@ -21,6 +21,22 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
+    "1200": {
+      "position": [
+        400.0,
+        100.0
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        1.0,
+        113.26172
+      ],
+      "open": true,
+      "collapsed": false
+    },
     "1400": {
       "position": [
         1.640625,
@@ -37,14 +53,6 @@
       "open": false,
       "collapsed": false
     },
-    "110": {
-      "position": [
-        490.0,
-        568.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "10": {
       "position": [
         344.0,
@@ -53,18 +61,26 @@
       "open": false,
       "collapsed": false
     },
-    "210": {
+    "110": {
       "position": [
-        342.0,
-        346.0
+        490.0,
+        568.0
       ],
       "open": false,
       "collapsed": false
     },
-    "1710": {
+    "900": {
       "position": [
-        114.00391,
-        444.41016
+        4.375,
+        254.72266
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        346.0
       ],
       "open": false,
       "collapsed": false
@@ -81,6 +97,6 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 0,
+  "last_char_slot": 5,
   "map_recovery_command": "@go prontera"
 }

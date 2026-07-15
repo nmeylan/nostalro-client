@@ -558,6 +558,21 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::HamiBloodlust => C::cast(&[E::Hamiblood]),
         S::HlifAvoid => C::cast(&[E::Agiup]),
 
+        S::NpcChangewater => C::cast(&[E::Changecold]),
+        S::NpcChangeground => C::cast(&[E::Changeearth]),
+        S::NpcChangefire => C::cast(&[E::Changefire]),
+        S::NpcChangewind => C::cast(&[E::Changewind]),
+        S::NpcChangepoison => C::cast(&[E::Changepoison]),
+        S::NpcChangeholy => C::cast(&[E::Chaingeholy]),
+        S::NpcChangedarkness => C::cast(&[E::Changedark]),
+        S::NpcChangetelekinesis => C::cast(&[E::Changeflame]),
+        S::NpcSelfdestruction => C::cast(&[E::SuiExplosion]),
+        S::NpcSummonslave => C::cast(&[E::Summonslave]),
+        S::NpcKeeping => C::cast(&[E::Keeping]),
+        S::NpcDefender => C::cast(&[E::Deffender]),
+        S::NpcPowerup => C::cast(&[E::Gumgangnpc]),
+        S::NpcAgiup => C::cast(&[E::Agiup]),
+
         _ => C::default(),
     }
 }
@@ -881,9 +896,13 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::HfliMoon => T::on_target(&[E::Hflimoon1]),
         S::HfliSbr44 => T::on_target(&[E::Hflimoon3, E::Ef4waybody]),
         S::WeFemale => T::on_target(&[E::Absorbspirits]),
+        S::WeMale | S::HlifHeal => T::on_target(&[E::Heal4]),
         S::WeBaby => T::on_target(&[E::Baby]),
         S::AllResurrection => T::on_target(&[E::Resurrection, E::Revive]),
         S::AllPartyflee => T::on_target(&[E::Flowerleaf]),
+
+        S::NpcStop => T::on_target(&[E::NpcStop]),
+        S::NpcWeaponbraker => T::on_target(&[E::Stripweapon]),
 
         _ => T::default(),
     }
@@ -977,6 +996,30 @@ mod tests {
         assert!(caster_skill_effects(S::MerQuicken).cast.is_empty());
         assert_eq!(merc_skill_base_id(S::MaDouble.id() as u16), S::AcDouble.id() as u16);
         assert_eq!(merc_skill_base_id(S::SmBash.id() as u16), S::SmBash.id() as u16);
+    }
+
+    #[test]
+    fn npc_monster_skills_launch_on_correct_actor() {
+        use EffectId as E;
+        use SkillEnum as S;
+        for (skill, effect) in [
+            (S::NpcChangewater, E::Changecold),
+            (S::NpcChangefire, E::Changefire),
+            (S::NpcSelfdestruction, E::SuiExplosion),
+            (S::NpcSummonslave, E::Summonslave),
+            (S::NpcPowerup, E::Gumgangnpc),
+        ] {
+            assert_eq!(caster_skill_effects(skill).cast, &[effect], "{skill:?}");
+            assert!(target_skill_effects(skill).on_target.is_empty(), "{skill:?}");
+        }
+        for (skill, effect) in [
+            (S::NpcStop, E::NpcStop),
+            (S::NpcWeaponbraker, E::Stripweapon),
+            (S::HlifHeal, E::Heal4),
+        ] {
+            assert_eq!(target_skill_effects(skill).on_target, &[effect], "{skill:?}");
+            assert!(caster_skill_effects(skill).cast.is_empty(), "{skill:?}");
+        }
     }
 
     /// A one-shot cast/grant effect must play once and stop — a finite,

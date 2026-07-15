@@ -71,7 +71,7 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::Demonstration => SprDef::new("data/sprite/이팩트/데몬스트레이션")
             .with_size(1.2)
             .with_pos_y(-1.0),
-        EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱"),
+        EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱").with_pos_y(-5.0),
         EffectId::NpcStop2 => SprDef::new("data/sprite/이팩트/cconfine")
             .with_anim_speed(12.0)
             .one_shot()

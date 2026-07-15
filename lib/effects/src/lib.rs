@@ -219,6 +219,25 @@ pub fn effect_str_names() -> Vec<&'static [&'static str]> {
     out
 }
 
+pub fn effect_spr_paths() -> Vec<&'static str> {
+    use models::enums::EnumWithNumberValue;
+    use models::enums::effect_id::EffectId;
+
+    let mut seen = std::collections::BTreeSet::new();
+    for value in 0..3000usize {
+        let Ok(id) = EffectId::try_from_value(value) else {
+            continue;
+        };
+        match effect_spec(id) {
+            Some(spec::EffectSpec::Spr { sprite, .. } | spec::EffectSpec::SprBurst { sprite, .. }) => {
+                seen.insert(sprite);
+            }
+            _ => {}
+        }
+    }
+    seen.into_iter().collect()
+}
+
 pub fn custom_effect_sprite_paths() -> Vec<&'static str> {
     let mut seen = std::collections::BTreeSet::new();
     let sprite_lists: &[&[&str]] = &[
@@ -286,5 +305,18 @@ mod tests {
             paths.iter().any(|p| p.ends_with("ring_yellow.tga")),
             "Warp's texture is included",
         );
+    }
+
+    #[test]
+    fn effect_spr_paths_cover_spr_def_effects() {
+        let paths = effect_spr_paths();
+        assert!(
+            paths.contains(&"data/sprite/이팩트/스톱"),
+            "NpcStop's sprite must be preloaded",
+        );
+        let mut sorted = paths.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(paths.len(), sorted.len(), "no duplicates");
     }
 }
