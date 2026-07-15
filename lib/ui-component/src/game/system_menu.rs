@@ -15,6 +15,8 @@ const RESUME_ID: WidgetId = WidgetId(500);
 const OPTION_ID: WidgetId = WidgetId(501);
 const CHARSELECT_ID: WidgetId = WidgetId(502);
 const QUIT_ID: WidgetId = WidgetId(503);
+const RESTART_ID: WidgetId = WidgetId(504);
+const RESURRECT_ID: WidgetId = WidgetId(505);
 
 const MENU_W: f32 = 140.0;
 const FALLBACK_BTN_W: f32 = 120.0;
@@ -41,6 +43,16 @@ const QUIT_BTN: ButtonTextures = ButtonTextures {
     hover: "data/texture/유저인터페이스/esc_03b.bmp",
     pressed: "data/texture/유저인터페이스/esc_03c.bmp",
 };
+const RESTART_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_04a.bmp",
+    hover: "data/texture/유저인터페이스/esc_04b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_04c.bmp",
+};
+const RESURRECT_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_05a.bmp",
+    hover: "data/texture/유저인터페이스/esc_05b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_05c.bmp",
+};
 const DUMMY_BTN: ButtonTextures = ButtonTextures {
     normal: "",
     hover: "",
@@ -56,6 +68,8 @@ enum PendingConfirm {
 
 pub struct SystemMenu {
     pub open: bool,
+    pub dead: bool,
+    pub can_resurrect: bool,
     pub has_grf_textures: bool,
     pub allow_escape_toggle: bool,
     pending_confirm: PendingConfirm,
@@ -75,6 +89,8 @@ impl SystemMenu {
     pub fn new() -> Self {
         Self {
             open: false,
+            dead: false,
+            can_resurrect: false,
             has_grf_textures: false,
             allow_escape_toggle: false,
             pending_confirm: PendingConfirm::None,
@@ -117,6 +133,12 @@ impl Window for SystemMenu {
             QUIT_BTN.normal,
             QUIT_BTN.hover,
             QUIT_BTN.pressed,
+            RESTART_BTN.normal,
+            RESTART_BTN.hover,
+            RESTART_BTN.pressed,
+            RESURRECT_BTN.normal,
+            RESURRECT_BTN.hover,
+            RESURRECT_BTN.pressed,
         ];
         paths.extend(ConfirmDialog::grf_texture_paths());
         paths
@@ -134,6 +156,7 @@ impl InGameWindow for SystemMenu {
 
         if self.allow_escape_toggle
             && ui.ctx.key_escape
+            && !self.dead
             && self.pending_confirm == PendingConfirm::None
         {
             self.open = !self.open;
@@ -191,19 +214,122 @@ impl InGameWindow for SystemMenu {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MenuButton {
+    Resume,
+    Sound,
+    CharSelect,
+    Quit,
+    Restart,
+    Resurrect,
+}
+
+impl MenuButton {
+    fn id(self) -> WidgetId {
+        match self {
+            MenuButton::Resume => RESUME_ID,
+            MenuButton::Sound => OPTION_ID,
+            MenuButton::CharSelect => CHARSELECT_ID,
+            MenuButton::Quit => QUIT_ID,
+            MenuButton::Restart => RESTART_ID,
+            MenuButton::Resurrect => RESURRECT_ID,
+        }
+    }
+
+    fn textures(self) -> &'static ButtonTextures {
+        match self {
+            MenuButton::Resume => &RESUME_BTN,
+            MenuButton::CharSelect => &CHARSELECT_BTN,
+            MenuButton::Quit => &QUIT_BTN,
+            MenuButton::Restart => &RESTART_BTN,
+            MenuButton::Resurrect => &RESURRECT_BTN,
+            MenuButton::Sound => &DUMMY_BTN,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            MenuButton::Resume => "Resume",
+            MenuButton::Sound => "Sound",
+            MenuButton::CharSelect => "Character Select",
+            MenuButton::Quit => "Quit Game",
+            MenuButton::Restart => "Restart",
+            MenuButton::Resurrect => "Resurrect",
+        }
+    }
+
+    /// Buttons without dedicated GRF art render text-styled like the Sound button.
+    fn force_fallback(self) -> bool {
+        matches!(self, MenuButton::Sound)
+    }
+}
+
 impl SystemMenu {
+    pub fn open_dead(&mut self) {
+        self.open = true;
+        self.dead = true;
+    }
+
+    pub fn close_dead(&mut self) {
+        self.dead = false;
+        self.open = false;
+    }
+
+    fn buttons(&self) -> Vec<MenuButton> {
+        if self.dead {
+            let mut buttons = vec![MenuButton::Restart];
+            if self.can_resurrect {
+                buttons.push(MenuButton::Resurrect);
+            }
+            buttons.push(MenuButton::CharSelect);
+            buttons.push(MenuButton::Quit);
+            buttons
+        } else if self.has_grf_textures {
+            vec![
+                MenuButton::CharSelect,
+                MenuButton::Sound,
+                MenuButton::Quit,
+                MenuButton::Resume,
+            ]
+        } else {
+            vec![
+                MenuButton::Resume,
+                MenuButton::Sound,
+                MenuButton::CharSelect,
+                MenuButton::Quit,
+            ]
+        }
+    }
+
+    fn on_button_click(&mut self, button: MenuButton, events: &mut Vec<GameEvent>) {
+        match button {
+            MenuButton::Resume => self.open = false,
+            MenuButton::Sound => {
+                events.push(GameEvent::ToggleSoundOptions);
+                self.open = false;
+            }
+            MenuButton::CharSelect => self.pending_confirm = PendingConfirm::CharacterSelect,
+            MenuButton::Quit => self.pending_confirm = PendingConfirm::QuitGame,
+            MenuButton::Restart => events.push(GameEvent::ReturnToSavePoint),
+            MenuButton::Resurrect => events.push(GameEvent::RequestStandingResurrection),
+        }
+    }
+
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
+        let buttons = self.buttons();
+        let n = buttons.len() as f32;
         let (btn_w, btn_h) = self.btn_size;
         let (titlebar_w, titlebar_h) = self.win_size;
         let grf_btn_spacing = 3.0;
         let body_padding_top = 6.0;
         let body_padding_bottom = 6.0;
         let menu_w = btn_w + 60.0;
-        let body_h = body_padding_top + 4.0 * btn_h + 3.0 * grf_btn_spacing + body_padding_bottom;
+        let body_h =
+            body_padding_top + n * btn_h + (n - 1.0) * grf_btn_spacing + body_padding_bottom;
         let menu_h = titlebar_h + body_h;
 
         let mx = ((ui.ctx.screen_width - menu_w) / 2.0).floor();
-        let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor();
+        let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor() + 80.0;
 
         let titlebar_x = mx + (menu_w - titlebar_w) / 2.0;
         let (v, i) =
@@ -225,55 +351,30 @@ impl SystemMenu {
         let btn_x = mx + (menu_w - btn_w) / 2.0;
         let btn_y = |idx: usize| body_y + body_padding_top + idx as f32 * (btn_h + grf_btn_spacing);
 
-        let charselect = ui.button(
-            CHARSELECT_ID,
-            Rect::new(btn_x, btn_y(0), btn_w, btn_h),
-            &CHARSELECT_BTN,
-            "Character Select",
-        );
-        // No dedicated GRF art ships for a Sound button; render it fallback-styled.
-        let prev_grf = ui.has_grf_textures;
-        ui.has_grf_textures = false;
-        let sound = ui.button(
-            OPTION_ID,
-            Rect::new(btn_x, btn_y(1), btn_w, btn_h),
-            &DUMMY_BTN,
-            "Sound",
-        );
-        ui.has_grf_textures = prev_grf;
-        let quit = ui.button(
-            QUIT_ID,
-            Rect::new(btn_x, btn_y(2), btn_w, btn_h),
-            &QUIT_BTN,
-            "Quit Game",
-        );
-        let resume = ui.button(
-            RESUME_ID,
-            Rect::new(btn_x, btn_y(3), btn_w, btn_h),
-            &RESUME_BTN,
-            "Resume",
-        );
-
-        if resume.clicked() {
-            self.open = false;
-        }
-        if sound.clicked() {
-            events.push(GameEvent::ToggleSoundOptions);
-            self.open = false;
-        }
-        if charselect.clicked() {
-            self.pending_confirm = PendingConfirm::CharacterSelect;
-        }
-        if quit.clicked() {
-            self.pending_confirm = PendingConfirm::QuitGame;
+        for (idx, &button) in buttons.iter().enumerate() {
+            let rect = Rect::new(btn_x, btn_y(idx), btn_w, btn_h);
+            let prev_grf = ui.has_grf_textures;
+            if button.force_fallback() {
+                ui.has_grf_textures = false;
+            }
+            let clicked = ui
+                .button(button.id(), rect, button.textures(), button.label())
+                .clicked();
+            ui.has_grf_textures = prev_grf;
+            if clicked {
+                self.on_button_click(button, events);
+            }
         }
     }
 
     fn build_fallback(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
+        let buttons = self.buttons();
+        let n = buttons.len() as f32;
+        let menu_h = PADDING_TOP + n * FALLBACK_BTN_H + (n - 1.0) * BTN_SPACING + PADDING_BOTTOM;
         let mx = ((ui.ctx.screen_width - MENU_W) / 2.0).floor();
-        let my = ((ui.ctx.screen_height - MENU_H) / 2.0).floor();
+        let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor();
 
-        let (v, i) = draw::quad_vertices(mx, my, MENU_W, MENU_H, [0.2, 0.2, 0.28, 0.95]);
+        let (v, i) = draw::quad_vertices(mx, my, MENU_W, menu_h, [0.2, 0.2, 0.28, 0.95]);
         ui.draw_calls.push(DrawCall {
             vertices: v.to_vec(),
             indices: i.to_vec(),
@@ -282,9 +383,9 @@ impl SystemMenu {
         let border_color = [0.5, 0.5, 0.6, 1.0];
         for (bx, by, bw, bh) in [
             (mx, my, MENU_W, 1.0),
-            (mx, my + MENU_H - 1.0, MENU_W, 1.0),
-            (mx, my, 1.0, MENU_H),
-            (mx + MENU_W - 1.0, my, 1.0, MENU_H),
+            (mx, my + menu_h - 1.0, MENU_W, 1.0),
+            (mx, my, 1.0, menu_h),
+            (mx + MENU_W - 1.0, my, 1.0, menu_h),
         ] {
             let (v, i) = draw::quad_vertices(bx, by, bw, bh, border_color);
             ui.draw_calls.push(DrawCall {
@@ -297,43 +398,14 @@ impl SystemMenu {
         let btn_x = mx + (MENU_W - FALLBACK_BTN_W) / 2.0;
         let btn_y = |idx: usize| my + PADDING_TOP + idx as f32 * (FALLBACK_BTN_H + BTN_SPACING);
 
-        let resume = ui.button(
-            RESUME_ID,
-            Rect::new(btn_x, btn_y(0), FALLBACK_BTN_W, FALLBACK_BTN_H),
-            &DUMMY_BTN,
-            "Resume",
-        );
-        let option = ui.button(
-            OPTION_ID,
-            Rect::new(btn_x, btn_y(1), FALLBACK_BTN_W, FALLBACK_BTN_H),
-            &DUMMY_BTN,
-            "Option",
-        );
-        let charselect = ui.button(
-            CHARSELECT_ID,
-            Rect::new(btn_x, btn_y(2), FALLBACK_BTN_W, FALLBACK_BTN_H),
-            &DUMMY_BTN,
-            "Character Select",
-        );
-        let quit = ui.button(
-            QUIT_ID,
-            Rect::new(btn_x, btn_y(3), FALLBACK_BTN_W, FALLBACK_BTN_H),
-            &DUMMY_BTN,
-            "Quit Game",
-        );
-
-        if resume.clicked() {
-            self.open = false;
-        }
-        if option.clicked() {
-            events.push(GameEvent::ToggleSoundOptions);
-            self.open = false;
-        }
-        if charselect.clicked() {
-            self.pending_confirm = PendingConfirm::CharacterSelect;
-        }
-        if quit.clicked() {
-            self.pending_confirm = PendingConfirm::QuitGame;
+        for (idx, &button) in buttons.iter().enumerate() {
+            let rect = Rect::new(btn_x, btn_y(idx), FALLBACK_BTN_W, FALLBACK_BTN_H);
+            if ui
+                .button(button.id(), rect, &DUMMY_BTN, button.label())
+                .clicked()
+            {
+                self.on_button_click(button, events);
+            }
         }
     }
 }
@@ -521,5 +593,76 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::None);
         assert!(menu.open);
+    }
+
+    fn dead_button_center(screen_h: f32, button_count: usize, idx: usize) -> (f32, f32) {
+        let n = button_count as f32;
+        let menu_h = PADDING_TOP + n * FALLBACK_BTN_H + (n - 1.0) * BTN_SPACING + PADDING_BOTTOM;
+        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
+        let my = ((screen_h - menu_h) / 2.0).floor();
+        let btn_y = my + PADDING_TOP + idx as f32 * (FALLBACK_BTN_H + BTN_SPACING);
+        (btn_x + FALLBACK_BTN_W / 2.0, btn_y + FALLBACK_BTN_H / 2.0)
+    }
+
+    #[test]
+    fn dead_restart_emits_return_to_savepoint() {
+        let mut menu = SystemMenu::new();
+        menu.open_dead();
+        let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+
+        let (mx, my) = dead_button_center(600.0, 3, 0);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let events = menu.build(&mut ui, &mut character, &data);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::ReturnToSavePoint))
+        );
+    }
+
+    #[test]
+    fn resurrect_button_present_only_with_token() {
+        let mut menu = SystemMenu::new();
+        menu.open_dead();
+        menu.can_resurrect = true;
+        let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+
+        let (mx, my) = dead_button_center(600.0, 4, 1);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let events = menu.build(&mut ui, &mut character, &data);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestStandingResurrection))
+        );
+    }
+
+    #[test]
+    fn escape_cannot_close_death_menu() {
+        let mut menu = SystemMenu::new();
+        menu.open_dead();
+        menu.allow_escape_toggle = true;
+        let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_escape = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        menu.build(&mut ui, &mut character, &data);
+        assert!(menu.open);
+        assert!(menu.dead);
     }
 }

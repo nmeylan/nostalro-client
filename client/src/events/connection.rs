@@ -329,6 +329,14 @@ impl App {
         self.sound.stop_all_sfx();
         self.game.arrows.clear();
         self.game.damage_numbers.clear();
+        self.game.status_buff_keys.clear();
+        self.game.next_status_buff_key = 0;
+        self.game.level_aura_keys.clear();
+        self.game.boss_aura_keys.clear();
+        self.game.warp_portal_keys.clear();
+        self.game.spirit_keys.clear();
+        self.game.sight_aura_keys.clear();
+        self.game.ruwach_aura_keys.clear();
     }
 
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
@@ -378,10 +386,24 @@ impl App {
             }
             self.game.minimap_window.on_map_changed();
         }
+        if self.game.player_dead {
+            if let Some(entity) = self.game.entities.player_mut() {
+                entity.revive();
+            }
+            self.game.player_dead = false;
+            self.game.system_menu.close_dead();
+        }
         if let Some(entity) = self.game.entities.player_mut() {
             entity.movement.set_position(x as f32, y as f32);
         }
         self.position_camera_at(x as f32, y as f32);
+
+        let surviving: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+        for gid in surviving {
+            self.refresh_level_aura(gid);
+            self.refresh_boss_aura(gid);
+            self.refresh_detect_aura(gid);
+        }
 
         self.game.character.inventory.clear();
         self.channel

@@ -175,6 +175,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: p.state,
             guild_id: p.guid,
             guild_emblem_version: p.gemblem_ver as i32,
+            is_new_entry: false,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry7>() {
@@ -203,6 +204,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: 0,
             guild_id: p.guid,
             guild_emblem_version: p.gemblem_ver as i32,
+            is_new_entry: true,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry>() {
@@ -231,6 +233,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: p.state,
             guild_id: p.guid,
             guild_emblem_version: p.gemblem_ver as i32,
+            is_new_entry: false,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyNewentry>() {
@@ -259,6 +262,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: 0,
             guild_id: p.guid,
             guild_emblem_version: p.gemblem_ver as i32,
+            is_new_entry: true,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry8>() {
@@ -287,6 +291,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             posture: 0,
             guild_id: p.guid,
             guild_emblem_version: p.gemblem_ver as i32,
+            is_new_entry: false,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry9>() {
@@ -318,6 +323,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 posture: 0,
                 guild_id: p.guid,
                 guild_emblem_version: p.gemblem_ver as i32,
+                is_new_entry: false,
             },
             GameEvent::EntityMoved {
                 gid: p.gid,
@@ -2657,12 +2663,34 @@ mod tests {
                 y,
                 direction,
                 posture,
+                is_new_entry,
                 ..
             } => {
                 assert_eq!(*gid, 123456);
                 assert_eq!(*job, 1002);
                 assert_eq!((*x, *y, *direction), (100, 200, 3));
                 assert_eq!(*posture, 0, "a freshly spawned entity is standing");
+                assert!(*is_new_entry, "newentry marks a fresh appearance");
+            }
+            other => panic!("expected EntitySpawned, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_standentry_is_not_a_new_entry() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyStandentry7::new(packetver);
+        pkt.set_gid(123456);
+        pkt.set_job(1002);
+        pkt.set_pos_dir(crate::helpers::encode_pos(100, 200, 3));
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        match &result[0] {
+            GameEvent::EntitySpawned { is_new_entry, .. } => {
+                assert!(
+                    !is_new_entry,
+                    "an already-present entity entering view is not a new entry"
+                );
             }
             other => panic!("expected EntitySpawned, got {other:?}"),
         }

@@ -56,6 +56,7 @@ impl App {
         posture: u8,
         guild_id: u32,
         guild_emblem_version: i32,
+        is_new_entry: bool,
     ) {
         if self.game.entities.player_id() == Some(gid) {
             if effect_state != 0 {
@@ -87,6 +88,8 @@ impl App {
             if effect_changed {
                 self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
             }
+            self.refresh_level_aura(gid);
+            self.refresh_boss_aura(gid);
             return;
         }
         let entity_type = entity_type_from_job(job);
@@ -137,7 +140,7 @@ impl App {
             hair_color,
             direction,
         );
-        if entity_type == EntityType::Player && !is_hidden(effect_state) {
+        if is_new_entry && entity_type == EntityType::Player && !is_hidden(effect_state) {
             self.effect_queue.spawn_on(EffectId::Entry2, gid);
         }
         if let Some(design) = cart_design_from_option(effect_state) {
@@ -215,6 +218,15 @@ impl App {
             VanishType::Die => {
                 if let Some(entity) = self.game.entities.get_mut(gid) {
                     entity.request_pending_death();
+                }
+                self.despawn_level_aura(gid);
+                self.despawn_boss_aura(gid);
+                if self.game.entities.player_id() == Some(gid) {
+                    if let Some(pos) = self.entity_world_pos(gid) {
+                        self.effect_queue.spawn_at(EffectId::Devil, pos);
+                    }
+                    self.game.player_dead = true;
+                    self.game.system_menu.open_dead();
                 }
             }
             VanishType::OutOfSight => {
@@ -729,11 +741,11 @@ impl App {
     }
 
     pub(super) fn refresh_level_aura(&mut self, gid: u32) {
-        let Some((entity_type, effect_state, entity_level)) = self
+        let Some((entity_type, effect_state, entity_level, alive)) = self
             .game
             .entities
             .get(gid)
-            .map(|e| (e.entity_type, e.effect_state, e.base_level))
+            .map(|e| (e.entity_type, e.effect_state, e.base_level, e.is_alive()))
         else {
             return;
         };
@@ -742,7 +754,8 @@ impl App {
         } else {
             entity_level
         };
-        let want = self.config.display.show_level_aura
+        let want = alive
+            && self.config.display.show_level_aura
             && level_aura::level_aura_visible(entity_type, base_level, effect_state);
         let have = self.game.level_aura_keys.contains_key(&gid);
         match (want, have) {
@@ -765,15 +778,16 @@ impl App {
     }
 
     pub(super) fn refresh_boss_aura(&mut self, gid: u32) {
-        let Some((entity_type, is_boss, effect_state)) = self
+        let Some((entity_type, is_boss, effect_state, alive)) = self
             .game
             .entities
             .get(gid)
-            .map(|e| (e.entity_type, e.is_boss, e.effect_state))
+            .map(|e| (e.entity_type, e.is_boss, e.effect_state, e.is_alive()))
         else {
             return;
         };
-        let want = self.config.display.show_level_aura
+        let want = alive
+            && self.config.display.show_level_aura
             && level_aura::boss_aura_visible(entity_type, is_boss, effect_state);
         let have = self.game.boss_aura_keys.contains_key(&gid);
         match (want, have) {
@@ -1060,6 +1074,12 @@ impl App {
     pub(super) fn handle_entity_resurrected(&mut self, gid: u32) {
         if let Some(entity) = self.game.entities.get_mut(gid) {
             entity.revive();
+        }
+        self.refresh_level_aura(gid);
+        self.refresh_boss_aura(gid);
+        if self.game.entities.player_id() == Some(gid) {
+            self.game.player_dead = false;
+            self.game.system_menu.close_dead();
         }
     }
 

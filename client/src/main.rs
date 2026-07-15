@@ -63,7 +63,8 @@ use ragnarok_network::{
     build_req_delete_related_guild,
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
-    build_restart_packet, build_select_char_packet, build_select_warppoint_packet,
+    build_restart_packet, build_return_savepoint_packet, build_standing_resurrection_packet,
+    build_select_char_packet, build_select_warppoint_packet,
     build_sell_item_list_packet, build_shortcut_key_change_packet, build_stat_change_packet,
     build_unequip_item_packet, build_upgrade_skill_packet, build_use_item_packet,
     build_use_skill_packet, build_req_itemidentify_packet, build_req_makingarrow_packet,
@@ -599,6 +600,14 @@ impl App {
                     self.clear_companions();
                     self.channel
                         .send_packet(build_restart_packet(self.config.packetver));
+                }
+                GameEvent::ReturnToSavePoint => {
+                    self.channel
+                        .send_packet(build_return_savepoint_packet(self.config.packetver));
+                }
+                GameEvent::RequestStandingResurrection => {
+                    self.channel
+                        .send_packet(build_standing_resurrection_packet(self.config.packetver));
                 }
                 GameEvent::RequestMapRecoveryWarp => {
                     let char_name = self

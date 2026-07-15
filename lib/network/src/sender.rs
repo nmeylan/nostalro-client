@@ -155,6 +155,17 @@ mod tests {
         assert_eq!(i16::from_le_bytes([raw[2], raw[3]]), 2);
         assert_eq!(raw[4], 5);
     }
+
+    #[test]
+    fn restart_packet_types() {
+        assert_eq!(*build_return_savepoint_packet(20120307).last().unwrap(), 0);
+        assert_eq!(*build_restart_packet(20120307).last().unwrap(), 1);
+    }
+
+    #[test]
+    fn standing_resurrection_builds() {
+        assert!(!build_standing_resurrection_packet(20120307).is_empty());
+    }
 }
 
 pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
@@ -171,6 +182,19 @@ pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
 pub fn build_restart_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRestart::new(packetver);
     pkt.set_atype(1);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_return_savepoint_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRestart::new(packetver);
+    pkt.set_atype(0);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_standing_resurrection_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzStandingResurrection::new(packetver);
     pkt.fill_raw();
     pkt.raw
 }

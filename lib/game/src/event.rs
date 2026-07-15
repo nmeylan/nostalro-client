@@ -111,6 +111,8 @@ pub enum GameEvent {
     BackToLogin,
     BackToServerSelect,
     BackToCharacterSelect,
+    ReturnToSavePoint,
+    RequestStandingResurrection,
     RequestMapRecoveryWarp,
     RestartAck,
     QuitGame,
@@ -141,6 +143,7 @@ pub enum GameEvent {
         posture: u8,
         guild_id: u32,
         guild_emblem_version: i32,
+        is_new_entry: bool,
     },
     EntityMoved {
         gid: u32,

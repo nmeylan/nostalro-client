@@ -489,6 +489,10 @@ impl Entity {
         self.fade.is_some()
     }
 
+    pub fn is_alive(&self) -> bool {
+        self.state != EntityState::Dead && !self.pending_death && self.fade.is_none()
+    }
+
     pub fn should_remove(&self) -> bool {
         self.fade.as_ref().is_some_and(|f| f.is_expired())
     }
@@ -939,6 +943,39 @@ mod tests {
             "dies once the delayed hit has landed"
         );
         assert!(!e.pending_death);
+    }
+
+    #[test]
+    fn player_dies_immediately_even_with_a_pending_hit() {
+        use crate::scheduled_hit::ScheduledHit;
+        let mut e = Entity::new(
+            2,
+            EntityType::Player,
+            1002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            100,
+            0,
+            200,
+        );
+        e.state = EntityState::Standing;
+        let mut hit = ScheduledHit::single(50, 17, false);
+        hit.fire_at = 10.0;
+        e.scheduled_hits.push(hit);
+
+        e.request_pending_death();
+        assert_eq!(
+            e.state,
+            EntityState::Dead,
+            "a player collapses at once, unlike a monster that finishes its hit"
+        );
     }
 
     #[test]

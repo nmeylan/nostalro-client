@@ -112,6 +112,7 @@ pub struct GameState {
     pub selected_character: Option<CharacterInfo>,
     pub current_map: Option<String>,
     pub map_properties: MapProperties,
+    pub player_dead: bool,
     pub requested_guild_emblems: HashSet<(u32, i32)>,
     pub map_coords: Option<MapCoordinates>,
     pub gat: Option<GatFile>,
@@ -265,6 +266,9 @@ pub struct GameState {
 }
 
 pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
+
+/// Item id of the Token of Siegfried, which enables standing resurrection.
+const TOKEN_OF_SIEGFRIED: u16 = 7621;
 
 const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     BASIC_INFO_WINDOW_ID,
@@ -454,6 +458,15 @@ impl GameState {
             allow_escape = false;
         }
         self.system_menu.allow_escape_toggle = allow_escape;
+        self.system_menu.can_resurrect = self.system_menu.dead
+            && !self.map_properties.enable_pk()
+            && !self.map_properties.is_siege()
+            && self
+                .character
+                .inventory
+                .all_items()
+                .iter()
+                .any(|item| item.item_id == TOKEN_OF_SIEGFRIED && item.count > 0);
         events.extend(
             self.system_menu
                 .build(ui, &mut self.character, &self.data_table),
@@ -948,6 +961,7 @@ impl GameState {
             selected_character: None,
             current_map: None,
             map_properties: MapProperties::default(),
+            player_dead: false,
             requested_guild_emblems: HashSet::new(),
             map_coords: None,
             gat: None,

@@ -150,6 +150,7 @@ impl App {
                     posture,
                     guild_id,
                     guild_emblem_version,
+                    is_new_entry,
                 } => {
                     self.handle_entity_spawned(
                         gid,
@@ -175,6 +176,7 @@ impl App {
                         posture,
                         guild_id,
                         guild_emblem_version,
+                        is_new_entry,
                     );
                 }
                 GameEvent::EntityMoved {
