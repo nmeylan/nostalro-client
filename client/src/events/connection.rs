@@ -12,6 +12,7 @@ use ragnarok_network::{
 use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
+use ragnarok_ui_component::game::chat_room_board;
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::vending_board;
 use winit::event_loop::ActiveEventLoop;
@@ -263,7 +264,9 @@ impl App {
             preload_window(&mut self.game.vending_setup_window, renderer, grf);
             preload_window(&mut self.game.my_shop_window, renderer, grf);
             preload_window(&mut self.game.npc_shop, renderer, grf);
-            preload_window(&mut self.game.chat_room_window, renderer, grf);
+            renderer.preload_textures(&chat_room_board::grf_texture_paths(), grf);
+            preload_window(&mut self.game.chat_room_create_window, renderer, grf);
+            preload_window(&mut self.game.chat_room_member_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);
             preload_window(&mut self.game.book_window, renderer, grf);
             preload_window(&mut self.game.sound_options, renderer, grf);

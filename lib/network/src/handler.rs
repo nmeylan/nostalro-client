@@ -10,6 +10,7 @@ use ragnarok_game::event::{
     CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData,
     SelfConfigKind, ServerInfo, SkillInfo,
 };
+use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
@@ -1221,10 +1222,43 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::ChatRoomDestroy { room_id: p.room_id }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcEnterRoom>() {
-        return vec![GameEvent::ChatRoomEntered { room_id: p.room_id }];
+        let members = p
+            .member_list
+            .iter()
+            .map(|m| ChatRoomMember {
+                name: m.name.iter().take_while(|c| **c != '\0').collect(),
+                is_owner: m.role == 0,
+            })
+            .collect();
+        return vec![GameEvent::ChatRoomEntered {
+            room_id: p.room_id,
+            members,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcRefuseEnterRoom>() {
         return vec![GameEvent::ChatRoomJoinRefused { result: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckCreateChatroom>() {
+        return vec![GameEvent::ChatRoomCreateResult { flag: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMemberNewentry>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::ChatRoomMemberJoined {
+            name,
+            cur_count: p.curcount,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMemberExit>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::ChatRoomMemberLeft {
+            name,
+            cur_count: p.curcount,
+            kicked: p.atype == 1,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcRoleChange>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::ChatRoomOwnerChanged { name }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcWarplist>() {
         // Parse raw to stay independent of the generated array field shape: id(2)+SKID(2)+4×16 bytes.
@@ -3480,6 +3514,65 @@ mod tests {
             }
             other => panic!("expected ChatRoomUpsert, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn create_chatroom_round_trips_with_ack() {
+        let packetver = 20120307;
+        let raw = crate::sender::build_create_chatroom_packet("Trade", 15, false, "secret", packetver);
+        assert_eq!(u16::from_le_bytes([raw[0], raw[1]]), 0x00d5);
+        assert_eq!(i16::from_le_bytes([raw[2], raw[3]]), (15 + "Trade".len()) as i16);
+        assert_eq!(i16::from_le_bytes([raw[4], raw[5]]), 15); // limit
+        assert_eq!(raw[6], 0); // private
+        assert_eq!(&raw[7..13], b"secret");
+        assert_eq!(&raw[15..], b"Trade"); // title, not null-terminated
+
+        let mut ack = PacketZcAckCreateChatroom::new(packetver);
+        ack.set_result(0);
+        ack.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&ack, packetver).as_slice(),
+            [GameEvent::ChatRoomCreateResult { flag: 0 }]
+        ));
+    }
+
+    #[test]
+    fn enter_room_parses_members_and_member_events() {
+        let packetver = 20120307;
+        let name24 = |n: &str| {
+            let mut b = [0u8; 24];
+            b[..n.len()].copy_from_slice(n.as_bytes());
+            b
+        };
+        let mut raw = Vec::new();
+        raw.extend_from_slice(&0x00dbu16.to_le_bytes());
+        raw.extend_from_slice(&(8 + 28 * 2i16).to_le_bytes());
+        raw.extend_from_slice(&42u32.to_le_bytes()); // room id
+        raw.extend_from_slice(&0u32.to_le_bytes()); // role owner
+        raw.extend_from_slice(&name24("Alice"));
+        raw.extend_from_slice(&1u32.to_le_bytes()); // role normal
+        raw.extend_from_slice(&name24("Bob"));
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        match dispatch_packet(&*parsed, packetver).as_slice() {
+            [GameEvent::ChatRoomEntered { room_id, members }] => {
+                assert_eq!(*room_id, 42);
+                assert_eq!(members.len(), 2);
+                assert_eq!(members[0].name, "Alice");
+                assert!(members[0].is_owner);
+                assert!(!members[1].is_owner);
+            }
+            other => panic!("expected ChatRoomEntered, got {other:?}"),
+        }
+
+        let mut exit = PacketZcMemberExit::new(packetver);
+        exit.set_curcount(1);
+        exit.set_name(name24("Bob").map(|b| b as char));
+        exit.set_atype(1); // kicked
+        exit.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&exit, packetver).as_slice(),
+            [GameEvent::ChatRoomMemberLeft { kicked: true, .. }]
+        ));
     }
 
     #[test]

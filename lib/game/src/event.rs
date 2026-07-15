@@ -438,12 +438,54 @@ pub enum GameEvent {
     },
     ChatRoomEntered {
         room_id: u32,
+        members: Vec<crate::chat_room::ChatRoomMember>,
     },
     ChatRoomJoinRefused {
         result: u8,
     },
+    ChatRoomCreateResult {
+        flag: u8,
+    },
+    ChatRoomMemberJoined {
+        name: String,
+        cur_count: i16,
+    },
+    ChatRoomMemberLeft {
+        name: String,
+        cur_count: i16,
+        kicked: bool,
+    },
+    ChatRoomOwnerChanged {
+        name: String,
+    },
     RequestJoinChatRoom {
         room_id: u32,
+    },
+    ToggleChatRoomCreate,
+    RequestCreateChatRoom {
+        title: String,
+        limit: i16,
+        public: bool,
+        password: String,
+    },
+    RequestChangeChatRoom {
+        title: String,
+        limit: i16,
+        public: bool,
+        password: String,
+    },
+    RequestLeaveChatRoom,
+    RequestEditChatRoomSettings,
+    RequestKickChatMember {
+        name: String,
+    },
+    RequestChangeChatOwner {
+        name: String,
+    },
+    RequestOpenChatMemberMenu {
+        name: String,
+        x: f32,
+        y: f32,
     },
     InventoryNormalItems {
         items: Vec<NormalItemData>,

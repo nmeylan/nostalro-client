@@ -3,6 +3,7 @@ use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::targeting::pk_name_color;
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
+use ragnarok_ui_component::game::chat_room_board;
 use ragnarok_ui_component::game::vending_board;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 
@@ -10,6 +11,16 @@ use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 /// head. Shared by the overlay renderer and the hover hit-test so they agree.
 pub(crate) fn vending_board_rect(entry: &RenderEntry) -> [f32; 4] {
     vending_board::board_rect(
+        entry.screen_anchor[0],
+        entry.screen_anchor[1],
+        entry.head_offset,
+    )
+}
+
+/// Screen-space `[x0, y0, x1, y1]` of a chat room board, centered above the
+/// owner's head. Shared by the overlay renderer and the hover hit-test.
+pub(crate) fn chat_room_board_rect(entry: &RenderEntry) -> [f32; 4] {
+    chat_room_board::board_rect(
         entry.screen_anchor[0],
         entry.screen_anchor[1],
         entry.head_offset,
@@ -40,6 +51,7 @@ impl App {
         self.build_cast_bars(render_list, &mut calls);
         self.build_chat_bubbles(render_list, &mut calls);
         self.build_vending_boards(render_list, &mut calls);
+        self.build_chat_room_boards(render_list, &mut calls);
         self.build_floor_item_tooltip(hovered_floor_item_id, floor_item_render_list, &mut calls);
         self.build_debug_pick_bounds(render_list, floor_item_render_list, &mut calls);
 
@@ -399,6 +411,40 @@ impl App {
                 entry.screen_anchor[1],
                 entry.head_offset,
                 board,
+            );
+        }
+    }
+
+    fn build_chat_room_boards(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return,
+        };
+        for room in self.game.chat_rooms.iter() {
+            let entry = match render_list.iter().find(|e| e.id == room.owner_aid) {
+                Some(e) => e,
+                None => continue,
+            };
+
+            let has_grf = renderer
+                .texture_cache
+                .texture_size(chat_room_board::CHAT_OPEN_TEX)
+                .is_some();
+            let mut container = DialogContainer::new();
+            container.has_grf_textures = has_grf;
+            container.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
+
+            chat_room_board::draw_board(
+                calls,
+                &container,
+                &renderer.font_atlas,
+                entry.screen_anchor[0],
+                entry.screen_anchor[1],
+                entry.head_offset,
+                room.atype,
+                &room.title,
+                room.cur_count,
+                room.max_count,
             );
         }
     }

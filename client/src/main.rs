@@ -62,6 +62,8 @@ use ragnarok_network::{
     build_req_ally_guild, build_ally_guild, build_req_hostile_guild,
     build_req_delete_related_guild,
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
+    build_create_chatroom_packet, build_change_chatroom_packet, build_change_chat_owner_packet,
+    build_expel_chat_member_packet, build_exit_room_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_return_savepoint_packet, build_standing_resurrection_packet,
     build_select_char_packet, build_select_warppoint_packet,
@@ -647,6 +649,77 @@ impl App {
                 GameEvent::RequestJoinChatRoom { room_id } => {
                     self.channel
                         .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
+                }
+                GameEvent::ToggleChatRoomCreate => {
+                    self.game.chat_room_create_window.toggle();
+                }
+                GameEvent::RequestCreateChatRoom {
+                    title,
+                    limit,
+                    public,
+                    password,
+                } => {
+                    self.game.pending_chat_room = Some((title.clone(), limit, public));
+                    self.channel.send_packet(build_create_chatroom_packet(
+                        &title,
+                        limit,
+                        public,
+                        &password,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestChangeChatRoom {
+                    title,
+                    limit,
+                    public,
+                    password,
+                } => {
+                    self.channel.send_packet(build_change_chatroom_packet(
+                        &title,
+                        limit,
+                        public,
+                        &password,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestLeaveChatRoom => {
+                    self.channel
+                        .send_packet(build_exit_room_packet(self.config.packetver));
+                    self.game.chat_room_member_window.close();
+                }
+                GameEvent::RequestEditChatRoomSettings => {
+                    let w = &self.game.chat_room_member_window;
+                    let (room_id, title, limit, public) =
+                        (w.room_id(), w.title().to_string(), w.max_count(), w.public());
+                    self.game
+                        .chat_room_create_window
+                        .open_change(room_id, &title, limit, public);
+                }
+                GameEvent::RequestKickChatMember { name } => {
+                    self.channel
+                        .send_packet(build_expel_chat_member_packet(&name, self.config.packetver));
+                }
+                GameEvent::RequestChangeChatOwner { name } => {
+                    self.channel.send_packet(build_change_chat_owner_packet(
+                        &name,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestOpenChatMemberMenu { name, x, y } => {
+                    use ragnarok_ui_component::game::context_menu::{
+                        ContextMenuAction, ContextMenuItem,
+                    };
+                    let items = vec![
+                        ContextMenuItem {
+                            label: "Hand Over Chat".to_string(),
+                            action: ContextMenuAction::ChangeChatOwner { name: name.clone() },
+                        },
+                        ContextMenuItem {
+                            label: "Kick".to_string(),
+                            action: ContextMenuAction::KickFromChatRoom { name },
+                        },
+                    ];
+                    self.game.context_menu.open_at(x, y, items);
                 }
                 GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
                     self.channel.send_packet(build_select_warppoint_packet(
@@ -2027,6 +2100,22 @@ impl App {
         None
     }
 
+    fn hovered_chat_room(&self, render_list: &[RenderEntry]) -> Option<u32> {
+        let (mx, my) = self.input.mouse_position;
+        let (mx, my) = (mx as f32, my as f32);
+        for room in self.game.chat_rooms.iter() {
+            let entry = match render_list.iter().find(|e| e.id == room.owner_aid) {
+                Some(e) => e,
+                None => continue,
+            };
+            let r = crate::overlay::chat_room_board_rect(entry);
+            if mx >= r[0] && mx <= r[2] && my >= r[1] && my <= r[3] {
+                return Some(room.room_id);
+            }
+        }
+        None
+    }
+
     fn compute_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
@@ -2246,6 +2335,7 @@ impl App {
         }
         let companion_target_armed =
             self.game.companion_attack_target.iter().any(Option::is_some);
+        self.game.hovered_chat_room = None;
         let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
             if self.input.right_mouse_down {
                 (CursorType::Rotate, None)
@@ -2292,6 +2382,9 @@ impl App {
                     }
                     PendingSkillTarget::Ground { .. } => (CursorType::Lock, None),
                 }
+            } else if let Some(room_id) = self.hovered_chat_room(render_list) {
+                self.game.hovered_chat_room = Some(room_id);
+                (CursorType::Click, None)
             } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
                 (CursorType::Click, Some(vendor_id))
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(

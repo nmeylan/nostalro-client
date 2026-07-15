@@ -291,6 +291,77 @@ pub fn build_req_enter_room_packet(room_id: u32, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+fn passwd_chars(password: &str) -> [char; 8] {
+    let mut buf = ['\0'; 8];
+    for (i, c) in password.chars().take(8).enumerate() {
+        buf[i] = c;
+    }
+    buf
+}
+
+pub fn build_create_chatroom_packet(
+    title: &str,
+    limit: i16,
+    public: bool,
+    password: &str,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzCreateChatroom::new(packetver);
+    pkt.set_packet_length((15 + title.len()) as i16);
+    pkt.set_size(limit);
+    pkt.set_atype(public as u8);
+    pkt.set_passwd(passwd_chars(password));
+    pkt.set_title(title.to_string());
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_change_chatroom_packet(
+    title: &str,
+    limit: i16,
+    public: bool,
+    password: &str,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzChangeChatroom::new(packetver);
+    pkt.set_packet_length((15 + title.len()) as i16);
+    pkt.set_size(limit);
+    pkt.set_atype(public as u8);
+    pkt.set_passwd(passwd_chars(password));
+    pkt.set_title(title.to_string());
+    pkt.fill_raw();
+    pkt.raw
+}
+
+fn name_chars(name: &str) -> [char; 24] {
+    let mut buf = ['\0'; 24];
+    for (i, c) in name.chars().take(24).enumerate() {
+        buf[i] = c;
+    }
+    buf
+}
+
+pub fn build_change_chat_owner_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqRoleChange::new(packetver);
+    pkt.set_role(0);
+    pkt.set_name(name_chars(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_expel_chat_member_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqExpelMember::new(packetver);
+    pkt.set_name(name_chars(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_exit_room_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzExitRoom::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_purchase_item_list_packet(items: &[(i16, u16)], packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzPcPurchaseItemlist::new(packetver);
     let item_list: Vec<CzPurchaseItem> = items

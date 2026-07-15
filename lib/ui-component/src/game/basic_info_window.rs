@@ -17,6 +17,7 @@ const BTN_INVENTORY_ID: WidgetId = WidgetId(1413);
 const BTN_MAP_ID: WidgetId = WidgetId(1414);
 const BTN_SKILL_ID: WidgetId = WidgetId(1415);
 const BTN_PARTY_ID: WidgetId = WidgetId(1416);
+const BTN_CHAT_ID: WidgetId = WidgetId(1417);
 
 const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/basewin_bg.bmp";
 const BG_MINI_TEX: &str = "data/texture/유저인터페이스/basic_interface/basewin_mini.bmp";
@@ -67,6 +68,11 @@ const BTN_PARTY: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/basic_interface/btn_friend_off.bmp",
     hover: "data/texture/유저인터페이스/basic_interface/btn_friend_on.bmp",
     pressed: "data/texture/유저인터페이스/basic_interface/btn_friend_on.bmp",
+};
+const BTN_CHAT: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/basic_interface/btn_dialog_off.bmp",
+    hover: "data/texture/유저인터페이스/basic_interface/btn_dialog_on.bmp",
+    pressed: "data/texture/유저인터페이스/basic_interface/btn_dialog_on.bmp",
 };
 
 const WIN_W: f32 = 280.0;
@@ -478,6 +484,7 @@ impl BasicInfoWindow {
             (BTN_MAP_ID, col1_x, row_y(2), &BTN_MAP, "Map"),
             (BTN_SKILL_ID, col2_x, row_y(2), &BTN_SKILL, "Skills (Alt+S)"),
             (BTN_PARTY_ID, col1_x, row_y(3), &BTN_PARTY, "Party"),
+            (BTN_CHAT_ID, col2_x, row_y(3), &BTN_CHAT, "Chat Room (Alt+C)"),
         ];
 
         for &(id, bx, by, textures, tooltip_text) in menu_buttons {
@@ -491,6 +498,7 @@ impl BasicInfoWindow {
                     BTN_SKILL_ID => events.push(GameEvent::ToggleSkills),
                     BTN_STATUS_ID => events.push(GameEvent::ToggleStatusWindow),
                     BTN_PARTY_ID => events.push(GameEvent::TogglePartyWindow),
+                    BTN_CHAT_ID => events.push(GameEvent::ToggleChatRoomCreate),
                     _ => {}
                 }
             }
@@ -632,6 +640,8 @@ impl Window for BasicInfoWindow {
             BTN_SKILL.hover,
             BTN_PARTY.normal,
             BTN_PARTY.hover,
+            BTN_CHAT.normal,
+            BTN_CHAT.hover,
         ]
     }
 }

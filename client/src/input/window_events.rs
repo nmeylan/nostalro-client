@@ -321,6 +321,9 @@ impl App {
                             .add_system("You are not in a guild.".to_string());
                     }
                 }
+                PhysicalKey::Code(KeyCode::KeyC) if self.input.alt_pressed => {
+                    self.game.chat_room_create_window.toggle();
+                }
                 PhysicalKey::Code(KeyCode::KeyH) if self.input.alt_pressed => {
                     if self.game.homunculus.is_some() {
                         self.game.homunculus_window.toggle();

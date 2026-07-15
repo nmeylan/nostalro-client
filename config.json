@@ -23,24 +23,8 @@
   "window_state": {
     "1400": {
       "position": [
-        0.0,
+        1.640625,
         0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        344.0,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        490.0,
-        568.0
       ],
       "open": false,
       "collapsed": false
@@ -53,10 +37,34 @@
       "open": false,
       "collapsed": false
     },
+    "110": {
+      "position": [
+        490.0,
+        568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        344.0,
+        344.66666
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "210": {
       "position": [
         342.0,
         346.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1710": {
+      "position": [
+        114.00391,
+        444.41016
       ],
       "open": false,
       "collapsed": false

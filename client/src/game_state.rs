@@ -36,7 +36,12 @@ use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, Basic
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
-use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
+use ragnarok_ui_component::game::chat_room_create_window::{
+    CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
+};
+use ragnarok_ui_component::game::chat_room_member_window::{
+    CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
+};
 use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
 use ragnarok_ui_component::game::confirm_dialog::{ConfirmDialog, ConfirmResult};
 use ragnarok_ui_component::game::context_menu::ContextMenu;
@@ -157,7 +162,10 @@ pub struct GameState {
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub chat_rooms: ChatRoomRegistry,
-    pub chat_room_window: ChatRoomWindow,
+    pub hovered_chat_room: Option<u32>,
+    pub chat_room_create_window: ChatRoomCreateWindow,
+    pub chat_room_member_window: ChatRoomMemberWindow,
+    pub pending_chat_room: Option<(String, i16, bool)>,
     pub system_menu: SystemMenu,
     pub map_missing_window: MapMissingWindow,
     pub hovered_entity_id: Option<u32>,
@@ -295,6 +303,8 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
     COMPANION_AI_CONFIG_WINDOW_ID,
+    CHAT_ROOM_CREATE_WINDOW_ID,
+    CHAT_ROOM_MEMBER_WINDOW_ID,
 ];
 
 impl GameState {
@@ -302,7 +312,7 @@ impl GameState {
         &mut self,
         ui: &mut UiFrame,
         texture_size_fn: &dyn Fn(&str) -> Option<(u32, u32)>,
-        render_list: &[RenderEntry],
+        _render_list: &[RenderEntry],
     ) -> Vec<GameEvent> {
         let chat_was_active = self.chat_window.is_active();
         let mut events = Vec::new();
@@ -411,28 +421,6 @@ impl GameState {
             LevelUpClick::Job => self.character.skills.open(),
             LevelUpClick::None => {}
         }
-
-        self.chat_room_window.placements = self
-            .chat_rooms
-            .iter()
-            .filter_map(|room| {
-                let entry = render_list.iter().find(|e| e.id == room.owner_aid)?;
-                Some(ChatRoomPlacement {
-                    room_id: room.room_id,
-                    atype: room.atype,
-                    title: room.title.clone(),
-                    cur_count: room.cur_count,
-                    max_count: room.max_count,
-                    anchor_x: entry.screen_anchor[0],
-                    anchor_y: entry.screen_anchor[1],
-                    head_offset: entry.head_offset,
-                })
-            })
-            .collect();
-        events.extend(
-            self.chat_room_window
-                .build(ui, &mut self.character, &self.data_table),
-        );
 
         let npc_dialog_open = self.npc_dialog.dialog.is_open();
         events.extend(
@@ -928,6 +916,20 @@ impl GameState {
                         .build(ui, &mut self.character, &self.data_table),
                 );
             }
+            CHAT_ROOM_CREATE_WINDOW_ID => {
+                events.extend(self.chat_room_create_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
+            CHAT_ROOM_MEMBER_WINDOW_ID => {
+                events.extend(self.chat_room_member_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             _ => {}
         }
     }
@@ -1002,7 +1004,10 @@ impl GameState {
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             chat_rooms: ChatRoomRegistry::new(),
-            chat_room_window: ChatRoomWindow::new(),
+            hovered_chat_room: None,
+            chat_room_create_window: ChatRoomCreateWindow::new(),
+            chat_room_member_window: ChatRoomMemberWindow::new(),
+            pending_chat_room: None,
             system_menu: SystemMenu::new(),
             map_missing_window: MapMissingWindow::new(),
             hovered_entity_id: None,

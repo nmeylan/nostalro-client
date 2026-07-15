@@ -20,6 +20,8 @@ pub use sender::{
     build_make_party2_packet, build_change_party_leader_packet, build_party_invite_by_name_packet,
     build_add_friend_packet, build_ack_add_friend_packet, build_delete_friend_packet,
     build_party_chat_packet, build_req_join_party_packet,
+    build_create_chatroom_packet, build_change_chatroom_packet, build_change_chat_owner_packet,
+    build_expel_chat_member_packet, build_exit_room_packet,
     build_contact_npc_packet, build_drop_item_packet, build_equip_item_packet, build_login_packet,
     build_map_loaded_packet, build_move_item_body_to_cart_packet,
     build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,

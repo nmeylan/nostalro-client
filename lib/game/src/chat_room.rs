@@ -1,5 +1,11 @@
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatRoomMember {
+    pub name: String,
+    pub is_owner: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct ChatRoom {
     pub room_id: u32,
@@ -30,6 +36,10 @@ impl ChatRoomRegistry {
 
     pub fn clear(&mut self) {
         self.rooms.clear();
+    }
+
+    pub fn get(&self, room_id: u32) -> Option<&ChatRoom> {
+        self.rooms.get(&room_id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ChatRoom> {

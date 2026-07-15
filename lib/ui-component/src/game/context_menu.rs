@@ -22,6 +22,8 @@ pub enum ContextMenuAction {
     CompanionFeed,
     CompanionStandby { is_mercenary: bool },
     CompanionAiConfig,
+    KickFromChatRoom { name: String },
+    ChangeChatOwner { name: String },
 }
 
 pub struct ContextMenuItem {
@@ -145,6 +147,12 @@ impl ContextMenu {
                 }
                 ContextMenuAction::CompanionAiConfig => {
                     events.push(GameEvent::ToggleCompanionAiConfig);
+                }
+                ContextMenuAction::KickFromChatRoom { name } => {
+                    events.push(GameEvent::RequestKickChatMember { name });
+                }
+                ContextMenuAction::ChangeChatOwner { name } => {
+                    events.push(GameEvent::RequestChangeChatOwner { name });
                 }
             }
             self.close();

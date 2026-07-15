@@ -7,7 +7,8 @@ use ragnarok_game::path::try_move_to;
 use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
 use ragnarok_network::{
     build_contact_npc_packet, build_pickup_item_packet, build_req_buy_frommc_packet,
-    build_request_move_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_req_enter_room_packet, build_request_move_packet, build_use_skill_packet,
+    build_use_skill_to_ground_packet,
 };
 
 impl App {
@@ -38,6 +39,11 @@ impl App {
                 .is_some_and(|e| e.vending_board.is_some())
         {
             self.close_own_shop();
+            return;
+        }
+        if let Some(room_id) = self.game.hovered_chat_room {
+            self.channel
+                .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
             return;
         }
         if let Some(pending) = self.game.pending_companion_skill.take() {

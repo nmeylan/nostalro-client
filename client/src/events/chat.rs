@@ -1,6 +1,7 @@
 use crate::App;
 use ragnarok_game::banner::BannerKind;
 use ragnarok_game::entity::ChatBubbleState;
+use ragnarok_ui_component::game::chat_room_member_window::{OTHER_MSG_COLOR, OWN_MSG_COLOR};
 use ragnarok_ui_component::game::chat_window::ChatChannel;
 
 impl App {
@@ -35,6 +36,14 @@ impl App {
         {
             entity.chat_bubble = Some(ChatBubbleState::new(bubble_text.to_string()));
         }
+        if self.game.chat_room_member_window.is_open()
+            && let Some((sender, _)) = message.split_once(" : ")
+            && self.game.chat_room_member_window.has_member(sender)
+        {
+            self.game
+                .chat_room_member_window
+                .push_message(message.clone(), OTHER_MSG_COLOR);
+        }
         self.game.chat_window.add_chat(message);
     }
 
@@ -44,6 +53,11 @@ impl App {
             && let Some(entity) = self.game.entities.get_mut(player_id)
         {
             entity.chat_bubble = Some(ChatBubbleState::new(bubble_text.to_string()));
+        }
+        if self.game.chat_room_member_window.is_open() {
+            self.game
+                .chat_room_member_window
+                .push_message(message.clone(), OWN_MSG_COLOR);
         }
         self.game.chat_window.add_own_chat(message);
     }

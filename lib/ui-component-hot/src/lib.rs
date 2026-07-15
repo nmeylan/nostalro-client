@@ -32,13 +32,18 @@ use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, Basic
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
-use ragnarok_ui_component::game::chat_room_window::{ChatRoomPlacement, ChatRoomWindow};
 use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
 use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
+use ragnarok_ui_component::game::chat_room_create_window::{
+    CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
+};
+use ragnarok_ui_component::game::chat_room_member_window::{
+    CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
+};
 use ragnarok_ui_component::game::item_info_window::{ITEM_INFO_WINDOW_ID, ItemInfoWindow};
 use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
 use ragnarok_ui_component::game::vending_board;
@@ -82,10 +87,11 @@ const GAME_COMPONENTS: &[&str] = &[
     "confirm_dialog",
     "number_input",
     "chat",
-    "chat_room",
     "dialog_container",
     "item_info",
     "book",
+    "chat_room_create",
+    "chat_room_member",
     "skill_tree",
     "card_insert",
     "hotkey_bar",
@@ -133,11 +139,6 @@ enum State {
         character: Character,
         data: DataTable,
     },
-    ChatRoomBox {
-        win: ChatRoomWindow,
-        character: Character,
-        data: DataTable,
-    },
     NpcDialog {
         npc: NpcDialog,
         character: Character,
@@ -177,6 +178,16 @@ enum State {
     },
     Book {
         win: BookWindow,
+        character: Character,
+        data: DataTable,
+    },
+    ChatRoomCreate {
+        win: ChatRoomCreateWindow,
+        character: Character,
+        data: DataTable,
+    },
+    ChatRoomMember {
+        win: ChatRoomMemberWindow,
         character: Character,
         data: DataTable,
     },
@@ -471,48 +482,6 @@ fn create_single(name: &str) -> State {
             chat.add_chat("[Mage]: Trading Fire Bolt 10 for Cold Bolt 10".into());
             State::Chat {
                 chat,
-                character: Character::new(),
-                data: DataTable::new(),
-            }
-        }
-        "chat_room" => {
-            let mut win = ChatRoomWindow::new();
-            // No entities in the viewer: place a few boxes at fixed screen anchors,
-            // one per room type, so render + textures + labels are all exercised.
-            win.placements = vec![
-                ChatRoomPlacement {
-                    room_id: 1,
-                    atype: 2, // arena
-                    title: "Izlude Arena".to_string(),
-                    cur_count: 3,
-                    max_count: 20,
-                    anchor_x: 200.0,
-                    anchor_y: 150.0,
-                    head_offset: 40.0,
-                },
-                ChatRoomPlacement {
-                    room_id: 2,
-                    atype: 1, // public
-                    title: "Party Recruiting".to_string(),
-                    cur_count: 2,
-                    max_count: 8,
-                    anchor_x: 420.0,
-                    anchor_y: 250.0,
-                    head_offset: 40.0,
-                },
-                ChatRoomPlacement {
-                    room_id: 3,
-                    atype: 0, // private/password
-                    title: "Guild Only".to_string(),
-                    cur_count: 5,
-                    max_count: 12,
-                    anchor_x: 300.0,
-                    anchor_y: 360.0,
-                    head_offset: 40.0,
-                },
-            ];
-            State::ChatRoomBox {
-                win,
                 character: Character::new(),
                 data: DataTable::new(),
             }
@@ -849,6 +818,47 @@ fn create_single(name: &str) -> State {
                 ],
             });
             State::Book {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "chat_room_create" => {
+            let mut win = ChatRoomCreateWindow::new();
+            win.open_create();
+            State::ChatRoomCreate {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "chat_room_member" => {
+            use ragnarok_game::chat_room::ChatRoomMember;
+            let mut win = ChatRoomMemberWindow::new();
+            win.open_joined(
+                5,
+                "Trade Room",
+                20,
+                true,
+                vec![
+                    ChatRoomMember {
+                        name: "Owner".to_string(),
+                        is_owner: true,
+                    },
+                    ChatRoomMember {
+                        name: "Guest".to_string(),
+                        is_owner: false,
+                    },
+                ],
+                "Owner",
+            );
+            use ragnarok_ui_component::game::chat_room_member_window::{
+                OTHER_MSG_COLOR, OWN_MSG_COLOR, SYSTEM_MSG_COLOR,
+            };
+            win.push_message("You entered the room.".to_string(), SYSTEM_MSG_COLOR);
+            win.push_message("Owner : Welcome, everyone!".to_string(), OTHER_MSG_COLOR);
+            win.push_message("Guest : hello, selling gear here".to_string(), OWN_MSG_COLOR);
+            State::ChatRoomMember {
                 win,
                 character: Character::new(),
                 data: DataTable::new(),
@@ -1545,10 +1555,6 @@ fn grf_init_single(
         State::Chat { chat, .. } => {
             chat.has_grf_textures = true;
         }
-        State::ChatRoomBox { win, .. } => {
-            win.has_grf_textures = true;
-            win.set_texture_sizes(size_fn);
-        }
         State::NpcDialog { npc, .. } => {
             npc.has_grf_textures = true;
             npc.set_texture_sizes(size_fn);
@@ -1617,6 +1623,14 @@ fn grf_init_single(
         }
         State::Book { win, .. } => {
             win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
+        State::ChatRoomCreate { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::ChatRoomMember { win, .. } => {
+            win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
         State::CardInsert { dialog, .. } => {
@@ -1718,6 +1732,8 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Equipment { .. } => Some(EQ_WINDOW_ID),
         State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
+        State::ChatRoomCreate { .. } => Some(CHAT_ROOM_CREATE_WINDOW_ID),
+        State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
         State::GuildDemo { .. } => Some(GUILD_WINDOW_ID),
@@ -2063,13 +2079,6 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         } => {
             chat.build(ui, character, data);
         }
-        State::ChatRoomBox {
-            win,
-            character,
-            data,
-        } => {
-            win.build(ui, character, data);
-        }
         State::NpcDialog {
             npc,
             character,
@@ -2169,6 +2178,20 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::Book {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::ChatRoomCreate {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::ChatRoomMember {
             win,
             character,
             data,

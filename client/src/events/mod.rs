@@ -20,6 +20,7 @@ use ragnarok_game::entity::ForcedAnimation;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::chat_room::ChatRoom;
+use ragnarok_ui_component::game::chat_room_member_window;
 use ragnarok_game::event::GameEvent;
 use ragnarok_network::build_npc_close_packet;
 use ragnarok_renderer::Renderer;
@@ -393,11 +394,81 @@ impl App {
                 }
                 GameEvent::ChatRoomDestroy { room_id } => {
                     self.game.chat_rooms.remove(room_id);
+                    if self.game.chat_room_member_window.room_id() == room_id {
+                        self.game.chat_room_member_window.close();
+                    }
                 }
-                GameEvent::ChatRoomEntered { .. } => {
+                GameEvent::ChatRoomEntered { room_id, members } => {
+                    let (title, max_count, public) = self
+                        .game
+                        .chat_rooms
+                        .get(room_id)
+                        .map(|r| (r.title.clone(), r.max_count, r.atype != 0))
+                        .unwrap_or_default();
+                    let local_name = self.game.character.name.clone();
+                    self.game.chat_room_member_window.open_joined(
+                        room_id,
+                        &title,
+                        max_count,
+                        public,
+                        members,
+                        &local_name,
+                    );
+                    self.game.chat_room_member_window.push_message(
+                        "You entered the room.".to_string(),
+                        chat_room_member_window::SYSTEM_MSG_COLOR,
+                    );
                     self.game
                         .chat_window
                         .add_system("You entered the room.".to_string());
+                }
+                GameEvent::ChatRoomCreateResult { flag } => {
+                    if flag == 0 {
+                        if let Some((title, limit, public)) = self.game.pending_chat_room.take() {
+                            let local_name = self.game.character.name.clone();
+                            self.game.chat_room_member_window.open_created(
+                                0, &title, limit, public, &local_name,
+                            );
+                        }
+                        self.game.chat_room_create_window.close();
+                    } else {
+                        let reason = match flag {
+                            1 => "Room limit exceeded.",
+                            2 => "A room with that name already exists.",
+                            _ => "Could not create the room.",
+                        };
+                        self.game.chat_window.add_system(reason.to_string());
+                    }
+                }
+                GameEvent::ChatRoomMemberJoined { name, .. } => {
+                    self.game.chat_room_member_window.add_member(&name);
+                    let msg = format!("{name} has joined the room.");
+                    self.game
+                        .chat_room_member_window
+                        .push_message(msg.clone(), chat_room_member_window::SYSTEM_MSG_COLOR);
+                    self.game.chat_window.add_system(msg);
+                }
+                GameEvent::ChatRoomMemberLeft { name, kicked, .. } => {
+                    let verb = if kicked { "was kicked from" } else { "has left" };
+                    let msg = format!("{name} {verb} the room.");
+                    if self.game.chat_room_member_window.is_local(&name) {
+                        self.game.chat_room_member_window.close();
+                    } else {
+                        self.game.chat_room_member_window.remove_member(&name);
+                        self.game.chat_room_member_window.push_message(
+                            msg.clone(),
+                            chat_room_member_window::SYSTEM_MSG_COLOR,
+                        );
+                    }
+                    self.game.chat_window.add_system(msg);
+                }
+                GameEvent::ChatRoomOwnerChanged { name } => {
+                    self.game.chat_room_member_window.set_owner(&name);
+                    let msg = format!("{name} is now the room owner.");
+                    self.game
+                        .chat_room_member_window
+                        .push_message(msg.clone(), chat_room_member_window::SYSTEM_MSG_COLOR);
+                    self.game.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomJoinRefused { result } => {
                     let reason = match result {
