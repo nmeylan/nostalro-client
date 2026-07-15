@@ -196,6 +196,10 @@ impl Window for ChatRoomMemberWindow {
             self.btn_size = (w as f32, h as f32);
         }
     }
+    fn window_size(&self) -> (f32, f32) {
+        let pane_h = PAD + VISIBLE_ROWS as f32 * LINE_H + PAD;
+        (WIN_W, TITLE_H + pane_h + FOOTER_H)
+    }
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
             TITLEBAR_TEX,

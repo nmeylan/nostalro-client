@@ -12,6 +12,7 @@ use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
+pub const NPC_DIALOG_WINDOW_ID: WidgetId = WidgetId(610);
 const NEXT_BTN_ID: WidgetId = WidgetId(601);
 const CLOSE_BTN_ID: WidgetId = WidgetId(602);
 const INPUT_ID: WidgetId = WidgetId(603);
@@ -80,6 +81,7 @@ const BTN_SPACING: f32 = 3.0;
 
 pub struct NpcDialog {
     pub has_grf_textures: bool,
+    pub movable: bool,
     pub dialog: NpcDialogData,
     pub string_input: TextInput,
     number_input_dialog: Option<NumberInputDialog>,
@@ -98,6 +100,7 @@ impl NpcDialog {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
+            movable: false,
             dialog: NpcDialogData::new(),
             string_input: TextInput::new(70, false),
             number_input_dialog: None,
@@ -124,6 +127,10 @@ impl Window for NpcDialog {
         if let Some((w, h)) = size_fn(WIN_TEXTURE) {
             self.win_size = (w as f32, h as f32);
         }
+    }
+
+    fn window_size(&self) -> (f32, f32) {
+        (DIALOG_W, DIALOG_H)
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
@@ -265,14 +272,16 @@ impl InGameWindow for NpcDialog {
             return result;
         }
 
-        let dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
-        let dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
+        let default_dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
+        let default_dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
 
         let has_text = !self.dialog.text.is_empty();
         let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
 
         let padding = PADDING;
         let dialog_w = DIALOG_W;
+
+        let mut dx = default_dx;
 
         if !menu_only {
             let text_area_w = dialog_w - padding * 2.0;
@@ -301,6 +310,21 @@ impl InGameWindow for NpcDialog {
             let btn_area_h = if has_button { btn_h + padding } else { 0.0 };
 
             let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H);
+
+            let dy = if self.movable {
+                let win = ui.window_at(
+                    NPC_DIALOG_WINDOW_ID,
+                    dialog_w,
+                    dialog_h,
+                    dialog_h,
+                    default_dx,
+                    default_dy,
+                );
+                dx = win.x;
+                win.y
+            } else {
+                default_dy
+            };
 
             self.container.draw(
                 &mut ui.draw_calls,

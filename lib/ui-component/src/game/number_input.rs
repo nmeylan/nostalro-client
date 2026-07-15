@@ -101,6 +101,10 @@ impl NumberInputDialog {
     pub fn win_id(&self) -> WidgetId {
         WidgetId(self.base_id.0 + ID_WINDOW)
     }
+    pub fn window_size(&self) -> (f32, f32) {
+        let label_h = if self.label.is_some() { 18.0 } else { 0.0 };
+        (DIALOG_W, DIALOG_H + label_h)
+    }
     fn input_id(&self) -> WidgetId {
         WidgetId(self.base_id.0 + ID_INPUT)
     }

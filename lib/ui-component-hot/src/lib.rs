@@ -29,7 +29,9 @@ use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
-use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
+use ragnarok_ui_component::game::card_insert_dialog::{
+    CARD_INSERT_WINDOW_ID, CardInsertDialog, EligibleItem,
+};
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
@@ -47,13 +49,15 @@ use ragnarok_ui_component::game::chat_room_member_window::{
 use ragnarok_ui_component::game::item_info_window::{ITEM_INFO_WINDOW_ID, ItemInfoWindow};
 use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
 use ragnarok_ui_component::game::vending_board;
+use ragnarok_ui_component::game::chat_room_board;
+use ragnarok_ui_component::helper::head_board::BOARD_W;
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use ragnarok_ui_component::game::vending_setup_window::{
     VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
 };
 use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::game::npc_dialog::NpcDialog;
+use ragnarok_ui_component::game::npc_dialog::{NPC_DIALOG_WINDOW_ID, NpcDialog};
 use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
 use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
@@ -86,24 +90,28 @@ const GAME_COMPONENTS: &[&str] = &[
     "system_menu",
     "confirm_dialog",
     "number_input",
-    "chat",
     "dialog_container",
     "item_info",
     "book",
-    "chat_room_create",
-    "chat_room_member",
     "skill_tree",
     "card_insert",
     "hotkey_bar",
     "basic_info",
     "status",
-    "party",
+];
+const SOCIAL_COMPONENTS: &[&str] = &[
     "guild",
+    "chat",
+    "chat_room_create",
+    "chat_room_member",
+    "chat_room_board",
+    "vending_board",
+    "party",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
-    &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
+    &["cart", "vending_setup", "my_shop", "vending_buy"];
 const COMPANION_COMPONENTS: &[&str] =
     &["mercenary", "mercenary_skill", "homun", "companion_ai_config"];
 
@@ -254,6 +262,13 @@ enum State {
     VendingBoard {
         container: DialogContainer,
         name: String,
+    },
+    ChatRoomBoard {
+        container: DialogContainer,
+        atype: u8,
+        title: String,
+        cur: i16,
+        max: i16,
     },
     Mercenary {
         win: MercenaryWindow,
@@ -441,6 +456,13 @@ fn create_single(name: &str) -> State {
             container: DialogContainer::new(),
             name: "+7 Gears".to_string(),
         },
+        "chat_room_board" => State::ChatRoomBoard {
+            container: DialogContainer::new(),
+            atype: 1,
+            title: "Newbies welcome!".to_string(),
+            cur: 3,
+            max: 20,
+        },
         "cart_select" => {
             let mut character = Character::new();
             character.base_level = 99;
@@ -488,6 +510,7 @@ fn create_single(name: &str) -> State {
         }
         "npc_dialog" => {
             let mut npc = NpcDialog::new();
+            npc.movable = true;
             npc.dialog.open_text(
                 100,
                 "Hello adventurer!\nWelcome to Prontera.\nHow can I help you today?",
@@ -1218,8 +1241,10 @@ fn create_single(name: &str) -> State {
                 ..DataTable::new()
             };
 
+            let mut hotkey_win = HotkeyBarWindow::new();
+            hotkey_win.top_margin = 40.0;
             State::HotkeyBarDemo {
-                hotkey_win: HotkeyBarWindow::new(),
+                hotkey_win,
                 character,
                 data,
             }
@@ -1465,6 +1490,9 @@ pub unsafe extern "C" fn hot_create(name_ptr: *const u8, name_len: usize) -> *mu
         "shop" => State::Category {
             components: SHOP_COMPONENTS.iter().map(|n| create_single(n)).collect(),
         },
+        "social" => State::Category {
+            components: SOCIAL_COMPONENTS.iter().map(|n| create_single(n)).collect(),
+        },
         "companion" => State::Category {
             components: COMPANION_COMPONENTS
                 .iter()
@@ -1527,6 +1555,10 @@ fn grf_init_single(
             }
         }
         State::VendingBoard { container, .. } => {
+            container.has_grf_textures = true;
+            container.set_texture_sizes(size_fn);
+        }
+        State::ChatRoomBoard { container, .. } => {
             container.has_grf_textures = true;
             container.set_texture_sizes(size_fn);
         }
@@ -1729,6 +1761,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
         State::VendingBuy { .. } => Some(VENDING_SHOP_WINDOW_ID),
         State::VendingBoard { .. } => None,
+        State::NpcDialog { .. } => Some(NPC_DIALOG_WINDOW_ID),
         State::Equipment { .. } => Some(EQ_WINDOW_ID),
         State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
@@ -1745,33 +1778,49 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
     }
 }
 
-/// Window id and nominal size for a draggable, `window_at`-based component so
-/// the gallery can spread them into a grid. Returns `None` for fixed bars,
-/// full-screen account screens, and centered modal dialogs, which position
-/// themselves.
-fn gallery_window(state: &State) -> Option<(WidgetId, (f32, f32))> {
-    let (id, win): (WidgetId, &dyn Window) = match state {
-        State::Inventory { inv, .. } => (INV_WINDOW_ID, inv),
-        State::Equipment { equip, .. } => (EQ_WINDOW_ID, equip),
-        State::StatusDemo { win, .. } => (STATUS_WINDOW_ID, win),
-        State::BasicInfoDemo { win, .. } => (BASIC_INFO_WINDOW_ID, win),
-        State::SkillTree { win, .. } => (SKILL_WINDOW_ID, win),
-        State::PartyDemo { win, .. } => (PARTY_FRIENDS_WINDOW_ID, win),
-        State::GuildDemo { win, .. } => (GUILD_WINDOW_ID, win),
-        State::ItemInfo { win, .. } => (ITEM_INFO_WINDOW_ID, win),
-        State::Book { win, .. } => (BOOK_WINDOW_ID, win),
-        State::Cart { win, .. } => (CART_WINDOW_ID, win),
-        State::CartSelect { win, .. } => (CART_SELECT_WINDOW_ID, win),
-        State::VendingSetup { win, .. } => (VENDING_SETUP_WINDOW_ID, win),
-        State::MyShop { win, .. } => (MY_SHOP_WINDOW_ID, win),
-        State::VendingBuy { win, .. } => (VENDING_SHOP_WINDOW_ID, win),
-        State::Mercenary { win, .. } => (MERCENARY_WINDOW_ID, win),
-        State::MercenarySkill { win, .. } => (MERCENARY_SKILL_WINDOW_ID, win),
-        State::Homun { win, .. } => (HOMUN_WINDOW_ID, win),
-        State::CompanionAiConfig { win, .. } => (COMPANION_AI_CONFIG_WINDOW_ID, win),
-        _ => return None,
+/// The draggable, `window_at`-based windows a component contributes to the
+/// packer, each with its nominal size. Most states own a single `Window`;
+/// composites (the NPC shop) return several. Fixed bars, full-screen account
+/// screens, head boards, and centered modal dialogs return nothing here — they
+/// position themselves (dialogs are seeded separately by `seed_modal_layout`).
+fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
+    let single: Option<(WidgetId, &dyn Window)> = match state {
+        State::Inventory { inv, .. } => Some((INV_WINDOW_ID, inv)),
+        State::Equipment { equip, .. } => Some((EQ_WINDOW_ID, equip)),
+        State::StatusDemo { win, .. } => Some((STATUS_WINDOW_ID, win)),
+        State::BasicInfoDemo { win, .. } => Some((BASIC_INFO_WINDOW_ID, win)),
+        State::SkillTree { win, .. } => Some((SKILL_WINDOW_ID, win)),
+        State::PartyDemo { win, .. } => Some((PARTY_FRIENDS_WINDOW_ID, win)),
+        State::GuildDemo { win, .. } => Some((GUILD_WINDOW_ID, win)),
+        State::ItemInfo { win, .. } => Some((ITEM_INFO_WINDOW_ID, win)),
+        State::Book { win, .. } => Some((BOOK_WINDOW_ID, win)),
+        State::ChatRoomCreate { win, .. } => Some((CHAT_ROOM_CREATE_WINDOW_ID, win)),
+        State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
+        State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
+        State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
+        State::VendingSetup { win, .. } => Some((VENDING_SETUP_WINDOW_ID, win)),
+        State::MyShop { win, .. } => Some((MY_SHOP_WINDOW_ID, win)),
+        State::VendingBuy { win, .. } => Some((VENDING_SHOP_WINDOW_ID, win)),
+        State::Mercenary { win, .. } => Some((MERCENARY_WINDOW_ID, win)),
+        State::MercenarySkill { win, .. } => Some((MERCENARY_SKILL_WINDOW_ID, win)),
+        State::Homun { win, .. } => Some((HOMUN_WINDOW_ID, win)),
+        State::CompanionAiConfig { win, .. } => Some((COMPANION_AI_CONFIG_WINDOW_ID, win)),
+        State::NpcDialog { npc, .. } => Some((NPC_DIALOG_WINDOW_ID, npc)),
+        State::NpcShop { shop, .. } => return shop.gallery_windows(),
+        _ => None,
     };
-    Some((id, win.window_size()))
+    single.map(|(id, win)| (id, win.window_size())).into_iter().collect()
+}
+
+/// Centered modal dialogs a component owns, with their nominal size. The tool
+/// seeds these into the bottom-right corner (staggered) so they don't pile up
+/// over the packed windows; each still centers itself in-game.
+fn modal_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
+    match state {
+        State::NumberInput { dialog } => vec![(dialog.win_id(), dialog.window_size())],
+        State::CardInsert { dialog, .. } => vec![(CARD_INSERT_WINDOW_ID, dialog.window_size())],
+        _ => Vec::new(),
+    }
 }
 
 const GALLERY_GAP: f32 = 12.0;
@@ -1854,7 +1903,7 @@ fn pack_gallery(
 
     let mut free: Vec<FreeRect> = vec![(
         GALLERY_MARGIN,
-        GALLERY_MARGIN,
+        GALLERY_MARGIN + 20.0,
         (avail_w - GALLERY_MARGIN).max(1.0),
         (avail_h - GALLERY_MARGIN).max(1.0),
     )];
@@ -1890,6 +1939,12 @@ fn pack_gallery(
                 .map(|&(x, y, ..)| (x, y))
                 .unwrap_or((GALLERY_MARGIN, GALLERY_MARGIN)),
         };
+        // `window_at` clamps every window to [0, screen − size] at render time.
+        // Keep the packer's own placement inside that range so a window that
+        // didn't fit is never seeded off-screen and then dragged back on top of
+        // an already-placed one.
+        let bx = bx.min((avail_w - w).max(0.0));
+        let by = by.min((avail_h - h).max(0.0));
         placed.push((id, bx, by));
 
         let used = (bx, by, rw, rh);
@@ -1900,31 +1955,80 @@ fn pack_gallery(
 }
 
 /// Regions occupied by the self-positioning windows the packer can't move:
-/// the top-centre hotkey bar, the centred modal dialogs, and the bottom-left
-/// chat box. Packed windows are routed around these.
+/// the top-centre hotkey bar and the bottom-left chat box. Packed windows are
+/// routed around these. The centred modal dialogs are drawn on top and are not
+/// reserved, so they never fragment the free space out from under large windows.
 fn fixed_ui_zones(sw: f32, sh: f32) -> Vec<FreeRect> {
     let hotkey = ((sw * 0.25).max(0.0), 0.0, (sw * 0.5).min(sw), 92.0f32.min(sh));
-    let modal = (
-        (sw - 360.0).max(0.0) / 2.0,
-        (sh - 460.0).max(0.0) / 2.0,
-        360.0f32.min(sw),
-        460.0f32.min(sh),
-    );
     let chat = (0.0, (sh - 200.0).max(0.0), 360.0f32.min(sw), 200.0f32.min(sh));
-    vec![hotkey, modal, chat]
+    vec![hotkey, chat]
+}
+
+fn gallery_placements(components: &[State], ui: &UiFrame) -> Vec<(WidgetId, f32, f32)> {
+    let items: Vec<(WidgetId, f32, f32)> = components
+        .iter()
+        .flat_map(|comp| gallery_windows(comp).into_iter().map(|(id, (w, h))| (id, w, h)))
+        .collect();
+    if items.is_empty() {
+        return Vec::new();
+    }
+    let (sw, sh) = (ui.ctx.screen_width.max(1.0), ui.ctx.screen_height.max(1.0));
+    let placed = pack_gallery(items.clone(), sw, sh, &fixed_ui_zones(sw, sh));
+    log_gallery_layout(sw, sh, &items, &placed);
+    placed
+}
+
+/// Print the packer input/output to stderr once per screen-size change, so a
+/// reported overlap can be reproduced with the exact logical dimensions used.
+fn log_gallery_layout(sw: f32, sh: f32, items: &[(WidgetId, f32, f32)], placed: &[(WidgetId, f32, f32)]) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static LAST: AtomicU64 = AtomicU64::new(0);
+    let key = ((sw as u64) << 32) | (sh as u64);
+    if LAST.swap(key, Ordering::Relaxed) == key {
+        return;
+    }
+    eprintln!("[gallery] logical screen {sw}x{sh}");
+    for &(id, x, y) in placed {
+        let (w, h) = items
+            .iter()
+            .find(|it| it.0 == id)
+            .map(|it| (it.1, it.2))
+            .unwrap_or((0.0, 0.0));
+        eprintln!("  window {} at ({x:.0}, {y:.0}) size {w:.0}x{h:.0}", id.0);
+    }
+}
+
+/// Stack the centered modal dialogs into the bottom-right corner, each shifted
+/// diagonally so no two share a position and every one keeps a distinct x.
+fn modal_placements(components: &[State], sw: f32, sh: f32) -> Vec<(WidgetId, f32, f32)> {
+    const STAGGER: f32 = 34.0;
+    let mut out = Vec::new();
+    for (i, (id, (w, h))) in components.iter().flat_map(modal_windows).enumerate() {
+        let shift = i as f32 * STAGGER;
+        let x = (sw - w - GALLERY_MARGIN - shift).max(GALLERY_MARGIN);
+        let y = (sh - h - GALLERY_MARGIN - shift).max(GALLERY_MARGIN);
+        out.push((id, x, y));
+    }
+    out
 }
 
 fn seed_gallery_layout(components: &[State], ui: &mut UiFrame) {
-    let items: Vec<(WidgetId, f32, f32)> = components
-        .iter()
-        .filter_map(|comp| gallery_window(comp).map(|(id, (w, h))| (id, w, h)))
-        .collect();
-    if items.is_empty() {
-        return;
+    for (id, x, y) in gallery_placements(components, ui) {
+        ui.seed_window_position(id, x, y);
     }
     let (sw, sh) = (ui.ctx.screen_width.max(1.0), ui.ctx.screen_height.max(1.0));
-    for (id, x, y) in pack_gallery(items, sw, sh, &fixed_ui_zones(sw, sh)) {
+    for (id, x, y) in modal_placements(components, sw, sh) {
         ui.seed_window_position(id, x, y);
+    }
+}
+
+fn repack_gallery_layout(components: &[State], ui: &mut UiFrame) {
+    for (id, x, y) in gallery_placements(components, ui) {
+        ui.set_window_position(id, x, y);
+    }
+    let (sw, sh) = (ui.ctx.screen_width.max(1.0), ui.ctx.screen_height.max(1.0));
+    for (id, x, y) in modal_placements(components, sw, sh) {
+        ui.set_window_position(id, x, y);
     }
 }
 
@@ -1969,29 +2073,45 @@ mod tests {
         let comps: Vec<State> = GAME_COMPONENTS.iter().map(|n| create_single(n)).collect();
         let items: Vec<(WidgetId, f32, f32)> = comps
             .iter()
-            .filter_map(|c| gallery_window(c).map(|(id, (w, h))| (id, w, h)))
+            .flat_map(|c| gallery_windows(c).into_iter().map(|(id, (w, h))| (id, w, h)))
             .collect();
 
-        let (sw, sh) = (1600.0, 1000.0);
-        let zones = fixed_ui_zones(sw, sh);
-        let placed = pack_gallery(items.clone(), sw, sh, &zones);
-        let rect = |id: WidgetId| {
-            let (_, w, h) = items.iter().find(|s| s.0 == id).copied().unwrap();
-            let (_, x, y) = placed.iter().find(|p| p.0 == id).copied().unwrap();
-            (x, y, w, h)
-        };
+        // Every packed window must stay on-screen and clear of the fixed bars at
+        // any size (the clamp/overflow guarantee). Non-overlap only holds when
+        // the windows actually fit — the full game set doesn't at 1280×800.
+        for (sw, sh, expect_disjoint) in [(1600.0, 1000.0, true), (1280.0, 800.0, false)] {
+            let zones = fixed_ui_zones(sw, sh);
+            let placed = pack_gallery(items.clone(), sw, sh, &zones);
+            let rect = |id: WidgetId| {
+                let (_, w, h) = items.iter().find(|s| s.0 == id).copied().unwrap();
+                let (_, x, y) = placed.iter().find(|p| p.0 == id).copied().unwrap();
+                (x, y, w, h)
+            };
 
-        for i in 0..items.len() {
-            let a = rect(items[i].0);
-            assert!(a.0 + a.2 <= sw && a.1 + a.3 <= sh, "window {i} off-screen");
-            for zone in &zones {
-                assert!(!rects_intersect(a, *zone), "window {i} overlaps a fixed zone");
-            }
-            for j in (i + 1)..items.len() {
-                assert!(!rects_intersect(a, rect(items[j].0)), "windows {i}/{j} overlap");
+            for i in 0..items.len() {
+                let a = rect(items[i].0);
+                assert!(a.0 + a.2 <= sw && a.1 + a.3 <= sh, "{sw}x{sh}: window {i} off-screen");
+                for zone in &zones {
+                    assert!(!rects_intersect(a, *zone), "{sw}x{sh}: window {i} overlaps a fixed zone");
+                }
+                if expect_disjoint {
+                    for j in (i + 1)..items.len() {
+                        assert!(!rects_intersect(a, rect(items[j].0)), "{sw}x{sh}: windows {i}/{j} overlap");
+                    }
+                }
             }
         }
     }
+}
+
+/// Bottom-right anchor for a head board, stacked upward by `index`. Head boards
+/// draw centred above the anchor, so this keeps them clear of the packed windows
+/// in the top-left of a category view.
+fn board_anchor(ui: &UiFrame, index: usize) -> (f32, f32) {
+    const STEP: f32 = 50.0;
+    let x = ui.ctx.screen_width - GALLERY_MARGIN - BOARD_W / 2.0;
+    let y = ui.ctx.screen_height - GALLERY_MARGIN - index as f32 * STEP;
+    (x, y)
 }
 
 fn build_single(state: &mut State, ui: &mut UiFrame) {
@@ -2042,7 +2162,29 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::VendingBoard { container, name } => {
-            vending_board::draw_board(&mut ui.draw_calls, container, ui.atlas, 300.0, 260.0, 40.0, name);
+            let (ax, ay) = board_anchor(ui, 0);
+            vending_board::draw_board(&mut ui.draw_calls, container, ui.atlas, ax, ay, 40.0, name);
+        }
+        State::ChatRoomBoard {
+            container,
+            atype,
+            title,
+            cur,
+            max,
+        } => {
+            let (ax, ay) = board_anchor(ui, 1);
+            chat_room_board::draw_board(
+                &mut ui.draw_calls,
+                container,
+                ui.atlas,
+                ax,
+                ay,
+                40.0,
+                *atype,
+                title,
+                *cur,
+                *max,
+            );
         }
         State::NpcShop {
             shop,
@@ -2267,6 +2409,16 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         }
         State::Category { components } => {
             seed_gallery_layout(components, ui);
+            // The re-pack button lives in the top-centre band the packer keeps
+            // clear (the hotkey zone), so no window ever covers it.
+            let mut do_repack = false;
+            let btn_x = (ui.ctx.screen_width * 0.5 - 80.0).max(GALLERY_MARGIN);
+            add_button(ui, "Re-pack layout", WidgetId(60100), btn_x, 4.0, |_| {
+                do_repack = true;
+            });
+            if do_repack {
+                repack_gallery_layout(components, ui);
+            }
             // Build z-orderable windows in persisted order (back-to-front)
             let z_order = ui.get_z_order();
             ui.compute_hovered_window(&z_order);

@@ -55,6 +55,7 @@ pub struct HotkeyBarWindow {
     /// dragged into a slot can resolve their icon and drop level. IDs are
     /// range-disjoint from player skills, so a flat list needs no source tag.
     pub companion_skills: Vec<SkillInfo>,
+    pub top_margin: f32,
     bg_size: (f32, f32),
     close_size: (f32, f32),
     resize_start: Option<u8>,
@@ -72,6 +73,7 @@ impl HotkeyBarWindow {
             has_grf_textures: false,
             chat_is_active: false,
             companion_skills: Vec::new(),
+            top_margin: 0.0,
             bg_size: (0.0, 0.0),
             close_size: (0.0, 0.0),
             resize_start: None,
@@ -311,7 +313,7 @@ impl InGameWindow for HotkeyBarWindow {
 
         let win_h = visible_rows as f32 * ROW_H;
         let default_x = (ui.ctx.screen_width - WIN_W) / 2.0;
-        let default_y = 0.0;
+        let default_y = self.top_margin;
         let win = ui.window_at(
             HOTKEY_BAR_WINDOW_ID,
             WIN_W,

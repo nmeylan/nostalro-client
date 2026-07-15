@@ -84,6 +84,12 @@ impl CardInsertDialog {
         }
     }
 
+    pub fn window_size(&self) -> (f32, f32) {
+        let visible = VISIBLE_ROWS.min(self.eligible_items.len()).max(1);
+        let container_h = visible as f32 * ITEM_ROW_H + 2.0 * PAD_Y;
+        (WIN_W, TITLE_H + container_h + FOOTER_H)
+    }
+
     pub fn open(&mut self, card_index: u16, card_name: String, items: Vec<EligibleItem>) {
         self.card_index = card_index;
         self.card_name = card_name;
@@ -176,7 +182,7 @@ impl InGameWindow for CardInsertDialog {
         let visible = VISIBLE_ROWS.min(item_count).max(1);
         let container_h = visible as f32 * ITEM_ROW_H + 2.0 * PAD_Y;
         let win_h = TITLE_H + container_h + FOOTER_H;
-        let win = Rect::centered_in(ui.ctx.screen_width, ui.ctx.screen_height, WIN_W, win_h);
+        let win = ui.window(CARD_INSERT_WINDOW_ID, WIN_W, win_h, TITLE_H);
 
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
         let title = format!("Card Insert - {}", self.card_name);

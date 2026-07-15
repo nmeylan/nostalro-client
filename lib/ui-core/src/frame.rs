@@ -492,6 +492,16 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    /// Move a window to (x, y) unconditionally, overriding any dragged or
+    /// previously seeded position. Use to re-apply a computed layout (e.g. on
+    /// resize) rather than to place a window once.
+    pub fn set_window_position(&mut self, id: WidgetId, x: f32, y: f32) {
+        let state = self.state.get_or_default::<WindowState>(id);
+        state.x = x;
+        state.y = y;
+        state.initialized = true;
+    }
+
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let in_rect = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
         let hovered = in_rect

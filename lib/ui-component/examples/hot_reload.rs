@@ -11,6 +11,9 @@ use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
 use ragnarok_ui_component::game::chat_window::ChatWindow;
+use ragnarok_ui_component::game::chat_room_create_window::ChatRoomCreateWindow;
+use ragnarok_ui_component::game::chat_room_member_window::ChatRoomMemberWindow;
+use ragnarok_ui_component::game::party_friends_window::PartyFriendsWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::guild_window::GuildWindow;
@@ -119,7 +122,6 @@ const GAME_COMPONENTS: &[&str] = &[
     "equipment",
     "system_menu",
     "confirm_dialog",
-    "chat",
     "dialog_container",
     "item_info",
     "skill_tree",
@@ -127,10 +129,19 @@ const GAME_COMPONENTS: &[&str] = &[
     "hotkey_bar",
     "basic_info",
 ];
+const SOCIAL_COMPONENTS: &[&str] = &[
+    "guild",
+    "chat",
+    "chat_room_create",
+    "chat_room_member",
+    "chat_room_board",
+    "vending_board",
+    "party",
+];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
-    &["cart", "vending_setup", "my_shop", "vending_buy", "vending_board"];
+    &["cart", "vending_setup", "my_shop", "vending_buy"];
 const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
 
 fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
@@ -141,6 +152,10 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "my_shop" => MyShopWindow::grf_texture_paths(),
         "vending_buy" => VendingShopWindow::grf_texture_paths(),
         "vending_board" => ragnarok_ui_component::game::vending_board::grf_texture_paths(),
+        "chat_room_board" => ragnarok_ui_component::game::chat_room_board::grf_texture_paths(),
+        "chat_room_create" => ChatRoomCreateWindow::grf_texture_paths(),
+        "chat_room_member" => ChatRoomMemberWindow::grf_texture_paths(),
+        "party" => PartyFriendsWindow::grf_texture_paths(),
         "npc_shop_buy" => NpcShop::grf_texture_paths(),
         "npc_shop_sell" => NpcShop::grf_texture_paths(),
         "login" => LoginWindow::grf_texture_paths(),
@@ -179,6 +194,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
 fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
     let names: &[&str] = match example_name {
         "game" => GAME_COMPONENTS,
+        "social" => SOCIAL_COMPONENTS,
         "account" => ACCOUNT_COMPONENTS,
         "shop" => SHOP_COMPONENTS,
         "companion" => COMPANION_COMPONENTS,
@@ -252,7 +268,7 @@ fn main() {
     let example_name_for_closure = example_name.clone();
     let is_category = matches!(
         example_name.as_str(),
-        "game" | "account" | "shop" | "companion" | "guild"
+        "game" | "social" | "account" | "shop" | "companion" | "guild"
     );
     let (win_w, win_h) = if is_category { (1600, 1000) } else { (800, 600) };
 

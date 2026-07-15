@@ -75,7 +75,8 @@ lib/ui-component/dev.sh account
 lib/ui-component/dev.sh companion
 # Guild
 lib/ui-component/dev.sh guild
-
+# Social: chat, chat room, guild, party
+lib/ui-component/dev.sh social
 ```
 
 ## Effect viewer hot reload
@@ -114,3 +115,4 @@ Various gameplay/effect/ui rendering
 - https://www.youtube.com/watch?v=-XCxB3hem-A&list=PLbEyWK1BqG7oYWWnTg9ENpIB_XESvml8P&index=28 <- effects
 - https://www.youtube.com/watch?v=P__GwtWu6pQ <- marionette dolls
 - http://guidesragnarok.free.fr/guides/guildes.php <- guild
+- https://www.youtube.com/watch?v=BuEU4GeoUPQ <- chat room

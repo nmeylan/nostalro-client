@@ -44,7 +44,7 @@ TODO:
 - ~~NPC shop (buy/sell)~~
 ~~- Vending (player shop setup + buying)~~
 - ~~Party window~~
-- Guild window (members, positions, skills, emblem, notices)
+- ~~Guild window (members, positions, skills, emblem, notices)~~
 - ~~Friend/messenger list~~
 - Game menu: graphic/audio options
 - Emotion selector
@@ -96,9 +96,10 @@ TODO:
 
 # Social
 - ~~Party (create, join, leave, exp/item share settings)~~
-- Guild (create, manage, skills, emblem, war of emperium)
+- ~~Guild (create, manage, skills, emblem)
+- War of emperium: no name, no damage number, emblem above head
 - ~~Friend list + whisper~~
-- Chat rooms
+- ~~Chat rooms~~
 - Trade
 ~~- Vending/merchant shop~~
 - Marriage/couples
@@ -111,7 +112,7 @@ TODO:
 - ~~NPC packets (dialog, menu, shop, close)~~
 - ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
 - ~~Status change packets~~
-- Party/guild packets
+- ~~Party/guild packets~~
 ~~- Trade/vending packets~~
 - Quest packets
 - Pet/homunculus/mercenary packets

@@ -162,6 +162,9 @@ impl Window for ChatRoomCreateWindow {
             self.btn_size = (w as f32, h as f32);
         }
     }
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, TITLE_H + (PAD + ROW_H * 4.0 + PAD) + FOOTER_H)
+    }
     fn grf_texture_paths() -> Vec<&'static str> {
         vec![
             TITLEBAR_TEX,

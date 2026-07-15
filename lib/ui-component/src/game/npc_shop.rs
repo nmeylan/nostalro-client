@@ -178,21 +178,7 @@ impl InGameWindow for NpcShop {
         let input_default_y = 100.0;
         let output_default_x = input_default_x + (WIN_W) + (WIN_GAP);
 
-        let input_item_count = match self.shop.mode {
-            Some(NpcShopMode::Sell) => self.shop.visible_sell_indices().len(),
-            _ => self.shop.item_count(),
-        };
-        let input_content_rows = self
-            .input_visible_rows
-            .min(input_item_count)
-            .max(INPUT_MIN_ROWS);
-        let input_content_h = input_content_rows as f32 * (ITEM_ROW_H);
-        let input_win_h =
-            (TITLE_H) + (CONTAINER_PAD_Y) + input_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
-        let output_content_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.cart.len().min(5)).max(2);
-        let output_content_h = output_content_rows as f32 * (ITEM_ROW_H);
-        let output_win_h =
-            (TITLE_H) + (CONTAINER_PAD_Y) + output_content_h + (CONTAINER_PAD_Y) + (FOOTER_H);
+        let (input_win_h, output_win_h) = self.window_heights();
 
         let output_default_y = input_default_y + input_win_h - output_win_h;
 
@@ -227,6 +213,33 @@ impl InGameWindow for NpcShop {
 }
 
 impl NpcShop {
+    fn window_heights(&self) -> (f32, f32) {
+        let input_item_count = match self.shop.mode {
+            Some(NpcShopMode::Sell) => self.shop.visible_sell_indices().len(),
+            _ => self.shop.item_count(),
+        };
+        let input_rows = self.input_visible_rows.min(input_item_count).max(INPUT_MIN_ROWS);
+        let input_h =
+            TITLE_H + CONTAINER_PAD_Y + input_rows as f32 * ITEM_ROW_H + CONTAINER_PAD_Y + FOOTER_H;
+        let output_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.cart.len().min(5)).max(2);
+        let output_h =
+            TITLE_H + CONTAINER_PAD_Y + output_rows as f32 * ITEM_ROW_H + CONTAINER_PAD_Y + FOOTER_H;
+        (input_h, output_h)
+    }
+
+    /// The input (item list) and output (cart) windows with their current
+    /// sizes, for a gallery/packer to lay out. Empty while the shop is closed.
+    pub fn gallery_windows(&self) -> Vec<(WidgetId, (f32, f32))> {
+        if !self.shop.is_open() {
+            return Vec::new();
+        }
+        let (input_h, output_h) = self.window_heights();
+        vec![
+            (INPUT_WIN_ID, (WIN_W, input_h)),
+            (OUTPUT_WIN_ID, (WIN_W, output_h)),
+        ]
+    }
+
     fn build_input_window(
         &mut self,
         ui: &mut UiFrame,
