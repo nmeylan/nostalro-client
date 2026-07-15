@@ -416,7 +416,7 @@ impl App {
                     );
                     self.game.chat_room_member_window.push_message(
                         "You entered the room.".to_string(),
-                        chat_room_member_window::SYSTEM_MSG_COLOR,
+                        chat_room_member_window::JOIN_MSG_COLOR,
                     );
                     self.game
                         .chat_window
@@ -445,7 +445,7 @@ impl App {
                     let msg = format!("{name} has joined the room.");
                     self.game
                         .chat_room_member_window
-                        .push_message(msg.clone(), chat_room_member_window::SYSTEM_MSG_COLOR);
+                        .push_message(msg.clone(), chat_room_member_window::JOIN_MSG_COLOR);
                     self.game.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomMemberLeft { name, kicked, .. } => {
@@ -457,7 +457,7 @@ impl App {
                         self.game.chat_room_member_window.remove_member(&name);
                         self.game.chat_room_member_window.push_message(
                             msg.clone(),
-                            chat_room_member_window::SYSTEM_MSG_COLOR,
+                            chat_room_member_window::LEAVE_MSG_COLOR,
                         );
                     }
                     self.game.chat_window.add_system(msg);

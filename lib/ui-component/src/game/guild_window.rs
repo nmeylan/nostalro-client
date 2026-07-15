@@ -1,3 +1,4 @@
+use crate::helper::dropdown::{self, Dropdown};
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_footer, draw_sys_button,
@@ -183,7 +184,7 @@ pub struct GuildWindow {
     head_insert_index: Option<usize>,
     open_member_dropdown: Option<u32>,
     member_pos_overlay: Option<(u32, u32, Rect, Vec<(i32, String)>)>,
-    dropdown_opened_this_frame: bool,
+    member_pos_dropdown: Dropdown,
 }
 
 impl Default for GuildWindow {
@@ -216,7 +217,7 @@ impl GuildWindow {
             head_insert_index: None,
             open_member_dropdown: None,
             member_pos_overlay: None,
-            dropdown_opened_this_frame: false,
+            member_pos_dropdown: Dropdown::default(),
         }
     }
 
@@ -339,21 +340,6 @@ impl GuildWindow {
             texture: TextureRef::White,
         });
     }
-
-    fn draw_border(ui: &mut UiFrame, r: Rect) {
-        Self::fill(ui, r.x, r.y, r.w, 1.0, BORDER);
-        Self::fill(ui, r.x, r.y + r.h - 1.0, r.w, 1.0, BORDER);
-        Self::fill(ui, r.x, r.y, 1.0, r.h, BORDER);
-        Self::fill(ui, r.x + r.w - 1.0, r.y, 1.0, r.h, BORDER);
-    }
-
-    fn draw_down_arrow(ui: &mut UiFrame, cx: f32, top: f32, color: [f32; 4]) {
-        for r in 0..4 {
-            let w = (7 - r * 2) as f32;
-            Self::fill(ui, cx - w / 2.0, top + r as f32, w, 1.0, color);
-        }
-    }
-
 }
 
 impl Window for GuildWindow {
@@ -392,6 +378,7 @@ impl Window for GuildWindow {
             SKILL_UP_BTN.pressed,
         ];
         paths.extend(scrollbar::grf_texture_paths());
+        paths.extend(dropdown::grf_texture_paths());
         paths
     }
 }
@@ -414,7 +401,7 @@ impl InGameWindow for GuildWindow {
         self.member_head_slots.clear();
         self.head_insert_index = None;
         self.member_pos_overlay = None;
-        self.dropdown_opened_this_frame = false;
+        self.member_pos_dropdown.begin_frame();
 
         if self.just_opened {
             self.just_opened = false;
@@ -764,32 +751,21 @@ impl GuildWindow {
             let mut pos_cell_rect: Option<Rect> = None;
             if is_master && m.position_id != 0 {
                 let cell = Rect::new(pos_x - 2.0, row_y + 9.0, 62.0, 16.0);
-                Self::fill(ui, cell.x, cell.y, cell.w, cell.h, [1.0, 1.0, 1.0, 1.0]);
-                Self::draw_border(ui, cell);
-                ui.text(cell.x + 3.0, cell.y + 12.0, &m.position_name, TEXT);
-                Self::draw_down_arrow(ui, cell.x + cell.w - 7.0, cell.y + 6.0, TEXT);
-                let dd = ui.interact(WidgetId(MEMBER_POS_DROPDOWN_BASE + row as u32), cell);
-                if dd.hovered() {
-                    ui.any_interactive_hovered = true;
-                }
                 let dd_blocked = overlay.map(|(_, _, _, lr)| lr.contains(mx, my)).unwrap_or(false);
-                if dd.clicked() && !dd_blocked {
-                    self.open_member_dropdown = if self.open_member_dropdown == Some(m.gid) {
-                        None
-                    } else {
-                        self.dropdown_opened_this_frame = true;
-                        Some(m.gid)
-                    };
+                self.member_pos_dropdown.open = self.open_member_dropdown == Some(m.gid);
+                let dr = self.member_pos_dropdown.show(
+                    ui,
+                    WidgetId(MEMBER_POS_DROPDOWN_BASE + row as u32),
+                    cell,
+                    &m.position_name,
+                    positions_list.len(),
+                    Rect::new(x, cy, WIN_W, CONTENT_H),
+                    dd_blocked,
+                );
+                if dr.toggled {
+                    self.open_member_dropdown = self.member_pos_dropdown.open.then_some(m.gid);
                 }
-                if self.open_member_dropdown == Some(m.gid) {
-                    let list_h = positions_list.len() as f32 * 16.0;
-                    let down_y = cell.y + cell.h;
-                    let list_y = if down_y + list_h > cy + CONTENT_H {
-                        (cell.y - list_h).max(cy)
-                    } else {
-                        down_y
-                    };
-                    let list_rect = Rect::new(cell.x, list_y, cell.w, list_h);
+                if let Some(list_rect) = dr.overlay_rect {
                     overlay = Some((m.aid, m.gid, cell, list_rect));
                 }
                 pos_cell_rect = Some(cell);
@@ -849,25 +825,17 @@ impl GuildWindow {
         let Some((aid, gid, list_rect, positions)) = self.member_pos_overlay.take() else {
             return events;
         };
-        ui.begin_popup_layer(list_rect);
-        Self::fill(ui, list_rect.x, list_rect.y, list_rect.w, list_rect.h, [1.0; 4]);
-        Self::draw_border(ui, list_rect);
-        for (i, (pid, pname)) in positions.iter().enumerate() {
-            let item = Rect::new(list_rect.x, list_rect.y + i as f32 * 16.0, list_rect.w, 16.0);
-            let r = ui.interact(WidgetId(MEMBER_POS_OPTION_BASE + i as u32), item);
-            if r.hovered() {
-                ui.any_interactive_hovered = true;
-                Self::fill(ui, item.x, item.y, item.w, item.h, SELECTION_COLOR);
-            }
-            ui.text(item.x + 4.0, item.y + 12.0, pname, TEXT);
-            if r.clicked() && !self.dropdown_opened_this_frame {
-                events.push(GameEvent::RequestChangeMemberPosition {
-                    aid,
-                    gid,
-                    position_id: *pid,
-                });
-                self.open_member_dropdown = None;
-            }
+        let labels: Vec<&str> = positions.iter().map(|(_, name)| name.as_str()).collect();
+        if let Some(idx) =
+            self.member_pos_dropdown
+                .show_overlay(ui, list_rect, MEMBER_POS_OPTION_BASE, &labels)
+        {
+            events.push(GameEvent::RequestChangeMemberPosition {
+                aid,
+                gid,
+                position_id: positions[idx].0,
+            });
+            self.open_member_dropdown = None;
         }
         events
     }

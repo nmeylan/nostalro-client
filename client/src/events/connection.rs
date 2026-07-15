@@ -97,6 +97,9 @@ impl App {
     }
 
     pub(crate) fn handle_restart_ack(&mut self) {
+        self.capture_window_state();
+        self.config.save("config.json");
+        self.window_state_restored = false;
         self.char_select_window = None;
         self.game.character.clear();
         self.game.entities.clear();
@@ -310,7 +313,10 @@ impl App {
         self.refresh_level_aura(account_id);
 
         self.game.app_state = AppState::InGame;
-        self.game.apply_window_state(&self.config.window_state);
+        if !self.window_state_restored {
+            self.game.apply_window_state(&self.config.window_state);
+            self.window_state_restored = true;
+        }
         self.game
             .character
             .hotkeys
@@ -464,6 +470,8 @@ impl App {
 
     pub(super) fn handle_disconnect_ack(&mut self, allowed: bool, event_loop: &ActiveEventLoop) {
         if allowed {
+            self.capture_window_state();
+            self.config.save("config.json");
             self.channel.send_cmd(NetworkCommand::Disconnect);
             event_loop.exit();
         } else {

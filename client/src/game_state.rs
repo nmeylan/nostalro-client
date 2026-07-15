@@ -1191,3 +1191,37 @@ mod skill_resolve_tests {
         assert_eq!(game.resolve_cast_skill(9999), None);
     }
 }
+
+#[cfg(test)]
+mod window_state_persistence_tests {
+    use super::*;
+
+    #[test]
+    fn closed_skill_window_persists_and_restores_closed() {
+        let cache = StateCache::new();
+        let mut game = GameState::new();
+        game.character.skills.open();
+        assert_eq!(
+            game.extract_window_state(&cache).get(&SKILL_WINDOW_ID.0),
+            Some(&(true, false))
+        );
+
+        game.character.skills.close();
+        let captured = game.extract_window_state(&cache);
+        assert_eq!(captured.get(&SKILL_WINDOW_ID.0), Some(&(false, false)));
+
+        let (open, collapsed) = captured[&SKILL_WINDOW_ID.0];
+        let mut window_state = HashMap::new();
+        window_state.insert(
+            SKILL_WINDOW_ID.0,
+            WindowStateEntry {
+                position: [0.0, 0.0],
+                open,
+                collapsed,
+            },
+        );
+        let mut next_login = GameState::new();
+        next_login.apply_window_state(&window_state);
+        assert!(!next_login.character.skills.is_open());
+    }
+}

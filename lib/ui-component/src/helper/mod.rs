@@ -1,5 +1,6 @@
 pub mod colors;
 pub mod dialog_container;
+pub mod dropdown;
 pub mod fallback;
 pub mod format;
 pub mod head_board;

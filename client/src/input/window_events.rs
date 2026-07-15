@@ -11,7 +11,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 impl App {
-    pub(crate) fn handle_close_requested(&mut self, event_loop: &ActiveEventLoop) {
+    pub(crate) fn capture_window_state(&mut self) {
         let positions = self.ui_state_cache.extract_window_positions();
         let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
         let mut window_state = HashMap::new();
@@ -29,6 +29,10 @@ impl App {
         self.config.window_state = window_state;
         self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
         self.config.battle_mode = self.game.character.hotkeys.battle_mode();
+    }
+
+    pub(crate) fn handle_close_requested(&mut self, event_loop: &ActiveEventLoop) {
+        self.capture_window_state();
         self.config.save("config.json");
         event_loop.exit();
     }

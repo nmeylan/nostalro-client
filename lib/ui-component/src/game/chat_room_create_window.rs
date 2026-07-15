@@ -1,3 +1,4 @@
+use crate::helper::dropdown::{self, Dropdown};
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button,
     draw_titlebar, text_color,
@@ -14,12 +15,18 @@ use ragnarok_ui::text_input::TextInput;
 pub const CHAT_ROOM_CREATE_WINDOW_ID: WidgetId = WidgetId(1710);
 const CLOSE_BTN_ID: WidgetId = WidgetId(1711);
 const TITLE_INPUT_ID: WidgetId = WidgetId(1712);
-const LIMIT_INPUT_ID: WidgetId = WidgetId(1713);
+const LIMIT_DROPDOWN_ID: WidgetId = WidgetId(1713);
 const RADIO_PUBLIC_ID: WidgetId = WidgetId(1714);
 const RADIO_PRIVATE_ID: WidgetId = WidgetId(1715);
 const PASSWORD_INPUT_ID: WidgetId = WidgetId(1716);
 const OK_ID: WidgetId = WidgetId(1717);
 const CANCEL_ID: WidgetId = WidgetId(1718);
+const TYPE_DROPDOWN_ID: WidgetId = WidgetId(1719);
+const LIMIT_OPTION_BASE: u32 = 1720;
+const TYPE_OPTION_BASE: u32 = 1730;
+
+const LIMIT_OPTIONS: [i16; 5] = [20, 12, 8, 4, 2];
+const TYPE_OPTIONS: [&str; 1] = ["Chat Room"];
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
@@ -36,7 +43,7 @@ const CANCEL_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
 };
 
-const WIN_W: f32 = 240.0;
+const WIN_W: f32 = 330.0;
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 30.0;
 const PAD: f32 = 8.0;
@@ -45,17 +52,19 @@ const LABEL_W: f32 = 66.0;
 const CLOSE_BTN_SIZE: f32 = 11.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
-const MAX_LIMIT: i16 = 127;
+const BODY_ROWS: f32 = 3.0;
 
 pub struct ChatRoomCreateWindow {
     has_grf_textures: bool,
     open: bool,
     title: TextInput,
-    limit: TextInput,
+    limit: i16,
     public: bool,
     password: TextInput,
     change_room_id: Option<u32>,
     btn_size: (f32, f32),
+    limit_dropdown: Dropdown,
+    type_dropdown: Dropdown,
 }
 
 impl Default for ChatRoomCreateWindow {
@@ -70,11 +79,13 @@ impl ChatRoomCreateWindow {
             has_grf_textures: false,
             open: false,
             title: TextInput::new(60, false),
-            limit: TextInput::new(3, false),
+            limit: 20,
             public: true,
             password: TextInput::new(8, true),
             change_room_id: None,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
+            limit_dropdown: Dropdown::default(),
+            type_dropdown: Dropdown::default(),
         }
     }
 
@@ -85,8 +96,11 @@ impl ChatRoomCreateWindow {
     fn reset(&mut self, title: &str, limit: i16, public: bool) {
         self.title.text = title.to_string();
         self.title.cursor_pos = self.title.text.chars().count();
-        self.limit.text = limit.to_string();
-        self.limit.cursor_pos = self.limit.text.chars().count();
+        self.limit = if LIMIT_OPTIONS.contains(&limit) {
+            limit
+        } else {
+            20
+        };
         self.public = public;
         self.password.text.clear();
         self.password.cursor_pos = 0;
@@ -114,15 +128,6 @@ impl ChatRoomCreateWindow {
 
     pub fn close(&mut self) {
         self.open = false;
-    }
-
-    fn parsed_limit(&self) -> Option<i16> {
-        self.limit
-            .text
-            .trim()
-            .parse::<i16>()
-            .ok()
-            .filter(|n| (1..=MAX_LIMIT).contains(n))
     }
 
     fn draw_radio(ui: &mut UiFrame, x: f32, y: f32, on: bool, grf: bool) {
@@ -163,10 +168,10 @@ impl Window for ChatRoomCreateWindow {
         }
     }
     fn window_size(&self) -> (f32, f32) {
-        (WIN_W, TITLE_H + (PAD + ROW_H * 4.0 + PAD) + FOOTER_H)
+        (WIN_W, TITLE_H + (PAD + ROW_H * BODY_ROWS + PAD) + FOOTER_H)
     }
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![
+        let mut paths = vec![
             TITLEBAR_TEX,
             SYS_BASE_OFF_TEX,
             SYS_BASE_ON_TEX,
@@ -180,7 +185,9 @@ impl Window for ChatRoomCreateWindow {
             CANCEL_BTN.normal,
             CANCEL_BTN.hover,
             CANCEL_BTN.pressed,
-        ]
+        ];
+        paths.extend(dropdown::grf_texture_paths());
+        paths
     }
 }
 
@@ -195,6 +202,8 @@ impl InGameWindow for ChatRoomCreateWindow {
             return Vec::new();
         }
         let mut events = Vec::new();
+        self.limit_dropdown.begin_frame();
+        self.type_dropdown.begin_frame();
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
@@ -206,7 +215,7 @@ impl InGameWindow for ChatRoomCreateWindow {
             TextInputBg::Default
         };
 
-        let body_h = PAD + ROW_H * 4.0 + PAD;
+        let body_h = PAD + ROW_H * BODY_ROWS + PAD;
         let win_h = TITLE_H + body_h + FOOTER_H;
         let win = ui.window_at(CHAT_ROOM_CREATE_WINDOW_ID, WIN_W, win_h, TITLE_H, 220.0, 120.0);
         let (x, y) = (win.x, win.y);
@@ -218,7 +227,7 @@ impl InGameWindow for ChatRoomCreateWindow {
         } else {
             "Make a Room"
         };
-        ui.text(x + 6.0, y + TITLE_H - 3.0, title_label, tc);
+        ui.text(x + 16.0, y + TITLE_H - 3.0, title_label, tc);
 
         let close_rect = Rect::new(
             x + WIN_W - CLOSE_BTN_SIZE - 3.0,
@@ -252,6 +261,11 @@ impl InGameWindow for ChatRoomCreateWindow {
 
         let field_x = x + PAD + LABEL_W;
         let field_w = WIN_W - PAD * 2.0 - LABEL_W;
+        let right_label_x = x + 184.0;
+        let right_field_x = right_label_x + 42.0;
+        let right_field_w = WIN_W - PAD - (right_field_x - x);
+        let bounds = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
+        let (mx, my) = (ui.ctx.mouse_x, ui.ctx.mouse_y);
         let mut row_y = body_y + PAD;
 
         // Title
@@ -264,47 +278,59 @@ impl InGameWindow for ChatRoomCreateWindow {
         );
         row_y += ROW_H;
 
-        // Limit
+        // Limit / Type
         ui.text(x + PAD, row_y + 12.0, "Limit :", tc);
-        self.limit.text.retain(|c| c.is_ascii_digit());
-        ui.text_input(
-            LIMIT_INPUT_ID,
-            Rect::new(field_x, row_y, 40.0, 16.0),
-            &mut self.limit,
-            bg,
+        let limit_label = format!("{} People", self.limit);
+        let limit_dd = self.limit_dropdown.show(
+            ui,
+            LIMIT_DROPDOWN_ID,
+            Rect::new(field_x, row_y, 84.0, 16.0),
+            &limit_label,
+            LIMIT_OPTIONS.len(),
+            bounds,
+            false,
+        );
+        ui.text(right_label_x, row_y + 12.0, "Type :", tc);
+        let type_dd = self.type_dropdown.show(
+            ui,
+            TYPE_DROPDOWN_ID,
+            Rect::new(right_field_x, row_y, right_field_w, 16.0),
+            TYPE_OPTIONS[0],
+            TYPE_OPTIONS.len(),
+            bounds,
+            false,
         );
         row_y += ROW_H;
 
+        let overlay_hit = [limit_dd.overlay_rect, type_dd.overlay_rect]
+            .into_iter()
+            .flatten()
+            .any(|r| r.contains(mx, my));
+
         // Public / Private
-        ui.text(x + PAD, row_y + 12.0, "Type :", tc);
+        ui.text(x + PAD, row_y + 12.0, "Public :", tc);
         Self::draw_radio(ui, field_x, row_y + 2.0, self.public, grf);
         ui.text(field_x + 16.0, row_y + 12.0, "Public", tc);
-        let pub_rect = Rect::new(field_x, row_y, 66.0, ROW_H);
-        if ui.interact(RADIO_PUBLIC_ID, pub_rect).clicked() {
+        let pub_rect = Rect::new(field_x, row_y, 48.0, ROW_H);
+        if !overlay_hit && ui.interact(RADIO_PUBLIC_ID, pub_rect).clicked() {
             self.public = true;
         }
-        let priv_x = field_x + 74.0;
+        let priv_x = field_x + 50.0;
         Self::draw_radio(ui, priv_x, row_y + 2.0, !self.public, grf);
         ui.text(priv_x + 16.0, row_y + 12.0, "Private", tc);
-        let priv_rect = Rect::new(priv_x, row_y, 70.0, ROW_H);
-        if ui.interact(RADIO_PRIVATE_ID, priv_rect).clicked() {
+        let priv_rect = Rect::new(priv_x, row_y, right_label_x - priv_x, ROW_H);
+        if !overlay_hit && ui.interact(RADIO_PRIVATE_ID, priv_rect).clicked() {
             self.public = false;
         }
-        row_y += ROW_H;
 
-        // Password (private only)
-        ui.text(x + PAD, row_y + 12.0, "Password :", tc);
-        if self.public {
-            self.password.text.clear();
-            self.password.cursor_pos = 0;
-        } else {
-            ui.text_input(
-                PASSWORD_INPUT_ID,
-                Rect::new(field_x, row_y, field_w, 16.0),
-                &mut self.password,
-                bg,
-            );
-        }
+        // Sign (password)
+        ui.text(right_label_x, row_y + 12.0, "Sign :", tc);
+        ui.text_input(
+            PASSWORD_INPUT_ID,
+            Rect::new(right_field_x, row_y, right_field_w, 16.0),
+            &mut self.password,
+            bg,
+        );
 
         // Footer buttons
         let (btn_w, btn_h) = self.btn_size;
@@ -313,26 +339,39 @@ impl InGameWindow for ChatRoomCreateWindow {
         let mut bx = x + WIN_W - PAD - btn_w;
         let cancel = ui
             .button(CANCEL_ID, Rect::new(bx, btn_y, btn_w, btn_h), &CANCEL_BTN, "cancel")
-            .clicked();
+            .clicked()
+            && !overlay_hit;
         bx -= btn_w + 4.0;
         let ok = ui
             .button(OK_ID, Rect::new(bx, btn_y, btn_w, btn_h), &OK_BTN, "OK")
-            .clicked();
+            .clicked()
+            && !overlay_hit;
+
+        if let Some(rect) = limit_dd.overlay_rect {
+            let labels = limit_option_labels();
+            let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+            if let Some(idx) =
+                self.limit_dropdown
+                    .show_overlay(ui, rect, LIMIT_OPTION_BASE, &label_refs)
+            {
+                self.limit = LIMIT_OPTIONS[idx];
+            }
+        }
+        if let Some(rect) = type_dd.overlay_rect {
+            self.type_dropdown.show_overlay(ui, rect, TYPE_OPTION_BASE, &TYPE_OPTIONS);
+        }
 
         if cancel {
             self.close();
-        } else if ok
-            && let Some(limit) = self.parsed_limit()
-            && !self.title.text.trim().is_empty()
-        {
+        } else if ok && !self.title.text.trim().is_empty() {
             let title = self.title.text.trim().to_string();
             let password = if self.public {
                 String::new()
             } else {
                 self.password.text.clone()
             };
-            if let Some(room_id) = self.change_room_id {
-                let _ = room_id;
+            let limit = self.limit;
+            if self.change_room_id.is_some() {
                 events.push(GameEvent::RequestChangeChatRoom {
                     title,
                     limit,
@@ -355,27 +394,66 @@ impl InGameWindow for ChatRoomCreateWindow {
     }
 }
 
+fn limit_option_labels() -> [String; LIMIT_OPTIONS.len()] {
+    LIMIT_OPTIONS.map(|n| format!("{n} People"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
 
-    #[test]
-    fn public_room_clears_password_on_submit_state() {
-        let mut win = ChatRoomCreateWindow::new();
-        win.open_create();
-        assert!(win.public);
-        assert_eq!(win.parsed_limit(), Some(20));
+    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
+        let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
+    }
+
+    fn frame(win: &mut ChatRoomCreateWindow, state: &mut StateCache, mx: f32, my: f32, click: bool) -> Vec<GameEvent> {
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
+        ctx.mouse_clicked = click;
+        let mut ui = make_frame(&ctx, state);
+        win.build(&mut ui, &mut character, &data)
     }
 
     #[test]
-    fn limit_out_of_range_is_rejected() {
+    fn open_change_clamps_unknown_limit_to_default() {
+        let mut win = ChatRoomCreateWindow::new();
+        win.open_change(7, "Room", 99, true);
+        assert_eq!(win.limit, 20);
+        win.open_change(7, "Room", 8, true);
+        assert_eq!(win.limit, 8);
+    }
+
+    #[test]
+    fn selecting_limit_option_updates_value_and_submits() {
         let mut win = ChatRoomCreateWindow::new();
         win.open_create();
-        win.limit.text = "0".into();
-        assert_eq!(win.parsed_limit(), None);
-        win.limit.text = "200".into();
-        assert_eq!(win.parsed_limit(), None);
-        win.limit.text = "12".into();
-        assert_eq!(win.parsed_limit(), Some(12));
+        assert_eq!(win.limit, 20);
+        let mut state = StateCache::new();
+
+        // Window opens at (220, 120); Limit dropdown box sits on the second body row.
+        frame(&mut win, &mut state, 300.0, 172.0, true);
+        assert!(win.limit_dropdown.open);
+
+        // Option list drops below the box; "8 People" is the third entry.
+        frame(&mut win, &mut state, 300.0, 223.0, true);
+        assert_eq!(win.limit, 8);
+        assert!(!win.limit_dropdown.open);
+
+        win.title.text = "Room".into();
+        let events = frame(&mut win, &mut state, 475.0, 234.0, true);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestCreateChatRoom { limit: 8, .. })),
+            "expected create with limit 8, got {events:?}"
+        );
     }
 }

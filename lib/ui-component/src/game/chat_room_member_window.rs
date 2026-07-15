@@ -9,8 +9,9 @@ use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, word_wrap};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
+use ragnarok_ui::text_input::TextInput;
 
 pub const CHAT_ROOM_MEMBER_WINDOW_ID: WidgetId = WidgetId(1720);
 const CLOSE_BTN_ID: WidgetId = WidgetId(1721);
@@ -19,6 +20,8 @@ const EDIT_BTN_ID: WidgetId = WidgetId(1723);
 const SCROLL_UP_ID: WidgetId = WidgetId(1724);
 const SCROLL_DOWN_ID: WidgetId = WidgetId(1725);
 const SCROLL_THUMB_ID: WidgetId = WidgetId(1726);
+const INPUT_ID: WidgetId = WidgetId(1727);
+const RESIZE_ID: WidgetId = WidgetId(1728);
 const MEMBER_ROW_BASE_ID: u32 = 1730;
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
@@ -34,21 +37,28 @@ const CANCEL_BTN: ButtonTextures = ButtonTextures {
     pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
 };
 
-pub const OWN_MSG_COLOR: [f32; 4] = [0.55, 1.0, 0.55, 1.0];
-pub const OTHER_MSG_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-pub const SYSTEM_MSG_COLOR: [f32; 4] = [1.0, 0.9, 0.4, 1.0];
+pub const OWN_MSG_COLOR: [f32; 4] = [0.192, 0.349, 0.216, 1.0];
+pub const OTHER_MSG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+pub const JOIN_MSG_COLOR: [f32; 4] = [0.255, 0.427, 0.424, 1.0];
+pub const LEAVE_MSG_COLOR: [f32; 4] = [0.282, 0.106, 0.133, 1.0];
+pub const SYSTEM_MSG_COLOR: [f32; 4] = [0.4, 0.4, 0.4, 1.0];
+const OWNER_NAME_COLOR: [f32; 4] = [0.212, 0.443, 0.427, 1.0];
+const DIVIDER_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
 
-const WIN_W: f32 = 330.0;
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 30.0;
 const LINE_H: f32 = 14.0;
 const PAD: f32 = 6.0;
 const GAP: f32 = 6.0;
 const MEMBER_PANE_W: f32 = 92.0;
-const VISIBLE_ROWS: usize = 8;
 const MAX_MESSAGES: usize = 200;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
+const RESIZE_SIZE: f32 = 13.0;
+const DEFAULT_W: f32 = 280.0;
+const MIN_W: f32 = 260.0;
+const DEFAULT_CONTENT_H: f32 = 112.0;
+const MIN_CONTENT_H: f32 = 56.0;
 
 pub struct ChatRoomMemberWindow {
     has_grf_textures: bool,
@@ -62,6 +72,10 @@ pub struct ChatRoomMemberWindow {
     local_name: String,
     scroll_offset: usize,
     btn_size: (f32, f32),
+    input: TextInput,
+    width: f32,
+    content_h: f32,
+    resize_start: Option<(f32, f32)>,
 }
 
 impl Default for ChatRoomMemberWindow {
@@ -84,7 +98,15 @@ impl ChatRoomMemberWindow {
             local_name: String::new(),
             scroll_offset: 0,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
+            input: TextInput::new(70, false),
+            width: DEFAULT_W,
+            content_h: DEFAULT_CONTENT_H,
+            resize_start: None,
         }
+    }
+
+    fn visible_rows(&self) -> usize {
+        ((self.content_h / LINE_H) as usize).max(1)
     }
 
     pub fn is_open(&self) -> bool {
@@ -197,8 +219,7 @@ impl Window for ChatRoomMemberWindow {
         }
     }
     fn window_size(&self) -> (f32, f32) {
-        let pane_h = PAD + VISIBLE_ROWS as f32 * LINE_H + PAD;
-        (WIN_W, TITLE_H + pane_h + FOOTER_H)
+        (self.width, TITLE_H + PAD + self.content_h + PAD + FOOTER_H)
     }
     fn grf_texture_paths() -> Vec<&'static str> {
         let mut paths = vec![
@@ -213,6 +234,7 @@ impl Window for ChatRoomMemberWindow {
             CANCEL_BTN.normal,
             CANCEL_BTN.hover,
             CANCEL_BTN.pressed,
+            RESIZE_HANDLE_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
         paths
@@ -236,18 +258,20 @@ impl InGameWindow for ChatRoomMemberWindow {
         let grf = self.has_grf_textures;
         let tc = text_color(grf);
 
-        let pane_h = PAD + VISIBLE_ROWS as f32 * LINE_H + PAD;
-        let body_h = pane_h;
+        let win_w = self.width;
+        let visible_rows = self.visible_rows();
+        let content_h = self.content_h;
+        let body_h = PAD + content_h + PAD;
         let win_h = TITLE_H + body_h + FOOTER_H;
-        let win = ui.window_at(CHAT_ROOM_MEMBER_WINDOW_ID, WIN_W, win_h, TITLE_H, 260.0, 120.0);
+        let win = ui.window_at(CHAT_ROOM_MEMBER_WINDOW_ID, win_w, win_h, TITLE_H, 260.0, 120.0);
         let (x, y) = (win.x, win.y);
-        ui.interact(CHAT_ROOM_MEMBER_WINDOW_ID, Rect::new(x, y, WIN_W, win_h));
+        ui.interact(CHAT_ROOM_MEMBER_WINDOW_ID, Rect::new(x, y, win_w, win_h));
 
-        draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
+        draw_titlebar(ui, x, y, win_w, TITLE_H, grf);
         let header = format!("{} ({}/{})", self.title, self.members.len(), self.max_count);
-        ui.text(x + 6.0, y + TITLE_H - 3.0, &header, tc);
+        ui.text(x + 16.0, y + TITLE_H - 3.0, &header, tc);
 
-        let close_rect = Rect::new(x + WIN_W - 14.0, y + 3.0, 11.0, 11.0);
+        let close_rect = Rect::new(x + win_w - 14.0, y + 3.0, 11.0, 11.0);
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
         if close_resp.hovered() {
             ui.any_interactive_hovered = true;
@@ -264,21 +288,14 @@ impl InGameWindow for ChatRoomMemberWindow {
         );
 
         let body_y = y + TITLE_H;
-        draw_container(ui, x, body_y, WIN_W, body_h, grf);
-        draw_footer(ui, x, y + win_h - FOOTER_H, WIN_W, FOOTER_H, grf);
+        draw_container(ui, x, body_y, win_w, body_h, grf);
+        draw_footer(ui, x, y + win_h - FOOTER_H, win_w, FOOTER_H, grf);
 
         let content_y = body_y + PAD;
-        let content_h = VISIBLE_ROWS as f32 * LINE_H;
 
         // --- Message pane (left) ---
         let msg_x = x + PAD;
-        let msg_w = WIN_W - PAD * 2.0 - GAP - MEMBER_PANE_W;
-        let (v, i) = draw::quad_vertices(msg_x, content_y, msg_w, content_h, [0.0, 0.0, 0.0, 0.8]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
+        let msg_w = win_w - PAD * 2.0 - GAP - MEMBER_PANE_W;
         let text_w = msg_w - 4.0;
         let mut rendered: Vec<(String, [f32; 4])> = Vec::new();
         for (text, color) in &self.messages {
@@ -286,24 +303,33 @@ impl InGameWindow for ChatRoomMemberWindow {
                 rendered.push((line, *color));
             }
         }
-        let start = rendered.len().saturating_sub(VISIBLE_ROWS);
+        let start = rendered.len().saturating_sub(visible_rows);
         for (row, (line, color)) in rendered[start..].iter().enumerate() {
             let ty = content_y + row as f32 * LINE_H + ui.atlas.line_height;
             ui.text(msg_x + 2.0, ty, line, *color);
         }
 
+        // Divider between message and member panes.
+        let divider_x = msg_x + msg_w + GAP / 2.0;
+        let (v, i) = draw::quad_vertices(divider_x, content_y, 1.0, content_h, DIVIDER_COLOR);
+        ui.draw_calls.push(DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: TextureRef::White,
+        });
+
         // --- Member pane (right) ---
         let i_am_owner = self.i_am_owner();
         let total = self.members.len();
-        let max_scroll = total.saturating_sub(VISIBLE_ROWS);
+        let max_scroll = total.saturating_sub(visible_rows);
         if self.scroll_offset > max_scroll {
             self.scroll_offset = max_scroll;
         }
         let has_scroll = max_scroll > 0;
-        let list_x = x + WIN_W - PAD - MEMBER_PANE_W;
+        let list_x = x + win_w - PAD - MEMBER_PANE_W;
         let list_w = MEMBER_PANE_W - if has_scroll { SCROLLBAR_W } else { 0.0 };
 
-        for vis in 0..VISIBLE_ROWS {
+        for vis in 0..visible_rows {
             let idx = self.scroll_offset + vis;
             let Some(member) = self.members.get(idx) else {
                 break;
@@ -314,7 +340,8 @@ impl InGameWindow for ChatRoomMemberWindow {
             } else {
                 format!("  {}", member.name)
             };
-            ui.text(list_x + 2.0, row_y + ui.atlas.line_height, &label, tc);
+            let color = if member.is_owner { OWNER_NAME_COLOR } else { tc };
+            ui.text(list_x + 2.0, row_y + ui.atlas.line_height, &label, color);
 
             let row_rect = Rect::new(list_x, row_y, list_w, LINE_H);
             let resp = ui.interact(WidgetId(MEMBER_ROW_BASE_ID + vis as u32), row_rect);
@@ -340,20 +367,20 @@ impl InGameWindow for ChatRoomMemberWindow {
                     thumb: SCROLL_THUMB_ID,
                 },
                 self.scroll_offset,
-                VISIBLE_ROWS,
+                visible_rows,
                 max_scroll,
                 content_rect,
-                x + WIN_W - PAD - SCROLLBAR_W,
+                x + win_w - PAD - SCROLLBAR_W,
                 content_y,
                 content_h,
             );
         }
 
-        // --- Footer: Edit (owner only) + Leave ---
+        // --- Footer: message input + Edit (owner only) + Leave, resize handle at corner ---
         let (btn_w, btn_h) = self.btn_size;
         let footer_y = y + win_h - FOOTER_H;
         let btn_y = footer_y + (FOOTER_H - btn_h) / 2.0;
-        let mut bx = x + WIN_W - PAD - btn_w;
+        let mut bx = x + win_w - PAD - RESIZE_SIZE - btn_w;
         let leave = ui
             .button(LEAVE_BTN_ID, Rect::new(bx, btn_y, btn_w, btn_h), &CANCEL_BTN, "Leave")
             .clicked();
@@ -366,6 +393,37 @@ impl InGameWindow for ChatRoomMemberWindow {
                 events.push(GameEvent::RequestEditChatRoomSettings);
             }
         }
+
+        let input_w = (bx - GAP) - (x + PAD);
+        let input_rect = Rect::new(x + PAD, footer_y + (FOOTER_H - 16.0) / 2.0, input_w, 16.0);
+        let input_resp = ui.text_input(INPUT_ID, input_rect, &mut self.input, TextInputBg::Transparent);
+        if input_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        if input_resp.has_focus() && ui.ctx.key_enter && !self.input.text.trim().is_empty() {
+            let message = self.input.text.trim().to_string();
+            self.input.text.clear();
+            self.input.cursor_pos = 0;
+            events.push(GameEvent::RequestSendChat { message });
+        }
+
+        let resize_rect = Rect::new(
+            x + win_w - RESIZE_SIZE,
+            y + win_h - RESIZE_SIZE,
+            RESIZE_SIZE,
+            RESIZE_SIZE,
+        );
+        let resize = ui.resize_handle(RESIZE_ID, resize_rect);
+        if resize.started {
+            self.resize_start = Some((self.width, self.content_h));
+        }
+        if resize.dragging
+            && let Some((start_w, start_h)) = self.resize_start
+        {
+            self.width = (start_w + resize.delta_x).max(MIN_W);
+            self.content_h = (start_h + resize.delta_y).max(MIN_CONTENT_H);
+        }
+
         if close_resp.clicked() || leave {
             events.push(GameEvent::RequestLeaveChatRoom);
             self.close();
@@ -379,12 +437,75 @@ impl InGameWindow for ChatRoomMemberWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
 
     fn member(name: &str, owner: bool) -> ChatRoomMember {
         ChatRoomMember {
             name: name.to_string(),
             is_owner: owner,
         }
+    }
+
+    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
+        let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
+    }
+
+    struct Input {
+        mx: f32,
+        my: f32,
+        clicked: bool,
+        down: bool,
+        enter: bool,
+    }
+
+    fn frame(win: &mut ChatRoomMemberWindow, state: &mut StateCache, i: Input) -> Vec<GameEvent> {
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = i.mx;
+        ctx.mouse_y = i.my;
+        ctx.mouse_clicked = i.clicked;
+        ctx.mouse_down = i.down;
+        ctx.key_enter = i.enter;
+        let mut ui = make_frame(&ctx, state);
+        win.build(&mut ui, &mut character, &data)
+    }
+
+    #[test]
+    fn resize_handle_grows_then_clamps_to_min() {
+        let mut win = ChatRoomMemberWindow::new();
+        win.open_created(1, "R", 20, true, "Me");
+        let mut state = StateCache::new();
+        // Handle sits at the bottom-right corner of the 280x171 window at (260,120).
+        let hx = 260.0 + DEFAULT_W - RESIZE_SIZE / 2.0;
+        let hy = 120.0 + (TITLE_H + PAD + DEFAULT_CONTENT_H + PAD + FOOTER_H) - RESIZE_SIZE / 2.0;
+        frame(&mut win, &mut state, Input { mx: hx, my: hy, clicked: true, down: true, enter: false });
+        frame(&mut win, &mut state, Input { mx: hx + 60.0, my: hy + 40.0, clicked: false, down: true, enter: false });
+        assert_eq!(win.width, DEFAULT_W + 60.0);
+        assert_eq!(win.content_h, DEFAULT_CONTENT_H + 40.0);
+        frame(&mut win, &mut state, Input { mx: hx - 999.0, my: hy - 999.0, clicked: false, down: true, enter: false });
+        assert_eq!(win.width, MIN_W);
+        assert_eq!(win.content_h, MIN_CONTENT_H);
+    }
+
+    #[test]
+    fn enter_in_input_sends_room_message() {
+        let mut win = ChatRoomMemberWindow::new();
+        win.open_created(1, "R", 20, true, "Me");
+        let mut state = StateCache::new();
+        // Focus the input (footer, left of the buttons) then press Enter.
+        frame(&mut win, &mut state, Input { mx: 300.0, my: 276.0, clicked: true, down: false, enter: false });
+        win.input.text = "Hello".into();
+        let events = frame(&mut win, &mut state, Input { mx: 300.0, my: 276.0, clicked: false, down: false, enter: true });
+        assert!(
+            events.iter().any(|e| matches!(e, GameEvent::RequestSendChat { message } if message == "Hello")),
+            "expected room message send, got {events:?}"
+        );
+        assert!(win.input.text.is_empty());
     }
 
     #[test]

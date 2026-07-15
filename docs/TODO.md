@@ -96,7 +96,7 @@ TODO:
 
 # Social
 - ~~Party (create, join, leave, exp/item share settings)~~
-- ~~Guild (create, manage, skills, emblem)
+- ~~Guild (create, manage, skills, emblem)~~
 - War of emperium: no name, no damage number, emblem above head
 - ~~Friend list + whisper~~
 - ~~Chat rooms~~

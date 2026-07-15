@@ -145,6 +145,7 @@ impl GameChannel {
 struct App {
     config: Config,
     saved_window_positions: HashMap<u32, [f32; 2]>,
+    window_state_restored: bool,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
@@ -192,6 +193,7 @@ impl App {
         Self {
             config,
             saved_window_positions,
+            window_state_restored: false,
             window: None,
             renderer: None,
             effect_sprites: EffectSpriteCache::new(),

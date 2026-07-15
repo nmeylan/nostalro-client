@@ -4,6 +4,7 @@ pub mod builtin_name_table;
 pub mod fog_table;
 pub mod gat;
 pub mod gnd;
+pub mod gr2;
 pub mod grf;
 pub mod imf;
 pub mod lua_table;
