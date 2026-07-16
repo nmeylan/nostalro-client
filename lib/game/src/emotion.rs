@@ -91,6 +91,21 @@ pub fn emote_sprite_action(emote_type: u8) -> usize {
         .unwrap_or(emote_type as usize)
 }
 
+/// Default Alt+1..Alt+0 bindings for the shortcut list: the first ten emotes by
+/// `emote_type` (surprise..think), each as a `/command` string.
+pub fn default_shortcut_commands() -> Vec<String> {
+    (0u8..=9)
+        .map(|emote_type| {
+            let cmd = EMOTION_TABLE
+                .iter()
+                .find(|e| e.emote_type == emote_type)
+                .map(|e| e.command)
+                .unwrap_or("");
+            format!("/{cmd}")
+        })
+        .collect()
+}
+
 /// Resolve a chat command (with or without the leading `/`) to the emote it
 /// triggers, e.g. `/lv` or `lv` -> the throb emote.
 pub fn emote_type_for_command(command: &str) -> Option<u8> {
@@ -119,5 +134,14 @@ mod tests {
         assert_eq!(emote_type_for_command("swt"), Some(4));
         assert_eq!(emote_type_for_command("/X"), Some(25));
         assert_eq!(emote_type_for_command("/nope"), None);
+    }
+
+    #[test]
+    fn default_shortcuts_are_first_ten_emotes() {
+        let d = default_shortcut_commands();
+        assert_eq!(d.len(), 10);
+        assert_eq!(d[0], "/!");
+        assert_eq!(d[3], "/lv");
+        assert_eq!(d[9], "/...");
     }
 }

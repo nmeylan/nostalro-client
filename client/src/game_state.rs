@@ -37,6 +37,9 @@ use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
+use ragnarok_ui_component::game::shortcut_list_window::{
+    SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
+};
 use ragnarok_ui_component::game::chat_room_create_window::{
     CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
 };
@@ -167,6 +170,7 @@ pub struct GameState {
     pub chat_room_create_window: ChatRoomCreateWindow,
     pub chat_room_member_window: ChatRoomMemberWindow,
     pub emotion_window: EmotionWindow,
+    pub shortcut_list_window: ShortcutListWindow,
     pub pending_chat_room: Option<(String, i16, bool)>,
     pub system_menu: SystemMenu,
     pub map_missing_window: MapMissingWindow,
@@ -308,6 +312,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     CHAT_ROOM_CREATE_WINDOW_ID,
     CHAT_ROOM_MEMBER_WINDOW_ID,
     EMOTION_WINDOW_ID,
+    SHORTCUT_LIST_WINDOW_ID,
 ];
 
 impl GameState {
@@ -940,6 +945,13 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            SHORTCUT_LIST_WINDOW_ID => {
+                events.extend(self.shortcut_list_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             _ => {}
         }
     }
@@ -1018,6 +1030,7 @@ impl GameState {
             chat_room_create_window: ChatRoomCreateWindow::new(),
             chat_room_member_window: ChatRoomMemberWindow::new(),
             emotion_window: EmotionWindow::new(),
+            shortcut_list_window: ShortcutListWindow::new(),
             pending_chat_room: None,
             system_menu: SystemMenu::new(),
             map_missing_window: MapMissingWindow::new(),

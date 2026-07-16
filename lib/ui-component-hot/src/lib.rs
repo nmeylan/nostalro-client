@@ -44,6 +44,9 @@ use ragnarok_ui_component::game::chat_room_create_window::{
     CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
 };
 use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
+use ragnarok_ui_component::game::shortcut_list_window::{
+    SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
+};
 use ragnarok_ui_component::game::chat_room_member_window::{
     CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
 };
@@ -109,6 +112,7 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "vending_board",
     "party",
     "emotion",
+    "shortcut_list",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
@@ -198,6 +202,11 @@ enum State {
     },
     Emotion {
         win: EmotionWindow,
+        character: Character,
+        data: DataTable,
+    },
+    ShortcutList {
+        win: ShortcutListWindow,
         character: Character,
         data: DataTable,
     },
@@ -866,6 +875,16 @@ fn create_single(name: &str) -> State {
             let mut win = EmotionWindow::new();
             win.toggle();
             State::Emotion {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "shortcut_list" => {
+            let mut win = ShortcutListWindow::new();
+            win.set_bindings(&ragnarok_game::emotion::default_shortcut_commands());
+            win.toggle();
+            State::ShortcutList {
                 win,
                 character: Character::new(),
                 data: DataTable::new(),
@@ -1681,6 +1700,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::ShortcutList { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::ChatRoomMember { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -1787,6 +1810,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::ChatRoomCreate { .. } => Some(CHAT_ROOM_CREATE_WINDOW_ID),
         State::Emotion { .. } => Some(EMOTION_WINDOW_ID),
+        State::ShortcutList { .. } => Some(SHORTCUT_LIST_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
@@ -1817,6 +1841,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::Book { win, .. } => Some((BOOK_WINDOW_ID, win)),
         State::ChatRoomCreate { win, .. } => Some((CHAT_ROOM_CREATE_WINDOW_ID, win)),
         State::Emotion { win, .. } => Some((EMOTION_WINDOW_ID, win)),
+        State::ShortcutList { win, .. } => Some((SHORTCUT_LIST_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
         State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
         State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
@@ -2356,6 +2381,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::Emotion {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::ShortcutList {
             win,
             character,
             data,

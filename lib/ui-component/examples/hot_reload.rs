@@ -14,6 +14,7 @@ use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::chat_room_create_window::ChatRoomCreateWindow;
 use ragnarok_ui_component::game::chat_room_member_window::ChatRoomMemberWindow;
 use ragnarok_ui_component::game::emotion_window::EmotionWindow;
+use ragnarok_ui_component::game::shortcut_list_window::ShortcutListWindow;
 use ragnarok_ui_component::game::party_friends_window::PartyFriendsWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
@@ -139,6 +140,7 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "vending_board",
     "party",
     "emotion",
+    "shortcut_list",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
@@ -158,6 +160,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "chat_room_create" => ChatRoomCreateWindow::grf_texture_paths(),
         "chat_room_member" => ChatRoomMemberWindow::grf_texture_paths(),
         "emotion" => EmotionWindow::grf_texture_paths(),
+        "shortcut_list" => ShortcutListWindow::grf_texture_paths(),
         "party" => PartyFriendsWindow::grf_texture_paths(),
         "npc_shop_buy" => NpcShop::grf_texture_paths(),
         "npc_shop_sell" => NpcShop::grf_texture_paths(),

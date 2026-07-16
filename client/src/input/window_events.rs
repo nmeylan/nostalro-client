@@ -253,6 +253,14 @@ impl App {
         }
     }
 
+    fn trigger_shortcut(&mut self, slot: usize) {
+        if let Some(cmd) = self.config.shortcut_commands.get(slot).cloned()
+            && !cmd.is_empty()
+        {
+            self.run_chat_command(&cmd);
+        }
+    }
+
     pub(crate) fn handle_keyboard_input(&mut self, event: KeyEvent) {
         if event.state == ElementState::Pressed
             && self.game.app_state == AppState::InGame
@@ -304,7 +312,45 @@ impl App {
                     self.game.character.skills.toggle();
                 }
                 PhysicalKey::Code(KeyCode::KeyM) if self.input.alt_pressed => {
+                    if !self.game.shortcut_list_window.is_open() {
+                        self.game
+                            .shortcut_list_window
+                            .set_bindings(&self.config.shortcut_commands);
+                    }
+                    self.game.shortcut_list_window.toggle();
+                }
+                PhysicalKey::Code(KeyCode::KeyL) if self.input.alt_pressed => {
                     self.game.emotion_window.toggle();
+                }
+                PhysicalKey::Code(KeyCode::Digit1) if self.input.alt_pressed => {
+                    self.trigger_shortcut(0);
+                }
+                PhysicalKey::Code(KeyCode::Digit2) if self.input.alt_pressed => {
+                    self.trigger_shortcut(1);
+                }
+                PhysicalKey::Code(KeyCode::Digit3) if self.input.alt_pressed => {
+                    self.trigger_shortcut(2);
+                }
+                PhysicalKey::Code(KeyCode::Digit4) if self.input.alt_pressed => {
+                    self.trigger_shortcut(3);
+                }
+                PhysicalKey::Code(KeyCode::Digit5) if self.input.alt_pressed => {
+                    self.trigger_shortcut(4);
+                }
+                PhysicalKey::Code(KeyCode::Digit6) if self.input.alt_pressed => {
+                    self.trigger_shortcut(5);
+                }
+                PhysicalKey::Code(KeyCode::Digit7) if self.input.alt_pressed => {
+                    self.trigger_shortcut(6);
+                }
+                PhysicalKey::Code(KeyCode::Digit8) if self.input.alt_pressed => {
+                    self.trigger_shortcut(7);
+                }
+                PhysicalKey::Code(KeyCode::Digit9) if self.input.alt_pressed => {
+                    self.trigger_shortcut(8);
+                }
+                PhysicalKey::Code(KeyCode::Digit0) if self.input.alt_pressed => {
+                    self.trigger_shortcut(9);
                 }
                 PhysicalKey::Code(KeyCode::KeyA) if self.input.alt_pressed => {
                     self.game.status_window.toggle();

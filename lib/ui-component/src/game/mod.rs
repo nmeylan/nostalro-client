@@ -35,6 +35,7 @@ pub mod npc_shop;
 pub mod number_input;
 pub mod party_friends_window;
 pub mod party_helper_window;
+pub mod shortcut_list_window;
 pub mod skill_tree_window;
 pub mod sound_options;
 pub mod status_icon_bar;

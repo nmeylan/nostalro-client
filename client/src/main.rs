@@ -1262,30 +1262,18 @@ impl App {
                     ));
                 }
                 GameEvent::RequestSendChat { message } => {
-                    if message.starts_with('/') {
-                        self.handle_slash_command(&message);
-                    } else if let Some(party_msg) = message.strip_prefix('%') {
-                        let char_name = self
-                            .game
-                            .selected_character
-                            .as_ref()
-                            .map(|c| c.name.as_str())
-                            .unwrap_or("Unknown");
-                        let full_msg =
-                            format!("{char_name} : {}", party_msg.trim_start());
-                        self.channel
-                            .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
-                    } else {
-                        let char_name = self
-                            .game
-                            .selected_character
-                            .as_ref()
-                            .map(|c| c.name.as_str())
-                            .unwrap_or("Unknown");
-                        let full_msg = format!("{char_name} : {message}");
-                        self.channel
-                            .send_packet(build_chat_packet(&full_msg, self.config.packetver));
+                    self.run_chat_command(&message);
+                }
+                GameEvent::ToggleShortcutList => {
+                    if !self.game.shortcut_list_window.is_open() {
+                        self.game
+                            .shortcut_list_window
+                            .set_bindings(&self.config.shortcut_commands);
                     }
+                    self.game.shortcut_list_window.toggle();
+                }
+                GameEvent::ShortcutBindingsChanged(commands) => {
+                    self.config.shortcut_commands = commands;
                 }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
                     self.channel.send_cmd(NetworkCommand::Disconnect);
@@ -1780,6 +1768,35 @@ impl App {
                 guild.gdid,
                 self.config.packetver,
             ));
+        }
+    }
+
+    fn run_chat_command(&mut self, message: &str) {
+        if message.is_empty() {
+            return;
+        }
+        if message.starts_with('/') {
+            self.handle_slash_command(message);
+        } else if let Some(party_msg) = message.strip_prefix('%') {
+            let char_name = self
+                .game
+                .selected_character
+                .as_ref()
+                .map(|c| c.name.as_str())
+                .unwrap_or("Unknown");
+            let full_msg = format!("{char_name} : {}", party_msg.trim_start());
+            self.channel
+                .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
+        } else {
+            let char_name = self
+                .game
+                .selected_character
+                .as_ref()
+                .map(|c| c.name.as_str())
+                .unwrap_or("Unknown");
+            let full_msg = format!("{char_name} : {message}");
+            self.channel
+                .send_packet(build_chat_packet(&full_msg, self.config.packetver));
         }
     }
 

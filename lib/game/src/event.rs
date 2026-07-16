@@ -695,6 +695,8 @@ pub enum GameEvent {
     ToggleEquipment,
     ToggleSkills,
     ToggleEmotionWindow,
+    ToggleShortcutList,
+    ShortcutBindingsChanged(Vec<String>),
     ToggleMinimap,
     ToggleSoundOptions,
     SoundSettingsChanged {

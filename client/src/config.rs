@@ -81,10 +81,16 @@ pub struct Config {
     /// Command sent (as chat) by the map-recovery window's warp button when a map
     /// cannot be loaded because its data is missing from the GRF.
     pub map_recovery_command: String,
+    /// Chat commands bound to Alt+1..Alt+0 by the Shortcut List window (10 slots).
+    pub shortcut_commands: Vec<String>,
 }
 
 fn default_map_recovery_command() -> String {
     "@go prontera".to_string()
+}
+
+fn default_shortcut_commands() -> Vec<String> {
+    ragnarok_game::emotion::default_shortcut_commands()
 }
 
 impl Default for Config {
@@ -116,6 +122,7 @@ impl Default for Config {
             display: DisplayOptions::default(),
             last_char_slot: None,
             map_recovery_command: default_map_recovery_command(),
+            shortcut_commands: default_shortcut_commands(),
         }
     }
 }
