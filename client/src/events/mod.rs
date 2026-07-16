@@ -10,6 +10,7 @@ mod inventory;
 mod login;
 mod npc;
 mod party;
+mod pet;
 mod production;
 mod skill;
 
@@ -1221,6 +1222,28 @@ impl App {
                     upgradable,
                 } => {
                     self.handle_mercenary_skill_update(id, level, sp_cost, attack_range, upgradable);
+                }
+
+                GameEvent::PetCaptureStart => {
+                    self.handle_pet_capture_start();
+                }
+                GameEvent::PetCaptureResult { ok } => {
+                    self.handle_pet_capture_result(ok);
+                }
+                GameEvent::PetProperty { property } => {
+                    self.handle_pet_property(property);
+                }
+                GameEvent::PetFeedResult { ok, food_item_id } => {
+                    self.handle_pet_feed_result(ok, food_item_id);
+                }
+                GameEvent::PetStateChanged { ty, gid, data } => {
+                    self.handle_pet_state_changed(ty, gid, data);
+                }
+                GameEvent::PetEggList { indices } => {
+                    self.handle_pet_egg_list(indices);
+                }
+                GameEvent::PetAct { gid, data } => {
+                    self.handle_pet_act(gid, data);
                 }
 
                 _ => {}

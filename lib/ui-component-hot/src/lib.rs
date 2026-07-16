@@ -73,10 +73,12 @@ use ragnarok_ui_component::game::companion_ai_config_window::{
 };
 use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
 use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
+use ragnarok_ui_component::game::pet_window::{PET_WINDOW_ID, PetWindow};
 use ragnarok_ui_component::game::mercenary_skill_window::{
     MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
 };
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
+use ragnarok_game::pet::PetState;
 use ragnarok_game::event::SkillInfo;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
@@ -119,7 +121,7 @@ const ACCOUNT_COMPONENTS: &[&str] =
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy"];
 const COMPANION_COMPONENTS: &[&str] =
-    &["mercenary", "mercenary_skill", "homun", "companion_ai_config"];
+    &["mercenary", "mercenary_skill", "homun", "companion_ai_config", "pet"];
 
 enum State {
     Inventory {
@@ -294,6 +296,10 @@ enum State {
         win: MercenarySkillWindow,
         merc: MercenaryState,
     },
+    Pet {
+        win: PetWindow,
+        pet: PetState,
+    },
     Homun {
         win: HomunWindow,
         homun: HomunculusState,
@@ -377,6 +383,21 @@ fn demo_homunculus() -> HomunculusState {
     homun.atk_range = 1;
     homun.skill_points = 2;
     homun
+}
+
+fn demo_pet() -> PetState {
+    PetState {
+        gid: Some(400123),
+        job: 1002,
+        name: "Poring".into(),
+        renamed: false,
+        level: 1,
+        hunger: 80,
+        intimacy: 920,
+        accessory: 10013,
+        egg_index: None,
+        capture_pending: false,
+    }
 }
 
 type TextureSizeFn = unsafe extern "C" fn(*const u8, usize, *mut u32, *mut u32) -> bool;
@@ -1493,6 +1514,14 @@ fn create_single(name: &str) -> State {
                 homun: demo_homunculus(),
             }
         }
+        "pet" => {
+            let mut win = PetWindow::new();
+            win.set_visible(true);
+            State::Pet {
+                win,
+                pet: demo_pet(),
+            }
+        }
         "companion_ai_config" => {
             let mut win = CompanionAiConfigWindow::new();
             win.set_visible(true);
@@ -1761,6 +1790,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::Pet { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::Homun { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -1818,6 +1851,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Mercenary { .. } => Some(MERCENARY_WINDOW_ID),
         State::MercenarySkill { .. } => Some(MERCENARY_SKILL_WINDOW_ID),
         State::Homun { .. } => Some(HOMUN_WINDOW_ID),
+        State::Pet { .. } => Some(PET_WINDOW_ID),
         State::CompanionAiConfig { .. } => Some(COMPANION_AI_CONFIG_WINDOW_ID),
         _ => None,
     }
@@ -1851,6 +1885,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::Mercenary { win, .. } => Some((MERCENARY_WINDOW_ID, win)),
         State::MercenarySkill { win, .. } => Some((MERCENARY_SKILL_WINDOW_ID, win)),
         State::Homun { win, .. } => Some((HOMUN_WINDOW_ID, win)),
+        State::Pet { win, .. } => Some((PET_WINDOW_ID, win)),
         State::CompanionAiConfig { win, .. } => Some((COMPANION_AI_CONFIG_WINDOW_ID, win)),
         State::NpcDialog { npc, .. } => Some((NPC_DIALOG_WINDOW_ID, npc)),
         State::NpcShop { shop, .. } => return shop.gallery_windows(),
@@ -2461,6 +2496,9 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         }
         State::Homun { win, homun } => {
             win.build(ui, Some(homun), false);
+        }
+        State::Pet { win, pet } => {
+            win.build(ui, pet);
         }
         State::CompanionAiConfig { win, config } => {
             win.build(ui, config);

@@ -24,6 +24,9 @@ pub enum ContextMenuAction {
     CompanionAiConfig,
     KickFromChatRoom { name: String },
     ChangeChatOwner { name: String },
+    PetShowInfo,
+    PetFeed,
+    PetCommand { csub: i8 },
 }
 
 pub struct ContextMenuItem {
@@ -153,6 +156,15 @@ impl ContextMenu {
                 }
                 ContextMenuAction::ChangeChatOwner { name } => {
                     events.push(GameEvent::RequestChangeChatOwner { name });
+                }
+                ContextMenuAction::PetShowInfo => {
+                    events.push(GameEvent::RequestPetCommand { csub: 0 });
+                }
+                ContextMenuAction::PetFeed => {
+                    events.push(GameEvent::RequestPetFeed);
+                }
+                ContextMenuAction::PetCommand { csub } => {
+                    events.push(GameEvent::RequestPetCommand { csub });
                 }
             }
             self.close();

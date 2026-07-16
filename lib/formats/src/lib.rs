@@ -8,6 +8,7 @@ pub mod gr2;
 pub mod grf;
 pub mod imf;
 pub mod lua_table;
+pub mod pettalk;
 mod mixcrypt;
 pub mod pal;
 pub mod rsm;

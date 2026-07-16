@@ -77,6 +77,8 @@ use ragnarok_network::{
     build_companion_move_packet, build_companion_attack_packet,
     build_companion_move_to_owner_packet, build_homun_menu_packet,
     build_mercenary_command_packet, build_rename_homun_packet, build_config_packet,
+    build_trycapture_packet, build_command_pet_packet, build_rename_pet_packet,
+    build_select_petegg_packet, build_pet_act_packet,
 };
 use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
@@ -163,6 +165,8 @@ struct App {
     char_create_window: Option<CharCreateWindow>,
     account_anims: HashMap<u32, SpriteAnimationState>,
     char_create_built_appearance: Option<(u16, u16)>,
+    roulette_act: Option<ragnarok_formats::act::ActFile>,
+    roulette_textures: Option<ragnarok_renderer::SpriteTextures>,
     channel: GameChannel,
     game: GameState,
     sound: SoundManager,
@@ -211,6 +215,8 @@ impl App {
             char_create_window: None,
             account_anims: HashMap::new(),
             char_create_built_appearance: None,
+            roulette_act: None,
+            roulette_textures: None,
             channel: GameChannel::new(),
             game,
             sound,
@@ -1647,6 +1653,52 @@ impl App {
                 GameEvent::RequestWhisper { name } => {
                     self.game.chat_window.start_whisper(name);
                 }
+
+                GameEvent::RequestTryCapture { gid } => {
+                    self.channel
+                        .send_packet(build_trycapture_packet(gid, self.config.packetver));
+                }
+                GameEvent::RequestPetCommand { csub } => {
+                    self.channel
+                        .send_packet(build_command_pet_packet(csub, self.config.packetver));
+                    // Return-to-egg: the pet vanishes and the egg becomes usable again.
+                    if csub == 3
+                        && let Some(index) = self.game.pet.egg_index.take()
+                    {
+                        self.game.character.inventory.set_item_damaged(index, false);
+                    }
+                    // Performance: owner emits a matching emote (PM_PERFORMANCE_S).
+                    if csub == 2 {
+                        self.emit_pet_act(5);
+                    }
+                }
+                GameEvent::RequestRenamePet { name } => {
+                    self.channel
+                        .send_packet(build_rename_pet_packet(&name, self.config.packetver));
+                }
+                GameEvent::RequestSelectPetEgg { index } => {
+                    self.channel
+                        .send_packet(build_select_petegg_packet(index, self.config.packetver));
+                    self.game.pet.egg_index = Some(index);
+                    self.game.character.inventory.set_item_damaged(index, true);
+                }
+                GameEvent::RequestPetAct { data } => {
+                    self.channel
+                        .send_packet(build_pet_act_packet(data, self.config.packetver));
+                }
+                GameEvent::RequestPetFeed => {
+                    self.game.pet_feed_result.set(None);
+                    self.game.pet_feed_pending = true;
+                    self.game.confirm_dialog.show_with_out(
+                        "Are you sure you want to feed your pet?",
+                        true,
+                        self.game.pet_feed_result.clone(),
+                        |_| {},
+                    );
+                }
+                GameEvent::TogglePetWindow => {
+                    self.game.pet_window.toggle();
+                }
                 _ => {}
             }
         }
@@ -2394,6 +2446,15 @@ impl App {
                     );
                     (CursorType::Lock, hovered.map(|(_, id)| id))
                 }
+            } else if self.game.capture_targeting {
+                let hovered = hovered_entity_cursor_type(
+                    self.input.mouse_position,
+                    &self.game.entities,
+                    render_list,
+                    &self.game.map_properties,
+                    Some(TargetClass::Offensive),
+                );
+                (CursorType::Lock, hovered.map(|(_, id)| id))
             } else if let Some(pending) = &self.game.pending_skill_target {
                 match pending {
                     PendingSkillTarget::Entity { skill_id, .. } => {
@@ -2507,6 +2568,10 @@ impl ApplicationHandler for App {
                         Some(SkillDescriptionTable::load(&grf));
                     self.game.data_table.skill_tree = Some(SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level = Some(SkillUseLevelTable::load(&grf));
+                    if let Ok(bytes) = grf.read_file("data/pettalktable.xml") {
+                        self.game.data_table.pet_talk =
+                            Some(ragnarok_formats::pettalk::PetTalkTable::parse(&bytes));
+                    }
                     if let Ok(bytes) = grf.read_file("data/mp3nametable.txt") {
                         let text = String::from_utf8_lossy(&bytes);
                         self.bgm_table =

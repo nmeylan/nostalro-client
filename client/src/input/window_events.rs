@@ -57,6 +57,8 @@ impl App {
                         self.game.pending_skill_target = None;
                         self.game.pending_skill_id = None;
                         self.game.pending_skill_level = None;
+                        self.game.capture_targeting = false;
+                        self.game.pet_roulette = None;
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
@@ -68,6 +70,7 @@ impl App {
                                     self.input.right_press_target,
                                 );
                             } else if !self.open_companion_context_menu(self.input.right_press_target)
+                                && !self.open_pet_context_menu(self.input.right_press_target)
                             {
                                 self.open_entity_context_menu(self.input.right_press_entity);
                             }
@@ -156,6 +159,48 @@ impl App {
                 },
             ]
         };
+        self.game.context_menu.open_at(mx as f32, my as f32, items);
+        true
+    }
+
+    fn open_pet_context_menu(&mut self, entity_id: Option<u32>) -> bool {
+        let Some(entity_id) = entity_id else {
+            return false;
+        };
+        if self.game.pet.gid != Some(entity_id) {
+            return false;
+        }
+        if !self
+            .game
+            .entities
+            .get(entity_id)
+            .is_some_and(|e| e.is_pet)
+        {
+            return false;
+        }
+        let (mx, my) = self.input.mouse_position;
+        let items = vec![
+            ContextMenuItem {
+                label: "Pet Information".to_string(),
+                action: ContextMenuAction::PetShowInfo,
+            },
+            ContextMenuItem {
+                label: "Feed".to_string(),
+                action: ContextMenuAction::PetFeed,
+            },
+            ContextMenuItem {
+                label: "Performance".to_string(),
+                action: ContextMenuAction::PetCommand { csub: 2 },
+            },
+            ContextMenuItem {
+                label: "Take off Accessory".to_string(),
+                action: ContextMenuAction::PetCommand { csub: 4 },
+            },
+            ContextMenuItem {
+                label: "Return to Egg".to_string(),
+                action: ContextMenuAction::PetCommand { csub: 3 },
+            },
+        ];
         self.game.context_menu.open_at(mx as f32, my as f32, items);
         true
     }

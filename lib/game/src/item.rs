@@ -14,7 +14,9 @@ pub fn item_tab(item_type: ItemType) -> InventoryTab {
         ItemType::Healing | ItemType::Usable | ItemType::DelayConsume | ItemType::Cash => {
             InventoryTab::Usable
         }
-        ItemType::Unknown | ItemType::Armor | ItemType::Weapon => InventoryTab::Equip,
+        ItemType::Unknown | ItemType::Armor | ItemType::Weapon | ItemType::PetArmor => {
+            InventoryTab::Equip
+        }
         _ => InventoryTab::Etc,
     }
 }

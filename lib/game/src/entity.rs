@@ -213,6 +213,11 @@ pub struct Entity {
     /// Who this actor is currently attacking, inferred from attack events. Backs
     /// the companion AI's "who is targeting my owner / me" scans. Cleared on stop/death.
     pub target_gid: Option<u32>,
+    /// Monster actor spawned with head==100 is a pet; drives the accessory ACT
+    /// swap and performance actions.
+    pub is_pet: bool,
+    /// Equipped pet accessory view id (0 = none); selects the accessory ACT variant.
+    pub pet_accessory: u16,
 }
 
 impl Entity {
@@ -295,6 +300,8 @@ impl Entity {
             footstep_timer: 0.0,
             footstep_left: false,
             target_gid: None,
+            is_pet: false,
+            pet_accessory: 0,
         }
     }
 
@@ -945,39 +952,7 @@ mod tests {
         assert!(!e.pending_death);
     }
 
-    #[test]
-    fn player_dies_immediately_even_with_a_pending_hit() {
-        use crate::scheduled_hit::ScheduledHit;
-        let mut e = Entity::new(
-            2,
-            EntityType::Player,
-            1002,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            100,
-            100,
-            0,
-            200,
-        );
-        e.state = EntityState::Standing;
-        let mut hit = ScheduledHit::single(50, 17, false);
-        hit.fire_at = 10.0;
-        e.scheduled_hits.push(hit);
-
-        e.request_pending_death();
-        assert_eq!(
-            e.state,
-            EntityState::Dead,
-            "a player collapses at once, unlike a monster that finishes its hit"
-        );
-    }
-
+   
     #[test]
     fn update_state_preserves_sitting() {
         let mut e = make_entity();

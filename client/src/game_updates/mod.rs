@@ -75,6 +75,7 @@ impl App {
         self.update_running_footprints(delta);
         self.update_cart_animations(delta);
         self.update_falcon_visuals(delta);
+        self.update_pet_roulette(delta);
         self.update_fades(delta);
         let camera = self.renderer.as_ref().map(|r| &r.camera);
         let is_visible = |pos: [f32; 3]| {

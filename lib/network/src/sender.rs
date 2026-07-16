@@ -925,6 +925,41 @@ pub fn build_rename_homun_packet(name: &str, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_trycapture_packet(gid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzTrycaptureMonster::new(packetver);
+    pkt.set_target_aid(gid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_command_pet_packet(csub: i8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzCommandPet::new(packetver);
+    pkt.set_c_sub(csub);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_rename_pet_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRenamePet::new(packetver);
+    pkt.set_sz_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_select_petegg_packet(index: u16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzSelectPetegg::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_pet_act_packet(data: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzPetAct::new(packetver);
+    pkt.set_data(data);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_req_guild_menuinterface(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqGuildMenuinterface::new(packetver);
     pkt.fill_raw();

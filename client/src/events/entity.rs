@@ -26,6 +26,9 @@ use ragnarok_game::sprite_path::{
 };
 use ragnarok_game::status_icon::status_icon_info;
 
+/// A monster spawned with this value in the `head`/hair field is the player's pet.
+const PET_HEAD_MARKER: u16 = 100;
+
 const LEVEL_AURA_LAYERS: &[EffectId] = &[EffectId::Level99, EffectId::Level992, EffectId::Level993];
 const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Level993];
 
@@ -116,6 +119,10 @@ impl App {
         entity.health_state = health_state;
         entity.base_level = base_level;
         entity.is_boss = is_boss;
+        entity.is_pet = entity_type == EntityType::Monster && head == PET_HEAD_MARKER;
+        if entity.is_pet {
+            entity.pet_accessory = head_bottom;
+        }
         entity.guild_id = guild_id;
         entity.guild_emblem_version = guild_emblem_version;
         match posture {
@@ -141,6 +148,15 @@ impl App {
             hair_color,
             direction,
         );
+        let pet_accessory = self
+            .game
+            .entities
+            .get(gid)
+            .filter(|e| e.is_pet && e.pet_accessory != 0)
+            .map(|e| e.pet_accessory);
+        if let Some(accessory) = pet_accessory {
+            self.load_pet_sprite(gid, sprite_job, accessory);
+        }
         if is_new_entry && entity_type == EntityType::Player && !is_hidden(effect_state) {
             self.effect_queue.spawn_on(EffectId::Entry2, gid);
         }
@@ -204,6 +220,9 @@ impl App {
     pub(super) fn handle_entity_vanished(&mut self, gid: u32, vanish_type: VanishType) {
         if self.game.attack_target_id == Some(gid) {
             self.game.attack_target_id = None;
+        }
+        if self.game.pet.gid == Some(gid) {
+            self.game.pet.clear_entity();
         }
         if let Some(h) = self.game.homunculus.as_mut().filter(|h| h.gid == gid) {
             if matches!(vanish_type, VanishType::Die) {

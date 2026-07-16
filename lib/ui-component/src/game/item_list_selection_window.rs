@@ -53,6 +53,7 @@ pub enum ListContext {
     RepairWeapon { target_aid: u32 },
     Identify,
     AutoSpell,
+    SelectPetEgg,
 }
 
 #[derive(Clone)]
@@ -128,6 +129,11 @@ impl ItemListSelectionWindow {
                 },
                 ListContext::Identify => GameEvent::RequestIdentifyItem { index: -1 },
                 ListContext::AutoSpell => GameEvent::RequestSelectAutoSpell { skill_id: 0 },
+                // Hatching is an item-use, not a menuskill; cancelling needs no reply.
+                ListContext::SelectPetEgg => {
+                    self.close();
+                    return;
+                }
             };
             events.push(event);
         }
@@ -160,6 +166,9 @@ impl ItemListSelectionWindow {
             ListContext::Identify => GameEvent::RequestIdentifyItem { index: row.index },
             ListContext::AutoSpell => GameEvent::RequestSelectAutoSpell {
                 skill_id: row.skill_id,
+            },
+            ListContext::SelectPetEgg => GameEvent::RequestSelectPetEgg {
+                index: row.index as u16,
             },
         };
         events.push(event);

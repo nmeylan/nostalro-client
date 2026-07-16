@@ -35,6 +35,8 @@ pub mod npc_dialog;
 pub mod npc_shop;
 pub mod party;
 pub mod path;
+pub mod pet;
+pub mod pet_tables;
 pub mod poptip;
 pub mod scheduled_hit;
 pub mod server_time;

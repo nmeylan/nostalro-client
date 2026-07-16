@@ -21,34 +21,18 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1400": {
+    "210": {
       "position": [
-        1.640625,
-        0.0
+        45.333313,
+        346.0
       ],
       "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        1.0,
-        113.26172
-      ],
-      "open": true,
       "collapsed": false
     },
     "10": {
       "position": [
         143.33334,
         344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        45.333313,
-        346.0
       ],
       "open": false,
       "collapsed": false
@@ -61,10 +45,10 @@
       "open": false,
       "collapsed": false
     },
-    "3600": {
+    "4000": {
       "position": [
-        905.90625,
-        132.1211
+        455.17188,
+        595.35547
       ],
       "open": false,
       "collapsed": false
@@ -73,6 +57,22 @@
       "position": [
         341.3333,
         568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        3.1015625,
+        126.66797
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        1.640625,
+        0.0
       ],
       "open": false,
       "collapsed": false
@@ -89,7 +89,7 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 0,
+  "last_char_slot": 1,
   "map_recovery_command": "@go prontera",
   "shortcut_commands": [
     "/rock",

@@ -1217,6 +1217,61 @@ pub enum GameEvent {
     RevertCompanionAiConfig,
     ResetCompanionAiConfig,
 
+    // --- Pet ---
+    /// 0x19e: server armed pet-capture targeting.
+    PetCaptureStart,
+    /// 0x1a0: capture attempt resolved.
+    PetCaptureResult {
+        ok: bool,
+    },
+    /// 0x1a2: full pet info (opens/refreshes the pet window).
+    PetProperty {
+        property: PetProperty,
+    },
+    /// 0x1a3: feed attempt resolved.
+    PetFeedResult {
+        ok: bool,
+        food_item_id: u16,
+    },
+    /// 0x1a4: incremental pet state (ty: 0 init/1 intimacy/2 hunger/3 accessory/4 performance/5 marker).
+    PetStateChanged {
+        ty: i8,
+        gid: u32,
+        data: i32,
+    },
+    /// 0x1a6: eggs available to hatch (inventory indices).
+    PetEggList {
+        indices: Vec<u16>,
+    },
+    /// 0x1aa: pet emote / talk broadcast.
+    PetAct {
+        gid: u32,
+        data: i32,
+    },
+    /// 0x19f: send capture attempt against the picked mob.
+    RequestTryCapture {
+        gid: u32,
+    },
+    /// 0x1a1: pet command (cSub 0 info / 1 feed / 2 perform / 3 return-to-egg / 4 unequip).
+    RequestPetCommand {
+        csub: i8,
+    },
+    /// 0x1a5: rename the pet (allowed once).
+    RequestRenamePet {
+        name: String,
+    },
+    /// 0x1a7: hatch the chosen egg.
+    RequestSelectPetEgg {
+        index: u16,
+    },
+    /// 0x1a9: owner-generated pet emote / talk.
+    RequestPetAct {
+        data: i32,
+    },
+    /// Feed command chosen: opens the confirm dialog before sending cSub=1.
+    RequestPetFeed,
+    TogglePetWindow,
+
     Acknowledged,
 }
 
@@ -1267,6 +1322,17 @@ pub struct HomunculusProperty {
     pub max_exp: i32,
     pub skill_points: i16,
     pub atk_range: i16,
+}
+
+#[derive(Debug, Clone)]
+pub struct PetProperty {
+    pub name: String,
+    pub renamed: bool,
+    pub level: i16,
+    pub hunger: i16,
+    pub intimacy: i16,
+    pub accessory: u16,
+    pub job: i16,
 }
 
 #[derive(Debug, Clone)]

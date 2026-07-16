@@ -103,6 +103,12 @@ impl InventoryData {
         self.items.iter().find(|i| i.index == index)
     }
 
+    pub fn set_item_damaged(&mut self, index: u16, damaged: bool) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
+            item.is_damaged = damaged;
+        }
+    }
+
     pub fn insert_card(&mut self, equip_index: u16, card_item_id: u16) {
         if let Some(item) = self.items.iter_mut().find(|i| i.index == equip_index)
             && let Some(slot) = item.slot.iter_mut().find(|s| **s == 0)

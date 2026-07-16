@@ -121,6 +121,10 @@ impl App {
         self.game.attack_target_id = None;
         self.game.homunculus = None;
         self.game.mercenary = None;
+        self.game.pet = ragnarok_game::pet::PetState::default();
+        self.game.capture_targeting = false;
+        self.game.pet_roulette = None;
+        self.game.pet_window.set_visible(false);
         self.game.companion_attack_target = [None; 2];
         self.game.homunculus_window.set_visible(false);
         self.game.mercenary_window.set_visible(false);
@@ -292,6 +296,7 @@ impl App {
             preload_window(&mut self.game.emblem_picker_window, renderer, grf);
             preload_window(&mut self.game.homunculus_window, renderer, grf);
             preload_window(&mut self.game.mercenary_window, renderer, grf);
+            preload_window(&mut self.game.pet_window, renderer, grf);
             preload_window(&mut self.game.mercenary_skill_window, renderer, grf);
             preload_window(&mut self.game.homun_skill_window, renderer, grf);
             preload_window(&mut self.game.confirm_dialog, renderer, grf);
@@ -383,6 +388,7 @@ impl App {
             self.game.gr2_models.clear();
             self.game.sprite_cache.clear();
             self.game.entities.clear_non_player();
+            self.game.pet.clear_entity();
             self.game.failed_sprite_loads.clear();
             self.game.floor_items.clear();
             self.game.floor_item_sprites.clear();

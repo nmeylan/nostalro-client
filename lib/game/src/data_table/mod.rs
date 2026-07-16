@@ -37,6 +37,7 @@ pub struct DataTable {
     pub skill_description: Option<SkillDescriptionTable>,
     pub skill_tree: Option<SkillTreeTable>,
     pub skill_use_level: Option<SkillUseLevelTable>,
+    pub pet_talk: Option<ragnarok_formats::pettalk::PetTalkTable>,
 }
 
 impl DataTable {
@@ -54,6 +55,7 @@ impl DataTable {
             skill_description: None,
             skill_tree: None,
             skill_use_level: None,
+            pet_talk: None,
         }
     }
 }

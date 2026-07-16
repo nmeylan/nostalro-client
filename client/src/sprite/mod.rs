@@ -295,6 +295,62 @@ impl App {
         }
     }
 
+    /// Swaps a pet's body sprite to its accessory ACT variant. The accessory is an
+    /// ACT-only swap that reuses the mob's base SPR (the accessory frames live in
+    /// that SPR). Falls back to the plain mob sprite when the accessory is unset or
+    /// its ACT/SPR is missing.
+    pub(crate) fn load_pet_sprite(&mut self, gid: u32, job: u16, accessory_view: u16) {
+        let load_plain = |app: &mut Self| {
+            app.load_entity_sprite(gid, EntityType::Monster, job, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        };
+        let Some(act_path) = ragnarok_game::pet_tables::pet_accessory_act(accessory_view) else {
+            load_plain(self);
+            return;
+        };
+        if let Some(cached) = self.game.sprite_cache.get(act_path) {
+            let cached = Rc::clone(cached);
+            self.game.sprites.insert(gid, cached);
+            return;
+        }
+        let base_path = self
+            .game
+            .data_table
+            .name
+            .as_ref()
+            .and_then(|nt| ragnarok_game::sprite_path::entity_sprite_base_path(nt, job));
+        let Some(base_path) = base_path else {
+            load_plain(self);
+            return;
+        };
+        let spr_path = format!("{base_path}.spr");
+        let (grf, renderer) = match (&self.grf, &self.renderer) {
+            (Some(g), Some(r)) => (g, r),
+            _ => return,
+        };
+        let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, act_path) else {
+            load_plain(self);
+            return;
+        };
+        let sprite = Rc::new(build_entity_sprite(
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+            data,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        self.game
+            .sprite_cache
+            .insert(act_path.to_string(), Rc::clone(&sprite));
+        self.game.sprites.insert(gid, sprite);
+    }
+
     /// Load a `.gr2` name-table entity (emperium, guardian, guild flag…) as an
     /// animated 3D model instead of a sprite: draw resources go into
     /// `Renderer::gr2_models`, animation state into `game.gr2_models`.

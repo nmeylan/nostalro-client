@@ -125,7 +125,7 @@ pub fn relationship(target_id: u32, player_id: Option<u32>) -> Relationship {
 
 pub fn can_attack(target: &Entity, map: &MapProperties, player_id: Option<u32>) -> bool {
     match target.entity_type {
-        EntityType::Monster => true,
+        EntityType::Monster => !target.is_pet,
         EntityType::Player => {
             map.enable_pk() && relationship(target.id, player_id) == Relationship::Other
         }
@@ -151,10 +151,11 @@ pub fn hover_cursor(
     }
     // Companions are interactable (right-click menu / owner commands) but not
     // attackable — make them pickable with the click cursor when no skill is armed.
-    if matches!(
+    if (matches!(
         target.entity_type,
         EntityType::Homunculus | EntityType::Mercenary
-    ) && active_skill.is_none()
+    ) || target.is_pet)
+        && active_skill.is_none()
     {
         return Some(CursorType::Click);
     }

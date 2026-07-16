@@ -744,6 +744,44 @@ impl App {
             }
         }
 
+        let mut roulette_calls: Vec<UiDrawCall> = Vec::new();
+        if let (Some(roulette), Some(act), Some(tex), Some(renderer)) = (
+            &self.game.pet_roulette,
+            &self.roulette_act,
+            &self.roulette_textures,
+            &self.renderer,
+        ) {
+            let sw = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+            let sh = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            let center = [sw / 2.0, sh / 2.0];
+            let (action_idx, motion_idx) = roulette.frame;
+            if let Some(action) = act.actions.get(action_idx)
+                && let Some(motion) = action.motions.get(motion_idx)
+            {
+                for clip in &motion.clips {
+                    if let Some((vertices, indices, tex_idx)) =
+                        build_clip_quad(clip, tex, center, 0.0, [0, 0])
+                        && tex_idx < tex.bind_groups.len()
+                    {
+                        let idx = inline_textures.len();
+                        inline_textures.push(&tex.bind_groups[tex_idx]);
+                        roulette_calls.push(UiDrawCall {
+                            vertices: vertices
+                                .iter()
+                                .map(|sv| UiVertex {
+                                    position: [sv.position[0], sv.position[1]],
+                                    tex_coord: sv.tex_coord,
+                                    color: sv.color,
+                                })
+                                .collect(),
+                            indices,
+                            texture: UiTextureRef::Inline(idx),
+                        });
+                    }
+                }
+            }
+        }
+
         {
             use ragnarok_game::damage_number::{
                 DamageNumberRenderEntry, build_damage_number_quads,
@@ -882,6 +920,7 @@ impl App {
             all_ui_calls.extend(account_calls);
         }
         all_ui_calls.extend(skill_level_calls);
+        all_ui_calls.extend(roulette_calls);
 
         if let Some(renderer) = &mut self.renderer {
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;

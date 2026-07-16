@@ -13,6 +13,34 @@ use ragnarok_network::{
 
 impl App {
     pub(crate) fn handle_left_click(&mut self) {
+        // Capture roulette is modal: a click confirms the spinning attempt.
+        if let Some(roulette) = &mut self.game.pet_roulette {
+            if roulette.state == ragnarok_game::pet::RouletteState::Idle && !roulette.sent {
+                roulette.sent = true;
+                let gid = roulette.target_gid;
+                self.channel
+                    .send_packet(ragnarok_network::build_trycapture_packet(
+                        gid,
+                        self.config.packetver,
+                    ));
+            }
+            return;
+        }
+        // Capture targeting armed by ZC_START_CAPTURE: a click on a valid mob opens
+        // the roulette (players and the caster's own pet are not valid targets).
+        if self.game.capture_targeting {
+            if let Some(entity_id) = self.game.hovered_entity_id
+                && self.game.pet.gid != Some(entity_id)
+                && self
+                    .game
+                    .entities
+                    .get(entity_id)
+                    .is_some_and(|e| e.entity_type == EntityType::Monster && !e.is_pet)
+            {
+                self.open_capture_roulette(entity_id);
+            }
+            return;
+        }
         tracing::info!(
             "handle_left_click: pending_companion={:?} hovered_entity={:?}",
             self.game.pending_companion_skill.is_some(),
@@ -232,7 +260,7 @@ impl App {
         {
             let player_id = self.game.entities.player_id();
             let should_attack = match entity.entity_type {
-                EntityType::Monster => !self.input.shift_pressed,
+                EntityType::Monster => !self.input.shift_pressed && !entity.is_pet,
                 EntityType::Player => {
                     can_attack(entity, &self.game.map_properties, player_id)
                         && (!self.game.map_properties.no_lockon()

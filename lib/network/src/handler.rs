@@ -8,7 +8,7 @@ use packets::packets::*;
 use ragnarok_game::banner::BannerKind;
 use ragnarok_game::event::{
     CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData,
-    SelfConfigKind, ServerInfo, SkillInfo,
+    PetProperty, SelfConfigKind, ServerInfo, SkillInfo,
 };
 use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::guild::{
@@ -2071,6 +2071,50 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    if any.downcast_ref::<PacketZcStartCapture>().is_some() {
+        return vec![GameEvent::PetCaptureStart];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcTrycaptureMonster>() {
+        return vec![GameEvent::PetCaptureResult { ok: p.result != 0 }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPropertyPet>() {
+        let name: String = p.sz_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::PetProperty {
+            property: PetProperty {
+                name,
+                renamed: p.b_modified != 0,
+                level: p.n_level,
+                hunger: p.n_fullness,
+                intimacy: p.n_relationship,
+                accessory: p.itid,
+                job: p.job,
+            },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcFeedPet>() {
+        return vec![GameEvent::PetFeedResult {
+            ok: p.c_ret != 0,
+            food_item_id: p.itid,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcChangestatePet>() {
+        return vec![GameEvent::PetStateChanged {
+            ty: p.atype,
+            gid: p.gid as u32,
+            data: p.data,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPeteggList>() {
+        let indices = p.egg_list.iter().map(|e| e.index as u16).collect();
+        return vec![GameEvent::PetEggList { indices }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcPetAct>() {
+        return vec![GameEvent::PetAct {
+            gid: p.gid as u32,
+            data: p.data,
+        }];
+    }
+
     debug!("unhandled packet: {}", packet.name());
     vec![]
 }
@@ -3685,6 +3729,91 @@ mod tests {
                 assert_eq!(positions[1].right, 0);
             }
             other => panic!("expected GuildPositions, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_pet_hatch_burst_populates_state() {
+        use ragnarok_game::pet::PetState;
+        let packetver = 20120307;
+        let pet_gid: u32 = 400123;
+        let accessory_view: i32 = 10001;
+        let mut pet = PetState::default();
+
+        let apply = |pet: &mut PetState, pkt: &dyn Packet| match &dispatch_packet(pkt, packetver)[..]
+        {
+            [GameEvent::PetStateChanged { ty, gid, data }] => {
+                pet.apply_state_changed(*ty, *gid, *data)
+            }
+            [GameEvent::PetProperty { property }] => pet.apply_property(property),
+            other => panic!("unexpected pet event: {other:?}"),
+        };
+
+        let mut init = PacketZcChangestatePet::new(packetver);
+        init.set_atype(0);
+        init.set_gid(pet_gid as i32);
+        init.fill_raw();
+        apply(&mut pet, &init);
+
+        let mut marker = PacketZcChangestatePet::new(packetver);
+        marker.set_atype(5);
+        marker.set_gid(pet_gid as i32);
+        marker.set_data(100);
+        marker.fill_raw();
+        apply(&mut pet, &marker);
+
+        let mut accessory = PacketZcChangestatePet::new(packetver);
+        accessory.set_atype(3);
+        accessory.set_gid(pet_gid as i32);
+        accessory.set_data(accessory_view);
+        accessory.fill_raw();
+        apply(&mut pet, &accessory);
+
+        let mut prop = PacketZcPropertyPet::new(packetver);
+        let mut name = [0 as char; 24];
+        for (i, c) in "Poring".chars().enumerate() {
+            name[i] = c;
+        }
+        prop.set_sz_name(name);
+        prop.set_b_modified(0);
+        prop.set_n_level(1);
+        prop.set_n_fullness(80);
+        prop.set_n_relationship(920);
+        prop.set_itid(accessory_view as u16);
+        prop.set_job(1002);
+        prop.fill_raw();
+        apply(&mut pet, &prop);
+
+        assert_eq!(pet.gid, Some(pet_gid));
+        assert_eq!(pet.accessory, accessory_view as u16);
+        assert_eq!(pet.name, "Poring");
+        assert_eq!(pet.hunger, 80);
+        assert_eq!(pet.intimacy, 920);
+        assert_eq!(pet.job, 1002);
+        assert!(!pet.renamed);
+        assert_eq!(pet.hunger_state(), ragnarok_game::pet::HungerState::Satisfied);
+        assert_eq!(
+            pet.intimacy_state(),
+            ragnarok_game::pet::IntimacyState::Loyal
+        );
+    }
+
+    #[test]
+    fn dispatch_petegg_list_yields_indices() {
+        let packetver = 20120307;
+        let mut e0 = PeteggitemInfo::new(packetver);
+        e0.set_index(7);
+        e0.fill_raw();
+        let mut e1 = PeteggitemInfo::new(packetver);
+        e1.set_index(9);
+        e1.fill_raw();
+        let mut pkt = PacketZcPeteggList::new(packetver);
+        pkt.set_packet_length(4 + 4);
+        pkt.set_egg_list(vec![e0, e1]);
+        pkt.fill_raw();
+        match &dispatch_packet(&pkt, packetver)[..] {
+            [GameEvent::PetEggList { indices }] => assert_eq!(indices.as_slice(), &[7, 9]),
+            other => panic!("expected PetEggList, got {other:?}"),
         }
     }
 }

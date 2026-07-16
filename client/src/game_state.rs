@@ -24,6 +24,7 @@ use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
+use ragnarok_game::pet::PetState;
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::party::Party;
 use ragnarok_game::server_time::ServerTimeClock;
@@ -77,6 +78,7 @@ use ragnarok_ui_component::game::emblem_picker_window::{
 use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
 use ragnarok_ui_component::game::party_friends_window::{PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow};
 use ragnarok_ui_component::game::party_helper_window::{PARTY_HELPER_WINDOW_ID, PartyHelperWindow};
+use ragnarok_ui_component::game::pet_window::{PET_WINDOW_ID, PetWindow};
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::levelup_notification_window::{
     LevelUpClick, LevelUpNotificationWindow,
@@ -239,6 +241,7 @@ pub struct GameState {
     pub friend_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub homunculus: Option<HomunculusState>,
     pub mercenary: Option<MercenaryState>,
+    pub pet: PetState,
     pub companion_ai: ragnarok_ai::config::CompanionAiConfig,
     pub companion_ai_config_window: CompanionAiConfigWindow,
     /// Target armed by the first click of the two-click owner attack, confirmed by
@@ -246,6 +249,12 @@ pub struct GameState {
     pub companion_attack_target: [Option<u32>; 2],
     pub homunculus_window: HomunWindow,
     pub mercenary_window: MercenaryWindow,
+    pub pet_window: PetWindow,
+    pub pet_feed_pending: bool,
+    pub pet_feed_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    /// Armed by ZC_START_CAPTURE: the next click on a valid mob opens the roulette.
+    pub capture_targeting: bool,
+    pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
     pub mercenary_skill_window: MercenarySkillWindow,
     pub homun_skill_window: HomunSkillWindow,
     pub context_menu: ContextMenu,
@@ -308,6 +317,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     PARTY_HELPER_WINDOW_ID,
     HOMUN_WINDOW_ID,
     MERCENARY_WINDOW_ID,
+    PET_WINDOW_ID,
     MERCENARY_SKILL_WINDOW_ID,
     HOMUN_SKILL_WINDOW_ID,
     BOOK_WINDOW_ID,
@@ -457,6 +467,11 @@ impl GameState {
             self.pending_skill_target = None;
             allow_escape = false;
         }
+        if allow_escape && ui.ctx.key_escape && (self.capture_targeting || self.pet_roulette.is_some()) {
+            self.capture_targeting = false;
+            self.pet_roulette = None;
+            allow_escape = false;
+        }
         self.system_menu.allow_escape_toggle = allow_escape;
         self.system_menu.can_resurrect = self.system_menu.dead
             && !self.map_properties.enable_pk()
@@ -553,6 +568,15 @@ impl GameState {
             self.homun_delete_pending = false;
             if result == ConfirmResult::Ok {
                 events.push(GameEvent::RequestHomunMenu { command: 2 });
+            }
+        }
+
+        if self.pet_feed_pending
+            && let Some(result) = self.pet_feed_result.take()
+        {
+            self.pet_feed_pending = false;
+            if result == ConfirmResult::Ok {
+                events.push(GameEvent::RequestPetCommand { csub: 1 });
             }
         }
 
@@ -902,6 +926,9 @@ impl GameState {
             MERCENARY_WINDOW_ID => {
                 events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));
             }
+            PET_WINDOW_ID => {
+                events.extend(self.pet_window.build(ui, &self.pet));
+            }
             MERCENARY_SKILL_WINDOW_ID => {
                 events.extend(self.mercenary_skill_window.build(
                     ui,
@@ -1093,9 +1120,15 @@ impl GameState {
             friend_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             homunculus: None,
             mercenary: None,
+            pet: PetState::default(),
             companion_attack_target: [None; 2],
             homunculus_window: HomunWindow::new(),
             mercenary_window: MercenaryWindow::new(),
+            pet_window: PetWindow::new(),
+            pet_feed_pending: false,
+            pet_feed_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            capture_targeting: false,
+            pet_roulette: None,
             companion_ai: ragnarok_ai::config::CompanionAiConfig::load_or_default(
                 COMPANION_AI_CONFIG_PATH,
             ),
