@@ -73,6 +73,7 @@ impl App {
             self.despawn_entity_effects(gid);
             self.game.entities.remove(gid);
             self.game.sprites.remove(&gid);
+            self.remove_gr2_model(gid);
         } else if let Some(existing) = self.game.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
             // A fresh spawn for an already-visible entity re-declares its cell: on
@@ -256,6 +257,7 @@ impl App {
                 self.despawn_entity_effects(gid);
                 let r1 = self.game.entities.remove(gid).is_some();
                 let r2 = self.game.sprites.remove(&gid).is_some();
+                self.remove_gr2_model(gid);
                 tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
             }
         }

@@ -104,6 +104,10 @@ impl App {
         self.game.character.clear();
         self.game.entities.clear();
         self.game.sprites.clear();
+        self.game.gr2_models.clear();
+        if let Some(renderer) = &mut self.renderer {
+            renderer.gr2_models.clear();
+        }
         self.game.sprite_cache.clear();
         self.game.floor_items.clear();
         self.game.floor_item_sprites.clear();
@@ -375,6 +379,8 @@ impl App {
                 .player_id()
                 .and_then(|pid| self.game.sprites.remove(&pid));
             self.game.sprites.clear();
+            // Renderer-side gr2 models were already dropped by load_map.
+            self.game.gr2_models.clear();
             self.game.sprite_cache.clear();
             self.game.entities.clear_non_player();
             self.game.failed_sprite_loads.clear();

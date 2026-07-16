@@ -4,6 +4,7 @@ use ragnarok_game::ailment;
 use ragnarok_game::entity::{
     DEATH_FADE_DURATION, EntityFade, EntityState, EntityType, ForcedAnimation,
 };
+use ragnarok_game::gr2_model::Gr2Action;
 use ragnarok_game::sound::SoundQueue;
 
 /// Resolve ACT frame sound-events to queued sounds, positional at the actor.
@@ -151,6 +152,56 @@ impl App {
         }
     }
 
+    /// Drive GR2 model entities: pick the action from the entity state, place
+    /// the model at the entity's cell, upload the skinning palette, and start
+    /// the death fade once the dead clip has played through (their sprite
+    /// animation never ticks, so `update_fades` alone would never fire).
+    pub(crate) fn update_gr2_models(&mut self, elapsed: f32) {
+        if self.game.gr2_models.is_empty() {
+            return;
+        }
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        else {
+            return;
+        };
+        let queue = &renderer.device.queue;
+        for (gid, instance) in self.game.gr2_models.iter_mut() {
+            let Some(entity) = self.game.entities.get_mut(*gid) else {
+                continue;
+            };
+            instance.set_action(Gr2Action::from_state(entity.state), elapsed);
+
+            if entity.state == EntityState::Dead
+                && entity.fade.is_none()
+                && entity.scheduled_hits.is_empty()
+                && instance.action_completed(elapsed)
+            {
+                entity.fade = Some(EntityFade {
+                    elapsed: 0.0,
+                    duration: DEATH_FADE_DURATION,
+                });
+            }
+
+            let Some(model) = renderer.gr2_models.get(gid) else {
+                continue;
+            };
+            let (cx, cy) = entity.movement.position();
+            let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
+            let wy = gat.get_height(cx + 0.5, cy + 0.5);
+            // Same facing convention as effect caster yaw; the trailing X
+            // rotation stands the Z-up model upright (world up is negative Y).
+            let yaw = entity.direction as f32 * (std::f32::consts::TAU / 8.0);
+            let transform = glam::Mat4::from_translation(glam::Vec3::new(wx, wy, wz))
+                * glam::Mat4::from_rotation_y(yaw)
+                * glam::Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2);
+            model.set_transform(queue, transform);
+            model.set_palette(queue, &instance.skinning_palette(elapsed));
+        }
+    }
+
     pub(crate) fn update_fades(&mut self, delta: f32) {
         for entity in self.game.entities.iter_mut() {
             if entity.state == EntityState::Dead
@@ -181,6 +232,7 @@ impl App {
             self.despawn_entity_effects(gid);
             self.game.entities.remove(gid);
             self.game.sprites.remove(&gid);
+            self.remove_gr2_model(gid);
         }
     }
 }

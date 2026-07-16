@@ -2946,6 +2946,7 @@ dependencies = [
 name = "ragnarok-client"
 version = "0.1.0"
 dependencies = [
+ "glam",
  "models",
  "ragnarok-ai",
  "ragnarok-audio",
@@ -2986,6 +2987,7 @@ dependencies = [
 name = "ragnarok-game"
 version = "0.1.0"
 dependencies = [
+ "glam",
  "models",
  "movement",
  "packets",

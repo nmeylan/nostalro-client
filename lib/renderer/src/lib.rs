@@ -6,6 +6,7 @@ pub mod effect_sprite;
 pub mod font_atlas;
 pub mod fps;
 pub mod global_uniforms;
+pub mod gr2_model;
 pub mod grid_selector;
 pub mod ground;
 pub mod ground_proxy;
@@ -36,6 +37,7 @@ pub use effect_sprite::{
     project_billboard,
 };
 pub use font_atlas::FontAtlas;
+pub use gr2_model::{Gr2ModelRenderer, Gr2ModelVertex, build_gr2_geometry};
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use ground_proxy::GroundProxyRenderer;
@@ -95,6 +97,8 @@ pub struct Renderer {
     pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
     pub skill_unit_models: std::collections::HashMap<u32, ModelRenderer>,
+    /// Animated GR2 entity models keyed by entity gid (emperium, guardians…).
+    pub gr2_models: std::collections::HashMap<u32, Gr2ModelRenderer>,
     pub water_renderer: Option<WaterRenderer>,
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
@@ -351,6 +355,7 @@ impl Renderer {
             ground_proxy: None,
             model_renderer: None,
             skill_unit_models: std::collections::HashMap::new(),
+            gr2_models: std::collections::HashMap::new(),
             water_renderer: None,
             grid_selector: None,
             sprite_renderer,
@@ -499,6 +504,7 @@ impl Renderer {
         );
 
         self.skill_unit_models.clear();
+        self.gr2_models.clear();
         self.background_mode = BackgroundMode::RswMap;
     }
 
@@ -740,6 +746,9 @@ impl Renderer {
                     }
                     for model in self.skill_unit_models.values() {
                         model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
+                    for model in self.gr2_models.values() {
+                        model.render(&mut pass, &self.global_uniforms);
                     }
                     if let Some(grid) = &self.grid_selector {
                         grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);

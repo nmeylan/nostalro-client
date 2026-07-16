@@ -13,6 +13,7 @@ ragnarok-ui = { workspace = true }
 ragnarok-ui-component = { workspace = true }
 ragnarok-audio = { workspace = true }
 models = { workspace = true }
+glam = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true }

@@ -91,6 +91,22 @@ This tool provide rendering of scene + sprite + effect in same tool, this allows
 tools/viewer-dev.sh
 ```
 
+## GR 2 viewer
+
+```bash
+# guild flag with emblem
+cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf guildflag90_1.gr2 --emblem /home/nmeylan/dev/ragnarok/classic-client/data/emblem/emblem_0013.bmp
+
+# Archer guardian
+cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf aguardian90_8.gr2
+
+# Knight guardian
+cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf data/model/3dmob/kguardian90_7.gr2
+
+# Emperium
+cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf data/model/3dmob/empelium90_0.gr2
+```
+
 # AI usage
 This project leverage AI to allow a faster development, as my time is very limited. AI is being used for:
 - Fix network packet handling: investigate raw packet trace

@@ -24,6 +24,10 @@ name = "effect-viewer"
 path = "src/bin/effect_viewer.rs"
 
 [[bin]]
+name = "gr2-viewer"
+path = "src/bin/gr2_viewer.rs"
+
+[[bin]]
 name = "dump-rsw-lights"
 path = "src/bin/dump_rsw_lights.rs"
 

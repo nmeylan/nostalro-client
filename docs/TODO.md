@@ -27,8 +27,7 @@ TODO:
 - ~~Fog~~
 - ~~Weather (rain, snow, sakura)~~
 - Day/night cycle (lighting changes)
-- Granny models (emperium, guardian)
-- Skybox
+- ~~Granny models (emperium, guardian)~~
 - ~~ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/~~
 # UI
 - ~~Character selection~~
@@ -47,7 +46,7 @@ TODO:
 - ~~Guild window (members, positions, skills, emblem, notices)~~
 - ~~Friend/messenger list~~
 - Game menu: graphic/audio options
-- Emotion selector
+- ~~Emotion selector~~
 - ~~Char delete~~
 - Quest window
 ~~- Cart window~~
@@ -106,7 +105,7 @@ TODO:
 
 # Network
 - ~~Chat packets~~ (done — multi-channel chat)
-- Combat packets (attack, skill use, damage)
+- ~~Combat packets (attack, skill use, damage)~~
 - ~~Item packets (pickup, drop, use, equip, unequip)~~
 ~~- Skill packets (cast, execute, ground target)~~
 - ~~NPC packets (dialog, menu, shop, close)~~

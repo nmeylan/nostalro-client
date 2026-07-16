@@ -19,6 +19,7 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
+use ragnarok_game::gr2_model::Gr2ModelInstance;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::floor_item::FloorItem;
@@ -127,6 +128,9 @@ pub struct GameState {
     pub gat: Option<GatFile>,
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
+    /// Animation state of GR2 model entities (emperium, guardians…) keyed by
+    /// gid; the matching draw resources live in `Renderer::gr2_models`.
+    pub gr2_models: HashMap<u32, Gr2ModelInstance>,
     pub guild_head_sprites: HashMap<u32, Rc<EntitySprite>>,
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
@@ -991,6 +995,7 @@ impl GameState {
             gat: None,
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
+            gr2_models: HashMap::new(),
             guild_head_sprites: HashMap::new(),
             carts: HashMap::new(),
             falcons: HashMap::new(),
