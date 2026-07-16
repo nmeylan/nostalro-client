@@ -250,7 +250,8 @@ impl App {
                             &self.game.emotion_act,
                             &self.game.emotion_textures,
                         ) {
-                            let action_idx = emo.emotion_type as usize;
+                            let action_idx =
+                                ragnarok_game::emotion::emote_sprite_action(emo.emotion_type);
                             if action_idx < emo_act.actions.len() {
                                 let delay_ms = emo_act
                                     .delays

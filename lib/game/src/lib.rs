@@ -13,6 +13,8 @@ pub mod damage_number;
 pub mod display_name;
 pub use ragnarok_effects as effect;
 pub mod effects;
+pub mod emotion;
+pub mod gr2_model;
 pub mod inventory;
 pub mod item;
 pub use cursor::RenderEntry;

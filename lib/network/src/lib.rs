@@ -12,7 +12,7 @@ pub use sender::{
     build_action_request_packet, build_card_composition_list_packet, build_card_composition_packet,
     build_cartoff_packet, build_change_cart_packet, build_change_direction_packet,
     build_change_party_exp_option_packet,
-    build_char_enter_packet, build_chat_packet,
+    build_char_enter_packet, build_chat_packet, build_emotion_packet,
     build_delete_char_cancel_packet, build_delete_char_confirm_packet,
     build_delete_char_reserve_packet, build_expel_party_member_packet,
     build_make_char_packet, build_make_char_with_stats_packet,

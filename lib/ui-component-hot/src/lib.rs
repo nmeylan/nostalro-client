@@ -43,6 +43,7 @@ use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
 use ragnarok_ui_component::game::chat_room_create_window::{
     CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
 };
+use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
 use ragnarok_ui_component::game::chat_room_member_window::{
     CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
 };
@@ -107,6 +108,7 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "chat_room_board",
     "vending_board",
     "party",
+    "emotion",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
@@ -191,6 +193,11 @@ enum State {
     },
     ChatRoomCreate {
         win: ChatRoomCreateWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Emotion {
+        win: EmotionWindow,
         character: Character,
         data: DataTable,
     },
@@ -850,6 +857,15 @@ fn create_single(name: &str) -> State {
             let mut win = ChatRoomCreateWindow::new();
             win.open_create();
             State::ChatRoomCreate {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "emotion" => {
+            let mut win = EmotionWindow::new();
+            win.toggle();
+            State::Emotion {
                 win,
                 character: Character::new(),
                 data: DataTable::new(),
@@ -1661,6 +1677,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::Emotion { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::ChatRoomMember { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -1766,6 +1786,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
         State::ChatRoomCreate { .. } => Some(CHAT_ROOM_CREATE_WINDOW_ID),
+        State::Emotion { .. } => Some(EMOTION_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
@@ -1795,6 +1816,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::ItemInfo { win, .. } => Some((ITEM_INFO_WINDOW_ID, win)),
         State::Book { win, .. } => Some((BOOK_WINDOW_ID, win)),
         State::ChatRoomCreate { win, .. } => Some((CHAT_ROOM_CREATE_WINDOW_ID, win)),
+        State::Emotion { win, .. } => Some((EMOTION_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
         State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
         State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
@@ -2327,6 +2349,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::ChatRoomCreate {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::Emotion {
             win,
             character,
             data,

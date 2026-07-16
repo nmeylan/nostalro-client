@@ -2917,6 +2917,15 @@ mod tests {
     }
 
     #[test]
+    fn build_emotion_packet_has_correct_id_and_type() {
+        let raw = crate::sender::build_emotion_packet(23, 20120307);
+        assert_eq!(raw.len(), 3);
+        assert_eq!(raw[0], 0xBF);
+        assert_eq!(raw[1], 0x00);
+        assert_eq!(raw[2], 23);
+    }
+
+    #[test]
     fn build_request_time_packet_contains_client_time() {
         let raw = crate::sender::build_request_time_packet(12345, 20120307);
         assert_eq!(raw.len(), 6);

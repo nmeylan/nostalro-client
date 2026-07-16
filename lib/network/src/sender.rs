@@ -122,6 +122,13 @@ pub fn build_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_emotion_packet(emote_type: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqEmotion::new(packetver);
+    pkt.set_atype(emote_type);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_action_request_packet(target_gid: u32, action: u8, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRequestAct::new(packetver);
     pkt.set_target_gid(target_gid);

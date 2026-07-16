@@ -270,6 +270,7 @@ impl App {
             renderer.preload_textures(&chat_room_board::grf_texture_paths(), grf);
             preload_window(&mut self.game.chat_room_create_window, renderer, grf);
             preload_window(&mut self.game.chat_room_member_window, renderer, grf);
+            preload_window(&mut self.game.emotion_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);
             preload_window(&mut self.game.book_window, renderer, grf);
             preload_window(&mut self.game.sound_options, renderer, grf);

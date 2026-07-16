@@ -43,6 +43,7 @@ use ragnarok_network::{
     build_card_composition_packet, build_cartoff_packet, build_change_cart_packet,
     build_change_direction_packet,
     build_char_enter_packet, build_chat_packet, build_contact_npc_packet, build_drop_item_packet,
+    build_emotion_packet,
     build_delete_char_cancel_packet, build_delete_char_confirm_packet,
     build_delete_char_reserve_packet,
     build_make_char_packet, build_make_char_with_stats_packet,
@@ -1299,6 +1300,13 @@ impl App {
                 GameEvent::ToggleSkills => {
                     self.game.character.skills.toggle();
                 }
+                GameEvent::ToggleEmotionWindow => {
+                    self.game.emotion_window.toggle();
+                }
+                GameEvent::RequestEmotion { emote_type } => {
+                    self.channel
+                        .send_packet(build_emotion_packet(emote_type, self.config.packetver));
+                }
                 GameEvent::ToggleStatusWindow => {
                     self.game.status_window.toggle();
                 }
@@ -1906,9 +1914,14 @@ impl App {
                 }
             }
             _ => {
-                self.game
-                    .chat_window
-                    .add_system(format!("Unknown command: {cmd}"));
+                if let Some(emote_type) = ragnarok_game::emotion::emote_type_for_command(cmd) {
+                    self.channel
+                        .send_packet(build_emotion_packet(emote_type, self.config.packetver));
+                } else {
+                    self.game
+                        .chat_window
+                        .add_system(format!("Unknown command: {cmd}"));
+                }
             }
         }
     }

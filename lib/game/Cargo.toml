@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 ragnarok-formats = { workspace = true }
 ragnarok-ai = { workspace = true }
+glam = { workspace = true }
 ragnarok-effects = { workspace = true }
 models = { workspace = true }
 movement = { workspace = true }

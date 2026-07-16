@@ -348,6 +348,9 @@ pub enum GameEvent {
     RequestSendChat {
         message: String,
     },
+    RequestEmotion {
+        emote_type: u8,
+    },
     NpcDialogText {
         npc_id: u32,
         text: String,
@@ -691,6 +694,7 @@ pub enum GameEvent {
     ToggleInventory,
     ToggleEquipment,
     ToggleSkills,
+    ToggleEmotionWindow,
     ToggleMinimap,
     ToggleSoundOptions,
     SoundSettingsChanged {

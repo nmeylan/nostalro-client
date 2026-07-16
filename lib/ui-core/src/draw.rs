@@ -1,5 +1,6 @@
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::ui_renderer::UiVertex;
+pub use ragnarok_renderer::texture::EMOTION_ICON_PREFIX;
 pub use ragnarok_renderer::{UiDrawCall as DrawCall, UiTextureRef as TextureRef};
 
 pub fn quad_vertices(x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) -> ([UiVertex; 4], [u32; 6]) {
