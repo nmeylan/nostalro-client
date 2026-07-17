@@ -49,7 +49,9 @@ use ragnarok_network::{
     build_make_char_packet, build_make_char_with_stats_packet,
     build_equip_item_packet, build_login_packet, build_move_item_body_to_cart_packet,
     build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
-    build_move_item_store_to_cart_packet, build_npc_close_packet, build_npc_deal_type_packet,
+    build_move_item_store_to_cart_packet, build_move_item_body_to_store_packet,
+    build_move_item_store_to_body_packet, build_close_store_packet,
+    build_npc_close_packet, build_npc_deal_type_packet,
     build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet,
     build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
     build_change_party_exp_option_packet, build_expel_party_member_packet,
@@ -912,6 +914,26 @@ impl App {
                             count,
                             self.config.packetver,
                         ));
+                }
+                GameEvent::RequestMoveItemBodyToStore { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_body_to_store_packet(
+                            index,
+                            count,
+                            self.config.packetver,
+                        ));
+                }
+                GameEvent::RequestMoveItemStoreToBody { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_store_to_body_packet(
+                            index,
+                            count,
+                            self.config.packetver,
+                        ));
+                }
+                GameEvent::RequestCloseStorage => {
+                    self.channel
+                        .send_packet(build_close_store_packet(self.config.packetver));
                 }
                 GameEvent::RequestCartOff => {
                     self.channel

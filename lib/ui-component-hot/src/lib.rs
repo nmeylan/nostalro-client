@@ -34,6 +34,7 @@ use ragnarok_ui_component::game::card_insert_dialog::{
 };
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
+use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
 use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
@@ -93,6 +94,7 @@ use std::collections::HashMap;
 
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
+    "storage",
     "cart_select",
     "npc_shop",
     "npc_dialog",
@@ -137,6 +139,11 @@ enum State {
     },
     Cart {
         win: CartWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Storage {
+        win: StorageWindow,
         character: Character,
         data: DataTable,
     },
@@ -487,6 +494,18 @@ fn create_single(name: &str) -> State {
             }
             State::Cart {
                 win: CartWindow::new(),
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "storage" => {
+            let mut character = Character::new();
+            character.storage.open_with_pending(42, 600);
+            for item in storage_test_items() {
+                character.storage.add_item(item);
+            }
+            State::Storage {
+                win: StorageWindow::new(),
                 character,
                 data: DataTable::new(),
             }
@@ -1659,6 +1678,13 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::Storage { win, character, .. } => {
+            if let Some(table) = table {
+                character.storage.resolve_resource_names(table);
+            }
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::CartSelect { win, .. } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
@@ -1911,6 +1937,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Chat { .. } => Some(CHAT_WINDOW_ID),
         State::Inventory { .. } => Some(INV_WINDOW_ID),
         State::Cart { .. } => Some(CART_WINDOW_ID),
+        State::Storage { .. } => Some(STORAGE_WINDOW_ID),
         State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
         State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
         State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
@@ -1961,6 +1988,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::QuestDetail { win, .. } => Some((QUEST_DETAIL_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
         State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
+        State::Storage { win, .. } => Some((STORAGE_WINDOW_ID, win)),
         State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
         State::VendingSetup { win, .. } => Some((VENDING_SETUP_WINDOW_ID, win)),
         State::MyShop { win, .. } => Some((MY_SHOP_WINDOW_ID, win)),
@@ -2255,6 +2283,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             inv.build(ui, character, data);
         }
         State::Cart {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::Storage {
             win,
             character,
             data,
@@ -2812,6 +2847,29 @@ fn inventory_test_items() -> Vec<Item> {
     items[21].name = "Unknown Armor".into();
     items[22].is_identified = false;
     items[22].name = "Unknown Shoes".into();
+    items
+}
+
+fn storage_test_items() -> Vec<Item> {
+    let mut items = vec![
+        make_test_item(1, 501, 0, 250, "Red Potion"),
+        make_test_item(2, 502, 0, 999, "Orange Potion"),
+        make_test_item(3, 601, 0, 30, "Fly Wing"),
+        make_test_item(4, 1201, 5, 1, "Stiletto"),
+        make_test_item(5, 1101, 5, 1, "Sword"),
+        make_test_item(6, 2301, 4, 1, "Chain Mail"),
+        make_test_item(7, 2101, 4, 1, "Guard"),
+        make_test_item(8, 1750, 10, 500, "Arrow"),
+        make_test_item(9, 4001, 6, 3, "Poring Card"),
+        make_test_item(10, 4035, 6, 1, "Marc Card"),
+        make_test_item(11, 910, 3, 250, "Jellopy"),
+        make_test_item(12, 911, 3, 120, "Shell"),
+    ];
+    items[3].refining_level = 7;
+    items[4].refining_level = 4;
+    items[5].is_damaged = true;
+    items[6].is_identified = false;
+    items[6].name = "Unknown Guard".into();
     items
 }
 

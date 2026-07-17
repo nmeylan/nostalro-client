@@ -572,6 +572,43 @@ pub enum GameEvent {
         max_count: i16,
     },
     CartOff,
+    StorageNormalItems {
+        items: Vec<NormalItemData>,
+    },
+    StorageEquipItems {
+        items: Vec<EquipmentItemData>,
+    },
+    StorageOpened {
+        cur: i16,
+        max: i16,
+    },
+    StorageItemAdded {
+        index: u16,
+        item_id: u16,
+        count: i16,
+        item_type: u8,
+        is_identified: bool,
+        is_damaged: bool,
+        refining_level: u8,
+        slot: [u16; 4],
+    },
+    StorageItemRemoved {
+        index: u16,
+        amount: i16,
+    },
+    StorageClosed,
+    RequestMoveItemBodyToStore {
+        index: u16,
+        count: i16,
+    },
+    RequestDepositItem {
+        index: u16,
+    },
+    RequestMoveItemStoreToBody {
+        index: u16,
+        count: i16,
+    },
+    RequestCloseStorage,
     RequestMoveItemBodyToCart {
         index: u16,
         count: i16,
@@ -690,6 +727,9 @@ pub enum GameEvent {
         item_id: u16,
     },
     RequestRemoveOption,
+    ShowSystemMessage {
+        message: String,
+    },
     DialogClosed,
     ToggleInventory,
     ToggleEquipment,

@@ -14,6 +14,7 @@ mod pet;
 mod production;
 mod quest;
 mod skill;
+mod storage;
 
 use crate::App;
 use models::enums::EnumWithMaskValueU64;
@@ -610,6 +611,46 @@ impl App {
                 }
                 GameEvent::CartOff => {
                     self.handle_cart_off();
+                }
+
+                GameEvent::StorageNormalItems { items } => {
+                    self.handle_storage_normal_items(items);
+                }
+                GameEvent::StorageEquipItems { items } => {
+                    self.handle_storage_equip_items(items);
+                }
+                GameEvent::StorageOpened { cur, max } => {
+                    self.handle_storage_opened(cur, max);
+                }
+                GameEvent::StorageItemAdded {
+                    index,
+                    item_id,
+                    count,
+                    item_type,
+                    is_identified,
+                    is_damaged,
+                    refining_level,
+                    slot,
+                } => {
+                    self.handle_storage_item_added(
+                        index,
+                        item_id,
+                        count,
+                        item_type,
+                        is_identified,
+                        is_damaged,
+                        refining_level,
+                        slot,
+                    );
+                }
+                GameEvent::StorageItemRemoved { index, amount } => {
+                    self.handle_storage_item_removed(index, amount);
+                }
+                GameEvent::StorageClosed => {
+                    self.handle_storage_closed();
+                }
+                GameEvent::ShowSystemMessage { message } => {
+                    self.game.chat_window.add_system(message);
                 }
 
                 GameEvent::CardInsertItemList { equip_indices, .. } => {

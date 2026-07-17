@@ -41,6 +41,7 @@ pub mod shortcut_list_window;
 pub mod skill_tree_window;
 pub mod sound_options;
 pub mod status_icon_bar;
+pub mod storage_window;
 pub mod status_window;
 pub mod system_menu;
 pub mod vending_board;

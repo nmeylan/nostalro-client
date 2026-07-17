@@ -39,6 +39,7 @@ use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, Basic
 use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
+use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
 use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
 use ragnarok_ui_component::game::shortcut_list_window::{
     SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
@@ -165,6 +166,7 @@ pub struct GameState {
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
     pub cart_window: CartWindow,
+    pub storage_window: StorageWindow,
     pub cart_select_window: CartSelectWindow,
     pub npc_dialog: NpcDialog,
     pub warp_list_window: WarpListWindow,
@@ -312,6 +314,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     chat_window::CHAT_WINDOW_ID,
     INV_WINDOW_ID,
     CART_WINDOW_ID,
+    STORAGE_WINDOW_ID,
     CART_SELECT_WINDOW_ID,
     MAKE_ITEM_WINDOW_ID,
     VENDING_SHOP_WINDOW_ID,
@@ -361,6 +364,21 @@ impl GameState {
         for &win_id in Z_ORDERABLE_WINDOWS {
             if !z_order.contains(&win_id) {
                 self.build_window(win_id, ui, &mut events);
+            }
+        }
+
+        let deposit_intents: Vec<u16> = events
+            .iter()
+            .filter_map(|e| match e {
+                GameEvent::RequestDepositItem { index } => Some(*index),
+                _ => None,
+            })
+            .collect();
+        if !deposit_intents.is_empty() {
+            events.retain(|e| !matches!(e, GameEvent::RequestDepositItem { .. }));
+            for index in deposit_intents {
+                let deposit = self.storage_window.begin_deposit_body(&self.character, index);
+                events.extend(deposit);
             }
         }
 
@@ -818,6 +836,11 @@ impl GameState {
                 &mut self.character,
                 &self.data_table,
             )),
+            STORAGE_WINDOW_ID => events.extend(self.storage_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
             MAKE_ITEM_WINDOW_ID => events.extend(self.make_item_window.build(
                 ui,
                 &mut self.character,
@@ -1086,6 +1109,7 @@ impl GameState {
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
             cart_window: CartWindow::new(),
+            storage_window: StorageWindow::new(),
             cart_select_window: CartSelectWindow::new(),
             npc_dialog: NpcDialog::new(),
             warp_list_window: WarpListWindow::new(),

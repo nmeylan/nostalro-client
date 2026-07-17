@@ -475,6 +475,28 @@ pub fn build_move_item_cart_to_store_packet(index: u16, count: i16, packetver: u
     pkt.raw
 }
 
+pub fn build_move_item_body_to_store_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMoveItemFromBodyToStore::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_move_item_store_to_body_packet(index: u16, count: i16, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMoveItemFromStoreToBody::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_close_store_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzCloseStore::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_cartoff_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqCartoff::new(packetver);
     pkt.fill_raw();

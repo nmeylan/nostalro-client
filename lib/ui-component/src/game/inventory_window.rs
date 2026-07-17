@@ -43,9 +43,9 @@ const MAX_ROWS: usize = 6;
 const DEFAULT_COLS: usize = 7;
 const DEFAULT_ROWS: usize = 2;
 
-const TAB_USABLE_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_01.bmp";
-const TAB_EQUIP_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_02.bmp";
-const TAB_ETC_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_03.bmp";
+pub const TAB_USABLE_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_01.bmp";
+pub const TAB_EQUIP_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_02.bmp";
+pub const TAB_ETC_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_03.bmp";
 const MINI_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
 const MINI_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
@@ -335,7 +335,9 @@ impl InGameWindow for InventoryWindow {
                     events.push(GameEvent::ShowItemInfo { index: item.index });
                 }
                 if response.double_clicked() {
-                    if item.is_equipment() {
+                    if character.storage.is_open() {
+                        events.push(GameEvent::RequestDepositItem { index: item.index });
+                    } else if item.is_equipment() {
                         if item.is_equipped() {
                             events.push(GameEvent::RequestUnequipItem { index: item.index });
                         } else {
@@ -373,6 +375,16 @@ impl InGameWindow for InventoryWindow {
                     .map(|i| i.count)
                     .unwrap_or(1);
                 events.push(GameEvent::RequestMoveItemCartToBody {
+                    index: item_index as u16,
+                    count,
+                });
+            } else if source_id == super::storage_window::STORAGE_WINDOW_ID {
+                let count = character
+                    .storage
+                    .get_item(item_index as u16)
+                    .map(|i| i.count)
+                    .unwrap_or(1);
+                events.push(GameEvent::RequestMoveItemStoreToBody {
                     index: item_index as u16,
                     count,
                 });

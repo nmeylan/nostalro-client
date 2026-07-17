@@ -508,6 +508,110 @@ impl CartData {
     }
 }
 
+#[derive(Debug)]
+pub struct StorageData {
+    items: Vec<Item>,
+    pending: Vec<Item>,
+    pub cur_count: i16,
+    pub max_count: i16,
+    open: bool,
+}
+
+impl Default for StorageData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StorageData {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            pending: Vec::new(),
+            cur_count: 0,
+            max_count: 0,
+            open: false,
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    pub fn all_items(&self) -> &[Item] {
+        &self.items
+    }
+
+    pub fn get_item(&self, index: u16) -> Option<&Item> {
+        self.items.iter().find(|i| i.index == index)
+    }
+
+    pub fn buffer_normal_items(
+        &mut self,
+        items: Vec<NormalItemData>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
+        for info in items {
+            self.pending.push(normal_item_to_item(&info, data_table));
+        }
+        self.pending.iter().filter_map(|i| i.icon_path()).collect()
+    }
+
+    pub fn buffer_equipment_items(
+        &mut self,
+        items: Vec<EquipmentItemData>,
+        data_table: &crate::data_table::DataTable,
+    ) -> Vec<String> {
+        for info in items {
+            self.pending.push(equipment_item_to_item(&info, data_table));
+        }
+        self.pending.iter().filter_map(|i| i.icon_path()).collect()
+    }
+
+    pub fn open_with_pending(&mut self, cur_count: i16, max_count: i16) {
+        self.items = std::mem::take(&mut self.pending);
+        self.cur_count = cur_count;
+        self.max_count = max_count;
+        self.open = true;
+    }
+
+    pub fn set_counts(&mut self, cur_count: i16, max_count: i16) {
+        self.cur_count = cur_count;
+        self.max_count = max_count;
+    }
+
+    pub fn add_item(&mut self, item: Item) {
+        if let Some(existing) = self.items.iter_mut().find(|i| i.index == item.index) {
+            existing.count += item.count;
+        } else {
+            self.items.push(item);
+        }
+    }
+
+    pub fn remove(&mut self, index: u16, amount: i16) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
+            item.count -= amount;
+            if item.count <= 0 {
+                self.items.retain(|i| i.index != index);
+            }
+        }
+    }
+
+    pub fn resolve_resource_names(&mut self, table: &ItemResourceTable) {
+        for item in &mut self.items {
+            item.resolve_resource_name(table);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.pending.clear();
+        self.cur_count = 0;
+        self.max_count = 0;
+        self.open = false;
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NormalItemData {
     pub index: i16,
@@ -863,6 +967,62 @@ mod tests {
         assert!(cart.all_items().is_empty());
         assert_eq!(cart.weight, 0);
         assert!(!cart.is_open());
+    }
+
+    #[test]
+    fn storage_buffers_then_opens_and_merges() {
+        let data = crate::data_table::DataTable::default();
+        let mut storage = StorageData::new();
+        assert!(!storage.is_open());
+
+        storage.buffer_normal_items(
+            vec![NormalItemData {
+                index: 1,
+                item_id: 501,
+                item_type: 0,
+                is_identified: true,
+                count: 10,
+                wear_state: 0,
+            }],
+            &data,
+        );
+        storage.buffer_equipment_items(
+            vec![EquipmentItemData {
+                index: 2,
+                item_id: 1101,
+                item_type: 5,
+                is_identified: true,
+                location: 2,
+                wear_state: 0,
+                is_damaged: false,
+                refining_level: 0,
+                slot: [0; 4],
+            }],
+            &data,
+        );
+        assert!(!storage.is_open(), "buffered items must not open the window");
+
+        storage.open_with_pending(2, 600);
+        assert!(storage.is_open());
+        assert_eq!(storage.all_items().len(), 2);
+        assert_eq!(storage.all_items()[0].index, 1, "arrival order preserved");
+        assert_eq!(storage.max_count, 600);
+
+        storage.add_item(make_normal_item(1, 501, 0, 5));
+        assert_eq!(storage.get_item(1).unwrap().count, 15, "merge by index");
+
+        storage.add_item(make_normal_item(9, 909, 3, 1));
+        assert_eq!(storage.all_items().len(), 3);
+        assert_eq!(storage.all_items()[2].index, 9, "new deposit appended");
+
+        storage.remove(1, 5);
+        assert_eq!(storage.get_item(1).unwrap().count, 10);
+        storage.remove(1, 10);
+        assert!(storage.get_item(1).is_none(), "row removed at zero");
+
+        storage.clear();
+        assert!(!storage.is_open());
+        assert!(storage.all_items().is_empty());
     }
 
     #[test]

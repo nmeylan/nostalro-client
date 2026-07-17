@@ -1620,6 +1620,79 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::CartOff];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcStoreNormalItemlist3>() {
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| NormalItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                count: i.count,
+                wear_state: i.wear_state,
+            })
+            .collect();
+        return vec![GameEvent::StorageNormalItems { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcStoreEquipmentItemlist3>() {
+        let items = p
+            .item_info
+            .iter()
+            .map(|i| EquipmentItemData {
+                index: i.index,
+                item_id: i.itid,
+                item_type: i.atype,
+                is_identified: i.is_identified,
+                location: i.location,
+                wear_state: i.wear_state,
+                is_damaged: i.is_damaged,
+                refining_level: i.refining_level,
+                slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+            })
+            .collect();
+        return vec![GameEvent::StorageEquipItems { items }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyStoreitemCountinfo>() {
+        return vec![GameEvent::StorageOpened {
+            cur: p.cur_count,
+            max: p.max_count,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddItemToStore2>() {
+        return vec![GameEvent::StorageItemAdded {
+            index: p.index as u16,
+            item_id: p.itid,
+            count: p.count as i16,
+            item_type: p.atype,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddItemToStore>() {
+        return vec![GameEvent::StorageItemAdded {
+            index: p.index as u16,
+            item_id: p.itid,
+            count: p.count as i16,
+            item_type: 0,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDeleteItemFromStore>() {
+        return vec![GameEvent::StorageItemRemoved {
+            index: p.index as u16,
+            amount: p.count as i16,
+        }];
+    }
+    if any.downcast_ref::<PacketZcCloseStore>().is_some() {
+        return vec![GameEvent::StorageClosed];
+    }
+
     if let Some(p) = any.downcast_ref::<PacketZcItemcompositionList>() {
         return vec![GameEvent::CardInsertItemList {
             card_index: 0,
@@ -2464,6 +2537,54 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_storage_open_add_remove_close() {
+        let packetver = 20120307;
+
+        let mut count_info = PacketZcNotifyStoreitemCountinfo::new(packetver);
+        count_info.set_cur_count(42);
+        count_info.set_max_count(600);
+        count_info.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&count_info, packetver).as_slice(),
+            [GameEvent::StorageOpened { cur: 42, max: 600 }]
+        ));
+
+        let mut add = PacketZcAddItemToStore2::new(packetver);
+        add.set_index(5);
+        add.set_count(3);
+        add.set_itid(501);
+        add.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&add, packetver).as_slice(),
+            [GameEvent::StorageItemAdded {
+                index: 5,
+                count: 3,
+                item_id: 501,
+                ..
+            }]
+        ));
+
+        let mut del = PacketZcDeleteItemFromStore::new(packetver);
+        del.set_index(5);
+        del.set_count(2);
+        del.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&del, packetver).as_slice(),
+            [GameEvent::StorageItemRemoved {
+                index: 5,
+                amount: 2
+            }]
+        ));
+
+        let mut close = PacketZcCloseStore::new(packetver);
+        close.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&close, packetver).as_slice(),
+            [GameEvent::StorageClosed]
+        ));
+    }
+
+    #[test]
     fn disconnect_ack_maps_result_and_request_carries_quit_type() {
         let packetver = 20120307;
 
@@ -2502,6 +2623,27 @@ mod tests {
             .downcast_ref::<PacketCzReqChangecart>()
             .expect("parsed as change-cart request");
         assert_eq!(p.num, 3);
+    }
+
+    #[test]
+    fn storage_send_packets_use_20120307_shuffled_ids() {
+        let packetver = 20120307;
+
+        let close = crate::sender::build_close_store_packet(packetver);
+        assert_eq!(close.len(), 2);
+        assert_eq!(u16::from_le_bytes([close[0], close[1]]), 0x0193);
+
+        let deposit = crate::sender::build_move_item_body_to_store_packet(7, 42, packetver);
+        assert_eq!(deposit.len(), 8);
+        assert_eq!(u16::from_le_bytes([deposit[0], deposit[1]]), 0x093B);
+        assert_eq!(i16::from_le_bytes([deposit[2], deposit[3]]), 7);
+        assert_eq!(
+            i32::from_le_bytes([deposit[4], deposit[5], deposit[6], deposit[7]]),
+            42
+        );
+
+        let withdraw = crate::sender::build_move_item_store_to_body_packet(3, 5, packetver);
+        assert_eq!(u16::from_le_bytes([withdraw[0], withdraw[1]]), 0x0963);
     }
 
     #[test]

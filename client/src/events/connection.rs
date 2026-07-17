@@ -267,6 +267,7 @@ impl App {
             preload_window(&mut self.game.system_menu, renderer, grf);
             preload_window(&mut self.game.inventory_window, renderer, grf);
             preload_window(&mut self.game.cart_window, renderer, grf);
+            preload_window(&mut self.game.storage_window, renderer, grf);
             preload_window(&mut self.game.cart_select_window, renderer, grf);
             preload_window(&mut self.game.equipment_window, renderer, grf);
             preload_window(&mut self.game.npc_dialog, renderer, grf);
@@ -365,6 +366,7 @@ impl App {
 
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
         self.clear_transient_effects_and_sounds();
+        self.game.character.storage.clear();
         self.game.map_properties = MapProperties::default();
         self.game.pending_skill_target = None;
         self.game.pending_skill_id = None;

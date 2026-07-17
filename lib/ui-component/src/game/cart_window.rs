@@ -289,18 +289,28 @@ impl InGameWindow for CartWindow {
             GRID_COLS as f32 * CELL_SIZE,
             GRID_ROWS as f32 * CELL_SIZE,
         );
-        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect)
-            && source_id == INV_WINDOW_ID
-        {
-            let count = character
-                .inventory
-                .get_item(item_index as u16)
-                .map(|i| i.count)
-                .unwrap_or(1);
-            events.push(GameEvent::RequestMoveItemBodyToCart {
-                index: item_index as u16,
-                count,
-            });
+        if let Some((source_id, item_index)) = ui.drop_zone(grid_rect) {
+            if source_id == INV_WINDOW_ID {
+                let count = character
+                    .inventory
+                    .get_item(item_index as u16)
+                    .map(|i| i.count)
+                    .unwrap_or(1);
+                events.push(GameEvent::RequestMoveItemBodyToCart {
+                    index: item_index as u16,
+                    count,
+                });
+            } else if source_id == super::storage_window::STORAGE_WINDOW_ID {
+                let count = character
+                    .storage
+                    .get_item(item_index as u16)
+                    .map(|i| i.count)
+                    .unwrap_or(1);
+                events.push(GameEvent::RequestMoveItemStoreToCart {
+                    index: item_index as u16,
+                    count,
+                });
+            }
         }
 
         if total_rows > GRID_ROWS {
