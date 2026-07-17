@@ -27,6 +27,9 @@ pub use sender::{
     build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
     build_move_item_store_to_cart_packet, build_move_item_body_to_store_packet,
     build_move_item_store_to_body_packet, build_close_store_packet,
+    build_req_exchange_item_packet, build_ack_exchange_item_packet,
+    build_add_exchange_item_packet, build_conclude_exchange_item_packet,
+    build_cancel_exchange_item_packet, build_exec_exchange_item_packet,
     build_npc_close_packet, build_npc_deal_type_packet,
     build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet,
     build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
@@ -55,6 +58,9 @@ pub use sender::{
     build_make_guild, build_req_disorganize_guild, build_req_guild_emblem_img,
     build_register_guild_emblem, build_req_join_guild, build_ans_join_guild, build_req_ally_guild,
     build_ally_guild, build_req_hostile_guild, build_req_delete_related_guild,
+    build_mail_get_list_packet, build_mail_open_packet, build_mail_delete_packet,
+    build_mail_get_item_packet, build_mail_reset_item_packet, build_mail_add_item_packet,
+    build_req_mail_return_packet, build_mail_send_packet,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;

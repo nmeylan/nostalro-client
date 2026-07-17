@@ -2,6 +2,7 @@ use crate::banner::BannerKind;
 use crate::guild::{GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild};
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
+use crate::mail::{MailEntry, OpenedMail};
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
@@ -597,6 +598,110 @@ pub enum GameEvent {
         amount: i16,
     },
     StorageClosed,
+
+    ExchangeRequested {
+        name: String,
+        gid: u32,
+        level: i16,
+    },
+    ExchangeAckResult {
+        result: u8,
+        level: i16,
+    },
+    ExchangeItemAdded {
+        item_id: u16,
+        item_type: u8,
+        count: i32,
+        is_identified: bool,
+        is_damaged: bool,
+        refining_level: u8,
+        slot: [u16; 4],
+    },
+    ExchangeAddResult {
+        index: u16,
+        result: u8,
+    },
+    ExchangeConcluded {
+        who: u8,
+    },
+    ExchangeCanceled,
+    ExchangeCompleted {
+        result: u8,
+    },
+    ExchangeUndo,
+    RequestExchangeItem {
+        target_aid: u32,
+    },
+    RespondExchangeRequest {
+        accept: bool,
+    },
+    RequestAddExchangeItem {
+        index: u16,
+        count: i32,
+    },
+    RequestConcludeExchange,
+    RequestCancelExchange,
+    RequestExecExchange,
+
+    MailWindow {
+        open: bool,
+    },
+    MailInboxReceived {
+        entries: Vec<MailEntry>,
+    },
+    MailOpened {
+        mail: OpenedMail,
+    },
+    MailDeleteAck {
+        mail_id: u32,
+        ok: bool,
+    },
+    MailGetItemAck {
+        result: u8,
+    },
+    MailAddItemAck {
+        index: u16,
+        ok: bool,
+    },
+    MailSendAck {
+        ok: bool,
+    },
+    MailNewReceived {
+        mail_id: u32,
+        title: String,
+        sender: String,
+    },
+    MailReturnAck {
+        mail_id: u32,
+        ok: bool,
+    },
+    RequestMailList,
+    RequestMailOpen {
+        mail_id: u32,
+    },
+    RequestMailDelete {
+        mail_id: u32,
+    },
+    RequestMailGetItem {
+        mail_id: u32,
+    },
+    RequestMailResetItem {
+        ty: u8,
+    },
+    RequestMailAddItem {
+        index: u16,
+        amount: u32,
+    },
+    RequestMailSend {
+        to: String,
+        title: String,
+        body: String,
+    },
+    RequestMailReturn {
+        mail_id: u32,
+        sender: String,
+    },
+
     RequestMoveItemBodyToStore {
         index: u16,
         count: i16,

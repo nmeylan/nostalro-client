@@ -4,6 +4,9 @@ It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, d
 
 **This repository does not and will not provide any game assets**.
 
+# Progress
+see [todo](docs/TODO.md)
+
 # Why yet another client?
 I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
 
@@ -116,8 +119,6 @@ This project leverage AI to allow a faster development, as my time is very limit
 - Write tools
 - Effects analysis (from gif) and implementation
 
-# Progress
-see [todo](docs/TODO.md)
 
 # Resources
 Without below resources, my memories alone where not enough to implement visual parity with original game

@@ -8,6 +8,7 @@ mod friends;
 mod guild;
 mod inventory;
 mod login;
+mod mail;
 mod npc;
 mod party;
 mod pet;
@@ -15,6 +16,7 @@ mod production;
 mod quest;
 mod skill;
 mod storage;
+mod trade;
 
 use crate::App;
 use models::enums::EnumWithMaskValueU64;
@@ -648,6 +650,79 @@ impl App {
                 }
                 GameEvent::StorageClosed => {
                     self.handle_storage_closed();
+                }
+
+                GameEvent::ExchangeRequested { name, gid, level } => {
+                    self.handle_exchange_requested(name, gid, level);
+                }
+                GameEvent::ExchangeAckResult { result, level } => {
+                    self.handle_exchange_ack_result(result, level);
+                }
+                GameEvent::ExchangeItemAdded {
+                    item_id,
+                    item_type,
+                    count,
+                    is_identified,
+                    is_damaged,
+                    refining_level,
+                    slot,
+                } => {
+                    self.handle_exchange_item_added(
+                        item_id,
+                        item_type,
+                        count,
+                        is_identified,
+                        is_damaged,
+                        refining_level,
+                        slot,
+                    );
+                }
+                GameEvent::ExchangeAddResult { index, result } => {
+                    self.handle_exchange_add_result(index, result);
+                }
+                GameEvent::ExchangeConcluded { who } => {
+                    self.handle_exchange_concluded(who);
+                }
+                GameEvent::ExchangeCanceled => {
+                    self.handle_exchange_canceled();
+                }
+                GameEvent::ExchangeCompleted { result } => {
+                    self.handle_exchange_completed(result);
+                }
+                GameEvent::ExchangeUndo => {
+                    self.handle_exchange_undo();
+                }
+
+                GameEvent::MailWindow { open } => {
+                    self.handle_mail_window(open);
+                }
+                GameEvent::MailInboxReceived { entries } => {
+                    self.handle_mail_inbox_received(entries);
+                }
+                GameEvent::MailOpened { mail } => {
+                    self.handle_mail_opened(mail);
+                }
+                GameEvent::MailDeleteAck { mail_id, ok } => {
+                    self.handle_mail_delete_ack(mail_id, ok);
+                }
+                GameEvent::MailGetItemAck { result } => {
+                    self.handle_mail_get_item_ack(result);
+                }
+                GameEvent::MailAddItemAck { index, ok } => {
+                    self.handle_mail_add_item_ack(index, ok);
+                }
+                GameEvent::MailSendAck { ok } => {
+                    self.handle_mail_send_ack(ok);
+                }
+                GameEvent::MailNewReceived {
+                    mail_id,
+                    title,
+                    sender,
+                } => {
+                    self.handle_mail_new_received(mail_id, title, sender);
+                }
+                GameEvent::MailReturnAck { mail_id, ok } => {
+                    self.handle_mail_return_ack(mail_id, ok);
                 }
                 GameEvent::ShowSystemMessage { message } => {
                     self.game.chat_window.add_system(message);

@@ -11,6 +11,7 @@ const ITEM_H: f32 = 18.0;
 #[derive(Clone)]
 pub enum ContextMenuAction {
     InviteToParty { target_aid: u32 },
+    RequestTrade { target_aid: u32 },
     Whisper { name: String },
     ChangeGuildPosition { aid: u32, gid: u32, position_id: i32 },
     ExpelFromGuild { aid: u32, gid: u32, name: String },
@@ -105,6 +106,9 @@ impl ContextMenu {
             match action {
                 ContextMenuAction::InviteToParty { target_aid } => {
                     events.push(GameEvent::RequestPartyInvite { target_aid });
+                }
+                ContextMenuAction::RequestTrade { target_aid } => {
+                    events.push(GameEvent::RequestExchangeItem { target_aid });
                 }
                 ContextMenuAction::Whisper { name } => {
                     events.push(GameEvent::RequestWhisper { name });

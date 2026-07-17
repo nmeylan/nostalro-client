@@ -220,12 +220,20 @@ impl App {
         }
         let (mx, my) = self.input.mouse_position;
         // For players the on-screen unit id equals the account id, which is the invite key.
-        let mut items = vec![ContextMenuItem {
-            label: "Invite to Party".to_string(),
-            action: ContextMenuAction::InviteToParty {
-                target_aid: entity_id,
+        let mut items = vec![
+            ContextMenuItem {
+                label: "Deal".to_string(),
+                action: ContextMenuAction::RequestTrade {
+                    target_aid: entity_id,
+                },
             },
-        }];
+            ContextMenuItem {
+                label: "Invite to Party".to_string(),
+                action: ContextMenuAction::InviteToParty {
+                    target_aid: entity_id,
+                },
+            },
+        ];
         if let Some(g) = &self.game.guild {
             let local_gid = self
                 .game

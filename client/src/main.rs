@@ -51,6 +51,12 @@ use ragnarok_network::{
     build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
     build_move_item_store_to_cart_packet, build_move_item_body_to_store_packet,
     build_move_item_store_to_body_packet, build_close_store_packet,
+    build_req_exchange_item_packet, build_ack_exchange_item_packet,
+    build_add_exchange_item_packet, build_conclude_exchange_item_packet,
+    build_cancel_exchange_item_packet, build_exec_exchange_item_packet,
+    build_mail_get_list_packet, build_mail_open_packet, build_mail_delete_packet,
+    build_mail_get_item_packet, build_mail_reset_item_packet, build_mail_add_item_packet,
+    build_req_mail_return_packet, build_mail_send_packet,
     build_npc_close_packet, build_npc_deal_type_packet,
     build_npc_input_number_packet, build_npc_input_string_packet, build_npc_menu_select_packet,
     build_npc_next_packet, build_pickup_item_packet, build_purchase_item_list_packet,
@@ -934,6 +940,84 @@ impl App {
                 GameEvent::RequestCloseStorage => {
                     self.channel
                         .send_packet(build_close_store_packet(self.config.packetver));
+                }
+                GameEvent::RequestExchangeItem { target_aid } => {
+                    let name = self
+                        .game
+                        .entities
+                        .get(target_aid)
+                        .and_then(|e| e.name.clone())
+                        .unwrap_or_default();
+                    self.game.pending_trade_partner = Some((target_aid, name));
+                    self.channel
+                        .send_packet(build_req_exchange_item_packet(target_aid, self.config.packetver));
+                }
+                GameEvent::RespondExchangeRequest { accept } => {
+                    self.game.pending_trade_request = None;
+                    if !accept {
+                        self.game.pending_trade_partner = None;
+                    }
+                    let result = if accept { 3 } else { 4 };
+                    self.channel
+                        .send_packet(build_ack_exchange_item_packet(result, self.config.packetver));
+                }
+                GameEvent::RequestAddExchangeItem { index, count } => {
+                    self.channel
+                        .send_packet(build_add_exchange_item_packet(index, count, self.config.packetver));
+                }
+                GameEvent::RequestConcludeExchange => {
+                    self.channel
+                        .send_packet(build_conclude_exchange_item_packet(self.config.packetver));
+                }
+                GameEvent::RequestCancelExchange => {
+                    self.channel
+                        .send_packet(build_cancel_exchange_item_packet(self.config.packetver));
+                }
+                GameEvent::RequestExecExchange => {
+                    self.channel
+                        .send_packet(build_exec_exchange_item_packet(self.config.packetver));
+                }
+                GameEvent::RequestMailList => {
+                    self.channel
+                        .send_packet(build_mail_get_list_packet(self.config.packetver));
+                }
+                GameEvent::RequestMailOpen { mail_id } => {
+                    self.channel
+                        .send_packet(build_mail_open_packet(mail_id, self.config.packetver));
+                }
+                GameEvent::RequestMailDelete { mail_id } => {
+                    self.channel
+                        .send_packet(build_mail_delete_packet(mail_id, self.config.packetver));
+                }
+                GameEvent::RequestMailGetItem { mail_id } => {
+                    self.channel
+                        .send_packet(build_mail_get_item_packet(mail_id, self.config.packetver));
+                }
+                GameEvent::RequestMailResetItem { ty } => {
+                    self.channel
+                        .send_packet(build_mail_reset_item_packet(ty, self.config.packetver));
+                }
+                GameEvent::RequestMailAddItem { index, amount } => {
+                    self.channel.send_packet(build_mail_add_item_packet(
+                        index,
+                        amount,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestMailSend { to, title, body } => {
+                    self.channel.send_packet(build_mail_send_packet(
+                        &to,
+                        &title,
+                        &body,
+                        self.config.packetver,
+                    ));
+                }
+                GameEvent::RequestMailReturn { mail_id, sender } => {
+                    self.channel.send_packet(build_req_mail_return_packet(
+                        mail_id,
+                        &sender,
+                        self.config.packetver,
+                    ));
                 }
                 GameEvent::RequestCartOff => {
                     self.channel

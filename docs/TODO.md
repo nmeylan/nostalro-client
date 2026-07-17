@@ -3,7 +3,7 @@ TODO:
 # Companion
 - ~~homonculus~~
 - ~~mercenary~~
-- pet
+- ~~pet~~
 
 # Sprite rendering
 - ~~Weapon sprite~~ (done — full rendering with ACT animation in sprite.rs)
@@ -48,9 +48,9 @@ TODO:
 - Game menu: graphic/audio options
 - ~~Emotion selector~~
 - ~~Char delete~~
-- Quest window
+- ~~Quest window~~
 ~~- Cart window~~
-- Storage/warehouse window
+- ~~Storage/warehouse window~~
 - ~~Item tooltips (description, stats, cards, refine level)~~
 - Context menu (right-click on player/NPC)[ui-component](../lib/ui-component)
 - ~~Escape/system menu~~
@@ -68,7 +68,7 @@ TODO:
 - ~~Monsters~~
 - ~~Ground items (dropped items with pickup)~~
 - ~~Skill ground units (AoE, bottom song)~~
-- Pet companion rendering
+- ~~Pet companion rendering~~
 - ~~Homunculus rendering~~
 - ~~Mercenary rendering~~
 
@@ -91,7 +91,7 @@ TODO:
 ~~- Item crafting (arrows, cooking)~~
 ~~- Item refining~~
 ~~- Cart system~~
-- Storage/warehouse
+- ~~Storage/warehouse~~
 
 # Social
 - ~~Party (create, join, leave, exp/item share settings)~~
@@ -113,8 +113,8 @@ TODO:
 - ~~Status change packets~~
 - ~~Party/guild packets~~
 ~~- Trade/vending packets~~
-- Quest packets
-- Pet/homunculus/mercenary packets
+- ~~Quest packets~~
+- ~~Pet/homunculus/mercenary packets~~
 - Mail packets
 ~~- Effect wiring~~
 

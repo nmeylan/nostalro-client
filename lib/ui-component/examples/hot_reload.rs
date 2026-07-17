@@ -132,6 +132,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "basic_info",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
+    "inventory",
     "guild",
     "chat",
     "chat_room_create",

@@ -15,6 +15,7 @@ use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
+use ragnarok_game::mail::{MailEntry, MailItem, OpenedMail};
 use ragnarok_game::quest::{QuestHuntEntry, QuestListEntry, QuestMissionData, QuestObjective};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
@@ -1693,6 +1694,126 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::StorageClosed];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcReqExchangeItem2>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::ExchangeRequested {
+            name,
+            gid: p.gid,
+            level: p.level,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckExchangeItem2>() {
+        return vec![GameEvent::ExchangeAckResult {
+            result: p.result,
+            level: p.level,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddExchangeItem2>() {
+        return vec![GameEvent::ExchangeItemAdded {
+            item_id: p.itid,
+            item_type: p.atype,
+            count: p.count,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckAddExchangeItem>() {
+        return vec![GameEvent::ExchangeAddResult {
+            index: p.index as u16,
+            result: p.result,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcConcludeExchangeItem>() {
+        return vec![GameEvent::ExchangeConcluded { who: p.who }];
+    }
+    if any.downcast_ref::<PacketZcCancelExchangeItem>().is_some() {
+        return vec![GameEvent::ExchangeCanceled];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcExecExchangeItem>() {
+        return vec![GameEvent::ExchangeCompleted { result: p.result }];
+    }
+    if any.downcast_ref::<PacketZcExchangeitemUndo>().is_some() {
+        return vec![GameEvent::ExchangeUndo];
+    }
+
+    if let Some(p) = any.downcast_ref::<PacketZcMailWindows>() {
+        return vec![GameEvent::MailWindow { open: p.atype == 0 }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMailReqGetList>() {
+        let entries = p
+            .mail_list
+            .iter()
+            .map(|m| MailEntry {
+                mail_id: m.mail_id,
+                title: m.header.iter().take_while(|c| **c != '\0').collect(),
+                read: m.is_open != 0,
+                sender: m.from_name.iter().take_while(|c| **c != '\0').collect(),
+                time: m.delete_time as u32,
+            })
+            .collect();
+        return vec![GameEvent::MailInboxReceived { entries }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMailReqOpen>() {
+        let item = if p.count > 0 && p.itid != 0 {
+            Some(MailItem {
+                nameid: p.itid,
+                amount: p.count as u32,
+                item_type: p.atype,
+                identified: p.is_identified,
+                damaged: p.is_damaged,
+                refine: p.refining_level,
+                cards: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+            })
+        } else {
+            None
+        };
+        return vec![GameEvent::MailOpened {
+            mail: OpenedMail {
+                mail_id: p.mail_id as u32,
+                title: p.header.iter().take_while(|c| **c != '\0').collect(),
+                sender: p.from_name.iter().take_while(|c| **c != '\0').collect(),
+                zeny: p.money,
+                item,
+                body: p.msg.trim_end_matches('\0').to_string(),
+            },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckMailDelete>() {
+        return vec![GameEvent::MailDeleteAck {
+            mail_id: p.mail_id as u32,
+            ok: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMailReqGetItem>() {
+        return vec![GameEvent::MailGetItemAck {
+            result: p.result as u8,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckMailAddItem>() {
+        return vec![GameEvent::MailAddItemAck {
+            index: p.index as u16,
+            ok: p.result == 0,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMailReqSend>() {
+        return vec![GameEvent::MailSendAck { ok: p.result == 0 }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMailReceive>() {
+        return vec![GameEvent::MailNewReceived {
+            mail_id: p.mail_id,
+            title: p.header.iter().take_while(|c| **c != '\0').collect(),
+            sender: p.from_name.iter().take_while(|c| **c != '\0').collect(),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckMailReturn>() {
+        return vec![GameEvent::MailReturnAck {
+            mail_id: p.mail_id as u32,
+            ok: p.result == 0,
+        }];
+    }
+
     if let Some(p) = any.downcast_ref::<PacketZcItemcompositionList>() {
         return vec![GameEvent::CardInsertItemList {
             card_index: 0,
@@ -2582,6 +2703,90 @@ mod tests {
             dispatch_packet(&close, packetver).as_slice(),
             [GameEvent::StorageClosed]
         ));
+    }
+
+    #[test]
+    fn dispatch_mail_window_inbox_and_open() {
+        let packetver = 20120307;
+
+        let mut win = PacketZcMailWindows::new(packetver);
+        win.set_atype(0);
+        win.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&win, packetver).as_slice(),
+            [GameEvent::MailWindow { open: true }]
+        ));
+
+        // 0x240: header(8) + one 73-byte entry.
+        let mut inbox = vec![0x40u8, 0x02];
+        inbox.extend_from_slice(&(81i16).to_le_bytes());
+        inbox.extend_from_slice(&1i32.to_le_bytes()); // mail_number
+        let mut entry = Vec::new();
+        entry.extend_from_slice(&1001u32.to_le_bytes());
+        let mut title = [0u8; 40];
+        title[..5].copy_from_slice(b"Hello");
+        entry.extend_from_slice(&title);
+        entry.push(0); // is_open = unread
+        let mut sender = [0u8; 24];
+        sender[..5].copy_from_slice(b"Alice");
+        entry.extend_from_slice(&sender);
+        entry.extend_from_slice(&1_615_680_000u32.to_le_bytes());
+        inbox.extend_from_slice(&entry);
+        let pkt = PacketZcMailReqGetList::from(&inbox, packetver);
+        let events = dispatch_packet(&pkt, packetver);
+        let GameEvent::MailInboxReceived { entries } = &events[0] else {
+            panic!("expected inbox, got {events:?}");
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].mail_id, 1001);
+        assert_eq!(entries[0].title, "Hello");
+        assert_eq!(entries[0].sender, "Alice");
+        assert!(!entries[0].read);
+
+        // 0x242: fixed header up to offset 100, then body + NUL.
+        let body = b"hi there";
+        let mut open = vec![0x42u8, 0x02];
+        open.extend_from_slice(&((101 + body.len()) as i16).to_le_bytes());
+        open.extend_from_slice(&1001i32.to_le_bytes());
+        open.extend_from_slice(&title); // reuse "Hello"
+        open.extend_from_slice(&sender); // reuse "Alice"
+        open.extend_from_slice(&0i32.to_le_bytes()); // delete_time (unused)
+        open.extend_from_slice(&5000u32.to_le_bytes()); // zeny
+        open.extend_from_slice(&3i32.to_le_bytes()); // count
+        open.extend_from_slice(&501u16.to_le_bytes()); // itid
+        open.extend_from_slice(&0u16.to_le_bytes()); // atype
+        open.push(1); // identified
+        open.push(0); // damaged
+        open.push(0); // refine
+        open.extend_from_slice(&[0u8; 8]); // 4 card slots
+        open.push(body.len() as u8);
+        open.extend_from_slice(body);
+        open.push(0); // NUL
+        let pkt = PacketZcMailReqOpen::from(&open, packetver);
+        let events = dispatch_packet(&pkt, packetver);
+        let GameEvent::MailOpened { mail } = &events[0] else {
+            panic!("expected opened, got {events:?}");
+        };
+        assert_eq!(mail.mail_id, 1001);
+        assert_eq!(mail.zeny, 5000);
+        assert_eq!(mail.body, "hi there");
+        let item = mail.item.as_ref().expect("attachment present");
+        assert_eq!(item.nameid, 501);
+        assert_eq!(item.amount, 3);
+        assert!(item.identified);
+    }
+
+    #[test]
+    fn mail_send_packet_encodes_body_len_byte() {
+        let body = "z".repeat(199);
+        let raw = crate::sender::build_mail_send_packet("Bob", "Subject", &body, 20120307);
+
+        assert_eq!(u16::from_le_bytes([raw[0], raw[1]]), 0x0248);
+        assert_eq!(u16::from_le_bytes([raw[2], raw[3]]) as usize, 69 + 199);
+        assert_eq!(&raw[4..7], b"Bob");
+        assert_eq!(&raw[28..35], b"Subject");
+        assert_eq!(raw[68], 199); // 1-byte body length
+        assert_eq!(raw.len(), 69 + 199);
     }
 
     #[test]

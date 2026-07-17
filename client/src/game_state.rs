@@ -40,6 +40,9 @@ use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
+use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
+use ragnarok_ui_component::game::mailbox_window::{MAILBOX_WINDOW_ID, MailboxWindow};
+use ragnarok_ui_component::game::read_mail_window::{READ_MAIL_WINDOW_ID, ReadMailWindow};
 use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
 use ragnarok_ui_component::game::shortcut_list_window::{
     SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
@@ -167,6 +170,12 @@ pub struct GameState {
     pub inventory_window: InventoryWindow,
     pub cart_window: CartWindow,
     pub storage_window: StorageWindow,
+    pub trade_window: TradeWindow,
+    pub pending_trade_partner: Option<(u32, String)>,
+    pub pending_trade_request: Option<u32>,
+    pub trade_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub mailbox_window: MailboxWindow,
+    pub read_mail_window: ReadMailWindow,
     pub cart_select_window: CartSelectWindow,
     pub npc_dialog: NpcDialog,
     pub warp_list_window: WarpListWindow,
@@ -315,6 +324,9 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     INV_WINDOW_ID,
     CART_WINDOW_ID,
     STORAGE_WINDOW_ID,
+    TRADE_WINDOW_ID,
+    MAILBOX_WINDOW_ID,
+    READ_MAIL_WINDOW_ID,
     CART_SELECT_WINDOW_ID,
     MAKE_ITEM_WINDOW_ID,
     VENDING_SHOP_WINDOW_ID,
@@ -617,6 +629,15 @@ impl GameState {
             }
         }
 
+        if self.pending_trade_request.is_some()
+            && let Some(result) = self.trade_request_result.take()
+        {
+            self.pending_trade_request = None;
+            events.push(GameEvent::RespondExchangeRequest {
+                accept: result == ConfirmResult::Ok,
+            });
+        }
+
         events.extend(self.context_menu.build(ui));
 
         events.extend(self.map_missing_window.build(ui));
@@ -636,7 +657,7 @@ impl GameState {
                         count: 0,
                     });
                 }
-            } else if cancelled.source_id == INV_WINDOW_ID {
+            } else if cancelled.source_id == INV_WINDOW_ID && ui.hovered_window().is_none() {
                 if self.waiting_item_throw_ack {
                 } else if self.equipment_window.is_visible() {
                     self.chat_window
@@ -837,6 +858,21 @@ impl GameState {
                 &self.data_table,
             )),
             STORAGE_WINDOW_ID => events.extend(self.storage_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            TRADE_WINDOW_ID => events.extend(self.trade_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            MAILBOX_WINDOW_ID => events.extend(self.mailbox_window.build(
+                ui,
+                &mut self.character,
+                &self.data_table,
+            )),
+            READ_MAIL_WINDOW_ID => events.extend(self.read_mail_window.build(
                 ui,
                 &mut self.character,
                 &self.data_table,
@@ -1110,6 +1146,12 @@ impl GameState {
             inventory_window: InventoryWindow::new(),
             cart_window: CartWindow::new(),
             storage_window: StorageWindow::new(),
+            trade_window: TradeWindow::new(),
+            pending_trade_partner: None,
+            pending_trade_request: None,
+            trade_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            mailbox_window: MailboxWindow::new(),
+            read_mail_window: ReadMailWindow::new(),
             cart_select_window: CartSelectWindow::new(),
             npc_dialog: NpcDialog::new(),
             warp_list_window: WarpListWindow::new(),

@@ -352,6 +352,12 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    /// The top-most window under the pointer, from the previous frame's rects.
+    /// `None` means the pointer is over the game world, not any window.
+    pub fn hovered_window(&self) -> Option<WidgetId> {
+        self.hovered_window
+    }
+
     /// Begin a top-most popup layer (context menu, dropdown list). Widgets drawn
     /// while a layer is active are exempt from window occlusion and from being
     /// blocked by any popup; every other widget under `rect` is blocked from the
@@ -664,7 +670,7 @@ impl<'a> UiFrame<'a> {
 
         if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
-            let caret_y = rect.y + (rect.h - self.atlas.ascent) / 2.0;
+            let caret_y = text_y - self.atlas.ascent;
             let caret_color = [0.0, 0.0, 0.0, 1.0];
             let (v, i) =
                 draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);

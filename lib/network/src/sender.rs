@@ -497,6 +497,129 @@ pub fn build_close_store_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_req_exchange_item_packet(target_aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqExchangeItem::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_ack_exchange_item_packet(result: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAckExchangeItem::new(packetver);
+    pkt.set_result(result);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_add_exchange_item_packet(index: u16, count: i32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAddExchangeItem::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(count);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_conclude_exchange_item_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzConcludeExchangeItem::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_cancel_exchange_item_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzCancelExchangeItem::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_exec_exchange_item_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzExecExchangeItem::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mail_get_list_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMailGetList::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mail_open_packet(mail_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMailOpen::new(packetver);
+    pkt.set_mail_id(mail_id as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mail_delete_packet(mail_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMailDelete::new(packetver);
+    pkt.set_mail_id(mail_id as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mail_get_item_packet(mail_id: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMailGetItem::new(packetver);
+    pkt.set_mail_id(mail_id as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mail_reset_item_packet(ty: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMailResetItem::new(packetver);
+    pkt.set_atype(ty as i16);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_mail_add_item_packet(index: u16, amount: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzMailAddItem::new(packetver);
+    pkt.set_index(index as i16);
+    pkt.set_count(amount as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_req_mail_return_packet(mail_id: u32, receiver: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqMailReturn::new(packetver);
+    pkt.set_mail_id(mail_id as i32);
+    pkt.set_receive_name(name_chars(receiver));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+/// 0x248 <len>.W <recipient>.24B <title>.40B <body len>.B <body>.?B
+///
+/// Hand-encoded: the generated `PacketCzMailSend` types `msg_len` as a u32, but
+/// the wire field is a single byte.
+pub fn build_mail_send_packet(to: &str, title: &str, body: &str, _packetver: u32) -> Vec<u8> {
+    let mut cut = body.len().min(ragnarok_game::mail::MAIL_BODY_MAX);
+    while cut > 0 && !body.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let body_bytes = &body.as_bytes()[..cut];
+
+    let pkt_len = 69 + body_bytes.len();
+    let mut buf = Vec::with_capacity(pkt_len);
+    buf.extend_from_slice(&0x248i16.to_le_bytes());
+    buf.extend_from_slice(&(pkt_len as i16).to_le_bytes());
+
+    let mut recv = [0u8; 24];
+    for (i, b) in to.as_bytes().iter().take(23).enumerate() {
+        recv[i] = *b;
+    }
+    buf.extend_from_slice(&recv);
+
+    let mut header = [0u8; 40];
+    for (i, b) in title.as_bytes().iter().take(39).enumerate() {
+        header[i] = *b;
+    }
+    buf.extend_from_slice(&header);
+
+    buf.push(body_bytes.len() as u8);
+    buf.extend_from_slice(body_bytes);
+    buf
+}
+
 pub fn build_cartoff_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqCartoff::new(packetver);
     pkt.fill_raw();

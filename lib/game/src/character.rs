@@ -2,7 +2,9 @@ use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
 use crate::inventory::{CartData, InventoryData, StorageData};
+use crate::mail::MailState;
 use crate::skill::SkillList;
+use crate::trade::TradeData;
 use models::enums::class::JobName;
 use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 
@@ -20,6 +22,8 @@ pub struct Character {
     pub inventory: InventoryData,
     pub cart: CartData,
     pub storage: StorageData,
+    pub trade: TradeData,
+    pub mail: MailState,
     pub skills: SkillList,
     pub hotkeys: HotkeyBar,
     pub cooldowns: CooldownTracker,
@@ -85,6 +89,8 @@ impl Character {
             inventory: InventoryData::new(),
             cart: CartData::new(),
             storage: StorageData::new(),
+            trade: TradeData::new(),
+            mail: MailState::new(),
             skills: SkillList::new(),
             hotkeys: HotkeyBar::new(),
             cooldowns: CooldownTracker::new(),

@@ -35,6 +35,9 @@ use ragnarok_ui_component::game::card_insert_dialog::{
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
+use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
+use ragnarok_ui_component::game::mailbox_window::{MAILBOX_WINDOW_ID, MailboxWindow};
+use ragnarok_ui_component::game::read_mail_window::{READ_MAIL_WINDOW_ID, ReadMailWindow};
 use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
@@ -114,6 +117,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "quest_detail",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
+    "inventory",
     "guild",
     "chat",
     "chat_room_create",
@@ -123,6 +127,9 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "party",
     "emotion",
     "shortcut_list",
+    "mailbox",
+    "read_mail",
+    "trade",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
@@ -144,6 +151,21 @@ enum State {
     },
     Storage {
         win: StorageWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Trade {
+        win: TradeWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Mailbox {
+        win: MailboxWindow,
+        character: Character,
+        data: DataTable,
+    },
+    ReadMail {
+        win: ReadMailWindow,
         character: Character,
         data: DataTable,
     },
@@ -506,6 +528,63 @@ fn create_single(name: &str) -> State {
             }
             State::Storage {
                 win: StorageWindow::new(),
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "trade" => {
+            let mut character = Character::new();
+            character.name = "MyChar".into();
+            character.base_level = 60;
+            for item in inventory_test_items() {
+                character.inventory.add_item(item);
+            }
+            character.trade.begin("TradePartner".into(), 2000, 55, 60);
+            for item in storage_test_items().into_iter().take(3) {
+                character.trade.add_other_item(item);
+            }
+            character.trade.set_other_zeny(12345);
+            State::Trade {
+                win: TradeWindow::new(),
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "mailbox" => {
+            let mut character = Character::new();
+            character.mail.window_open = true;
+            character.mail.inbox = mail_test_inbox();
+            for item in inventory_test_items() {
+                character.inventory.add_item(item);
+            }
+            State::Mailbox {
+                win: MailboxWindow::new(),
+                character,
+                data: DataTable::new(),
+            }
+        }
+        "read_mail" => {
+            use ragnarok_game::mail::{MailItem, OpenedMail};
+            let mut character = Character::new();
+            character.mail.read_open = true;
+            character.mail.opened = Some(OpenedMail {
+                mail_id: 2001,
+                title: "About your order".to_string(),
+                sender: "Kafra".to_string(),
+                zeny: 1_250_000,
+                item: Some(MailItem {
+                    nameid: 501,
+                    amount: 5,
+                    item_type: 0,
+                    identified: true,
+                    damaged: false,
+                    refine: 0,
+                    cards: [0; 4],
+                }),
+                body: "Thank you for your purchase. Here is your reward, please enjoy it and come back soon.".to_string(),
+            });
+            State::ReadMail {
+                win: ReadMailWindow::new(),
                 character,
                 data: DataTable::new(),
             }
@@ -1685,6 +1764,49 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::Trade { win, character, .. } => {
+            if let Some(table) = table {
+                character.inventory.resolve_resource_names(table);
+            }
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::Mailbox {
+            win,
+            character,
+            data,
+        } => {
+            if let Some(table) = table {
+                character.inventory.resolve_resource_names(table);
+                if data.item_resource.is_none() {
+                    data.item_resource = Some(item_resource_from_ids(
+                        character.inventory.all_items().iter().map(|i| i.item_id),
+                        table,
+                    ));
+                }
+            }
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::ReadMail {
+            win,
+            character,
+            data,
+        } => {
+            if let Some(table) = table
+                && data.item_resource.is_none()
+            {
+                let nameid = character
+                    .mail
+                    .opened
+                    .as_ref()
+                    .and_then(|o| o.item.as_ref())
+                    .map(|it| it.nameid);
+                data.item_resource = Some(item_resource_from_ids(nameid, table));
+            }
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::CartSelect { win, .. } => {
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
@@ -1938,6 +2060,9 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Inventory { .. } => Some(INV_WINDOW_ID),
         State::Cart { .. } => Some(CART_WINDOW_ID),
         State::Storage { .. } => Some(STORAGE_WINDOW_ID),
+        State::Trade { .. } => Some(TRADE_WINDOW_ID),
+        State::Mailbox { .. } => Some(MAILBOX_WINDOW_ID),
+        State::ReadMail { .. } => Some(READ_MAIL_WINDOW_ID),
         State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
         State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
         State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
@@ -1989,6 +2114,9 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
         State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
         State::Storage { win, .. } => Some((STORAGE_WINDOW_ID, win)),
+        State::Trade { win, .. } => Some((TRADE_WINDOW_ID, win)),
+        State::Mailbox { win, .. } => Some((MAILBOX_WINDOW_ID, win)),
+        State::ReadMail { win, .. } => Some((READ_MAIL_WINDOW_ID, win)),
         State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
         State::VendingSetup { win, .. } => Some((VENDING_SETUP_WINDOW_ID, win)),
         State::MyShop { win, .. } => Some((MY_SHOP_WINDOW_ID, win)),
@@ -2290,6 +2418,42 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::Storage {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::Trade {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::Mailbox {
+            win,
+            character,
+            data,
+        } => {
+            // No mail-server here, so stand in for the attach/send acks that
+            // normally drive compose state.
+            for event in win.build(ui, character, data) {
+                match event {
+                    GameEvent::RequestMailAddItem { .. } => {
+                        if let Some(pending) = character.mail.compose.pending_item.take() {
+                            character.mail.compose.item = Some(pending);
+                        }
+                    }
+                    GameEvent::RequestMailSend { .. } => {
+                        character.mail.send_pending = false;
+                        character.mail.switch_to_inbox();
+                    }
+                    _ => {}
+                }
+            }
+        }
+        State::ReadMail {
             win,
             character,
             data,
@@ -2798,6 +2962,19 @@ fn vending_test_stock() -> Vec<(VendorItem, String)> {
     ]
 }
 
+fn item_resource_from_ids(
+    ids: impl IntoIterator<Item = u16>,
+    table: &ItemResourceTable,
+) -> ItemResourceTable {
+    let mut entries = HashMap::new();
+    for id in ids {
+        if let Some(name) = table.get_resource_name(id) {
+            entries.insert(id, name.to_string());
+        }
+    }
+    ItemResourceTable::from_entries(entries, HashMap::new())
+}
+
 fn resolve_stock_icons(
     src: &[(VendorItem, String)],
     table: &ItemResourceTable,
@@ -2871,6 +3048,20 @@ fn storage_test_items() -> Vec<Item> {
     items[6].is_identified = false;
     items[6].name = "Unknown Guard".into();
     items
+}
+
+fn mail_test_inbox() -> Vec<ragnarok_game::mail::MailEntry> {
+    use ragnarok_game::mail::MailEntry;
+    let base = 1_615_680_000u32;
+    (0..9)
+        .map(|i| MailEntry {
+            mail_id: 1000 + i as u32,
+            title: format!("Message subject number {i}"),
+            read: i % 3 == 0,
+            sender: format!("Sender{i}"),
+            time: base + i as u32 * 86_400,
+        })
+        .collect()
 }
 
 fn shop_buy_test_items() -> Vec<ShopBuyItem> {
