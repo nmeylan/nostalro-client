@@ -21,6 +21,54 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
+    "1300": {
+      "position": [
+        313.3333,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        1.640625,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "800": {
+      "position": [
+        3.1015625,
+        126.66797
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        341.3333,
+        568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1710": {
+      "position": [
+        220.0,
+        120.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "3750": {
+      "position": [
+        371.0,
+        72.96094
+      ],
+      "open": false,
+      "collapsed": false
+    },
     "210": {
       "position": [
         45.333313,
@@ -37,42 +85,10 @@
       "open": false,
       "collapsed": false
     },
-    "1300": {
+    "3700": {
       "position": [
-        313.3333,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "4000": {
-      "position": [
-        455.17188,
-        595.35547
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        341.3333,
-        568.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        3.1015625,
-        126.66797
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "1400": {
-      "position": [
-        1.640625,
-        0.0
+        12.957031,
+        219.67578
       ],
       "open": false,
       "collapsed": false
@@ -89,7 +105,7 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 1,
+  "last_char_slot": 0,
   "map_recovery_command": "@go prontera",
   "shortcut_commands": [
     "/rock",

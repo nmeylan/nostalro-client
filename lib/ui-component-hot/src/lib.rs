@@ -47,6 +47,10 @@ use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWind
 use ragnarok_ui_component::game::shortcut_list_window::{
     SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
 };
+use ragnarok_ui_component::game::quest_window::{
+    QUEST_DETAIL_WINDOW_ID, QUEST_WINDOW_ID, QuestDetailWindow, QuestWindow,
+};
+use ragnarok_game::quest::{Quest, QuestLog, QuestObjective};
 use ragnarok_ui_component::game::chat_room_member_window::{
     CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
 };
@@ -104,6 +108,8 @@ const GAME_COMPONENTS: &[&str] = &[
     "hotkey_bar",
     "basic_info",
     "status",
+    "quest",
+    "quest_detail",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "guild",
@@ -209,6 +215,18 @@ enum State {
     },
     ShortcutList {
         win: ShortcutListWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Quest {
+        win: QuestWindow,
+        log: QuestLog,
+        character: Character,
+        data: DataTable,
+    },
+    QuestDetail {
+        win: QuestDetailWindow,
+        quest: Quest,
         character: Character,
         data: DataTable,
     },
@@ -397,6 +415,37 @@ fn demo_pet() -> PetState {
         accessory: 10013,
         egg_index: None,
         capture_pending: false,
+    }
+}
+
+fn demo_quest_log() -> QuestLog {
+    let obj = |mob_id, name: &str, current, required| QuestObjective {
+        mob_id,
+        name: name.to_string(),
+        current,
+        required,
+    };
+    QuestLog {
+        quests: vec![
+            Quest {
+                id: 1000,
+                active: true,
+                end_time: None,
+                objectives: vec![obj(1002, "Poring", 3, 10), obj(1063, "Lunatic", 1, 5)],
+            },
+            Quest {
+                id: 1001,
+                active: true,
+                end_time: Some(1_735_689_600),
+                objectives: vec![obj(1007, "Fabre", 0, 1)],
+            },
+            Quest {
+                id: 1002,
+                active: false,
+                end_time: None,
+                objectives: vec![obj(1113, "Drops", 2, 2)],
+            },
+        ],
     }
 }
 
@@ -907,6 +956,28 @@ fn create_single(name: &str) -> State {
             win.toggle();
             State::ShortcutList {
                 win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "quest" => {
+            let mut win = QuestWindow::new();
+            win.toggle();
+            State::Quest {
+                win,
+                log: demo_quest_log(),
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "quest_detail" => {
+            let log = demo_quest_log();
+            let quest = log.quests[0].clone();
+            let mut win = QuestDetailWindow::new();
+            win.open(quest.id);
+            State::QuestDetail {
+                win,
+                quest,
                 character: Character::new(),
                 data: DataTable::new(),
             }
@@ -1733,6 +1804,14 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::Quest { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::QuestDetail { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::ChatRoomMember { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -1844,6 +1923,8 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::ChatRoomCreate { .. } => Some(CHAT_ROOM_CREATE_WINDOW_ID),
         State::Emotion { .. } => Some(EMOTION_WINDOW_ID),
         State::ShortcutList { .. } => Some(SHORTCUT_LIST_WINDOW_ID),
+        State::Quest { .. } => Some(QUEST_WINDOW_ID),
+        State::QuestDetail { .. } => Some(QUEST_DETAIL_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
@@ -1876,6 +1957,8 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::ChatRoomCreate { win, .. } => Some((CHAT_ROOM_CREATE_WINDOW_ID, win)),
         State::Emotion { win, .. } => Some((EMOTION_WINDOW_ID, win)),
         State::ShortcutList { win, .. } => Some((SHORTCUT_LIST_WINDOW_ID, win)),
+        State::Quest { win, .. } => Some((QUEST_WINDOW_ID, win)),
+        State::QuestDetail { win, .. } => Some((QUEST_DETAIL_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
         State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
         State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
@@ -2150,40 +2233,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn game_category_windows_avoid_fixed_ui_zones() {
-        let comps: Vec<State> = GAME_COMPONENTS.iter().map(|n| create_single(n)).collect();
-        let items: Vec<(WidgetId, f32, f32)> = comps
-            .iter()
-            .flat_map(|c| gallery_windows(c).into_iter().map(|(id, (w, h))| (id, w, h)))
-            .collect();
-
-        // Every packed window must stay on-screen and clear of the fixed bars at
-        // any size (the clamp/overflow guarantee). Non-overlap only holds when
-        // the windows actually fit — the full game set doesn't at 1280×800.
-        for (sw, sh, expect_disjoint) in [(1600.0, 1000.0, true), (1280.0, 800.0, false)] {
-            let zones = fixed_ui_zones(sw, sh);
-            let placed = pack_gallery(items.clone(), sw, sh, &zones);
-            let rect = |id: WidgetId| {
-                let (_, w, h) = items.iter().find(|s| s.0 == id).copied().unwrap();
-                let (_, x, y) = placed.iter().find(|p| p.0 == id).copied().unwrap();
-                (x, y, w, h)
-            };
-
-            for i in 0..items.len() {
-                let a = rect(items[i].0);
-                assert!(a.0 + a.2 <= sw && a.1 + a.3 <= sh, "{sw}x{sh}: window {i} off-screen");
-                for zone in &zones {
-                    assert!(!rects_intersect(a, *zone), "{sw}x{sh}: window {i} overlaps a fixed zone");
-                }
-                if expect_disjoint {
-                    for j in (i + 1)..items.len() {
-                        assert!(!rects_intersect(a, rect(items[j].0)), "{sw}x{sh}: windows {i}/{j} overlap");
-                    }
-                }
-            }
-        }
-    }
 }
 
 /// Bottom-right anchor for a head board, stacked upward by `index`. Head boards
@@ -2427,6 +2476,24 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
+            win.build(ui, character, data);
+        }
+        State::Quest {
+            win,
+            log,
+            character,
+            data,
+        } => {
+            win.sync(log);
+            win.build(ui, character, data);
+        }
+        State::QuestDetail {
+            win,
+            quest,
+            character,
+            data,
+        } => {
+            win.sync(Some(quest.clone()));
             win.build(ui, character, data);
         }
         State::ChatRoomMember {

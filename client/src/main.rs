@@ -1281,6 +1281,19 @@ impl App {
                 GameEvent::ShortcutBindingsChanged(commands) => {
                     self.config.shortcut_commands = commands;
                 }
+                GameEvent::ToggleQuestWindow => {
+                    self.game.quest_window.toggle();
+                }
+                GameEvent::OpenQuestDetail { quest_id } => {
+                    self.game.quest_detail_window.open(quest_id);
+                }
+                GameEvent::RequestToggleQuestActive { quest_id, active } => {
+                    self.channel.send_packet(ragnarok_network::build_active_quest_packet(
+                        quest_id,
+                        active,
+                        self.config.packetver,
+                    ));
+                }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                     event_loop.exit();
@@ -2568,6 +2581,8 @@ impl ApplicationHandler for App {
                         Some(SkillDescriptionTable::load(&grf));
                     self.game.data_table.skill_tree = Some(SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level = Some(SkillUseLevelTable::load(&grf));
+                    self.game.data_table.quest_display =
+                        Some(ragnarok_game::data_table::quest_display_table::QuestDisplayTable::load(&grf));
                     if let Ok(bytes) = grf.read_file("data/pettalktable.xml") {
                         self.game.data_table.pet_talk =
                             Some(ragnarok_formats::pettalk::PetTalkTable::parse(&bytes));

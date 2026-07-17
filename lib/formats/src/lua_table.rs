@@ -73,6 +73,49 @@ pub fn parse_item_description_table(data: &[u8]) -> HashMap<u16, Vec<String>> {
     map
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct QuestDisplay {
+    pub title: String,
+    pub icon_name: String,
+    pub image_name: String,
+    pub summary: String,
+    pub description: String,
+}
+
+/// Parses `data/questid2display.txt`: a `#`-delimited stream of 6-field records
+/// `id # title # icon # image # summary # description`. Newlines inside a field
+/// are cosmetic and whole `//` lines are comments.
+pub fn parse_questid2display(data: &[u8]) -> HashMap<u32, QuestDisplay> {
+    let content = decode_euc_kr(data);
+    let body: String = content
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let tokens: Vec<&str> = body.split('#').collect();
+    let mut map = HashMap::new();
+    for chunk in tokens.chunks(6) {
+        if chunk.len() < 6 {
+            break;
+        }
+        let Ok(id) = chunk[0].trim().parse::<u32>() else {
+            continue;
+        };
+        map.insert(
+            id,
+            QuestDisplay {
+                title: chunk[1].trim().to_string(),
+                icon_name: chunk[2].trim().to_string(),
+                image_name: chunk[3].trim().to_string(),
+                summary: chunk[4].trim().to_string(),
+                description: chunk[5].trim().to_string(),
+            },
+        );
+    }
+    map
+}
+
 pub fn parse_id_set_table(data: &[u8]) -> std::collections::HashSet<u16> {
     let content = decode_euc_kr(data);
     let mut set = std::collections::HashSet::new();
@@ -317,6 +360,20 @@ ACCESSORY_HEADBAND = 6,
         let table = parse_level_use_skill_sp_table(data);
         assert_eq!(table.len(), 1);
         assert_eq!(table["SM_BASH"], vec![8]);
+    }
+
+    #[test]
+    fn parse_questid2display_records_skip_comments_keep_color_codes() {
+        let data = b"// header comment\n1000#First Quest#SG_FEEL#que_noimage#Summary one#\nHunt ^FF0000ten^000000 Porings.#\n2000#Second#ico_new#que_img#S2#D2#\n";
+        let table = parse_questid2display(data);
+        assert_eq!(table.len(), 2);
+        let q = table.get(&1000).unwrap();
+        assert_eq!(q.title, "First Quest");
+        assert_eq!(q.icon_name, "SG_FEEL");
+        assert_eq!(q.image_name, "que_noimage");
+        assert_eq!(q.summary, "Summary one");
+        assert_eq!(q.description, "Hunt ^FF0000ten^000000 Porings.");
+        assert_eq!(table.get(&2000).unwrap().icon_name, "ico_new");
     }
 
     #[test]

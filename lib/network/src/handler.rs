@@ -15,6 +15,7 @@ use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
+use ragnarok_game::quest::{QuestHuntEntry, QuestListEntry, QuestMissionData, QuestObjective};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
 
@@ -2115,12 +2116,94 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcAllQuestList>() {
+        let quests = p
+            .quest_list
+            .iter()
+            .map(|e| QuestListEntry {
+                id: e.quest_id,
+                active: e.active,
+            })
+            .collect();
+        return vec![GameEvent::QuestListReceived { quests }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAllQuestMission>() {
+        let missions = p
+            .quest_mission_list
+            .iter()
+            .map(|m| QuestMissionData {
+                id: m.quest_id,
+                end_time: quest_end_time(m.quest_end_time),
+                objectives: mission_objectives(&m.hunt, m.count),
+            })
+            .collect();
+        return vec![GameEvent::QuestMissionsReceived { missions }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddQuest>() {
+        return vec![GameEvent::QuestAdded {
+            quest: QuestMissionData {
+                id: p.quest_id,
+                end_time: quest_end_time(p.quest_end_time),
+                objectives: mission_objectives(&p.hunt, p.count),
+            },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDelQuest>() {
+        return vec![GameEvent::QuestRemoved {
+            quest_id: p.quest_id,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcUpdateMissionHunt>() {
+        let entries = p
+            .mob_hunt_list
+            .iter()
+            .map(|e| QuestHuntEntry {
+                quest_id: e.quest_id,
+                mob_id: e.mob_gid,
+                current: e.count,
+                required: e.max_count,
+            })
+            .collect();
+        return vec![GameEvent::QuestHuntUpdated { entries }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcActiveQuest>() {
+        return vec![GameEvent::QuestActiveChanged {
+            quest_id: p.quest_id,
+            active: p.active,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcQuestNotifyEffect>() {
+        return vec![GameEvent::QuestNpcMarker {
+            npc_id: p.npc_id,
+            x: p.x_pos as u16,
+            y: p.y_pos as u16,
+            effect: p.effect,
+            color: p.atype as u8,
+        }];
+    }
+
     debug!("unhandled packet: {}", packet.name());
     vec![]
 }
 
 fn cstr(chars: &[char]) -> String {
     chars.iter().take_while(|c| **c != '\0').collect()
+}
+
+fn quest_end_time(t: i32) -> Option<u32> {
+    (t > 0).then_some(t as u32)
+}
+
+fn mission_objectives(hunt: &[PacketZcMissionHunt], count: i16) -> Vec<QuestObjective> {
+    hunt.iter()
+        .take(count.max(0) as usize)
+        .map(|h| QuestObjective {
+            mob_id: h.mob_gid,
+            name: cstr(&h.mob_name),
+            current: h.hunt_count,
+            required: 0,
+        })
+        .collect()
 }
 
 fn rgb_u32_to_rgba(rgb: u32) -> [f32; 4] {
@@ -3815,5 +3898,154 @@ mod tests {
             [GameEvent::PetEggList { indices }] => assert_eq!(indices.as_slice(), &[7, 9]),
             other => panic!("expected PetEggList, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn dispatch_quest_flow_builds_log_and_markers() {
+        use ragnarok_game::quest::{QuestLog, QuestMarker};
+        use std::collections::HashMap;
+        let packetver = 20120307;
+
+        let name24 = |s: &str| {
+            let mut n = [0 as char; 24];
+            for (i, c) in s.chars().enumerate() {
+                n[i] = c;
+            }
+            n
+        };
+
+        let mut log = QuestLog::default();
+        let mut markers: HashMap<u32, QuestMarker> = HashMap::new();
+
+        let apply = |log: &mut QuestLog, markers: &mut HashMap<u32, QuestMarker>, pkt: &dyn Packet| {
+            for ev in dispatch_packet(pkt, packetver) {
+                match ev {
+                    GameEvent::QuestListReceived { quests } => {
+                        log.clear();
+                        for e in quests {
+                            log.set_list_entry(e);
+                        }
+                    }
+                    GameEvent::QuestMissionsReceived { missions } => {
+                        for m in missions {
+                            log.set_mission(m);
+                        }
+                    }
+                    GameEvent::QuestAdded { quest } => log.add(quest),
+                    GameEvent::QuestRemoved { quest_id } => {
+                        log.remove(quest_id);
+                    }
+                    GameEvent::QuestHuntUpdated { entries } => {
+                        for e in entries {
+                            log.update_hunt(e);
+                        }
+                    }
+                    GameEvent::QuestActiveChanged { quest_id, active } => {
+                        log.set_active(quest_id, active)
+                    }
+                    GameEvent::QuestNpcMarker {
+                        npc_id,
+                        x,
+                        y,
+                        effect,
+                        color,
+                    } => {
+                        if color == 0 || effect == 9999 {
+                            markers.remove(&npc_id);
+                        } else {
+                            markers.insert(npc_id, QuestMarker { x, y, effect, color });
+                        }
+                    }
+                    other => panic!("unexpected quest event: {other:?}"),
+                }
+            }
+        };
+
+        // Login burst: 0x2b1 list, 0x2b2 missions (names + current kills), 0x2b5 totals.
+        let mut e0 = PacketZcQuestInfo::new(packetver);
+        e0.set_quest_id(1000);
+        e0.set_active(true);
+        let mut e1 = PacketZcQuestInfo::new(packetver);
+        e1.set_quest_id(1001);
+        e1.set_active(false);
+        let mut list = PacketZcAllQuestList::new(packetver);
+        list.set_quest_count(2);
+        list.set_quest_list(vec![e0, e1]);
+        apply(&mut log, &mut markers, &list);
+
+        let mut hunt = PacketZcMissionHunt::new(packetver);
+        hunt.set_mob_gid(1002);
+        hunt.set_hunt_count(3);
+        hunt.set_mob_name(name24("Poring"));
+        let mut mission = PacketZcQuestMissionInfo::new(packetver);
+        mission.set_quest_id(1000);
+        mission.set_quest_end_time(0);
+        mission.set_count(1);
+        mission.set_hunt(vec![hunt]);
+        let mut missions = PacketZcAllQuestMission::new(packetver);
+        missions.set_count(1);
+        missions.set_quest_mission_list(vec![mission]);
+        apply(&mut log, &mut markers, &missions);
+
+        let mut mob = PacketMobHunting::new(packetver);
+        mob.set_quest_id(1000);
+        mob.set_mob_gid(1002);
+        mob.set_max_count(10);
+        mob.set_count(3);
+        let mut update = PacketZcUpdateMissionHunt::new(packetver);
+        update.set_count(1);
+        update.set_mob_hunt_list(vec![mob]);
+        apply(&mut log, &mut markers, &update);
+
+        let quest = log.get(1000).unwrap();
+        assert!(quest.active);
+        assert_eq!(quest.objectives[0].name, "Poring");
+        assert_eq!(quest.objectives[0].current, 3);
+        assert_eq!(quest.objectives[0].required, 10);
+        assert!(!log.get(1001).unwrap().active);
+
+        // 0x2b3 add (svr_time is garbage on the wire; we must not depend on it) + 0x2b5 totals.
+        let mut add_hunt = PacketZcMissionHunt::new(packetver);
+        add_hunt.set_mob_gid(1113);
+        add_hunt.set_hunt_count(0);
+        add_hunt.set_mob_name(name24("Drops"));
+        let mut add = PacketZcAddQuest::new(packetver);
+        add.set_quest_id(2000);
+        add.set_active(true);
+        add.set_quest_svr_time(0x0000_00AB);
+        add.set_quest_end_time(1_700_000_000);
+        add.set_count(1);
+        add.set_hunt(vec![add_hunt]);
+        apply(&mut log, &mut markers, &add);
+        assert_eq!(log.get(2000).unwrap().end_time, Some(1_700_000_000));
+
+        // 0x2b4 removes the first quest (also "completed").
+        let mut del = PacketZcDelQuest::new(packetver);
+        del.set_quest_id(1000);
+        apply(&mut log, &mut markers, &del);
+        assert!(log.get(1000).is_none());
+
+        // 0x2b7 ack flips the active flag.
+        let mut active = PacketZcActiveQuest::new(packetver);
+        active.set_quest_id(2000);
+        active.set_active(false);
+        apply(&mut log, &mut markers, &active);
+        assert!(!log.get(2000).unwrap().active);
+
+        // 0x446 marker: color != 0 inserts, color == 0 removes the same NPC.
+        let mut mark = PacketZcQuestNotifyEffect::new(packetver);
+        mark.set_npc_id(555);
+        mark.set_x_pos(30);
+        mark.set_y_pos(40);
+        mark.set_effect(0);
+        mark.set_atype(1);
+        apply(&mut log, &mut markers, &mark);
+        assert_eq!(markers.get(&555).map(|m| m.color), Some(1));
+
+        let mut clear = PacketZcQuestNotifyEffect::new(packetver);
+        clear.set_npc_id(555);
+        clear.set_atype(0);
+        apply(&mut log, &mut markers, &clear);
+        assert!(markers.get(&555).is_none());
     }
 }

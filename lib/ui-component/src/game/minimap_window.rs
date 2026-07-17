@@ -52,6 +52,17 @@ pub enum MarkerType {
     WarpPortal,
     PartyMember,
     GuildMember,
+    /// Over-NPC quest marker; the byte is the server color (1 yellow, 2 green,
+    /// 3 purple).
+    Quest(u8),
+}
+
+fn quest_marker_color(color: u8) -> [f32; 3] {
+    match color {
+        2 => [0.2, 0.9, 0.2],
+        3 => [0.7, 0.3, 0.9],
+        _ => [1.0, 0.9, 0.1],
+    }
 }
 
 pub struct MinimapMarker {
@@ -265,6 +276,10 @@ impl InGameWindow for MinimapWindow {
                 ),
                 MarkerType::PartyMember => ([0.3, 0.9, 1.0, alpha], NPC_DOT_SIZE),
                 MarkerType::GuildMember => ([1.0, 0.55, 0.1, alpha], NPC_DOT_SIZE),
+                MarkerType::Quest(color) => {
+                    let c = quest_marker_color(color);
+                    ([c[0], c[1], c[2], alpha], NPC_DOT_SIZE + 1.0)
+                }
             };
             if let Some((sx, sy)) = self.map_to_screen(marker.x, marker.y, uv_min, uv_max, x, y) {
                 Self::draw_dot(ui, sx, sy, size, color);

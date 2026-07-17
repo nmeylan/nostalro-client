@@ -960,6 +960,14 @@ pub fn build_pet_act_packet(data: i32, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_active_quest_packet(quest_id: u32, active: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzActiveQuest::new(packetver);
+    pkt.set_quest_id(quest_id);
+    pkt.set_active(active);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_req_guild_menuinterface(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqGuildMenuinterface::new(packetver);
     pkt.fill_raw();

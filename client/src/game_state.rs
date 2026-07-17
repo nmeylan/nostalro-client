@@ -25,6 +25,7 @@ use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::pet::PetState;
+use ragnarok_game::quest::{QuestLog, QuestMarker};
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::party::Party;
 use ragnarok_game::server_time::ServerTimeClock;
@@ -41,6 +42,9 @@ use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
 use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
 use ragnarok_ui_component::game::shortcut_list_window::{
     SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
+};
+use ragnarok_ui_component::game::quest_window::{
+    QUEST_DETAIL_WINDOW_ID, QUEST_WINDOW_ID, QuestDetailWindow, QuestWindow,
 };
 use ragnarok_ui_component::game::chat_room_create_window::{
     CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
@@ -177,6 +181,8 @@ pub struct GameState {
     pub chat_room_member_window: ChatRoomMemberWindow,
     pub emotion_window: EmotionWindow,
     pub shortcut_list_window: ShortcutListWindow,
+    pub quest_window: QuestWindow,
+    pub quest_detail_window: QuestDetailWindow,
     pub pending_chat_room: Option<(String, i16, bool)>,
     pub system_menu: SystemMenu,
     pub map_missing_window: MapMissingWindow,
@@ -255,6 +261,10 @@ pub struct GameState {
     /// Armed by ZC_START_CAPTURE: the next click on a valid mob opens the roulette.
     pub capture_targeting: bool,
     pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
+    pub quest_log: QuestLog,
+    /// Over-NPC quest markers keyed by NPC block id (account-id space). Cleared
+    /// on map change; the server re-sends on load.
+    pub quest_markers: std::collections::HashMap<u32, QuestMarker>,
     pub mercenary_skill_window: MercenarySkillWindow,
     pub homun_skill_window: HomunSkillWindow,
     pub context_menu: ContextMenu,
@@ -327,6 +337,8 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     CHAT_ROOM_MEMBER_WINDOW_ID,
     EMOTION_WINDOW_ID,
     SHORTCUT_LIST_WINDOW_ID,
+    QUEST_WINDOW_ID,
+    QUEST_DETAIL_WINDOW_ID,
 ];
 
 impl GameState {
@@ -427,6 +439,13 @@ impl GameState {
                     marker_type: MarkerType::GuildMember,
                 });
             }
+        }
+        for marker in self.quest_markers.values() {
+            self.minimap_window.entity_markers.push(MinimapMarker {
+                x: marker.x as f32,
+                y: marker.y as f32,
+                marker_type: MarkerType::Quest(marker.color),
+            });
         }
         events.extend(
             self.minimap_window
@@ -983,6 +1002,26 @@ impl GameState {
                     &self.data_table,
                 ));
             }
+            QUEST_WINDOW_ID => {
+                self.quest_window.sync(&self.quest_log);
+                events.extend(self.quest_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
+            QUEST_DETAIL_WINDOW_ID => {
+                let quest = self
+                    .quest_detail_window
+                    .quest_id()
+                    .and_then(|id| self.quest_log.get(id).cloned());
+                self.quest_detail_window.sync(quest);
+                events.extend(self.quest_detail_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             _ => {}
         }
     }
@@ -1063,6 +1102,8 @@ impl GameState {
             chat_room_member_window: ChatRoomMemberWindow::new(),
             emotion_window: EmotionWindow::new(),
             shortcut_list_window: ShortcutListWindow::new(),
+            quest_window: QuestWindow::new(),
+            quest_detail_window: QuestDetailWindow::new(),
             pending_chat_room: None,
             system_menu: SystemMenu::new(),
             map_missing_window: MapMissingWindow::new(),
@@ -1129,6 +1170,8 @@ impl GameState {
             pet_feed_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             capture_targeting: false,
             pet_roulette: None,
+            quest_log: QuestLog::default(),
+            quest_markers: std::collections::HashMap::new(),
             companion_ai: ragnarok_ai::config::CompanionAiConfig::load_or_default(
                 COMPANION_AI_CONFIG_PATH,
             ),

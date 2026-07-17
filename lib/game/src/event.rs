@@ -1272,6 +1272,51 @@ pub enum GameEvent {
     RequestPetFeed,
     TogglePetWindow,
 
+    // --- Quest ---
+    /// 0x2b1: full quest list (id + active flag). Clears the log first.
+    QuestListReceived {
+        quests: Vec<crate::quest::QuestListEntry>,
+    },
+    /// 0x2b2: mission data (objectives + expiry) for the listed quests.
+    QuestMissionsReceived {
+        missions: Vec<crate::quest::QuestMissionData>,
+    },
+    /// 0x2b3: a quest was received.
+    QuestAdded {
+        quest: crate::quest::QuestMissionData,
+    },
+    /// 0x2b4: a quest was removed (also means "completed").
+    QuestRemoved {
+        quest_id: u32,
+    },
+    /// 0x2b5: hunt progress — the sole source of required totals.
+    QuestHuntUpdated {
+        entries: Vec<crate::quest::QuestHuntEntry>,
+    },
+    /// 0x2b7: active-flag ack.
+    QuestActiveChanged {
+        quest_id: u32,
+        active: bool,
+    },
+    /// 0x446: over-NPC quest marker.
+    QuestNpcMarker {
+        npc_id: u32,
+        x: u16,
+        y: u16,
+        effect: i16,
+        color: u8,
+    },
+    /// UI: right-click a row → send CZ_ACTIVE_QUEST.
+    RequestToggleQuestActive {
+        quest_id: u32,
+        active: bool,
+    },
+    /// UI: View button → open the detail window for the quest.
+    OpenQuestDetail {
+        quest_id: u32,
+    },
+    ToggleQuestWindow,
+
     Acknowledged,
 }
 

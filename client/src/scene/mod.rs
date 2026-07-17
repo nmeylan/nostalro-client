@@ -294,6 +294,52 @@ impl App {
                             }
                         }
 
+                        if let (Some(marker), Some(emo_act), Some(emo_tex)) = (
+                            self.game.quest_markers.get(&entry.id),
+                            &self.game.emotion_act,
+                            &self.game.emotion_textures,
+                        ) {
+                            let action_idx =
+                                ragnarok_game::quest::marker_sprite_action(marker.effect);
+                            if action_idx < emo_act.actions.len() {
+                                let delay_ms = emo_act
+                                    .delays
+                                    .get(action_idx)
+                                    .map(|d| d * 25.0)
+                                    .filter(|d| *d > 0.0)
+                                    .unwrap_or(150.0);
+                                let motion_count = emo_act.actions[action_idx].motions.len();
+                                if motion_count > 0 {
+                                    let motion_idx =
+                                        ((elapsed * 1000.0) / delay_ms) as usize % motion_count;
+                                    let motion = &emo_act.actions[action_idx].motions[motion_idx];
+                                    let emo_center = [
+                                        entry.screen_anchor[0],
+                                        entry.screen_anchor[1]
+                                            - entry.head_offset
+                                            - 6.0 * entry.sprite_scale,
+                                    ];
+                                    for clip in &motion.clips {
+                                        if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                                            clip,
+                                            emo_tex,
+                                            emo_center,
+                                            entry.depth,
+                                            [0, 0],
+                                        ) && tex_idx < emo_tex.bind_groups.len()
+                                        {
+                                            sprite_batches.push(SpriteBatch {
+                                                vertices,
+                                                indices,
+                                                texture: &emo_tex.bind_groups[tex_idx],
+                                                additive: false,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Move ailment in a dedicated place
                         for overlay in
                             ailment::ailment_overlays(entity.body_state, entity.health_state)

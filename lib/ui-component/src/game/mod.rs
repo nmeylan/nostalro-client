@@ -36,6 +36,7 @@ pub mod number_input;
 pub mod party_friends_window;
 pub mod party_helper_window;
 pub mod pet_window;
+pub mod quest_window;
 pub mod shortcut_list_window;
 pub mod skill_tree_window;
 pub mod sound_options;

@@ -367,6 +367,9 @@ impl App {
                 PhysicalKey::Code(KeyCode::KeyL) if self.input.alt_pressed => {
                     self.game.emotion_window.toggle();
                 }
+                PhysicalKey::Code(KeyCode::KeyU) if self.input.alt_pressed => {
+                    self.game.quest_window.toggle();
+                }
                 PhysicalKey::Code(KeyCode::Digit1) if self.input.alt_pressed => {
                     self.trigger_shortcut(0);
                 }

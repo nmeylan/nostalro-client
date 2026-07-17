@@ -38,6 +38,7 @@ pub mod path;
 pub mod pet;
 pub mod pet_tables;
 pub mod poptip;
+pub mod quest;
 pub mod scheduled_hit;
 pub mod server_time;
 pub mod shadow;

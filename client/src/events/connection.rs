@@ -124,6 +124,8 @@ impl App {
         self.game.pet = ragnarok_game::pet::PetState::default();
         self.game.capture_targeting = false;
         self.game.pet_roulette = None;
+        self.game.quest_log.clear();
+        self.game.quest_markers.clear();
         self.game.pet_window.set_visible(false);
         self.game.companion_attack_target = [None; 2];
         self.game.homunculus_window.set_visible(false);
@@ -280,6 +282,8 @@ impl App {
             preload_window(&mut self.game.chat_room_member_window, renderer, grf);
             preload_window(&mut self.game.emotion_window, renderer, grf);
             preload_window(&mut self.game.shortcut_list_window, renderer, grf);
+            preload_window(&mut self.game.quest_window, renderer, grf);
+            preload_window(&mut self.game.quest_detail_window, renderer, grf);
             preload_window(&mut self.game.item_info_window, renderer, grf);
             preload_window(&mut self.game.book_window, renderer, grf);
             preload_window(&mut self.game.sound_options, renderer, grf);
@@ -389,6 +393,7 @@ impl App {
             self.game.sprite_cache.clear();
             self.game.entities.clear_non_player();
             self.game.pet.clear_entity();
+            self.game.quest_markers.clear();
             self.game.failed_sprite_loads.clear();
             self.game.floor_items.clear();
             self.game.floor_item_sprites.clear();

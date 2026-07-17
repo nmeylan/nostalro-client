@@ -12,6 +12,7 @@ mod npc;
 mod party;
 mod pet;
 mod production;
+mod quest;
 mod skill;
 
 use crate::App;
@@ -1244,6 +1245,34 @@ impl App {
                 }
                 GameEvent::PetAct { gid, data } => {
                     self.handle_pet_act(gid, data);
+                }
+
+                GameEvent::QuestListReceived { quests } => {
+                    self.handle_quest_list_received(quests);
+                }
+                GameEvent::QuestMissionsReceived { missions } => {
+                    self.handle_quest_missions_received(missions);
+                }
+                GameEvent::QuestAdded { quest } => {
+                    self.handle_quest_added(quest);
+                }
+                GameEvent::QuestRemoved { quest_id } => {
+                    self.handle_quest_removed(quest_id);
+                }
+                GameEvent::QuestHuntUpdated { entries } => {
+                    self.handle_quest_hunt_updated(entries);
+                }
+                GameEvent::QuestActiveChanged { quest_id, active } => {
+                    self.handle_quest_active_changed(quest_id, active);
+                }
+                GameEvent::QuestNpcMarker {
+                    npc_id,
+                    x,
+                    y,
+                    effect,
+                    color,
+                } => {
+                    self.handle_quest_npc_marker(npc_id, x, y, effect, color);
                 }
 
                 _ => {}
