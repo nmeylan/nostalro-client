@@ -250,6 +250,13 @@ pub fn bone_type_from_name(name: &str) -> Option<u32> {
         .ok()
 }
 
+/// World Y-rotation for an entity's 8-direction facing, applied to a GR2 model
+/// stood upright by `rotate_x(FRAC_PI_2)`. Direction 0 = North, 2 = West,
+/// 4 = South, 6 = East; N/S map opposite the model's raw yaw, E/W do not.
+pub fn model_facing_yaw(direction: u8) -> f32 {
+    std::f32::consts::PI - direction as f32 * (std::f32::consts::TAU / 8.0)
+}
+
 /// Per-entity GR2 animation state: the posed skeleton, one clip per action, and
 /// the currently playing action.
 pub struct Gr2ModelInstance {
@@ -437,6 +444,23 @@ mod tests {
             duration,
             tracks: Vec::new(),
         }
+    }
+
+    #[test]
+    fn facing_yaw_points_model_front_at_the_right_compass_direction() {
+        // A model stood upright by rotate_x(90°) has its front along world -Z
+        // (south); rotate_y(facing_yaw) must swing it to the entity's facing.
+        let front = |dir: u8| {
+            Mat4::from_rotation_y(model_facing_yaw(dir)).transform_vector3(Vec3::NEG_Z)
+        };
+        let north = Vec3::Z;
+        let south = Vec3::NEG_Z;
+        let east = Vec3::X;
+        let west = Vec3::NEG_X;
+        assert!((front(0) - north).length() < 1e-5);
+        assert!((front(2) - west).length() < 1e-5);
+        assert!((front(4) - south).length() < 1e-5);
+        assert!((front(6) - east).length() < 1e-5);
     }
 
     #[test]

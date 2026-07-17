@@ -4,7 +4,7 @@ use ragnarok_game::ailment;
 use ragnarok_game::entity::{
     DEATH_FADE_DURATION, EntityFade, EntityState, EntityType, ForcedAnimation,
 };
-use ragnarok_game::gr2_model::Gr2Action;
+use ragnarok_game::gr2_model::{self, Gr2Action};
 use ragnarok_game::sound::SoundQueue;
 
 /// Resolve ACT frame sound-events to queued sounds, positional at the actor.
@@ -191,9 +191,9 @@ impl App {
             let (cx, cy) = entity.movement.position();
             let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
             let wy = gat.get_height(cx + 0.5, cy + 0.5);
-            // Same facing convention as effect caster yaw; the trailing X
-            // rotation stands the Z-up model upright (world up is negative Y).
-            let yaw = entity.direction as f32 * (std::f32::consts::TAU / 8.0);
+            // The trailing X rotation stands the Z-up model upright (world up
+            // is negative Y).
+            let yaw = gr2_model::model_facing_yaw(entity.direction);
             let transform = glam::Mat4::from_translation(glam::Vec3::new(wx, wy, wz))
                 * glam::Mat4::from_rotation_y(yaw)
                 * glam::Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2);
