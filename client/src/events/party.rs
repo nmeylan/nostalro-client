@@ -99,6 +99,15 @@ impl App {
     }
 
     pub(super) fn handle_party_invite_received(&mut self, party_grid: u32, party_name: String) {
+        if self.game.self_config.refuse_party_invite {
+            self.channel
+                .send_packet(ragnarok_network::build_join_party_reply_packet(
+                    party_grid,
+                    false,
+                    self.config.packetver,
+                ));
+            return;
+        }
         self.game.pending_party_invite = Some(party_grid);
         self.game.party_invite_result.set(None);
         let msg = format!("Join party \"{party_name}\"?");

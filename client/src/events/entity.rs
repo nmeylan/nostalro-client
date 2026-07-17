@@ -9,6 +9,7 @@ use models::enums::weapon::WeaponType;
 use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
+use ragnarok_game::day_night::EFST_SKE;
 use ragnarok_game::effect::{
     StatusKind, UNT_USED_TRAPS, skill_unit_effect, status_reaction, trap_model_name,
     trap_trigger_effect,
@@ -21,7 +22,7 @@ use ragnarok_game::sound::tables::{
     StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
 };
 use ragnarok_game::sprite_path::{
-    JT_WARPNPC, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, OPTION_STATUS_ICONS,
+    JT_WARPNPC, OPTION_HIDE, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, OPTION_STATUS_ICONS,
     cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job,
 };
 use ragnarok_game::status_icon::status_icon_info;
@@ -624,6 +625,12 @@ impl App {
                     self.set_status_icon(efst, now, 0, 0);
                 }
             }
+            let gained_hide = old_effect_state & OPTION_HIDE == 0 && effect_state & OPTION_HIDE != 0;
+            if gained_hide && self.player_hide_move_blocked() {
+                if let Some(player) = self.game.entities.player_mut() {
+                    player.movement.stop();
+                }
+            }
         }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
@@ -676,6 +683,13 @@ impl App {
         remain_ms: u32,
         val1: i32,
     ) {
+        if efst == EFST_SKE {
+            if self.game.entities.player_id() == Some(gid) {
+                self.game.day_night.set_night(active);
+            }
+            return;
+        }
+
         let Ok(icon) = ClientEffectIcon::try_from_value(efst as usize) else {
             return;
         };
@@ -761,7 +775,7 @@ impl App {
         }
     }
 
-    pub(super) fn refresh_level_aura(&mut self, gid: u32) {
+    pub(crate) fn refresh_level_aura(&mut self, gid: u32) {
         let Some((entity_type, effect_state, entity_level, alive)) = self
             .game
             .entities

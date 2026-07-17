@@ -26,10 +26,20 @@ impl SpawnRequest {
     }
 }
 
-#[derive(Default)]
 pub struct EffectQueue {
     pub pending: Vec<SpawnRequest>,
     pub despawns: Vec<u32>,
+    enabled: bool,
+}
+
+impl Default for EffectQueue {
+    fn default() -> Self {
+        Self {
+            pending: Vec::new(),
+            despawns: Vec::new(),
+            enabled: true,
+        }
+    }
 }
 
 impl EffectQueue {
@@ -37,7 +47,17 @@ impl EffectQueue {
         Self::default()
     }
 
+    /// The `/effect` toggle: when disabled, one-shot requests (no key) are
+    /// dropped while keyed requests (auras, status buffs, ailment overlays)
+    /// keep flowing so their key-map lifecycles never observe a lost spawn.
+    pub fn set_effects_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
     pub fn push(&mut self, request: SpawnRequest) {
+        if !self.enabled && request.key.is_none() {
+            return;
+        }
         self.pending.push(request);
     }
 
@@ -238,6 +258,23 @@ mod tests {
         q.clear();
         assert!(q.drain().is_empty());
         assert!(q.drain_despawns().is_empty());
+    }
+
+    #[test]
+    fn disabling_effects_drops_one_shots_but_keeps_keyed_spawns() {
+        let mut q = EffectQueue::new();
+        q.set_effects_enabled(false);
+        q.spawn_at(EffectId::Firehit, [0.0, 0.0, 0.0]);
+        q.spawn_on(EffectId::Blessing, 42);
+        q.spawn_on_keyed(EffectId::Blessing, 42, 7);
+
+        let pending = q.drain();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].key, Some(7));
+
+        q.set_effects_enabled(true);
+        q.spawn_at(EffectId::Firehit, [0.0, 0.0, 0.0]);
+        assert_eq!(q.drain().len(), 1);
     }
 
     #[test]

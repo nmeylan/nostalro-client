@@ -664,7 +664,8 @@ impl ChatWindow {
         }
         if size_resp.clicked() {
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            state.size_index = (state.size_index + 1) % SIZE_CYCLE.len();
+            let next = state.size_index + 1;
+            state.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
             state.msg_area_h = SIZE_CYCLE[state.size_index];
         }
         if filter_resp.clicked() {
@@ -757,7 +758,8 @@ impl InGameWindow for ChatWindow {
         }
 
         if ui.ctx.key_f10 {
-            state.size_index = (state.size_index + 1) % SIZE_CYCLE.len();
+            let next = state.size_index + 1;
+            state.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
             state.msg_area_h = SIZE_CYCLE[state.size_index];
         }
 

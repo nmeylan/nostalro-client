@@ -6,13 +6,25 @@ use ragnarok_game::trade::TRADE_ZENY_INDEX;
 
 impl App {
     pub(super) fn handle_exchange_requested(&mut self, name: String, gid: u32, _level: i16) {
-        self.game.pending_trade_partner = Some((gid, name.clone()));
-        self.game.pending_trade_request = Some(gid);
-        self.game.trade_request_result.set(None);
-        let result = self.game.trade_request_result.clone();
-        self.game
-            .confirm_dialog
-            .show_with_out(&format!("Do you want to trade with {name}?"), true, result, |_| {});
+        if self
+            .game
+            .begin_trade_request(name, gid, self.config.refuse_trade)
+        {
+            self.respond_exchange_request(false);
+        }
+    }
+
+    pub(crate) fn respond_exchange_request(&mut self, accept: bool) {
+        self.game.pending_trade_request = None;
+        if !accept {
+            self.game.pending_trade_partner = None;
+        }
+        let result = if accept { 3 } else { 4 };
+        self.channel
+            .send_packet(ragnarok_network::build_ack_exchange_item_packet(
+                result,
+                self.config.packetver,
+            ));
     }
 
     pub(super) fn handle_exchange_ack_result(&mut self, result: u8, level: i16) {

@@ -15,6 +15,7 @@ use ragnarok_game::cursor::{
     CursorAnimationState, PendingCompanionSkill, PendingSkillTarget, RenderEntry,
 };
 use ragnarok_game::damage_number::DamageNumberManager;
+use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity::EntityType;
@@ -74,6 +75,7 @@ use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, Mercena
 use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
+use ragnarok_ui_component::game::graphic_options::{GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow};
 use ragnarok_ui_component::game::sound_options::{SOUND_OPTIONS_WINDOW_ID, SoundOptionsWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
@@ -238,6 +240,7 @@ pub struct GameState {
     pub item_info_window: ItemInfoWindow,
     pub book_window: BookWindow,
     pub sound_options: SoundOptionsWindow,
+    pub graphic_options: GraphicOptionsWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
     pub basic_info_window: BasicInfoWindow,
@@ -302,6 +305,7 @@ pub struct GameState {
     pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
     pub status_buff_keys: HashMap<(u32, i16), u32>,
     pub next_status_buff_key: u32,
+    pub day_night: DayNightState,
     pub level_aura_keys: HashMap<u32, u32>,
     pub boss_aura_keys: HashMap<u32, u32>,
     pub warp_portal_keys: HashMap<u32, u32>,
@@ -347,6 +351,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     HOMUN_SKILL_WINDOW_ID,
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
+    GRAPHIC_OPTIONS_WINDOW_ID,
     COMPANION_AI_CONFIG_WINDOW_ID,
     CHAT_ROOM_CREATE_WINDOW_ID,
     CHAT_ROOM_MEMBER_WINDOW_ID,
@@ -1033,6 +1038,12 @@ impl GameState {
                         .build(ui, &mut self.character, &self.data_table),
                 );
             }
+            GRAPHIC_OPTIONS_WINDOW_ID => {
+                events.extend(
+                    self.graphic_options
+                        .build(ui, &mut self.character, &self.data_table),
+                );
+            }
             CHAT_ROOM_CREATE_WINDOW_ID => {
                 events.extend(self.chat_room_create_window.build(
                     ui,
@@ -1209,6 +1220,7 @@ impl GameState {
             item_info_window: ItemInfoWindow::new(),
             book_window: BookWindow::new(),
             sound_options: SoundOptionsWindow::new(),
+            graphic_options: GraphicOptionsWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),
@@ -1271,6 +1283,7 @@ impl GameState {
             repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler::new(),
             status_buff_keys: HashMap::new(),
             next_status_buff_key: 0,
+            day_night: DayNightState::default(),
             level_aura_keys: HashMap::new(),
             boss_aura_keys: HashMap::new(),
             warp_portal_keys: HashMap::new(),
@@ -1278,6 +1291,25 @@ impl GameState {
             sight_aura_keys: HashMap::new(),
             ruwach_aura_keys: HashMap::new(),
         }
+    }
+
+    /// Returns true when the request must be auto-refused; otherwise records the
+    /// pending request and opens the accept dialog.
+    pub fn begin_trade_request(&mut self, name: String, gid: u32, auto_refuse: bool) -> bool {
+        if auto_refuse {
+            return true;
+        }
+        self.pending_trade_partner = Some((gid, name.clone()));
+        self.pending_trade_request = Some(gid);
+        self.trade_request_result.set(None);
+        let result = self.trade_request_result.clone();
+        self.confirm_dialog.show_with_out(
+            &format!("Do you want to trade with {name}?"),
+            true,
+            result,
+            |_| {},
+        );
+        false
     }
 
     pub fn apply_window_state(&mut self, window_state: &HashMap<u32, WindowStateEntry>) {
@@ -1360,6 +1392,25 @@ mod skill_resolve_tests {
             Some((SkillTargetType::Target, 9))
         );
         assert_eq!(game.resolve_cast_skill(9999), None);
+    }
+}
+
+#[cfg(test)]
+mod trade_request_tests {
+    use super::*;
+
+    #[test]
+    fn auto_refuse_skips_dialog_and_normal_path_opens_it() {
+        let mut game = GameState::new();
+        assert!(game.begin_trade_request("Alice".to_string(), 42, true));
+        assert!(game.pending_trade_request.is_none());
+        assert!(game.pending_trade_partner.is_none());
+        assert!(game.confirm_dialog.state.is_none());
+
+        assert!(!game.begin_trade_request("Alice".to_string(), 42, false));
+        assert_eq!(game.pending_trade_request, Some(42));
+        assert_eq!(game.pending_trade_partner, Some((42, "Alice".to_string())));
+        assert!(game.confirm_dialog.state.is_some());
     }
 }
 

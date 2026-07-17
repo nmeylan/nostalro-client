@@ -266,6 +266,9 @@ impl App {
             let Some(entity) = self.game.entities.get(entry.id) else {
                 continue;
             };
+            if entity.effect_state & ragnarok_game::sprite_path::OPTION_HIDE != 0 {
+                continue;
+            }
             let Some(ratio) = self.entity_hp_ratio(entry.id) else {
                 continue;
             };

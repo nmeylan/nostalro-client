@@ -122,6 +122,13 @@ pub struct Renderer {
     pub dpi_scale: f32,
     pub clear_color: wgpu::Color,
     pub background_mode: BackgroundMode,
+    /// The map's day lighting, captured in `load_map`. `set_day_night` patches the
+    /// diffuse rgb over this so the day/night fade never loses the map's light dir,
+    /// ambient or shadow strength.
+    pub base_light: LightUniform,
+    /// World-unit scale of the loaded map (240 * gnd zoom), needed to convert
+    /// fog-table near/far into world distances when fog is toggled at runtime.
+    fog_scale: f32,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -384,11 +391,37 @@ impl Renderer {
                 a: 1.0,
             },
             background_mode: BackgroundMode::default(),
+            base_light: LightUniform::default(),
+            fog_scale: 240.0,
         }
     }
 
     pub fn set_background_mode(&mut self, mode: BackgroundMode) {
         self.background_mode = mode;
+    }
+
+    pub fn set_day_night(&mut self, diffuse: [f32; 3], sprite_light: [f32; 3]) {
+        let mut light = self.base_light;
+        light.diffuse_color = [diffuse[0], diffuse[1], diffuse[2], light.diffuse_color[3]];
+        self.global_uniforms
+            .update_light(&self.device.queue, &light);
+        self.sprite_renderer
+            .set_world_light(&self.device.queue, sprite_light);
+    }
+
+    pub fn set_fog(&mut self, fog: Option<FogEntry>) {
+        let fog_uniform = match fog {
+            Some(entry) => FogUniform {
+                color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
+                near: entry.near * self.fog_scale,
+                far: entry.far * self.fog_scale,
+                factor: entry.factor,
+                enabled: 1.0,
+            },
+            None => FogUniform::default(),
+        };
+        self.global_uniforms
+            .update_fog(&self.device.queue, &fog_uniform);
     }
 
     pub fn load_map(
@@ -398,24 +431,14 @@ impl Renderer {
         grf: &GrfArchive,
         fog: Option<FogEntry>,
     ) {
-        let scale = 240.0 * gnd.zoom;
-        let fog_uniform = match fog {
-            Some(entry) => FogUniform {
-                color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
-                near: entry.near * scale,
-                far: entry.far * scale,
-                factor: entry.factor,
-                enabled: 1.0,
-            },
-            None => FogUniform::default(),
-        };
-        self.global_uniforms
-            .update_fog(&self.device.queue, &fog_uniform);
+        self.fog_scale = 240.0 * gnd.zoom;
+        self.set_fog(fog);
 
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;
         let center_z = gnd.height as f32 * gnd.zoom / 2.0;
         self.camera.target = glam::Vec3::new(center_x, 0.0, center_z);
 
+        let mut light = LightUniform::default();
         if let (Some(longitude), Some(latitude)) = (rsw.light.longitude, rsw.light.latitude) {
             let lon_rad = (longitude as f32).to_radians();
             let lat_rad = (latitude as f32).to_radians();
@@ -425,21 +448,20 @@ impl Renderer {
                 -lon_rad.sin() * lat_rad.sin(),
             )
             .normalize();
-
-            let mut light = LightUniform::default();
             light.light_dir = [dir.x, dir.y, dir.z, 0.0];
-            if let Some(diffuse) = rsw.light.diffuse {
-                light.diffuse_color = [diffuse[0], diffuse[1], diffuse[2], 1.0];
-            }
-            if let Some(ambient) = rsw.light.ambient {
-                light.ambient_color = [ambient[0], ambient[1], ambient[2], 1.0];
-            }
-            if let Some(alpha) = rsw.light.shadow_map_alpha {
-                light.shadow_strength = alpha;
-            }
-            self.global_uniforms
-                .update_light(&self.device.queue, &light);
         }
+        if let Some(diffuse) = rsw.light.diffuse {
+            light.diffuse_color = [diffuse[0], diffuse[1], diffuse[2], 1.0];
+        }
+        if let Some(ambient) = rsw.light.ambient {
+            light.ambient_color = [ambient[0], ambient[1], ambient[2], 1.0];
+        }
+        if let Some(alpha) = rsw.light.shadow_map_alpha {
+            light.shadow_strength = alpha;
+        }
+        self.base_light = light;
+        self.global_uniforms
+            .update_light(&self.device.queue, &light);
 
         let scale_factor = gnd.zoom / 10.0;
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;

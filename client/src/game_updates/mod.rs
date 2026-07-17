@@ -77,6 +77,15 @@ impl App {
         self.update_falcon_visuals(delta);
         self.update_pet_roulette(delta);
         self.update_fades(delta);
+        self.game.day_night.tick(delta);
+        if self.game.day_night.take_dirty()
+            && let Some(renderer) = &mut self.renderer
+        {
+            renderer.set_day_night(
+                self.game.day_night.world_diffuse(),
+                self.game.day_night.sprite_light(),
+            );
+        }
         let camera = self.renderer.as_ref().map(|r| &r.camera);
         let is_visible = |pos: [f32; 3]| {
             camera.is_some_and(|c| c.is_world_pos_visible(pos[0], pos[1], pos[2], 0.25))

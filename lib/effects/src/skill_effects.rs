@@ -328,8 +328,6 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         S::AmCallhomun | S::AmRest | S::AmResurrecthomun => &[E::Couplecasting],
 
-        S::StChasewalk => &[E::Castspin],
-
         S::AmTwilight1 => &[E::Twilight1],
         S::AmTwilight2 => &[E::Twilight2],
         S::AmTwilight3 => &[E::Twilight3],

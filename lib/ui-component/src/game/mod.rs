@@ -13,6 +13,7 @@ pub mod drop_quantity_dialog;
 pub mod emblem_picker_window;
 pub mod emotion_window;
 pub mod equipment_window;
+pub mod graphic_options;
 pub mod guild_expel_dialog;
 pub mod guild_window;
 pub mod homun_skill_window;

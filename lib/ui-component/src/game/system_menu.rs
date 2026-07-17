@@ -17,6 +17,8 @@ const CHARSELECT_ID: WidgetId = WidgetId(502);
 const QUIT_ID: WidgetId = WidgetId(503);
 const RESTART_ID: WidgetId = WidgetId(504);
 const RESURRECT_ID: WidgetId = WidgetId(505);
+const GRAPHICS_ID: WidgetId = WidgetId(506);
+const SHORTCUT_ID: WidgetId = WidgetId(507);
 
 const MENU_W: f32 = 140.0;
 const FALLBACK_BTN_W: f32 = 120.0;
@@ -52,6 +54,21 @@ const RESURRECT_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/esc_05a.bmp",
     hover: "data/texture/유저인터페이스/esc_05b.bmp",
     pressed: "data/texture/유저인터페이스/esc_05c.bmp",
+};
+const GRAPHICS_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_06a.bmp",
+    hover: "data/texture/유저인터페이스/esc_06b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_06c.bmp",
+};
+const SOUND_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_07a.bmp",
+    hover: "data/texture/유저인터페이스/esc_07b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_07c.bmp",
+};
+const SHORTCUT_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/esc_08a.bmp",
+    hover: "data/texture/유저인터페이스/esc_08b.bmp",
+    pressed: "data/texture/유저인터페이스/esc_08c.bmp",
 };
 const DUMMY_BTN: ButtonTextures = ButtonTextures {
     normal: "",
@@ -139,6 +156,15 @@ impl Window for SystemMenu {
             RESURRECT_BTN.normal,
             RESURRECT_BTN.hover,
             RESURRECT_BTN.pressed,
+            GRAPHICS_BTN.normal,
+            GRAPHICS_BTN.hover,
+            GRAPHICS_BTN.pressed,
+            SOUND_BTN.normal,
+            SOUND_BTN.hover,
+            SOUND_BTN.pressed,
+            SHORTCUT_BTN.normal,
+            SHORTCUT_BTN.hover,
+            SHORTCUT_BTN.pressed,
         ];
         paths.extend(ConfirmDialog::grf_texture_paths());
         paths
@@ -217,7 +243,9 @@ impl InGameWindow for SystemMenu {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MenuButton {
     Resume,
+    Graphics,
     Sound,
+    Shortcut,
     CharSelect,
     Quit,
     Restart,
@@ -228,7 +256,9 @@ impl MenuButton {
     fn id(self) -> WidgetId {
         match self {
             MenuButton::Resume => RESUME_ID,
+            MenuButton::Graphics => GRAPHICS_ID,
             MenuButton::Sound => OPTION_ID,
+            MenuButton::Shortcut => SHORTCUT_ID,
             MenuButton::CharSelect => CHARSELECT_ID,
             MenuButton::Quit => QUIT_ID,
             MenuButton::Restart => RESTART_ID,
@@ -239,28 +269,27 @@ impl MenuButton {
     fn textures(self) -> &'static ButtonTextures {
         match self {
             MenuButton::Resume => &RESUME_BTN,
+            MenuButton::Graphics => &GRAPHICS_BTN,
+            MenuButton::Sound => &SOUND_BTN,
+            MenuButton::Shortcut => &SHORTCUT_BTN,
             MenuButton::CharSelect => &CHARSELECT_BTN,
             MenuButton::Quit => &QUIT_BTN,
             MenuButton::Restart => &RESTART_BTN,
             MenuButton::Resurrect => &RESURRECT_BTN,
-            MenuButton::Sound => &DUMMY_BTN,
         }
     }
 
     fn label(self) -> &'static str {
         match self {
             MenuButton::Resume => "Resume",
+            MenuButton::Graphics => "Graphics",
             MenuButton::Sound => "Sound",
+            MenuButton::Shortcut => "Shortcut",
             MenuButton::CharSelect => "Character Select",
             MenuButton::Quit => "Quit Game",
             MenuButton::Restart => "Restart",
             MenuButton::Resurrect => "Resurrect",
         }
-    }
-
-    /// Buttons without dedicated GRF art render text-styled like the Sound button.
-    fn force_fallback(self) -> bool {
-        matches!(self, MenuButton::Sound)
     }
 }
 
@@ -287,14 +316,18 @@ impl SystemMenu {
         } else if self.has_grf_textures {
             vec![
                 MenuButton::CharSelect,
+                MenuButton::Graphics,
                 MenuButton::Sound,
+                MenuButton::Shortcut,
                 MenuButton::Quit,
                 MenuButton::Resume,
             ]
         } else {
             vec![
                 MenuButton::Resume,
+                MenuButton::Graphics,
                 MenuButton::Sound,
+                MenuButton::Shortcut,
                 MenuButton::CharSelect,
                 MenuButton::Quit,
             ]
@@ -304,8 +337,16 @@ impl SystemMenu {
     fn on_button_click(&mut self, button: MenuButton, events: &mut Vec<GameEvent>) {
         match button {
             MenuButton::Resume => self.open = false,
+            MenuButton::Graphics => {
+                events.push(GameEvent::ToggleGraphicOptions);
+                self.open = false;
+            }
             MenuButton::Sound => {
                 events.push(GameEvent::ToggleSoundOptions);
+                self.open = false;
+            }
+            MenuButton::Shortcut => {
+                events.push(GameEvent::ToggleShortcutList);
                 self.open = false;
             }
             MenuButton::CharSelect => self.pending_confirm = PendingConfirm::CharacterSelect,
@@ -353,15 +394,10 @@ impl SystemMenu {
 
         for (idx, &button) in buttons.iter().enumerate() {
             let rect = Rect::new(btn_x, btn_y(idx), btn_w, btn_h);
-            let prev_grf = ui.has_grf_textures;
-            if button.force_fallback() {
-                ui.has_grf_textures = false;
-            }
-            let clicked = ui
+            if ui
                 .button(button.id(), rect, button.textures(), button.label())
-                .clicked();
-            ui.has_grf_textures = prev_grf;
-            if clicked {
+                .clicked()
+            {
                 self.on_button_click(button, events);
             }
         }
@@ -471,14 +507,37 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
-        let btn_y = ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP;
-        ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
-        ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
+        let (mx, my) = button_center(600.0, 6, 0);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
         menu.build(&mut ui, &mut character, &data);
+        assert!(!menu.open);
+    }
+
+    #[test]
+    fn graphics_button_emits_toggle_and_closes() {
+        let mut menu = SystemMenu::new();
+        menu.open = true;
+        let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let (mx, my) = button_center(600.0, 6, 1);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        menu.allow_escape_toggle = true;
+        let events = menu.build(&mut ui, &mut character, &data);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::ToggleGraphicOptions))
+        );
         assert!(!menu.open);
     }
 
@@ -491,11 +550,9 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
-        let btn_y =
-            ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 2.0 * (FALLBACK_BTN_H + BTN_SPACING);
-        ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
-        ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
+        let (mx, my) = button_center(600.0, 6, 4);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
@@ -535,11 +592,9 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
-        let btn_y =
-            ((600.0 - MENU_H) / 2.0).floor() + PADDING_TOP + 3.0 * (FALLBACK_BTN_H + BTN_SPACING);
-        ctx.mouse_x = btn_x + FALLBACK_BTN_W / 2.0;
-        ctx.mouse_y = btn_y + FALLBACK_BTN_H / 2.0;
+        let (mx, my) = button_center(600.0, 6, 5);
+        ctx.mouse_x = mx;
+        ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
@@ -595,7 +650,7 @@ mod tests {
         assert!(menu.open);
     }
 
-    fn dead_button_center(screen_h: f32, button_count: usize, idx: usize) -> (f32, f32) {
+    fn button_center(screen_h: f32, button_count: usize, idx: usize) -> (f32, f32) {
         let n = button_count as f32;
         let menu_h = PADDING_TOP + n * FALLBACK_BTN_H + (n - 1.0) * BTN_SPACING + PADDING_BOTTOM;
         let btn_x = ((800.0 - MENU_W) / 2.0).floor() + (MENU_W - FALLBACK_BTN_W) / 2.0;
@@ -612,7 +667,7 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        let (mx, my) = dead_button_center(600.0, 3, 0);
+        let (mx, my) = button_center(600.0, 3, 0);
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
@@ -635,7 +690,7 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
 
-        let (mx, my) = dead_button_center(600.0, 4, 1);
+        let (mx, my) = button_center(600.0, 4, 1);
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = mx;
         ctx.mouse_y = my;

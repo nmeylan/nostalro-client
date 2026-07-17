@@ -4,6 +4,7 @@ use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
+use ragnarok_game::sprite_path::hide_allows_skill;
 use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
 use ragnarok_network::{
     build_contact_npc_packet, build_pickup_item_packet, build_req_buy_frommc_packet,
@@ -97,6 +98,10 @@ impl App {
             return;
         }
         if let Some(pending) = self.game.pending_skill_target {
+            if self.player_hidden() && !hide_allows_skill(pending.skill_id()) {
+                self.game.pending_skill_target = None;
+                return;
+            }
             if self.skill_on_cooldown(pending.skill_id()) {
                 return;
             }
@@ -202,6 +207,9 @@ impl App {
             return;
         }
         if let Some(item_id) = self.game.hovered_floor_item_id {
+            if self.player_hidden() {
+                return;
+            }
             self.game.attack_target_id = None;
             self.game.pending_pickup_item_id = None;
             if let Some(floor_item) = self.game.floor_items.get(&item_id) {
@@ -289,6 +297,9 @@ impl App {
             return;
         }
         if self.game.entities.player().is_some_and(|e| e.is_move_locked()) {
+            return;
+        }
+        if self.player_hide_move_blocked() {
             return;
         }
         let (dest_x, dest_y) = match self.hovered_cell() {

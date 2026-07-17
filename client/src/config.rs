@@ -23,29 +23,7 @@ impl Default for WindowStateEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct DisplayOptions {
-    pub show_other_damage: bool,
-    pub show_other_cast_bars: bool,
-    pub hide_name_player: bool,
-    pub hide_name_monster: bool,
-    pub hide_name_npc: bool,
-    pub show_level_aura: bool,
-}
-
-impl Default for DisplayOptions {
-    fn default() -> Self {
-        Self {
-            show_other_damage: true,
-            show_other_cast_bars: true,
-            hide_name_player: false,
-            hide_name_monster: false,
-            hide_name_npc: false,
-            show_level_aura: true,
-        }
-    }
-}
+pub use ragnarok_game::display::DisplayOptions;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -73,6 +51,12 @@ pub struct Config {
     pub hotkey_visible_rows: u8,
     pub battle_mode: bool,
     pub fog: bool,
+    pub fullscreen: bool,
+    /// The `/effect` flag: when false, one-shot skill/attack/item effects are
+    /// dropped (keyed persistent visuals like auras stay).
+    pub show_skill_effects: bool,
+    pub refuse_trade: bool,
+    pub refuse_party_invite: bool,
     pub display: DisplayOptions,
     /// Slot of the character selected last, restored to preselect it (and its page)
     /// on the next character-select screen. Client-side only; the server sends no
@@ -119,6 +103,10 @@ impl Default for Config {
             hotkey_visible_rows: 1,
             battle_mode: false,
             fog: false,
+            fullscreen: false,
+            show_skill_effects: true,
+            refuse_trade: false,
+            refuse_party_invite: false,
             display: DisplayOptions::default(),
             last_char_slot: None,
             map_recovery_command: default_map_recovery_command(),

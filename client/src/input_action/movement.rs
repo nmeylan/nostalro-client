@@ -1,8 +1,10 @@
 use crate::App;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::ailment;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::path::try_move_to_range;
+use ragnarok_game::sprite_path::{OPTION_HIDE, hide_blocks_move};
 use ragnarok_game::targeting::can_attack;
 use ragnarok_network::{build_action_request_packet, build_request_move_packet};
 
@@ -11,6 +13,33 @@ impl App {
         self.game.entities.player().is_some_and(|p| {
             ailment::movement_blocked(p.body_state, p.rooted) || p.vending_board.is_some()
         })
+    }
+
+    /// The local player is Hiding (not cloaking) without Tunnel Drive: the
+    /// server drops any walk request, so we never send one.
+    pub(crate) fn player_hide_move_blocked(&self) -> bool {
+        let effect_state = self
+            .game
+            .entities
+            .player()
+            .map(|p| p.effect_state)
+            .unwrap_or(0);
+        let knows_tunnel_drive = self
+            .game
+            .character
+            .skills
+            .get_skill(SkillEnum::RgTunneldrive.id() as u16)
+            .is_some();
+        hide_blocks_move(effect_state, knows_tunnel_drive)
+    }
+
+    /// The local player is Hiding: attack, pickup, sit/stand, item use and most
+    /// skills are blocked while the bit is set.
+    pub(crate) fn player_hidden(&self) -> bool {
+        self.game
+            .entities
+            .player()
+            .is_some_and(|p| p.effect_state & OPTION_HIDE != 0)
     }
 
     pub(crate) fn has_homunculus(&self) -> bool {
@@ -83,6 +112,9 @@ impl App {
     }
 
     pub(crate) fn initiate_attack(&mut self, target_id: u32) {
+        if self.player_hidden() {
+            return;
+        }
         self.game.pending_pickup_item_id = None;
         let locked = self.game.noctrl_mode || self.input.ctrl_pressed;
         self.game.attack_is_locked = locked;
@@ -134,6 +166,7 @@ impl App {
             return false;
         }
         if self.is_local_player_incapacitated()
+            || self.player_hide_move_blocked()
             || self.game.entities.player().is_some_and(|p| p.is_move_locked())
         {
             return false;

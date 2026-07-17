@@ -2994,6 +2994,7 @@ dependencies = [
  "ragnarok-ai",
  "ragnarok-effects",
  "ragnarok-formats",
+ "serde",
  "tracing",
 ]
 

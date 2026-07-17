@@ -36,6 +36,7 @@ use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::sound::SoundQueue;
+use ragnarok_game::sprite_path::{HiddenRender, hidden_render, hide_allows_skill};
 use ragnarok_game::targeting::{TargetClass, skill_target_class};
 use ragnarok_game::{map_loader, sprite_loader};
 use ragnarok_network::{
@@ -51,7 +52,7 @@ use ragnarok_network::{
     build_move_item_cart_to_body_packet, build_move_item_cart_to_store_packet,
     build_move_item_store_to_cart_packet, build_move_item_body_to_store_packet,
     build_move_item_store_to_body_packet, build_close_store_packet,
-    build_req_exchange_item_packet, build_ack_exchange_item_packet,
+    build_req_exchange_item_packet,
     build_add_exchange_item_packet, build_conclude_exchange_item_packet,
     build_cancel_exchange_item_packet, build_exec_exchange_item_packet,
     build_mail_get_list_packet, build_mail_open_packet, build_mail_delete_packet,
@@ -163,6 +164,7 @@ struct App {
     str_effects: StrEffectCache,
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
+    map_fog: Option<ragnarok_formats::fog_table::FogEntry>,
     grf: Option<GrfArchive>,
     input: InputState,
     ui_context: Option<UiContext>,
@@ -201,6 +203,9 @@ impl App {
             config.bgm_enabled,
             config.sfx_enabled,
         );
+        game.self_config.refuse_party_invite = config.refuse_party_invite;
+        let mut effect_queue = EffectQueue::new();
+        effect_queue.set_effects_enabled(config.show_skill_effects);
         let sound =
             SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
         Self {
@@ -212,7 +217,8 @@ impl App {
             effect_sprites: EffectSpriteCache::new(),
             str_effects: StrEffectCache::new(),
             effect_holder: EffectHolder::new(),
-            effect_queue: EffectQueue::new(),
+            effect_queue,
+            map_fog: None,
             grf: None,
             input: InputState::new(),
             ui_context: None,
@@ -262,6 +268,11 @@ impl App {
             ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
         self.game.repeat_sounds.clear();
 
+        self.game.day_night.on_map_loaded(
+            map_data.rsw.light.diffuse.unwrap_or([1.0, 1.0, 1.0]),
+            map_data.rsw.light.ambient.unwrap_or([0.3, 0.3, 0.3]),
+        );
+
         let rsw_key = map_name
             .rsplit(['/', '\\'])
             .next()
@@ -274,6 +285,8 @@ impl App {
 
         let (mut spr_paths, mut str_names) =
             ragnarok_game::effects::ambient_effect_assets(&map_data.rsw);
+
+        self.map_fog = map_data.fog;
 
         if let Some(renderer) = &mut self.renderer {
             let fog = if self.config.fog { map_data.fog } else { None };
@@ -855,6 +868,9 @@ impl App {
                     }
                 }
                 GameEvent::RequestUseItem { index } => {
+                    if self.player_hidden() {
+                        continue;
+                    }
                     let account_id = self
                         .game
                         .login_session
@@ -953,13 +969,7 @@ impl App {
                         .send_packet(build_req_exchange_item_packet(target_aid, self.config.packetver));
                 }
                 GameEvent::RespondExchangeRequest { accept } => {
-                    self.game.pending_trade_request = None;
-                    if !accept {
-                        self.game.pending_trade_partner = None;
-                    }
-                    let result = if accept { 3 } else { 4 };
-                    self.channel
-                        .send_packet(build_ack_exchange_item_packet(result, self.config.packetver));
+                    self.respond_exchange_request(accept);
                 }
                 GameEvent::RequestAddExchangeItem { index, count } => {
                     self.channel
@@ -1180,6 +1190,9 @@ impl App {
                     ));
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
+                    if self.player_hidden() && !hide_allows_skill(skill_id) {
+                        continue;
+                    }
                     if skill_id == SkillEnum::McChangecart.id() as u16 {
                         if self.game.character.cart_design.is_some() {
                             self.preload_cart_previews(&[1, 2, 3, 4, 5]);
@@ -1453,6 +1466,45 @@ impl App {
                     if persist {
                         self.config.save("config.json");
                     }
+                }
+                GameEvent::ToggleGraphicOptions => {
+                    if !self.game.graphic_options.open {
+                        let resolutions = self.available_resolutions();
+                        self.game.graphic_options.set_values(
+                            resolutions,
+                            (self.config.screen_width, self.config.screen_height),
+                            self.config.fullscreen,
+                            self.config.fog,
+                            self.config.show_skill_effects,
+                            self.config.display.clone(),
+                            self.config.refuse_trade,
+                            self.config.refuse_party_invite,
+                        );
+                    }
+                    self.game.graphic_options.toggle();
+                }
+                GameEvent::GraphicsSettingsChanged {
+                    width,
+                    height,
+                    fullscreen,
+                    fog,
+                    show_skill_effects,
+                    display,
+                    refuse_trade,
+                    refuse_party_invite,
+                    persist,
+                } => {
+                    self.apply_graphics_settings(
+                        width,
+                        height,
+                        fullscreen,
+                        fog,
+                        show_skill_effects,
+                        display,
+                        refuse_trade,
+                        refuse_party_invite,
+                        persist,
+                    );
                 }
                 GameEvent::TogglePartyWindow => {
                     self.game.party_friends_window.open_party_tab();
@@ -1942,6 +1994,81 @@ impl App {
         }
     }
 
+    fn available_resolutions(&self) -> Vec<(u32, u32)> {
+        let Some(monitor) = self.window.as_ref().and_then(|w| w.current_monitor()) else {
+            return Vec::new();
+        };
+        let monitor_size = monitor.size();
+        let is_standard_aspect =
+            |w: u32, h: u32| w * 3 == h * 4 || w * 9 == h * 16 || w * 10 == h * 16;
+        let mut resolutions: Vec<(u32, u32)> = monitor
+            .video_modes()
+            .map(|m| (m.size().width, m.size().height))
+            .filter(|&(w, h)| {
+                w > 800
+                    && w <= monitor_size.width
+                    && h <= monitor_size.height
+                    && is_standard_aspect(w, h)
+            })
+            .collect();
+        resolutions.sort();
+        resolutions.dedup();
+        resolutions
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn apply_graphics_settings(
+        &mut self,
+        width: u32,
+        height: u32,
+        fullscreen: bool,
+        fog: bool,
+        show_skill_effects: bool,
+        display: crate::config::DisplayOptions,
+        refuse_trade: bool,
+        refuse_party_invite: bool,
+        persist: bool,
+    ) {
+        let resolution_changed =
+            (width, height) != (self.config.screen_width, self.config.screen_height);
+        let fullscreen_changed = fullscreen != self.config.fullscreen;
+        let aura_changed = display.show_level_aura != self.config.display.show_level_aura;
+
+        self.config.screen_width = width;
+        self.config.screen_height = height;
+        self.config.fullscreen = fullscreen;
+        self.config.fog = fog;
+        self.config.show_skill_effects = show_skill_effects;
+        self.config.display = display;
+        self.config.refuse_trade = refuse_trade;
+        self.config.refuse_party_invite = refuse_party_invite;
+        self.game.self_config.refuse_party_invite = refuse_party_invite;
+
+        if let Some(window) = &self.window {
+            if fullscreen_changed {
+                window.set_fullscreen(
+                    fullscreen.then(|| winit::window::Fullscreen::Borderless(None)),
+                );
+            }
+            if resolution_changed && !fullscreen {
+                let _ = window.request_inner_size(winit::dpi::LogicalSize::new(width, height));
+            }
+        }
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_fog(if fog { self.map_fog } else { None });
+        }
+        self.effect_queue.set_effects_enabled(show_skill_effects);
+        if aura_changed {
+            let gids: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+            for gid in gids {
+                self.refresh_level_aura(gid);
+            }
+        }
+        if persist {
+            self.config.save("config.json");
+        }
+    }
+
     fn run_chat_command(&mut self, message: &str) {
         if message.is_empty() {
             return;
@@ -1975,6 +2102,9 @@ impl App {
         let cmd = command.split_whitespace().next().unwrap_or("");
         match cmd {
             "/sit" => {
+                if self.player_hidden() {
+                    return;
+                }
                 if let Some(entity) = self.game.entities.player() {
                     let action = if entity.state == EntityState::Sitting {
                         3u8
@@ -2011,6 +2141,77 @@ impl App {
                         self.config.packetver,
                     ));
                 }
+            }
+            "/effect" => {
+                let show = !self.config.show_skill_effects;
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    show,
+                    self.config.display.clone(),
+                    self.config.refuse_trade,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                let status = if show { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Skill effects: {status}"));
+            }
+            "/fog" => {
+                let fog = !self.config.fog;
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    fog,
+                    self.config.show_skill_effects,
+                    self.config.display.clone(),
+                    self.config.refuse_trade,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                let status = if fog { "ON" } else { "OFF" };
+                self.game.chat_window.add_system(format!("Fog: {status}"));
+            }
+            "/aura" => {
+                let mut display = self.config.display.clone();
+                display.show_level_aura = !display.show_level_aura;
+                let status = if display.show_level_aura { "ON" } else { "OFF" };
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    self.config.show_skill_effects,
+                    display,
+                    self.config.refuse_trade,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                self.game
+                    .chat_window
+                    .add_system(format!("Level aura: {status}"));
+            }
+            "/notrade" | "/nt" => {
+                let refuse = !self.config.refuse_trade;
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    self.config.show_skill_effects,
+                    self.config.display.clone(),
+                    refuse,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                let status = if refuse { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Refuse trade requests: {status}"));
             }
             "/noshift" | "/ns" => {
                 self.game.noshift_mode = !self.game.noshift_mode;
@@ -2637,6 +2838,9 @@ impl ApplicationHandler for App {
             ));
 
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
+        if self.config.fullscreen {
+            window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+        }
         let os_scale = window.scale_factor() as f32;
         let dpi_scale = if self.config.dpi_scale > 0.0 {
             self.config.dpi_scale / 100.0
@@ -2748,17 +2952,30 @@ impl ApplicationHandler for App {
                 let floor_item_render_list = self.compute_floor_item_render_list();
                 let mut cart_render_list = self.compute_cart_render_list();
                 cart_render_list.extend(self.compute_falcon_render_list());
+                // A stealthed actor the local player can't see is not hoverable or
+                // attackable: drop it before hit-testing (self stays out of picking
+                // regardless, so its shadow-only self view never enters here).
+                let pick_render_list: Vec<RenderEntry> = render_list
+                    .iter()
+                    .filter(|entry| {
+                        self.game.entities.get(entry.id).is_none_or(|e| {
+                            hidden_render(e.effect_state, self.hidden_viewer_for(entry.id))
+                                != HiddenRender::Skip
+                        })
+                    })
+                    .copied()
+                    .collect();
                 let hovered_entity_id = self.update_cursor_type(
                     hovered,
                     ui_any_hovered,
                     ui_any_interactive,
-                    &render_list,
+                    &pick_render_list,
                 );
                 self.game.hovered_entity_id = hovered_entity_id;
                 self.game.hovered_player_id = ragnarok_game::cursor::hovered_player(
                     self.input.mouse_position,
                     &self.game.entities,
-                    &render_list,
+                    &pick_render_list,
                 );
                 let hovered_named_id = hovered_entity_id.or(self.game.hovered_player_id);
                 if let Some(entity_id) = hovered_named_id

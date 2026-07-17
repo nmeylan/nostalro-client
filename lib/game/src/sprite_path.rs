@@ -108,12 +108,26 @@ pub const OPTION_CLOAK: i32 = 0x04;
 pub const OPTION_CHASEWALK: i32 = 0x4000;
 pub const OPTION_HIDDEN_MASK: i32 = OPTION_HIDE | OPTION_CLOAK | OPTION_CHASEWALK;
 
-pub const CLOAK_BODY_ALPHA: f32 = 50.0 / 255.0;
-pub const HIDE_BODY_ALPHA: f32 = 100.0 / 255.0;
+pub const CLOAK_BODY_ALPHA: f32 = 100.0 / 255.0;
+
+/// Skill known only to Rogues that lifts the Hiding no-move restriction.
+pub const SKILL_TUNNEL_DRIVE: u16 = 213;
+
+/// Relationship of the viewer to the stealthed actor. Self and party members
+/// (and, later, the caster's own pet) still see a cloaked body; everyone else
+/// sees nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HiddenViewer {
+    Own,
+    Ally,
+    Other,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum HiddenRender {
     Visible,
+    /// Draw only the shadow (Hiding for the local player).
+    ShadowOnly,
     Alpha(f32),
     Skip,
 }
@@ -122,14 +136,29 @@ pub fn is_hidden(effect_state: i32) -> bool {
     (effect_state & OPTION_HIDDEN_MASK) != 0
 }
 
-pub fn hidden_render(effect_state: i32, is_self: bool) -> HiddenRender {
-    if effect_state & OPTION_CLOAK != 0 {
-        HiddenRender::Alpha(CLOAK_BODY_ALPHA)
-    } else if effect_state & (OPTION_HIDE | OPTION_CHASEWALK) != 0 {
-        if is_self {
-            HiddenRender::Alpha(HIDE_BODY_ALPHA)
-        } else {
-            HiddenRender::Skip
+/// A hidden local player cannot walk unless Tunnel Drive is known; cloak and
+/// chase walk never block movement.
+pub fn hide_blocks_move(effect_state: i32, knows_tunnel_drive: bool) -> bool {
+    (effect_state & OPTION_HIDE) != 0 && !knows_tunnel_drive
+}
+
+/// The few skills usable while Hiding (TF_HIDING to unhide, plus the ambush
+/// attacks). Every other action is blocked until the bit clears.
+pub fn hide_allows_skill(skill_id: u16) -> bool {
+    matches!(skill_id, 51 | 137 | 212 | 214)
+}
+
+pub fn hidden_render(effect_state: i32, viewer: HiddenViewer) -> HiddenRender {
+    use HiddenViewer::*;
+    if effect_state & OPTION_HIDE != 0 {
+        match viewer {
+            Own => HiddenRender::ShadowOnly,
+            _ => HiddenRender::Skip,
+        }
+    } else if effect_state & (OPTION_CLOAK | OPTION_CHASEWALK) != 0 {
+        match viewer {
+            Own | Ally => HiddenRender::Alpha(CLOAK_BODY_ALPHA),
+            Other => HiddenRender::Skip,
         }
     } else {
         HiddenRender::Visible
@@ -525,23 +554,65 @@ mod tests {
     }
 
     #[test]
-    fn hidden_render_is_per_state_and_self_aware() {
+    fn hidden_render_is_per_state_and_viewer_aware() {
         use HiddenRender::*;
-        assert_eq!(hidden_render(0, true), Visible);
-        assert_eq!(hidden_render(OPTION_RIDING, false), Visible);
-        assert_eq!(hidden_render(OPTION_CLOAK, false), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(hidden_render(OPTION_CLOAK, true), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(
-            hidden_render(OPTION_CLOAK | OPTION_HIDE, false),
-            Alpha(CLOAK_BODY_ALPHA)
-        );
-        assert_eq!(hidden_render(OPTION_HIDE, true), Alpha(HIDE_BODY_ALPHA));
-        assert_eq!(hidden_render(OPTION_HIDE, false), Skip);
-        assert_eq!(
-            hidden_render(OPTION_CHASEWALK, true),
-            Alpha(HIDE_BODY_ALPHA)
-        );
-        assert_eq!(hidden_render(OPTION_CHASEWALK, false), Skip);
+        use HiddenViewer::*;
+        assert_eq!(hidden_render(0, Own), Visible);
+        assert_eq!(hidden_render(OPTION_RIDING, Other), Visible);
+
+        assert_eq!(hidden_render(OPTION_CLOAK, Own), Alpha(CLOAK_BODY_ALPHA));
+        assert_eq!(hidden_render(OPTION_CLOAK, Ally), Alpha(CLOAK_BODY_ALPHA));
+        assert_eq!(hidden_render(OPTION_CLOAK, Other), Skip);
+
+        assert_eq!(hidden_render(OPTION_HIDE, Own), ShadowOnly);
+        assert_eq!(hidden_render(OPTION_HIDE, Ally), Skip);
+        assert_eq!(hidden_render(OPTION_HIDE, Other), Skip);
+
+        // Hide beats cloak when both are set.
+        assert_eq!(hidden_render(OPTION_HIDE | OPTION_CLOAK, Own), ShadowOnly);
+        assert_eq!(hidden_render(OPTION_HIDE | OPTION_CLOAK, Ally), Skip);
+
+        let chasewalk = OPTION_CHASEWALK | OPTION_CLOAK;
+        assert_eq!(hidden_render(chasewalk, Own), Alpha(CLOAK_BODY_ALPHA));
+        assert_eq!(hidden_render(chasewalk, Ally), Alpha(CLOAK_BODY_ALPHA));
+        assert_eq!(hidden_render(chasewalk, Other), Skip);
+    }
+
+    #[test]
+    fn hide_blocks_move_only_without_tunnel_drive() {
+        use crate::skill::SkillList;
+
+        let mut list = SkillList::new();
+        list.set_skills(vec![crate::skill::SkillData {
+            id: 5,
+            name: "SM_BASH".to_string(),
+            level: 5,
+            selected_level: 5,
+            sp_cost: 10,
+            attack_range: 1,
+            upgradable: true,
+            skill_target_type: crate::skill::SkillTargetType::Target,
+        }]);
+        let knows = |l: &SkillList| l.get_skill(SKILL_TUNNEL_DRIVE).is_some();
+
+        assert!(hide_blocks_move(OPTION_HIDE, knows(&list)));
+        assert!(!hide_blocks_move(OPTION_CLOAK, knows(&list)));
+        assert!(!hide_blocks_move(
+            OPTION_CLOAK | OPTION_CHASEWALK,
+            knows(&list)
+        ));
+
+        list.add_skill(crate::skill::SkillData {
+            id: SKILL_TUNNEL_DRIVE,
+            name: "RG_TUNNELDRIVE".to_string(),
+            level: 1,
+            selected_level: 1,
+            sp_cost: 0,
+            attack_range: 0,
+            upgradable: false,
+            skill_target_type: crate::skill::SkillTargetType::Passive,
+        });
+        assert!(!hide_blocks_move(OPTION_HIDE, knows(&list)));
     }
 
     #[test]

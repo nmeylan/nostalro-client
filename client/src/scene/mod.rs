@@ -6,7 +6,7 @@ use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::shadow::shadow_size;
-use ragnarok_game::sprite_path::{HiddenRender, hidden_render};
+use ragnarok_game::sprite_path::{HiddenRender, HiddenViewer, hidden_render, is_hidden};
 use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{EffectFrameInputs, compose_effect_frame};
 use ragnarok_renderer::ui_renderer::UiVertex;
@@ -18,6 +18,24 @@ use ragnarok_renderer::{
 const FREEZE_SHATTER_ACTION: usize = 1;
 
 impl App {
+    /// Stealth-visibility relationship of the local player to `gid`: their own
+    /// body, a party member's, or a stranger's.
+    pub(crate) fn hidden_viewer_for(&self, gid: u32) -> HiddenViewer {
+        if self.game.entities.player_id() == Some(gid) {
+            return HiddenViewer::Own;
+        }
+        let is_ally = self
+            .game
+            .party
+            .as_ref()
+            .is_some_and(|p| p.members.iter().any(|m| m.aid == gid));
+        if is_ally {
+            HiddenViewer::Ally
+        } else {
+            HiddenViewer::Other
+        }
+    }
+
     pub(crate) fn compose_and_render(
         &mut self,
         render_list: &[RenderEntry],
@@ -83,8 +101,8 @@ impl App {
                         self.game.sprites.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        let is_self = Some(entry.id) == self.game.entities.player_id();
-                        let render = hidden_render(entity.effect_state, is_self);
+                        let render =
+                            hidden_render(entity.effect_state, self.hidden_viewer_for(entry.id));
                         if render == HiddenRender::Skip {
                             continue;
                         }
@@ -96,20 +114,11 @@ impl App {
                             };
                         let is_fading = fade_alpha < 1.0;
 
-                        let mut body_channels =
-                            self.effect_holder.body_channels_for_entity(entry.id);
-                        if let Some(rgb) = ailment::ailment_visual(
-                            entity.body_state,
-                            entity.health_state,
-                            entity.rooted,
-                        )
-                        .tint
-                        {
-                            body_channels.tint = Some(rgb);
-                        }
-                        body_channels.alpha *= body_alpha;
-
-                        if !is_fading && render == HiddenRender::Visible {
+                        // A hidden self keeps its shadow (visible gliding under
+                        // Tunnel Drive) but no body.
+                        let draws_shadow = !is_fading
+                            && matches!(render, HiddenRender::Visible | HiddenRender::ShadowOnly);
+                        if draws_shadow {
                             let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
                                 entry.screen_anchor,
@@ -123,7 +132,7 @@ impl App {
                             // feet. So effects occlude against the body at foot level.
                             // Skip for the dead: their big death-pop frame would stamp
                             // that depth over a ground effect they lie in and erase it.
-                            if entity.state != EntityState::Dead {
+                            if render == HiddenRender::Visible && entity.state != EntityState::Dead {
                                 let mut sil = sprite.build_batches(
                                     &entity.animation,
                                     Some(entry.camera_dir),
@@ -136,6 +145,23 @@ impl App {
                                 silhouette_batches.append(&mut sil);
                             }
                         }
+
+                        if render == HiddenRender::ShadowOnly {
+                            continue;
+                        }
+
+                        let mut body_channels =
+                            self.effect_holder.body_channels_for_entity(entry.id);
+                        if let Some(rgb) = ailment::ailment_visual(
+                            entity.body_state,
+                            entity.health_state,
+                            entity.rooted,
+                        )
+                        .tint
+                        {
+                            body_channels.tint = Some(rgb);
+                        }
+                        body_channels.alpha *= body_alpha;
 
                         // A living sprite stands upright (depth varies head-to-feet).
                         // A corpse lies flat, so its depth follows the ground plane.
@@ -509,24 +535,17 @@ impl App {
                         self.game.carts.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        let is_self = Some(entry.id) == self.game.entities.player_id();
-                        let render = hidden_render(entity.effect_state, is_self);
-                        if render == HiddenRender::Skip {
+                        if is_hidden(entity.effect_state) {
                             continue;
                         }
-                        let alpha = entity.alpha()
-                            * match render {
-                                HiddenRender::Alpha(a) => a,
-                                _ => 1.0,
-                            };
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
-                        body_channels.alpha *= alpha;
+                        body_channels.alpha *= entity.alpha();
 
                         // Flat feet-depth silhouette so effects (e.g. the level 99
                         // aura) occlude against the cart instead of bleeding
                         // through it, matching the player body.
-                        if entity.alpha() >= 1.0 && render == HiddenRender::Visible {
+                        if entity.alpha() >= 1.0 {
                             let mut sil = cart.sprite.build_batches(
                                 &cart.animation,
                                 Some(entry.camera_dir),
@@ -557,23 +576,16 @@ impl App {
                         self.game.falcons.get(&entry.id),
                         self.game.entities.get(entry.id),
                     ) {
-                        let is_self = Some(entry.id) == self.game.entities.player_id();
-                        let render = hidden_render(entity.effect_state, is_self);
-                        if render == HiddenRender::Skip {
+                        if is_hidden(entity.effect_state) {
                             continue;
                         }
-                        let alpha = entity.alpha()
-                            * match render {
-                                HiddenRender::Alpha(a) => a,
-                                _ => 1.0,
-                            };
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
-                        body_channels.alpha *= alpha;
+                        body_channels.alpha *= entity.alpha();
 
                         // Flat feet-depth silhouette so effects occlude against the
                         // falcon instead of bleeding through it (see the cart arm).
-                        if entity.alpha() >= 1.0 && render == HiddenRender::Visible {
+                        if entity.alpha() >= 1.0 {
                             let mut sil = falcon.sprite.build_batches(
                                 &falcon.animation,
                                 Some(entry.camera_dir),

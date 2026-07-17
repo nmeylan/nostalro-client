@@ -4,6 +4,7 @@ struct SpriteUniforms {
     _pad: f32,
     pan: vec2<f32>,
     _pad2: vec2<f32>,
+    world_light: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> sprite: SpriteUniforms;
@@ -40,5 +41,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if tex_color.a < 0.01 {
         discard;
     }
-    return tex_color;
+    return vec4<f32>(tex_color.rgb * sprite.world_light.rgb, tex_color.a);
 }

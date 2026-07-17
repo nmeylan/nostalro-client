@@ -79,6 +79,7 @@ pub struct SpriteUniforms {
     pub _pad: f32,
     pub pan: [f32; 2],
     pub _pad2: [f32; 2],
+    pub world_light: [f32; 4],
 }
 
 const INITIAL_VERTEX_CAPACITY: usize = 1024;
@@ -115,6 +116,7 @@ pub struct SpriteRenderer {
     silhouette_vertex_capacity: usize,
     silhouette_index_capacity: usize,
     depth_write: bool,
+    uniforms: SpriteUniforms,
 }
 
 impl SpriteRenderer {
@@ -135,6 +137,7 @@ impl SpriteRenderer {
             _pad: 0.0,
             pan: [0.0, 0.0],
             _pad2: [0.0, 0.0],
+            world_light: [1.0; 4],
         };
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("sprite_uniforms"),
@@ -147,7 +150,7 @@ impl SpriteRenderer {
                 label: Some("sprite_uniforms"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -288,6 +291,7 @@ impl SpriteRenderer {
             silhouette_vertex_capacity: INITIAL_VERTEX_CAPACITY,
             silhouette_index_capacity: INITIAL_INDEX_CAPACITY,
             depth_write,
+            uniforms: uniform_data,
         }
     }
 
@@ -461,15 +465,16 @@ impl SpriteRenderer {
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
     }
 
-    pub fn resize(&self, queue: &wgpu::Queue, logical_width: f32, logical_height: f32) {
-        let uniforms = SpriteUniforms {
-            screen_size: [logical_width, logical_height],
-            zoom: 1.0,
-            _pad: 0.0,
-            pan: [0.0, 0.0],
-            _pad2: [0.0, 0.0],
-        };
-        self.update_uniforms(queue, &uniforms);
+    pub fn resize(&mut self, queue: &wgpu::Queue, logical_width: f32, logical_height: f32) {
+        self.uniforms.screen_size = [logical_width, logical_height];
+        self.uniforms.zoom = 1.0;
+        self.uniforms.pan = [0.0, 0.0];
+        self.update_uniforms(queue, &self.uniforms);
+    }
+
+    pub fn set_world_light(&mut self, queue: &wgpu::Queue, light: [f32; 3]) {
+        self.uniforms.world_light = [light[0], light[1], light[2], 1.0];
+        self.update_uniforms(queue, &self.uniforms);
     }
 
     pub fn render(

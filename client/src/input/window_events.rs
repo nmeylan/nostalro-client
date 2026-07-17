@@ -342,6 +342,9 @@ impl App {
                     self.game.debug_overlay = !self.game.debug_overlay;
                 }
                 PhysicalKey::Code(KeyCode::Insert) => {
+                    if self.player_hidden() {
+                        return;
+                    }
                     if let Some(entity) = self.game.entities.player() {
                         let action = if entity.state == EntityState::Sitting {
                             3u8

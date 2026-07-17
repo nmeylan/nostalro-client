@@ -851,6 +851,18 @@ pub enum GameEvent {
         sfx_enabled: bool,
         persist: bool,
     },
+    ToggleGraphicOptions,
+    GraphicsSettingsChanged {
+        width: u32,
+        height: u32,
+        fullscreen: bool,
+        fog: bool,
+        show_skill_effects: bool,
+        display: crate::display::DisplayOptions,
+        refuse_trade: bool,
+        refuse_party_invite: bool,
+        persist: bool,
+    },
     SoundEffect {
         name: String,
         act: u8,

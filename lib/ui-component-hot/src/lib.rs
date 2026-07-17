@@ -48,6 +48,9 @@ use ragnarok_ui_component::game::chat_room_create_window::{
     CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
 };
 use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
+use ragnarok_ui_component::game::graphic_options::{
+    GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow,
+};
 use ragnarok_ui_component::game::shortcut_list_window::{
     SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
 };
@@ -115,6 +118,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "status",
     "quest",
     "quest_detail",
+    "graphic_options",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
@@ -244,6 +248,11 @@ enum State {
     },
     ShortcutList {
         win: ShortcutListWindow,
+        character: Character,
+        data: DataTable,
+    },
+    GraphicOptions {
+        win: GraphicOptionsWindow,
         character: Character,
         data: DataTable,
     },
@@ -1053,6 +1062,25 @@ fn create_single(name: &str) -> State {
             win.set_bindings(&ragnarok_game::emotion::default_shortcut_commands());
             win.toggle();
             State::ShortcutList {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "graphic_options" => {
+            let mut win = GraphicOptionsWindow::new();
+            win.set_values(
+                vec![(1024, 768), (1280, 720), (1280, 800), (1920, 1080)],
+                (1024, 768),
+                false,
+                false,
+                true,
+                ragnarok_game::display::DisplayOptions::default(),
+                false,
+                false,
+            );
+            win.toggle();
+            State::GraphicOptions {
                 win,
                 character: Character::new(),
                 data: DataTable::new(),
@@ -1952,6 +1980,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::GraphicOptions { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::Quest { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -2075,6 +2107,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::ChatRoomCreate { .. } => Some(CHAT_ROOM_CREATE_WINDOW_ID),
         State::Emotion { .. } => Some(EMOTION_WINDOW_ID),
         State::ShortcutList { .. } => Some(SHORTCUT_LIST_WINDOW_ID),
+        State::GraphicOptions { .. } => Some(GRAPHIC_OPTIONS_WINDOW_ID),
         State::Quest { .. } => Some(QUEST_WINDOW_ID),
         State::QuestDetail { .. } => Some(QUEST_DETAIL_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
@@ -2109,6 +2142,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::ChatRoomCreate { win, .. } => Some((CHAT_ROOM_CREATE_WINDOW_ID, win)),
         State::Emotion { win, .. } => Some((EMOTION_WINDOW_ID, win)),
         State::ShortcutList { win, .. } => Some((SHORTCUT_LIST_WINDOW_ID, win)),
+        State::GraphicOptions { win, .. } => Some((GRAPHIC_OPTIONS_WINDOW_ID, win)),
         State::Quest { win, .. } => Some((QUEST_WINDOW_ID, win)),
         State::QuestDetail { win, .. } => Some((QUEST_DETAIL_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
@@ -2671,6 +2705,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::ShortcutList {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::GraphicOptions {
             win,
             character,
             data,

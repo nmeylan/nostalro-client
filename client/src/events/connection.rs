@@ -149,6 +149,7 @@ impl App {
         self.game.warp_portal_keys.clear();
         self.game.sight_aura_keys.clear();
         self.game.ruwach_aura_keys.clear();
+        self.game.day_night.reset();
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
             renderer.model_renderer = None;
@@ -291,6 +292,7 @@ impl App {
             preload_window(&mut self.game.item_info_window, renderer, grf);
             preload_window(&mut self.game.book_window, renderer, grf);
             preload_window(&mut self.game.sound_options, renderer, grf);
+            preload_window(&mut self.game.graphic_options, renderer, grf);
             preload_window(&mut self.game.item_pickup_notification, renderer, grf);
             preload_window(&mut self.game.skill_tree_window, renderer, grf);
             preload_window(&mut self.game.hotkey_bar, renderer, grf);

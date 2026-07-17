@@ -4,7 +4,7 @@
   "login_port": 6900,
   "screen_width": 1024,
   "screen_height": 768,
-  "bgm_volume": 0.28157103,
+  "bgm_volume": 0.18214396,
   "sfx_volume": 0.09425334,
   "bgm_enabled": false,
   "sfx_enabled": true,
@@ -21,66 +21,10 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "424": {
-      "position": [
-        520.0,
-        633.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "3950": {
-      "position": [
-        560.0,
-        60.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "3900": {
-      "position": [
-        363.96484,
-        652.1719
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1400": {
-      "position": [
-        1.640625,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        143.33334,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "110": {
       "position": [
         341.3333,
         568.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "800": {
-      "position": [
-        3.1015625,
-        126.66797
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "3941": {
-      "position": [
-        520.0,
-        667.0
       ],
       "open": false,
       "collapsed": false
@@ -93,10 +37,58 @@
       "open": false,
       "collapsed": false
     },
+    "800": {
+      "position": [
+        3.1015625,
+        126.66797
+      ],
+      "open": true,
+      "collapsed": false
+    },
     "210": {
       "position": [
-        45.333313,
+        274.79034,
         346.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        1.640625,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "3400": {
+      "position": [
+        339.16016,
+        328.32812
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        143.33334,
+        344.66666
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "4200": {
+      "position": [
+        749.33856,
+        476.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "3900": {
+      "position": [
+        260.0,
+        60.0
       ],
       "open": false,
       "collapsed": false
@@ -105,6 +97,10 @@
   "hotkey_visible_rows": 1,
   "battle_mode": false,
   "fog": true,
+  "fullscreen": false,
+  "show_skill_effects": true,
+  "refuse_trade": false,
+  "refuse_party_invite": false,
   "display": {
     "show_other_damage": true,
     "show_other_cast_bars": true,

@@ -60,6 +60,11 @@ pub struct ButtonTextures {
     pub pressed: &'static str,
 }
 
+pub struct CheckboxTextures {
+    pub off: &'static str,
+    pub on: &'static str,
+}
+
 pub struct Response {
     clicked: bool,
     double_clicked: bool,
@@ -567,6 +572,55 @@ impl<'a> UiFrame<'a> {
         response
     }
 
+    pub fn checkbox(
+        &mut self,
+        id: WidgetId,
+        rect: Rect,
+        checked: &mut bool,
+        textures: &CheckboxTextures,
+    ) -> Response {
+        let response = self.interact(id, rect);
+        if response.hovered {
+            self.any_interactive_hovered = true;
+        }
+        if response.clicked {
+            *checked = !*checked;
+        }
+
+        if self.has_grf_textures {
+            let tex = if *checked { textures.on } else { textures.off };
+            let (verts, indices) =
+                draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
+            self.draw_calls.push(DrawCall {
+                vertices: verts.to_vec(),
+                indices: indices.to_vec(),
+                texture: TextureRef::Named(tex.to_string()),
+            });
+        } else {
+            let mut fill = |x: f32, y: f32, w: f32, h: f32, color: [f32; 4]| {
+                let (verts, indices) = draw::quad_vertices(x, y, w, h, color);
+                self.draw_calls.push(DrawCall {
+                    vertices: verts.to_vec(),
+                    indices: indices.to_vec(),
+                    texture: TextureRef::White,
+                });
+            };
+            fill(rect.x, rect.y, rect.w, rect.h, [0.6, 0.6, 0.65, 1.0]);
+            fill(rect.x + 1.0, rect.y + 1.0, rect.w - 2.0, rect.h - 2.0, [1.0, 1.0, 1.0, 1.0]);
+            if *checked {
+                fill(
+                    rect.x + 2.0,
+                    rect.y + 2.0,
+                    rect.w - 4.0,
+                    rect.h - 4.0,
+                    [0.286, 0.4, 0.7, 1.0],
+                );
+            }
+        }
+
+        response
+    }
+
     /// A labeled button drawn procedurally regardless of GRF textures — for
     /// buttons whose label has no dedicated texture (e.g. Apply/Revert/Add).
     pub fn text_button(&mut self, id: WidgetId, rect: Rect, label: &str) -> Response {
@@ -645,6 +699,7 @@ impl<'a> UiFrame<'a> {
         let padding = 4.0;
         let available_w = rect.w - padding * 2.0;
         let text_y = rect.y - 2.0 + self.atlas.line_height;
+        let is_multiline = rect.h > 2.0 * self.atlas.line_height;
 
         let cursor_text = &text[..state.display_cursor_offset()];
         let cursor_px = self.atlas.measure_text(cursor_text);
@@ -670,7 +725,11 @@ impl<'a> UiFrame<'a> {
 
         if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
-            let caret_y = text_y - self.atlas.ascent;
+            let caret_y = if is_multiline {
+                text_y - self.atlas.ascent
+            } else {
+                rect.y + (rect.h - self.atlas.ascent) / 2.0
+            };
             let caret_color = [0.0, 0.0, 0.0, 1.0];
             let (v, i) =
                 draw::quad_vertices(cursor_x, caret_y, 1.0, self.atlas.ascent, caret_color);
