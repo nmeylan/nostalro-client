@@ -1428,10 +1428,7 @@ fn create_single(name: &str) -> State {
             );
             character.hotkeys.set_slot(
                 1,
-                HotkeySlotContent::Item {
-                    item_id: 501,
-                    inventory_index: 0,
-                },
+                HotkeySlotContent::Item { inventory_index: 0 },
             );
 
             let mut skill_names = HashMap::new();

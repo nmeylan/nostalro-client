@@ -287,6 +287,7 @@ impl App {
                         dx,
                         dy,
                         self.config.free_camera,
+                        self.game.camera_locked,
                     );
                 }
             }
@@ -301,7 +302,7 @@ impl App {
                 MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
             };
             if let Some(renderer) = &mut self.renderer {
-                super::handle_camera_zoom(&mut renderer.camera, scroll);
+                super::handle_camera_zoom(&mut renderer.camera, scroll, self.game.camera_locked);
             }
         }
     }

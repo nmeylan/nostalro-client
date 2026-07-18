@@ -22,7 +22,7 @@ use ragnarok_game::sound::tables::{
     StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
 };
 use ragnarok_game::sprite_path::{
-    JT_WARPNPC, OPTION_HIDE, OPTION_RIDING, OPTION_RUWACH, OPTION_SIGHT, OPTION_STATUS_ICONS,
+    JT_WARPNPC, OPTION_HIDE, OPTION_RUWACH, OPTION_SIGHT, OPTION_STATUS_ICONS,
     cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job,
 };
 use ragnarok_game::status_icon::status_icon_info;
@@ -543,21 +543,21 @@ impl App {
         let (mut old_cart, mut new_cart) = (None, None);
         let (mut old_falcon, mut new_falcon) = (false, false);
         if let Some(entity) = self.game.entities.get_mut(gid) {
-            let old_riding = (entity.effect_state & OPTION_RIDING) != 0;
-            let new_riding = (effect_state & OPTION_RIDING) != 0;
+            let old_sprite_job = visual_job(entity.job, entity.effect_state);
+            let new_sprite_job = visual_job(entity.job, effect_state);
             old_cart = cart_design_from_option(entity.effect_state);
             new_cart = cart_design_from_option(effect_state);
             old_falcon = has_falcon(entity.effect_state);
             new_falcon = has_falcon(effect_state);
             entity.cart_type = new_cart;
             tracing::debug!(
-                "  old_effect=0x{:08x} old_riding={old_riding} new_riding={new_riding} job={}",
+                "  old_effect=0x{:08x} new_effect=0x{effect_state:08x} job={}",
                 entity.effect_state,
                 entity.job
             );
             entity.effect_state = effect_state;
-            if old_riding != new_riding {
-                let sprite_job = visual_job(entity.job, effect_state);
+            if old_sprite_job != new_sprite_job {
+                let sprite_job = new_sprite_job;
                 let (sex, head, shield, head_top, head_mid, head_bottom, hair_color) = (
                     entity.sex,
                     entity.head,

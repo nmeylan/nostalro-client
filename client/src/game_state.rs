@@ -138,6 +138,10 @@ pub struct GameState {
     pub requested_guild_emblems: HashSet<(u32, i32)>,
     pub map_coords: Option<MapCoordinates>,
     pub gat: Option<GatFile>,
+    /// Set on indoor maps; locks the camera rotation to the fixed indoor angle.
+    pub camera_locked: bool,
+    /// Camera yaw captured when entering an indoor map, restored on exit.
+    pub saved_camera_yaw: Option<f32>,
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     /// Animation state of GR2 model entities (emperium, guardians…) keyed by
@@ -180,6 +184,9 @@ pub struct GameState {
     pub read_mail_window: ReadMailWindow,
     pub cart_select_window: CartSelectWindow,
     pub npc_dialog: NpcDialog,
+    /// NPC cutin illustrations by position slot (0 left / 1 middle / 2 right);
+    /// GRF base name under `data/texture/유저인터페이스/illust/`.
+    pub npc_cutins: [Option<String>; 3],
     pub warp_list_window: WarpListWindow,
     pub item_list_selection_window: ItemListSelectionWindow,
     pub make_item_window: MakeItemWindow,
@@ -780,10 +787,24 @@ impl GameState {
         }
         let center_x = ui.ctx.screen_width * 0.5;
         let line_h = ui.atlas.line_height + 4.0;
+        const PAD: f32 = 4.0;
         for (index, (text, alpha)) in self.poptip.iter().enumerate() {
             let width = ui.atlas.measure_text(text);
             let x = center_x - width * 0.5;
             let y = BASE_Y - index as f32 * line_h;
+
+            let box_w = width + PAD * 2.0;
+            let box_h = ui.atlas.line_height + PAD * 2.0;
+            let box_x = x - PAD;
+            let box_y = y - ui.atlas.line_height * 0.5 - PAD;
+            let (bg_v, bg_i) =
+                ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, box_h, [0.0, 0.0, 0.0, 0.8 * alpha]);
+            ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
+                vertices: bg_v.to_vec(),
+                indices: bg_i.to_vec(),
+                texture: ragnarok_ui::draw::TextureRef::White,
+            });
+
             ui.text(x, y, text, [1.0, 1.0, 1.0, alpha]);
         }
     }
@@ -1129,6 +1150,8 @@ impl GameState {
             requested_guild_emblems: HashSet::new(),
             map_coords: None,
             gat: None,
+            camera_locked: false,
+            saved_camera_yaw: None,
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
             gr2_models: HashMap::new(),
@@ -1165,6 +1188,7 @@ impl GameState {
             read_mail_window: ReadMailWindow::new(),
             cart_select_window: CartSelectWindow::new(),
             npc_dialog: NpcDialog::new(),
+            npc_cutins: [None, None, None],
             warp_list_window: WarpListWindow::new(),
             item_list_selection_window: ItemListSelectionWindow::new(),
             make_item_window: MakeItemWindow::new(),

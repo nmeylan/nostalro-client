@@ -398,8 +398,10 @@ impl App {
                 return;
             }
         }
-        let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
-        let is_miss = hit.damage == 0 && !is_multi_hit;
+        let is_miss = match hit.message {
+            DamageMessage::AttackedMultiHit { total_damage } => total_damage == 0,
+            _ => hit.damage == 0,
+        };
 
         let display_entity = if is_miss && hit.attacker_gid != 0 {
             hit.attacker_gid

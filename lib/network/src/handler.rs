@@ -528,6 +528,25 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::MvpReward { gid: p.aid }];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcCouplename>() {
+        let name: String = p.couple_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::CoupleNameReceived { name }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCongratulation>() {
+        return vec![GameEvent::WeddingCelebration { account_id: p.aid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcDivorce>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::Divorced { name }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcShowImage2>() {
+        let image: String = p.image_name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::NpcCutin {
+            image,
+            position: p.atype,
+        }];
+    }
+
     if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
         return vec![GameEvent::ParameterChanged {
             var_id: p.var_id,
@@ -3822,6 +3841,46 @@ mod tests {
     }
 
     #[test]
+    fn show_image2_wire_bytes_parse_to_npc_cutin() {
+        let packetver = 20120307;
+        let name = b"wedding_marry0";
+        let mut raw = vec![0xb3, 0x01];
+        raw.extend_from_slice(name);
+        raw.resize(2 + 64, 0);
+        raw.push(2);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        assert!(
+            parsed.as_any().is::<PacketZcShowImage2>(),
+            "0x01b3 must parse as ZC_SHOW_IMAGE2, got {}",
+            parsed.name()
+        );
+        match dispatch_packet(parsed.as_ref(), packetver).as_slice() {
+            [GameEvent::NpcCutin { image, position }] => {
+                assert_eq!(image, "wedding_marry0");
+                assert_eq!(*position, 2);
+            }
+            other => panic!("expected NpcCutin, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn open_editdlgstr_wire_bytes_parse_to_npc_input_string() {
+        let packetver = 20120307;
+        let mut raw = vec![0xd4, 0x01];
+        raw.extend_from_slice(&110002361u32.to_le_bytes());
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        assert!(
+            parsed.as_any().is::<PacketZcOpenEditdlgstr>(),
+            "0x01d4 must parse as ZC_OPEN_EDITDLGSTR, got {}",
+            parsed.name()
+        );
+        match dispatch_packet(parsed.as_ref(), packetver).as_slice() {
+            [GameEvent::NpcInputString { npc_id }] => assert_eq!(*npc_id, 110002361),
+            other => panic!("expected NpcInputString, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn dispatch_state_change3_returns_entity_option_changed() {
         let packetver = 20120307;
         let mut pkt = PacketZcStateChange3::new(packetver);
@@ -4394,5 +4453,39 @@ mod tests {
         clear.set_atype(0);
         apply(&mut log, &mut markers, &clear);
         assert!(markers.get(&555).is_none());
+    }
+
+    #[test]
+    fn marriage_packets_carry_names_effect_and_trim_nulls() {
+        let packetver = 20120307;
+        let name24 = |n: &str| {
+            let mut b = [0u8; 24];
+            b[..n.len()].copy_from_slice(n.as_bytes());
+            b.map(|c| c as char)
+        };
+
+        let mut couple = PacketZcCouplename::new(packetver);
+        couple.set_couple_name(name24("Juliet"));
+        couple.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&couple, packetver).as_slice(),
+            [GameEvent::CoupleNameReceived { name }] if name == "Juliet"
+        ));
+
+        let mut congrats = PacketZcCongratulation::new(packetver);
+        congrats.set_aid(654321);
+        congrats.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&congrats, packetver).as_slice(),
+            [GameEvent::WeddingCelebration { account_id: 654321 }]
+        ));
+
+        let mut divorce = PacketZcDivorce::new(packetver);
+        divorce.set_name(name24("Romeo"));
+        divorce.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&divorce, packetver).as_slice(),
+            [GameEvent::Divorced { name }] if name == "Romeo"
+        ));
     }
 }

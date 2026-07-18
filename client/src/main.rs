@@ -260,6 +260,18 @@ impl App {
         self.game.map_missing_window.hide();
         self.game.map_coords = map_data.coordinates;
         self.game.gat = map_data.gat;
+        let was_locked = self.game.camera_locked;
+        self.game.camera_locked = map_data.indoor;
+        if let Some(renderer) = &mut self.renderer {
+            if map_data.indoor {
+                if !was_locked {
+                    self.game.saved_camera_yaw = Some(renderer.camera.yaw);
+                }
+                input::lock_indoor_camera(&mut renderer.camera);
+            } else if was_locked && let Some(yaw) = self.game.saved_camera_yaw.take() {
+                renderer.camera.yaw = yaw;
+            }
+        }
 
         self.game.ambient_effects.clear(&mut self.effect_queue);
         self.game.ambient_effects =
@@ -1172,7 +1184,7 @@ impl App {
                     self.game
                         .character
                         .hotkeys
-                        .set_from_server(&slots, self.game.character.inventory.all_items());
+                        .set_from_server(&slots);
                 }
                 GameEvent::RequestHotkeyChange {
                     index,

@@ -326,7 +326,10 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         S::AcConcentration => &[E::Incagidex],
         S::MoExtremityfist => &[E::Beginasura],
 
-        S::AmCallhomun | S::AmRest | S::AmResurrecthomun => &[E::Couplecasting],
+        S::AmCallhomun | S::AmRest | S::AmResurrecthomun | S::WeMale | S::WeCallpartner => {
+            &[E::Couplecasting]
+        }
+        S::WeFemale => &[E::Heartcasting],
 
         S::AmTwilight1 => &[E::Twilight1],
         S::AmTwilight2 => &[E::Twilight2],
@@ -425,6 +428,7 @@ pub fn is_cast_circle(id: EffectId) -> bool {
             | E::Bluecasting
             | E::Beginasura
             | E::Couplecasting
+            | E::Heartcasting
             | E::Castspin
             | E::Incagidex
             | E::Brandish2
@@ -894,7 +898,8 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::HfliMoon => T::on_target(&[E::Hflimoon1]),
         S::HfliSbr44 => T::on_target(&[E::Hflimoon3, E::Ef4waybody]),
         S::WeFemale => T::on_target(&[E::Absorbspirits]),
-        S::WeMale | S::HlifHeal => T::on_target(&[E::Heal4]),
+        S::WeMale => T::on_target(&[E::Heal]),
+        S::HlifHeal => T::on_target(&[E::Heal4]),
         S::WeBaby => T::on_target(&[E::Baby]),
         S::AllResurrection => T::on_target(&[E::Resurrection, E::Revive]),
         S::AllPartyflee => T::on_target(&[E::Flowerleaf]),
@@ -1278,6 +1283,19 @@ mod tests {
         assert_eq!(begin_cast_effect(S::BaMusicalstrike), &[E::Bash]);
         assert_eq!(begin_cast_effect(S::DcThrowarrow), &[E::Bash]);
         assert_eq!(begin_cast_effect(S::AmTwilight2), &[E::Twilight2]);
+    }
+
+    #[test]
+    fn wedding_skills_cast_couple_and_heart_circles() {
+        use EffectId as E;
+        use SkillEnum as S;
+        assert_eq!(begin_cast_effect(S::WeMale), &[E::Couplecasting]);
+        assert_eq!(begin_cast_effect(S::WeCallpartner), &[E::Couplecasting]);
+        assert_eq!(begin_cast_effect(S::WeFemale), &[E::Heartcasting]);
+        assert!(is_cast_circle(E::Couplecasting));
+        assert!(is_cast_circle(E::Heartcasting));
+        assert_eq!(target_skill_effects(S::WeMale).on_target, &[E::Heal]);
+        assert_eq!(target_skill_effects(S::WeFemale).on_target, &[E::Absorbspirits]);
     }
 
     #[test]

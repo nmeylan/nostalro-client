@@ -77,6 +77,35 @@ pub fn mercenary_type_index(job: u16) -> u16 {
 
 pub const OPTION_FALCON: i32 = 0x10;
 pub const OPTION_RIDING: i32 = 0x20;
+pub const OPTION_WEDDING: i32 = 0x1000;
+pub const OPTION_SANTA: i32 = 0x10000;
+pub const OPTION_SUMMER: i32 = 0x40000;
+
+/// Costume jobs: the body layer uses a whole-body sprite and the weapon and
+/// shield layers are not loaded while a costume bit is set.
+pub const JT_MARRIED: u16 = 22;
+pub const JT_SANTA: u16 = 26;
+pub const JT_SUMMER: u16 = 27;
+
+pub fn is_wedding(effect_state: i32) -> bool {
+    (effect_state & OPTION_WEDDING) != 0
+}
+
+pub fn costume_job(effect_state: i32) -> Option<u16> {
+    if effect_state & OPTION_WEDDING != 0 {
+        Some(JT_MARRIED)
+    } else if effect_state & OPTION_SANTA != 0 {
+        Some(JT_SANTA)
+    } else if effect_state & OPTION_SUMMER != 0 {
+        Some(JT_SUMMER)
+    } else {
+        None
+    }
+}
+
+pub fn is_costume_job(job: u16) -> bool {
+    matches!(job, JT_MARRIED | JT_SANTA | JT_SUMMER)
+}
 
 pub const EFST_RIDING: i16 = 27;
 pub const EFST_FALCON: i16 = 28;
@@ -176,7 +205,9 @@ pub fn mounted_job(job: u16) -> Option<u16> {
 }
 
 pub fn visual_job(job: u16, effect_state: i32) -> u16 {
-    if (effect_state & OPTION_RIDING) != 0 {
+    if let Some(costume) = costume_job(effect_state) {
+        costume
+    } else if (effect_state & OPTION_RIDING) != 0 {
         mounted_job(job).unwrap_or(job)
     } else {
         job
@@ -237,9 +268,12 @@ fn job_name_kr(job_class: u16) -> &'static str {
         19 => "바드",
         20 => "무희",
         21 => "신페코크루세이더",
+        22 => "결혼",
         23 => "슈퍼노비스",
         24 => "건너",
         25 => "닌자",
+        26 => "산타",
+        27 => "여름",
         4001 => "초보자",
         4002 => "검사",
         4003 => "마법사",
@@ -745,6 +779,28 @@ mod tests {
         assert_eq!(visual_job(7, 0), 7);
         assert_eq!(visual_job(14, 0), 14);
         assert_eq!(visual_job(7, 0x01), 7);
+    }
+
+    #[test]
+    fn costume_bits_swap_body_and_win_over_riding() {
+        assert_eq!(visual_job(7, OPTION_WEDDING), JT_MARRIED);
+        assert_eq!(visual_job(7, OPTION_SANTA), JT_SANTA);
+        assert_eq!(visual_job(7, OPTION_SUMMER), JT_SUMMER);
+        assert_eq!(visual_job(7, OPTION_WEDDING | OPTION_RIDING), JT_MARRIED);
+        assert_eq!(visual_job(4008, OPTION_SANTA | OPTION_RIDING), JT_SANTA);
+        assert_eq!(visual_job(7, 0), 7);
+        assert_eq!(
+            body_sprite_path(JT_MARRIED, 1),
+            "data/sprite/인간족/몸통/남/결혼_남"
+        );
+        assert_eq!(
+            body_sprite_path(JT_SANTA, 0),
+            "data/sprite/인간족/몸통/여/산타_여"
+        );
+        assert_eq!(
+            body_sprite_path(JT_SUMMER, 1),
+            "data/sprite/인간족/몸통/남/여름_남"
+        );
     }
 
     #[test]

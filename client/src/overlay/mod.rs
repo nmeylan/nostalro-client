@@ -44,6 +44,7 @@ impl App {
     ) -> Vec<UiDrawCall> {
         let mut calls = Vec::new();
 
+        self.build_npc_cutins(&mut calls);
         self.build_hovered_entity_overlay(hovered_entity_id, render_list, &mut calls);
         self.build_guild_emblems(render_list, &mut calls);
         self.build_player_bars(hovered_entity_id, render_list, &mut calls);
@@ -56,6 +57,37 @@ impl App {
         self.build_debug_pick_bounds(render_list, floor_item_render_list, &mut calls);
 
         calls
+    }
+
+    /// NPC cutin illustrations, anchored along the bottom of the screen at their
+    /// native size: slot 0 left, 1 middle, 2 right. Drawn before the hover overlay
+    /// so it sits under the NPC dialog.
+    fn build_npc_cutins(&self, calls: &mut Vec<UiDrawCall>) {
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+        let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        for (slot, image) in self.game.npc_cutins.iter().enumerate() {
+            let Some(image) = image else { continue };
+            let path = crate::events::marriage::cutin_texture_path(image);
+            let Some((w, h)) = renderer.texture_cache.texture_size(&path) else {
+                continue;
+            };
+            let (w, h) = (w as f32, h as f32);
+            let x = match slot {
+                0 => 0.0,
+                1 => ((screen_w - w) / 2.0).max(0.0),
+                _ => (screen_w - w).max(0.0),
+            };
+            let y = (screen_h - h).max(0.0);
+            let (verts, indices) = ragnarok_ui::draw::quad_vertices(x, y, w, h, [1.0; 4]);
+            calls.push(UiDrawCall {
+                vertices: verts.to_vec(),
+                indices: indices.to_vec(),
+                texture: UiTextureRef::Named(path),
+            });
+        }
     }
 
     fn build_hovered_entity_overlay(

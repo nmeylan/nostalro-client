@@ -351,6 +351,12 @@ pub fn load_player_sprite_data(
 ) -> Option<PlayerSpriteData> {
     let body = load_body_sprite(grf, job, sex, cloth_color)?;
     let head = load_head_sprite(grf, head_id, sex, hair_color);
+    // Costume bodies never render a weapon or shield.
+    let (weapon, shield_id) = if crate::sprite_path::is_costume_job(job) {
+        (None, 0)
+    } else {
+        (weapon, shield_id)
+    };
     let weapon_type = weapon;
     let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt));
     let weapon_trail = weapon

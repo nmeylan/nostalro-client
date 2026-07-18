@@ -380,6 +380,7 @@ impl App {
         self.game.pending_skill_id = None;
         self.game.pending_skill_level = None;
         self.game.attack_target_id = None;
+        self.game.npc_cutins = [None, None, None];
         let map_name = map_name
             .strip_suffix(".gat")
             .unwrap_or(&map_name)

@@ -75,6 +75,8 @@ pub struct Character {
     pub effect_state: i32,
     pub cart_design: Option<u8>,
     pub active_statuses: Vec<ActiveStatus>,
+    /// Married partner's name (from ZC_COUPLENAME); empty when unpartnered.
+    pub partner_name: String,
 }
 
 impl Default for Character {
@@ -142,6 +144,7 @@ impl Character {
             effect_state: 0,
             cart_design: None,
             active_statuses: Vec::new(),
+            partner_name: String::new(),
         }
     }
 
@@ -387,6 +390,7 @@ impl Character {
         self.effect_state = 0;
         self.cart_design = None;
         self.active_statuses.clear();
+        self.partner_name.clear();
     }
 }
 

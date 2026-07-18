@@ -35,7 +35,7 @@ impl EntityCollection {
 
     /// Resolves an actor id from a name/guild packet to an entity key, following
     /// the account-id bridge when the id is a player's account id.
-    fn resolve_key(&self, id: u32) -> u32 {
+    pub fn resolve_key(&self, id: u32) -> u32 {
         self.account_to_key.get(&id).copied().unwrap_or(id)
     }
 

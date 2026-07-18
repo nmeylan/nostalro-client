@@ -9,6 +9,7 @@ mod guild;
 mod inventory;
 mod login;
 mod mail;
+pub(crate) mod marriage;
 mod npc;
 mod party;
 mod pet;
@@ -344,6 +345,7 @@ impl App {
                         self.game.npc_dialog.dialog.wait_for_close(npc_id);
                     } else {
                         self.game.npc_dialog.dialog.close();
+                        self.game.npc_cutins = [None, None, None];
                         self.channel
                             .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
                     }
@@ -909,6 +911,9 @@ impl App {
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, level, x, y);
+                    if SkillEnum::from_id(skill_id as u32) == SkillEnum::WeCallpartner {
+                        self.spawn_call_partner_balloon(src_gid);
+                    }
                     let falcon_target = if self.game.falcons.contains_key(&src_gid)
                         && matches!(
                             SkillEnum::from_id(skill_id as u32),
@@ -978,7 +983,7 @@ impl App {
                     self.game
                         .character
                         .hotkeys
-                        .set_from_server(&slots, self.game.character.inventory.all_items());
+                        .set_from_server(&slots);
                 }
                 GameEvent::Disconnected(reason) => {
                     self.handle_disconnected(reason, event_loop);
@@ -1389,6 +1394,19 @@ impl App {
                     color,
                 } => {
                     self.handle_quest_npc_marker(npc_id, x, y, effect, color);
+                }
+
+                GameEvent::CoupleNameReceived { name } => {
+                    self.game.character.partner_name = name;
+                }
+                GameEvent::WeddingCelebration { account_id } => {
+                    self.handle_wedding_celebration(account_id);
+                }
+                GameEvent::Divorced { name } => {
+                    self.handle_divorced(name);
+                }
+                GameEvent::NpcCutin { image, position } => {
+                    self.handle_npc_cutin(image, position);
                 }
 
                 _ => {}

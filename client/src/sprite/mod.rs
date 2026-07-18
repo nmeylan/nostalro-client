@@ -148,10 +148,17 @@ impl App {
                 .members
                 .iter()
                 .map(|m| {
+                    let sex = self
+                        .game
+                        .entities
+                        .get(m.gid)
+                        .or_else(|| self.game.entities.get(self.game.entities.resolve_key(m.aid)))
+                        .map(|e| e.sex)
+                        .unwrap_or_else(|| m.sex.max(0) as u8);
                     (
                         m.gid,
                         m.job.max(0) as u16,
-                        m.sex.max(0) as u8,
+                        sex,
                         m.head.max(0) as u16,
                         m.head_palette.max(0) as u16,
                     )

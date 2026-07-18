@@ -402,13 +402,19 @@ impl DamageNumberManager {
             return;
         }
 
-        if hit.damage == 0 && !is_multi_hit {
-            self.add(DamageNumber::new(
-                entity_id,
-                0,
-                DamageNumberType::Miss,
-                direction,
-            ));
+        let total_zero = match hit.message {
+            DamageMessage::AttackedMultiHit { total_damage } => total_damage == 0,
+            _ => hit.damage == 0,
+        };
+        if total_zero {
+            if hit.hit_index == 0 {
+                self.add(DamageNumber::new(
+                    entity_id,
+                    0,
+                    DamageNumberType::Miss,
+                    direction,
+                ));
+            }
             return;
         }
 
@@ -440,12 +446,10 @@ impl DamageNumberManager {
         } else {
             let number_type = if hit.is_critical {
                 DamageNumberType::Critical
-            } else if hit.damage < 0 {
-                DamageNumberType::Heal
-            } else if is_skill {
-                DamageNumberType::Skill
             } else if is_player_target {
                 DamageNumberType::Enemy
+            } else if is_skill {
+                DamageNumberType::Skill
             } else {
                 DamageNumberType::Normal
             };
@@ -534,6 +538,28 @@ mod tests {
     #[test]
     fn heal_color_is_green() {
         assert_eq!(DamageNumberType::Heal.color(), [0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn skill_hit_on_player_is_red_but_on_monster_is_skill() {
+        let hit = ScheduledHit::single(100, 17, false);
+
+        let mut player = DamageNumberManager::new();
+        player.emit(1, 0, &hit, true);
+        assert_eq!(player.numbers.last().unwrap().number_type, DamageNumberType::Enemy);
+
+        let mut monster = DamageNumberManager::new();
+        monster.emit(1, 0, &hit, false);
+        assert_eq!(monster.numbers.last().unwrap().number_type, DamageNumberType::Skill);
+    }
+
+    #[test]
+    fn fully_missed_multi_hit_shows_single_miss() {
+        let mut mgr = DamageNumberManager::new();
+        mgr.emit(1, 0, &ScheduledHit::multi_hit(0, 0, 10, 0, false), false);
+        mgr.emit(1, 0, &ScheduledHit::multi_hit(0, 0, 10, 1, true), false);
+        assert_eq!(mgr.numbers.len(), 1);
+        assert_eq!(mgr.numbers[0].number_type, DamageNumberType::Miss);
     }
 
     #[test]

@@ -80,12 +80,7 @@ impl HotkeyBarWindow {
         }
     }
 
-    fn slot_icon_path(
-        &self,
-        content: HotkeySlotContent,
-        character: &Character,
-        data: &DataTable,
-    ) -> Option<String> {
+    fn slot_icon_path(&self, content: HotkeySlotContent, character: &Character) -> Option<String> {
         match content {
             HotkeySlotContent::Empty => None,
             HotkeySlotContent::Skill { skill_id, .. } => character
@@ -98,18 +93,10 @@ impl HotkeyBarWindow {
                         .find(|s| s.id == skill_id)
                         .map(companion_skill_icon_path)
                 }),
-            HotkeySlotContent::Item {
-                item_id,
-                inventory_index,
-            } => character
+            HotkeySlotContent::Item { inventory_index } => character
                 .inventory
                 .get_item(inventory_index)
-                .and_then(|item| item.icon_path())
-                .or_else(|| {
-                    data.item_resource
-                        .as_ref()
-                        .and_then(|t| t.item_icon_path(item_id))
-                }),
+                .and_then(|item| item.icon_path()),
         }
     }
 
@@ -123,10 +110,7 @@ impl HotkeyBarWindow {
                     None
                 }
             }
-            HotkeySlotContent::Item {
-                item_id: _,
-                inventory_index,
-            } => {
+            HotkeySlotContent::Item { inventory_index } => {
                 let count: i16 = character
                     .inventory
                     .all_items()
@@ -171,9 +155,7 @@ impl HotkeyBarWindow {
                     }
                 }
             }
-            HotkeySlotContent::Item {
-                inventory_index, ..
-            } => {
+            HotkeySlotContent::Item { inventory_index } => {
                 if let Some(item) = character.inventory.get_item(inventory_index) {
                     if item.is_equipment() {
                         events.push(GameEvent::RequestEquipItem {
@@ -203,12 +185,8 @@ impl HotkeyBarWindow {
                 if item.tab() == InventoryTab::Etc && !item.is_ammunition() {
                     return;
                 }
-                let item_id = item.item_id;
                 let inventory_index = item.index;
-                let content = HotkeySlotContent::Item {
-                    item_id,
-                    inventory_index,
-                };
+                let content = HotkeySlotContent::Item { inventory_index };
                 character.hotkeys.set_slot(slot_index, content);
                 events.push(GameEvent::RequestHotkeyChange {
                     index: slot_index as u16,
@@ -456,7 +434,7 @@ impl InGameWindow for HotkeyBarWindow {
                 }
 
                 let label_color = [tc[0] * 0.6, tc[1] * 0.6, tc[2] * 0.6, tc[3]];
-                if let Some(icon_path) = self.slot_icon_path(content, character, data) {
+                if let Some(icon_path) = self.slot_icon_path(content, character) {
                     let (v, idx) = draw::quad_vertices(
                         cell_rect.x + (SLOT_W - ICON_SIZE) / 2.0 - SLOT_MARGIN,
                         cell_rect.y,
@@ -561,28 +539,16 @@ impl InGameWindow for HotkeyBarWindow {
                                     .map(|s| s.name.clone())
                             })
                             .map(|name| format!("{name} Lv.{level}")),
-                        HotkeySlotContent::Item {
-                            item_id,
-                            inventory_index,
-                        } => {
+                        HotkeySlotContent::Item { inventory_index } => {
                             let slot_count_table = data.item_slot_count.as_ref();
                             let card_name_table = data.card_name.as_ref();
-                            character
-                                .inventory
-                                .get_item(inventory_index)
-                                .map(|item| {
-                                    format_equipment_display_name(
-                                        item,
-                                        slot_count_table,
-                                        card_name_table,
-                                    )
-                                })
-                                .or_else(|| {
-                                    data.item_name
-                                        .as_ref()
-                                        .and_then(|t| t.get_name(item_id))
-                                        .map(|name| name.to_string())
-                                })
+                            character.inventory.get_item(inventory_index).map(|item| {
+                                format_equipment_display_name(
+                                    item,
+                                    slot_count_table,
+                                    card_name_table,
+                                )
+                            })
                         }
                         HotkeySlotContent::Empty => None,
                     };

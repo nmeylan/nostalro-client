@@ -10,7 +10,7 @@ use ragnarok_game::effect::{
     is_trail_effect, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::entity::EntityState;
+use ragnarok_game::entity::{ChatBubbleState, EntityState};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sound::tables::{
@@ -517,10 +517,11 @@ impl App {
                 _ => self.effect_queue.spawn_on(*e, src_gid),
             }
         }
+        // AL_HEAL and WE_MALE ("I Will Protect You") share the amount-tiered green
+        // heal glyph and rising green number driven by the packet's level field.
+        let is_heal_tier = matches!(skill, SkillEnum::AlHeal | SkillEnum::WeMale);
         for e in target_skill_effects(skill).on_target {
-            // AL_HEAL's green heal scales with the healed amount (the packet's
-            // level field): a bigger heal plays a bigger sparkle.
-            let e = if skill == SkillEnum::AlHeal && *e == EffectId::Heal {
+            let e = if is_heal_tier && *e == EffectId::Heal {
                 heal_effect_for_amount(level)
             } else {
                 *e
@@ -530,7 +531,7 @@ impl App {
                 _ => self.effect_queue.spawn_on(e, target_gid),
             }
         }
-        if skill == SkillEnum::AlHeal && level > 0 {
+        if is_heal_tier && level > 0 {
             self.game.damage_numbers.add(DamageNumber::new(
                 target_gid,
                 level as i32,
@@ -538,7 +539,53 @@ impl App {
                 0,
             ));
         }
+        // WE_FEMALE ("I Look up to You") restores partner SP: a light-blue rising
+        // recovery number.
+        if skill == SkillEnum::WeFemale && level > 0 {
+            self.game.damage_numbers.add(DamageNumber::effect_number(
+                target_gid,
+                level as i32,
+                [85.0 / 255.0, 177.0 / 255.0, 255.0 / 255.0],
+                0,
+            ));
+        }
+        self.spawn_wedding_balloon(skill, src_gid, target_gid);
         self.queue_skill_sound(skill_use_sound(skill), target_gid);
+    }
+
+    /// The wedding skills shout a love line over the caster's head (the original
+    /// has no generic skill-shout system, so this is WE-skills only). WE_MALE /
+    /// WE_FEMALE address the auto-targeted partner by the target entity's name;
+    /// WE_CALLPARTNER uses the stored couple name.
+    fn spawn_wedding_balloon(&mut self, skill: SkillEnum, src_gid: u32, target_gid: u32) {
+        let love_line = match skill {
+            SkillEnum::WeMale => "I will protect you",
+            SkillEnum::WeFemale => "I look up to you",
+            _ => return,
+        };
+        let partner = self
+            .game
+            .entities
+            .get(target_gid)
+            .and_then(|e| e.name.clone())
+            .unwrap_or_default();
+        let message = format!("{partner} !!  {love_line}");
+        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+            caster.chat_bubble = Some(ChatBubbleState::new(message));
+        }
+    }
+
+    /// WE_CALLPARTNER ("I miss You") rides the ground-skill path; its balloon uses
+    /// the couple name stored from ZC_COUPLENAME.
+    pub(super) fn spawn_call_partner_balloon(&mut self, src_gid: u32) {
+        let partner = self.game.character.partner_name.clone();
+        if partner.is_empty() {
+            return;
+        }
+        let message = format!("{partner} !!  I miss you");
+        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+            caster.chat_bubble = Some(ChatBubbleState::new(message));
+        }
     }
 
     fn queue_skill_sound(

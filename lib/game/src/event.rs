@@ -1474,6 +1474,27 @@ pub enum GameEvent {
     },
     ToggleQuestWindow,
 
+    // --- Marriage ---
+    /// 0x1e6: partner's name (empty = no partner), broadcast when someone finishes
+    /// casting WE_CALLPARTNER.
+    CoupleNameReceived {
+        name: String,
+    },
+    /// 0x1ea: wedding celebration on an actor → confetti effect + sound.
+    WeddingCelebration {
+        account_id: u32,
+    },
+    /// 0x205: you are divorced from `name`.
+    Divorced {
+        name: String,
+    },
+    /// 0x1b3: NPC cutin illustration; `position` 0/1/2 = bottom left/middle/right,
+    /// 255 = clear.
+    NpcCutin {
+        image: String,
+        position: u8,
+    },
+
     Acknowledged,
 }
 

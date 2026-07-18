@@ -1,5 +1,3 @@
-use crate::item::Item;
-
 pub const HOTKEY_ROWS: usize = 4;
 pub const HOTKEY_COLS: usize = 9;
 pub const HOTKEY_TOTAL: usize = HOTKEY_ROWS * HOTKEY_COLS;
@@ -8,7 +6,7 @@ pub const HOTKEY_TOTAL: usize = HOTKEY_ROWS * HOTKEY_COLS;
 pub enum HotkeySlotContent {
     Empty,
     Skill { skill_id: u16, level: i16 },
-    Item { item_id: u16, inventory_index: u16 },
+    Item { inventory_index: u16 },
 }
 
 pub struct HotkeyBar {
@@ -32,7 +30,7 @@ impl HotkeyBar {
         }
     }
 
-    pub fn set_from_server(&mut self, keys: &[(i8, u32, i16)], inventory: &[Item]) {
+    pub fn set_from_server(&mut self, keys: &[(i8, u32, i16)]) {
         for (i, &(is_skill, id, count)) in keys.iter().take(HOTKEY_TOTAL).enumerate() {
             self.slots[i] = if is_skill != 0 && id != 0 {
                 HotkeySlotContent::Skill {
@@ -40,19 +38,8 @@ impl HotkeyBar {
                     level: count,
                 }
             } else if id != 0 {
-                let inventory_index = id as u16;
-                let item_id = inventory
-                    .iter()
-                    .find(|i| i.index == inventory_index)
-                    .map(|i| i.item_id)
-                    .unwrap_or(0);
-                if item_id != 0 {
-                    HotkeySlotContent::Item {
-                        item_id,
-                        inventory_index,
-                    }
-                } else {
-                    HotkeySlotContent::Empty
+                HotkeySlotContent::Item {
+                    inventory_index: id as u16,
                 }
             } else {
                 HotkeySlotContent::Empty
@@ -108,9 +95,7 @@ impl HotkeyBar {
         match self.get_slot(index) {
             HotkeySlotContent::Empty => (0, 0, 0),
             HotkeySlotContent::Skill { skill_id, level } => (1, skill_id as u32, level),
-            HotkeySlotContent::Item {
-                inventory_index, ..
-            } => (0, inventory_index as u32, 0),
+            HotkeySlotContent::Item { inventory_index } => (0, inventory_index as u32, 0),
         }
     }
 
@@ -122,37 +107,17 @@ impl HotkeyBar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use models::enums::item::ItemType;
-
-    fn make_item(index: u16, item_id: u16) -> Item {
-        Item {
-            index,
-            item_id,
-            item_type: ItemType::Healing,
-            count: 1,
-            is_identified: true,
-            is_damaged: false,
-            refining_level: 0,
-            slot: [0; 4],
-            location: 0,
-            wear_state: 0,
-            name: String::new(),
-            resource_name: None,
-        }
-    }
 
     #[test]
     fn set_from_server_and_query() {
         let mut bar = HotkeyBar::new();
-        let inventory = vec![make_item(3, 501), make_item(7, 501), make_item(12, 502)];
         let server_data = vec![
             (1i8, 28u32, 5i16), // Skill: id=28, level=5
-            (0, 7, 0),          // Item: inventory_index=7 (second bow)
+            (0, 7, 0),          // Item: inventory_index=7
             (0, 0, 0),          // Empty
             (1, 10, 3),         // Skill: id=10, level=3
-            (0, 99, 0),         // Item: inventory_index=99 (not in inventory)
         ];
-        bar.set_from_server(&server_data, &inventory);
+        bar.set_from_server(&server_data);
 
         assert_eq!(
             bar.get_slot(0),
@@ -163,10 +128,7 @@ mod tests {
         );
         assert_eq!(
             bar.get_slot(1),
-            HotkeySlotContent::Item {
-                item_id: 501,
-                inventory_index: 7
-            }
+            HotkeySlotContent::Item { inventory_index: 7 }
         );
         assert_eq!(bar.get_slot(2), HotkeySlotContent::Empty);
         assert_eq!(
@@ -176,7 +138,6 @@ mod tests {
                 level: 3
             }
         );
-        assert_eq!(bar.get_slot(4), HotkeySlotContent::Empty);
     }
 
     #[test]
@@ -213,19 +174,10 @@ mod tests {
             }
         );
 
-        bar.set_slot(
-            5,
-            HotkeySlotContent::Item {
-                item_id: 501,
-                inventory_index: 3,
-            },
-        );
+        bar.set_slot(5, HotkeySlotContent::Item { inventory_index: 3 });
         assert_eq!(
             bar.get_slot(5),
-            HotkeySlotContent::Item {
-                item_id: 501,
-                inventory_index: 3
-            }
+            HotkeySlotContent::Item { inventory_index: 3 }
         );
 
         bar.clear_slot(5);
@@ -242,13 +194,7 @@ mod tests {
                 level: 5,
             },
         );
-        bar.set_slot(
-            1,
-            HotkeySlotContent::Item {
-                item_id: 501,
-                inventory_index: 3,
-            },
-        );
+        bar.set_slot(1, HotkeySlotContent::Item { inventory_index: 3 });
 
         assert_eq!(bar.to_server_format(0), (1, 28, 5));
         assert_eq!(bar.to_server_format(1), (0, 3, 0));

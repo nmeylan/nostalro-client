@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use ragnarok_formats::fog_table::{FogEntry, FogTable};
@@ -14,9 +15,36 @@ pub struct MapData {
     pub gat: Option<GatFile>,
     pub coordinates: Option<MapCoordinates>,
     pub fog: Option<FogEntry>,
+    /// Indoor maps lock the camera rotation to a fixed angle.
+    pub indoor: bool,
 }
 
 static FOG_TABLE: OnceLock<Option<FogTable>> = OnceLock::new();
+static INDOOR_TABLE: OnceLock<HashSet<String>> = OnceLock::new();
+
+fn indoor_table(grf: &GrfArchive) -> &'static HashSet<String> {
+    INDOOR_TABLE.get_or_init(|| {
+        let mut set = HashSet::new();
+        match grf.read_file("data/indoorrswtable.txt") {
+            Ok(data) => {
+                let text = String::from_utf8_lossy(&data);
+                for line in text.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() || trimmed.starts_with("//") {
+                        continue;
+                    }
+                    let name = trimmed.trim_end_matches('#').trim();
+                    if !name.is_empty() {
+                        set.insert(name.to_ascii_lowercase());
+                    }
+                }
+                tracing::info!("Loaded indoor rsw table ({} entries)", set.len());
+            }
+            Err(e) => tracing::info!("No indoor rsw table in GRF: {e}"),
+        }
+        set
+    })
+}
 
 fn fog_table(grf: &GrfArchive) -> Option<&'static FogTable> {
     FOG_TABLE
@@ -96,11 +124,20 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
 
     let fog = fog_table(grf).and_then(|table| table.get(&format!("{map_name}.rsw")));
 
+    let rsw_basename = map_name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(map_name)
+        .to_ascii_lowercase();
+    let indoor = indoor_table(grf).contains(&format!("{rsw_basename}.rsw"));
+    tracing::info!("Map {rsw_basename}.rsw indoor={indoor}");
+
     Some(MapData {
         rsw,
         gnd,
         gat: gat_file,
         coordinates,
         fog,
+        indoor,
     })
 }
