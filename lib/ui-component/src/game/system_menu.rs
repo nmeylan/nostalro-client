@@ -19,6 +19,7 @@ const RESTART_ID: WidgetId = WidgetId(504);
 const RESURRECT_ID: WidgetId = WidgetId(505);
 const GRAPHICS_ID: WidgetId = WidgetId(506);
 const SHORTCUT_ID: WidgetId = WidgetId(507);
+const HOTKEY_ID: WidgetId = WidgetId(508);
 
 const MENU_W: f32 = 140.0;
 const FALLBACK_BTN_W: f32 = 120.0;
@@ -246,6 +247,7 @@ enum MenuButton {
     Graphics,
     Sound,
     Shortcut,
+    Hotkeys,
     CharSelect,
     Quit,
     Restart,
@@ -259,6 +261,7 @@ impl MenuButton {
             MenuButton::Graphics => GRAPHICS_ID,
             MenuButton::Sound => OPTION_ID,
             MenuButton::Shortcut => SHORTCUT_ID,
+            MenuButton::Hotkeys => HOTKEY_ID,
             MenuButton::CharSelect => CHARSELECT_ID,
             MenuButton::Quit => QUIT_ID,
             MenuButton::Restart => RESTART_ID,
@@ -272,6 +275,7 @@ impl MenuButton {
             MenuButton::Graphics => &GRAPHICS_BTN,
             MenuButton::Sound => &SOUND_BTN,
             MenuButton::Shortcut => &SHORTCUT_BTN,
+            MenuButton::Hotkeys => &DUMMY_BTN,
             MenuButton::CharSelect => &CHARSELECT_BTN,
             MenuButton::Quit => &QUIT_BTN,
             MenuButton::Restart => &RESTART_BTN,
@@ -285,6 +289,7 @@ impl MenuButton {
             MenuButton::Graphics => "Graphics",
             MenuButton::Sound => "Sound",
             MenuButton::Shortcut => "Shortcut",
+            MenuButton::Hotkeys => "Hotkeys",
             MenuButton::CharSelect => "Character Select",
             MenuButton::Quit => "Quit Game",
             MenuButton::Restart => "Restart",
@@ -319,6 +324,7 @@ impl SystemMenu {
                 MenuButton::Graphics,
                 MenuButton::Sound,
                 MenuButton::Shortcut,
+                MenuButton::Hotkeys,
                 MenuButton::Quit,
                 MenuButton::Resume,
             ]
@@ -328,6 +334,7 @@ impl SystemMenu {
                 MenuButton::Graphics,
                 MenuButton::Sound,
                 MenuButton::Shortcut,
+                MenuButton::Hotkeys,
                 MenuButton::CharSelect,
                 MenuButton::Quit,
             ]
@@ -347,6 +354,10 @@ impl SystemMenu {
             }
             MenuButton::Shortcut => {
                 events.push(GameEvent::ToggleShortcutList);
+                self.open = false;
+            }
+            MenuButton::Hotkeys => {
+                events.push(GameEvent::ToggleHotkeyConfig);
                 self.open = false;
             }
             MenuButton::CharSelect => self.pending_confirm = PendingConfirm::CharacterSelect,
@@ -394,10 +405,13 @@ impl SystemMenu {
 
         for (idx, &button) in buttons.iter().enumerate() {
             let rect = Rect::new(btn_x, btn_y(idx), btn_w, btn_h);
-            if ui
-                .button(button.id(), rect, button.textures(), button.label())
-                .clicked()
-            {
+            let clicked = if button == MenuButton::Hotkeys {
+                ui.text_button(button.id(), rect, button.label()).clicked()
+            } else {
+                ui.button(button.id(), rect, button.textures(), button.label())
+                    .clicked()
+            };
+            if clicked {
                 self.on_button_click(button, events);
             }
         }
@@ -507,7 +521,7 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let (mx, my) = button_center(600.0, 6, 0);
+        let (mx, my) = button_center(600.0, 7, 0);
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
@@ -526,7 +540,7 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let (mx, my) = button_center(600.0, 6, 1);
+        let (mx, my) = button_center(600.0, 7, 1);
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
@@ -550,7 +564,7 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let (mx, my) = button_center(600.0, 6, 4);
+        let (mx, my) = button_center(600.0, 7, 5);
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
@@ -592,7 +606,7 @@ mod tests {
         let data = DataTable::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        let (mx, my) = button_center(600.0, 6, 5);
+        let (mx, my) = button_center(600.0, 7, 6);
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;

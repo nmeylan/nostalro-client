@@ -550,6 +550,9 @@ impl App {
             ));
         }
         self.spawn_wedding_balloon(skill, src_gid, target_gid);
+        if skill == SkillEnum::WeCallpartner {
+            self.spawn_call_partner_balloon(src_gid);
+        }
         self.queue_skill_sound(skill_use_sound(skill), target_gid);
     }
 
@@ -575,8 +578,8 @@ impl App {
         }
     }
 
-    /// WE_CALLPARTNER ("I miss You") rides the ground-skill path; its balloon uses
-    /// the couple name stored from ZC_COUPLENAME.
+    /// WE_CALLPARTNER ("I miss You") balloon uses the couple name stored from
+    /// ZC_COUPLENAME.
     pub(super) fn spawn_call_partner_balloon(&mut self, src_gid: u32) {
         let partner = self.game.character.partner_name.clone();
         if partner.is_empty() {

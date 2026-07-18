@@ -2,6 +2,8 @@ use crate::App;
 use crate::config::WindowStateEntry;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::{EntityState, EntityType};
+use ragnarok_game::event::GameEvent;
+use ragnarok_game::keybinding::{HotkeyAction, KeyChord};
 use ragnarok_network::build_action_request_packet;
 use ragnarok_ui_component::game::context_menu::{ContextMenuAction, ContextMenuItem};
 use std::collections::HashMap;
@@ -316,151 +318,183 @@ impl App {
     }
 
     pub(crate) fn handle_keyboard_input(&mut self, event: KeyEvent) {
-        if event.state == ElementState::Pressed
-            && self.game.app_state == AppState::InGame
-            && event.physical_key == PhysicalKey::Code(KeyCode::Tab)
-            && self.input.ctrl_pressed
-        {
+        let pressed = event.state == ElementState::Pressed;
+        let code = match event.physical_key {
+            PhysicalKey::Code(c) => Some(c),
+            _ => None,
+        };
+
+        if pressed && self.game.hotkey_config_window.is_capturing() {
+            if let Some(code) = code {
+                self.capture_hotkey(code);
+            }
+            if let Some(ctx) = &mut self.ui_context {
+                ctx.key_escape = false;
+                ctx.typed_chars.clear();
+            }
+            return;
+        }
+
+        if !pressed || self.game.app_state != AppState::InGame {
+            return;
+        }
+        let Some(code) = code else {
+            return;
+        };
+        let chord = KeyChord::new(
+            format!("{code:?}"),
+            self.input.alt_pressed,
+            self.input.ctrl_pressed,
+            self.input.shift_pressed,
+        );
+        let action = self.config.keybindings.action_for(&chord);
+
+        // Minimap keeps its pre-gate slot: it cycles even while chatting or with
+        // the system menu open.
+        if action == Some(HotkeyAction::CycleMinimap) {
             self.game.minimap_window.cycle_visibility();
             return;
         }
 
-        if event.state == ElementState::Pressed
-            && self.game.app_state == AppState::InGame
-            && !self.game.chat_window.is_active()
-            && !self.game.system_menu.open
-        {
-            match event.physical_key {
-                PhysicalKey::Code(KeyCode::F11) => {
-                    if let Some(renderer) = &mut self.renderer
-                        && let Some(grid) = &mut renderer.grid_selector
-                    {
-                        grid.show_grid = !grid.show_grid;
-                    }
-                    self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
-                }
-                PhysicalKey::Code(KeyCode::F10) => {
-                    self.game.debug_overlay = !self.game.debug_overlay;
-                }
-                PhysicalKey::Code(KeyCode::Insert) => {
-                    if self.player_hidden() {
-                        return;
-                    }
-                    if let Some(entity) = self.game.entities.player() {
-                        let action = if entity.state == EntityState::Sitting {
-                            3u8
-                        } else {
-                            2u8
-                        };
-                        self.channel.send_packet(build_action_request_packet(
-                            0,
-                            action,
-                            self.config.packetver,
-                        ));
-                    }
-                }
-                PhysicalKey::Code(KeyCode::KeyE) if self.input.alt_pressed => {
-                    self.game.character.inventory.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyQ) if self.input.alt_pressed => {
-                    self.game.equipment_window.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyS) if self.input.alt_pressed => {
-                    self.game.character.skills.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyM) if self.input.alt_pressed => {
-                    if !self.game.shortcut_list_window.is_open() {
-                        self.game
-                            .shortcut_list_window
-                            .set_bindings(&self.config.shortcut_commands);
-                    }
-                    self.game.shortcut_list_window.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyL) if self.input.alt_pressed => {
-                    self.game.emotion_window.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyU) if self.input.alt_pressed => {
-                    self.game.quest_window.toggle();
-                }
-                PhysicalKey::Code(KeyCode::Digit1) if self.input.alt_pressed => {
-                    self.trigger_shortcut(0);
-                }
-                PhysicalKey::Code(KeyCode::Digit2) if self.input.alt_pressed => {
-                    self.trigger_shortcut(1);
-                }
-                PhysicalKey::Code(KeyCode::Digit3) if self.input.alt_pressed => {
-                    self.trigger_shortcut(2);
-                }
-                PhysicalKey::Code(KeyCode::Digit4) if self.input.alt_pressed => {
-                    self.trigger_shortcut(3);
-                }
-                PhysicalKey::Code(KeyCode::Digit5) if self.input.alt_pressed => {
-                    self.trigger_shortcut(4);
-                }
-                PhysicalKey::Code(KeyCode::Digit6) if self.input.alt_pressed => {
-                    self.trigger_shortcut(5);
-                }
-                PhysicalKey::Code(KeyCode::Digit7) if self.input.alt_pressed => {
-                    self.trigger_shortcut(6);
-                }
-                PhysicalKey::Code(KeyCode::Digit8) if self.input.alt_pressed => {
-                    self.trigger_shortcut(7);
-                }
-                PhysicalKey::Code(KeyCode::Digit9) if self.input.alt_pressed => {
-                    self.trigger_shortcut(8);
-                }
-                PhysicalKey::Code(KeyCode::Digit0) if self.input.alt_pressed => {
-                    self.trigger_shortcut(9);
-                }
-                PhysicalKey::Code(KeyCode::KeyA) if self.input.alt_pressed => {
-                    self.game.status_window.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyW) if self.input.alt_pressed => {
-                    let has_cart = self
-                        .game
-                        .entities
-                        .player()
-                        .is_some_and(|p| p.cart_type.is_some());
-                    if has_cart {
-                        self.game.character.cart.toggle();
-                    }
-                }
-                PhysicalKey::Code(KeyCode::KeyG) if self.input.alt_pressed => {
-                    if self.game.guild.is_some() {
-                        self.game.guild_window.toggle();
-                    } else {
-                        self.game
-                            .chat_window
-                            .add_system("You are not in a guild.".to_string());
-                    }
-                }
-                PhysicalKey::Code(KeyCode::KeyC) if self.input.alt_pressed => {
-                    self.game.chat_room_create_window.toggle();
-                }
-                PhysicalKey::Code(KeyCode::KeyH) if self.input.alt_pressed => {
-                    if self.game.homunculus.is_some() {
-                        self.game.homunculus_window.toggle();
-                    }
-                }
-                PhysicalKey::Code(KeyCode::KeyR)
-                    if self.input.alt_pressed || self.input.ctrl_pressed =>
+        if self.game.chat_window.is_active() || self.game.system_menu.open {
+            return;
+        }
+
+        match code {
+            KeyCode::F11 => {
+                if let Some(renderer) = &mut self.renderer
+                    && let Some(grid) = &mut renderer.grid_selector
                 {
-                    if self.game.mercenary.is_some() {
-                        self.game.mercenary_window.toggle();
-                    }
+                    grid.show_grid = !grid.show_grid;
                 }
-                PhysicalKey::Code(KeyCode::KeyT) if self.input.ctrl_pressed => {
-                    if self.has_mercenary() {
-                        self.push_owner_command_to(
-                            true,
-                            ragnarok_game::companion::OwnerCommand::follow(),
-                            false,
-                        );
-                    }
+                self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
+            }
+            KeyCode::F10 => {
+                self.game.debug_overlay = !self.game.debug_overlay;
+            }
+            KeyCode::Digit1 if self.input.alt_pressed => self.trigger_shortcut(0),
+            KeyCode::Digit2 if self.input.alt_pressed => self.trigger_shortcut(1),
+            KeyCode::Digit3 if self.input.alt_pressed => self.trigger_shortcut(2),
+            KeyCode::Digit4 if self.input.alt_pressed => self.trigger_shortcut(3),
+            KeyCode::Digit5 if self.input.alt_pressed => self.trigger_shortcut(4),
+            KeyCode::Digit6 if self.input.alt_pressed => self.trigger_shortcut(5),
+            KeyCode::Digit7 if self.input.alt_pressed => self.trigger_shortcut(6),
+            KeyCode::Digit8 if self.input.alt_pressed => self.trigger_shortcut(7),
+            KeyCode::Digit9 if self.input.alt_pressed => self.trigger_shortcut(8),
+            KeyCode::Digit0 if self.input.alt_pressed => self.trigger_shortcut(9),
+            _ => {
+                if let Some(action) = action {
+                    self.dispatch_action(action);
+                } else if let Some(emote_type) = self.config.emotion_keys.emote_for(&chord) {
+                    self.pending_events
+                        .push(GameEvent::RequestEmotion { emote_type });
                 }
-                _ => {}
             }
         }
+    }
+
+    fn dispatch_action(&mut self, action: HotkeyAction) {
+        match action {
+            HotkeyAction::ToggleInventory => self.game.character.inventory.toggle(),
+            HotkeyAction::ToggleEquipment => self.game.equipment_window.toggle(),
+            HotkeyAction::ToggleSkillTree => self.game.character.skills.toggle(),
+            HotkeyAction::ToggleStatus => self.game.status_window.toggle(),
+            HotkeyAction::ToggleShortcutList => {
+                if !self.game.shortcut_list_window.is_open() {
+                    self.game
+                        .shortcut_list_window
+                        .set_bindings(&self.config.shortcut_commands);
+                }
+                self.game.shortcut_list_window.toggle();
+            }
+            HotkeyAction::ToggleEmotion => self.game.emotion_window.toggle(),
+            HotkeyAction::ToggleQuest => self.game.quest_window.toggle(),
+            HotkeyAction::ToggleCart => {
+                let has_cart = self
+                    .game
+                    .entities
+                    .player()
+                    .is_some_and(|p| p.cart_type.is_some());
+                if has_cart {
+                    self.game.character.cart.toggle();
+                }
+            }
+            HotkeyAction::ToggleGuild => {
+                if self.game.guild.is_some() {
+                    self.game.guild_window.toggle();
+                } else {
+                    self.game
+                        .chat_window
+                        .add_system("You are not in a guild.".to_string());
+                }
+            }
+            HotkeyAction::ToggleChatRoomCreate => self.game.chat_room_create_window.toggle(),
+            HotkeyAction::ToggleBasicInfo => self.game.basic_info_window.toggle(),
+            HotkeyAction::ToggleParty => self.game.party_friends_window.open_party_tab(),
+            HotkeyAction::ToggleFriends => self.game.party_friends_window.open_friend_tab(),
+            HotkeyAction::TogglePet => {
+                if self.game.pet.gid.is_some() {
+                    self.game.pet_window.toggle();
+                }
+            }
+            HotkeyAction::ToggleSoundOptions => self.open_sound_options(),
+            HotkeyAction::ToggleGraphicOptions => self.open_graphic_options(),
+            HotkeyAction::ToggleHomunculus => {
+                if self.game.homunculus.is_some() {
+                    self.game.homunculus_window.toggle();
+                }
+            }
+            HotkeyAction::ToggleMercenary => {
+                if self.game.mercenary.is_some() {
+                    self.game.mercenary_window.toggle();
+                }
+            }
+            HotkeyAction::SitStand => {
+                if self.player_hidden() {
+                    return;
+                }
+                if let Some(entity) = self.game.entities.player() {
+                    let action = if entity.state == EntityState::Sitting {
+                        3u8
+                    } else {
+                        2u8
+                    };
+                    self.channel.send_packet(build_action_request_packet(
+                        0,
+                        action,
+                        self.config.packetver,
+                    ));
+                }
+            }
+            HotkeyAction::CycleMinimap => self.game.minimap_window.cycle_visibility(),
+            HotkeyAction::MercenaryFollow => {
+                if self.has_mercenary() {
+                    self.push_owner_command_to(
+                        true,
+                        ragnarok_game::companion::OwnerCommand::follow(),
+                        false,
+                    );
+                }
+            }
+        }
+    }
+
+    fn capture_hotkey(&mut self, code: KeyCode) {
+        if code == KeyCode::Escape {
+            self.game.hotkey_config_window.cancel_capture();
+            return;
+        }
+        let name = format!("{code:?}");
+        if ragnarok_game::keybinding::is_modifier_key(&name) {
+            return;
+        }
+        let chord = KeyChord::new(
+            name,
+            self.input.alt_pressed,
+            self.input.ctrl_pressed,
+            self.input.shift_pressed,
+        );
+        self.game.hotkey_config_window.capture_key(chord);
     }
 
     pub(crate) fn handle_modifiers_changed(&mut self, modifiers: Modifiers) {

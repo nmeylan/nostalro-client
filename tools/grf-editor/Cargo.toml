@@ -10,6 +10,7 @@ ragnarok-game = { workspace = true }
 ragnarok-audio = { workspace = true }
 eframe = { workspace = true }
 egui_ltreeview = "0.6.1"
+glam = { workspace = true }
 image = { workspace = true }
 rfd = { workspace = true }
 tracing = { workspace = true }

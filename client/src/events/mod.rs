@@ -911,9 +911,6 @@ impl App {
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, level, x, y);
-                    if SkillEnum::from_id(skill_id as u32) == SkillEnum::WeCallpartner {
-                        self.spawn_call_partner_balloon(src_gid);
-                    }
                     let falcon_target = if self.game.falcons.contains_key(&src_gid)
                         && matches!(
                             SkillEnum::from_id(skill_id as u32),

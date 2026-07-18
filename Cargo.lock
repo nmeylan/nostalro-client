@@ -2999,6 +2999,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui_ltreeview",
+ "glam",
  "image",
  "ragnarok-audio",
  "ragnarok-formats",

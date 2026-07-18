@@ -74,6 +74,8 @@ use ragnarok_network::{
     build_party_chat_packet, build_remove_option_packet, build_req_enter_room_packet,
     build_create_chatroom_packet, build_change_chatroom_packet, build_change_chat_owner_packet,
     build_expel_chat_member_packet, build_exit_room_packet,
+    build_remember_warppoint_packet, build_lesseffect_packet, build_guild_chat_packet,
+    build_whisper_packet, build_setting_whisper_pc_packet, build_setting_whisper_state_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_return_savepoint_packet, build_standing_resurrection_packet,
     build_select_char_packet, build_select_warppoint_packet,
@@ -186,6 +188,9 @@ struct App {
     start_time: Instant,
     last_frame_instant: Instant,
     next_frame: Instant,
+    /// GameEvents produced by raw keyboard handling (skill-bar / emotion hotkeys),
+    /// drained into `handle_ui_events` on the next redraw.
+    pending_events: Vec<GameEvent>,
 }
 
 impl App {
@@ -240,6 +245,7 @@ impl App {
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
             next_frame: Instant::now(),
+            pending_events: Vec::new(),
         }
     }
 
@@ -1452,13 +1458,7 @@ impl App {
                     self.game.minimap_window.cycle_visibility();
                 }
                 GameEvent::ToggleSoundOptions => {
-                    self.game.sound_options.set_values(
-                        self.config.bgm_volume,
-                        self.config.sfx_volume,
-                        self.config.bgm_enabled,
-                        self.config.sfx_enabled,
-                    );
-                    self.game.sound_options.toggle();
+                    self.open_sound_options();
                 }
                 GameEvent::SoundSettingsChanged {
                     bgm_volume,
@@ -1480,20 +1480,7 @@ impl App {
                     }
                 }
                 GameEvent::ToggleGraphicOptions => {
-                    if !self.game.graphic_options.open {
-                        let resolutions = self.available_resolutions();
-                        self.game.graphic_options.set_values(
-                            resolutions,
-                            (self.config.screen_width, self.config.screen_height),
-                            self.config.fullscreen,
-                            self.config.fog,
-                            self.config.show_skill_effects,
-                            self.config.display.clone(),
-                            self.config.refuse_trade,
-                            self.config.refuse_party_invite,
-                        );
-                    }
-                    self.game.graphic_options.toggle();
+                    self.open_graphic_options();
                 }
                 GameEvent::GraphicsSettingsChanged {
                     width,
@@ -1517,6 +1504,14 @@ impl App {
                         refuse_party_invite,
                         persist,
                     );
+                }
+                GameEvent::ToggleHotkeyConfig => {
+                    if !self.game.hotkey_config_window.is_open() {
+                        self.game
+                            .hotkey_config_window
+                            .set_bindings(&self.config.keybindings, &self.config.emotion_keys);
+                    }
+                    self.game.hotkey_config_window.toggle();
                 }
                 GameEvent::TogglePartyWindow => {
                     self.game.party_friends_window.open_party_tab();
@@ -2006,6 +2001,33 @@ impl App {
         }
     }
 
+    fn open_sound_options(&mut self) {
+        self.game.sound_options.set_values(
+            self.config.bgm_volume,
+            self.config.sfx_volume,
+            self.config.bgm_enabled,
+            self.config.sfx_enabled,
+        );
+        self.game.sound_options.toggle();
+    }
+
+    fn open_graphic_options(&mut self) {
+        if !self.game.graphic_options.open {
+            let resolutions = self.available_resolutions();
+            self.game.graphic_options.set_values(
+                resolutions,
+                (self.config.screen_width, self.config.screen_height),
+                self.config.fullscreen,
+                self.config.fog,
+                self.config.show_skill_effects,
+                self.config.display.clone(),
+                self.config.refuse_trade,
+                self.config.refuse_party_invite,
+            );
+        }
+        self.game.graphic_options.toggle();
+    }
+
     fn available_resolutions(&self) -> Vec<(u32, u32)> {
         let Some(monitor) = self.window.as_ref().and_then(|w| w.current_monitor()) else {
             return Vec::new();
@@ -2097,6 +2119,22 @@ impl App {
             let full_msg = format!("{char_name} : {}", party_msg.trim_start());
             self.channel
                 .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
+        } else if let Some(guild_msg) = message.strip_prefix('$') {
+            if self.game.guild.is_none() {
+                self.game
+                    .chat_window
+                    .add_system("You are not in a guild.".to_string());
+            } else {
+                let char_name = self
+                    .game
+                    .selected_character
+                    .as_ref()
+                    .map(|c| c.name.as_str())
+                    .unwrap_or("Unknown");
+                let full_msg = format!("{char_name} : {}", guild_msg.trim_start());
+                self.channel
+                    .send_packet(build_guild_chat_packet(&full_msg, self.config.packetver));
+            }
         } else {
             let char_name = self
                 .game
@@ -2110,10 +2148,22 @@ impl App {
         }
     }
 
+    fn turn_body(&mut self, step: u8) {
+        let pv = self.config.packetver;
+        if let Some(entity) = self.game.entities.player_mut() {
+            entity.direction = (entity.direction + step) % 8;
+            entity.head_dir = 0;
+            let (head_dir, dir) = (entity.head_dir, entity.direction);
+            self.channel
+                .send_packet(build_change_direction_packet(head_dir, dir, pv));
+        }
+    }
+
     fn handle_slash_command(&mut self, command: &str) {
-        let cmd = command.split_whitespace().next().unwrap_or("");
-        match cmd {
-            "/sit" => {
+        use ragnarok_game::chat_command::{ChatCommand, parse_chat_command};
+        let pv = self.config.packetver;
+        match parse_chat_command(command) {
+            ChatCommand::Sit => {
                 if self.player_hidden() {
                     return;
                 }
@@ -2123,136 +2173,64 @@ impl App {
                     } else {
                         2u8
                     };
-                    self.channel.send_packet(build_action_request_packet(
-                        0,
-                        action,
-                        self.config.packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_action_request_packet(0, action, pv));
                 }
             }
-            "/doridori" => {
+            ChatCommand::Stand => {
+                if self.player_hidden() {
+                    return;
+                }
+                let sitting = self
+                    .game
+                    .entities
+                    .player()
+                    .is_some_and(|e| e.state == EntityState::Sitting);
+                if sitting {
+                    self.channel
+                        .send_packet(build_action_request_packet(0, 3u8, pv));
+                }
+            }
+            ChatCommand::Doridori => {
                 if let Some(entity) = self.game.entities.player_mut() {
                     entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
                     let (head_dir, dir) = (entity.head_dir, entity.direction);
-                    self.channel.send_packet(build_change_direction_packet(
-                        head_dir,
-                        dir,
-                        self.config.packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_change_direction_packet(head_dir, dir, pv));
                 }
             }
-            "/bingbing" | "/bangbang" => {
-                if let Some(entity) = self.game.entities.player_mut() {
-                    let step = if cmd == "/bingbing" { 1 } else { 7 };
-                    entity.direction = (entity.direction + step) % 8;
-                    entity.head_dir = 0;
-                    let (head_dir, dir) = (entity.head_dir, entity.direction);
-                    self.channel.send_packet(build_change_direction_packet(
-                        head_dir,
-                        dir,
-                        self.config.packetver,
-                    ));
+            ChatCommand::BingBing => self.turn_body(1),
+            ChatCommand::BangBang => self.turn_body(7),
+            ChatCommand::Where => {
+                match (self.game.current_map.as_ref(), self.game.entities.player()) {
+                    (Some(map_name), Some(player)) => {
+                        let (x, y) = player.movement.cell_position();
+                        let message = format!("{map_name}.gat ({x}, {y})");
+                        self.game.chat_window.add_system(message);
+                    }
+                    _ => {
+                        self.game
+                            .chat_window
+                            .add_system("You are not in a map yet.".to_string());
+                    }
                 }
             }
-            "/effect" => {
-                let show = !self.config.show_skill_effects;
-                self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
-                    self.config.fullscreen,
-                    self.config.fog,
-                    show,
-                    self.config.display.clone(),
-                    self.config.refuse_trade,
-                    self.config.refuse_party_invite,
-                    true,
-                );
-                let status = if show { "ON" } else { "OFF" };
-                self.game
-                    .chat_window
-                    .add_system(format!("Skill effects: {status}"));
+            ChatCommand::Memo => {
+                self.channel.send_packet(build_remember_warppoint_packet(pv));
             }
-            "/fog" => {
-                let fog = !self.config.fog;
-                self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
-                    self.config.fullscreen,
-                    fog,
-                    self.config.show_skill_effects,
-                    self.config.display.clone(),
-                    self.config.refuse_trade,
-                    self.config.refuse_party_invite,
-                    true,
-                );
-                let status = if fog { "ON" } else { "OFF" };
-                self.game.chat_window.add_system(format!("Fog: {status}"));
+            ChatCommand::ExitRoom => {
+                self.channel.send_packet(build_exit_room_packet(pv));
             }
-            "/aura" => {
-                let mut display = self.config.display.clone();
-                display.show_level_aura = !display.show_level_aura;
-                let status = if display.show_level_aura { "ON" } else { "OFF" };
-                self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
-                    self.config.fullscreen,
-                    self.config.fog,
-                    self.config.show_skill_effects,
-                    display,
-                    self.config.refuse_trade,
-                    self.config.refuse_party_invite,
-                    true,
-                );
-                self.game
-                    .chat_window
-                    .add_system(format!("Level aura: {status}"));
-            }
-            "/notrade" | "/nt" => {
-                let refuse = !self.config.refuse_trade;
-                self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
-                    self.config.fullscreen,
-                    self.config.fog,
-                    self.config.show_skill_effects,
-                    self.config.display.clone(),
-                    refuse,
-                    self.config.refuse_party_invite,
-                    true,
-                );
-                let status = if refuse { "ON" } else { "OFF" };
-                self.game
-                    .chat_window
-                    .add_system(format!("Refuse trade requests: {status}"));
-            }
-            "/noshift" | "/ns" => {
-                self.game.noshift_mode = !self.game.noshift_mode;
-                let status = if self.game.noshift_mode { "ON" } else { "OFF" };
-                self.game
-                    .chat_window
-                    .add_system(format!("No-shift mode: {status}"));
-            }
-            "/noctrl" | "/nc" => {
-                self.game.noctrl_mode = !self.game.noctrl_mode;
-                let status = if self.game.noctrl_mode { "ON" } else { "OFF" };
-                self.game
-                    .chat_window
-                    .add_system(format!("No-ctrl mode: {status}"));
-            }
-            "/where" => match (self.game.current_map.as_ref(), self.game.entities.player()) {
-                (Some(map_name), Some(player)) => {
-                    let (x, y) = player.movement.cell_position();
-                    let message = format!("{map_name}.gat ({x}, {y})");
-                    self.game.chat_window.add_system(message);
-                }
-                _ => {
+            ChatCommand::LeaveParty => {
+                if self.game.party.is_some() {
+                    self.channel.send_packet(build_leave_party_packet(pv));
+                } else {
                     self.game
                         .chat_window
-                        .add_system("You are not in a map yet.".to_string());
+                        .add_system("You are not in a party.".to_string());
                 }
-            },
-            "/organize" => {
-                let name = command["/organize".len()..].trim();
+            }
+            ChatCommand::MakeParty(name) => {
                 if name.is_empty() {
                     self.game
                         .chat_window
@@ -2263,12 +2241,21 @@ impl App {
                         .add_system("You are already in a party.".to_string());
                 } else {
                     self.channel
-                        .send_packet(build_make_party_packet(name, self.config.packetver));
+                        .send_packet(build_make_party_packet(&name, pv));
                 }
             }
-            "/guild" => {
+            ChatCommand::InviteParty(name) => {
+                if name.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("Usage: /invite <character name>".to_string());
+                } else {
+                    self.channel
+                        .send_packet(build_party_invite_by_name_packet(&name, pv));
+                }
+            }
+            ChatCommand::MakeGuild(name) => {
                 const EMPERIUM_ITEM_ID: u16 = 714;
-                let name = command["/guild".len()..].trim();
                 let has_emperium = self
                     .game
                     .character
@@ -2295,12 +2282,10 @@ impl App {
                         .chat_window
                         .add_system("You need an Emperium to create a guild.".to_string());
                 } else {
-                    self.channel
-                        .send_packet(build_make_guild(gid, name, self.config.packetver));
+                    self.channel.send_packet(build_make_guild(gid, &name, pv));
                 }
             }
-            "/breakguild" => {
-                let name = command["/breakguild".len()..].trim();
+            ChatCommand::BreakGuild(name) => {
                 if name.is_empty() {
                     self.game
                         .chat_window
@@ -2311,18 +2296,330 @@ impl App {
                         .add_system("You are not in a guild.".to_string());
                 } else {
                     self.channel
-                        .send_packet(build_req_disorganize_guild(name, self.config.packetver));
+                        .send_packet(build_req_disorganize_guild(&name, pv));
                 }
             }
-            _ => {
-                if let Some(emote_type) = ragnarok_game::emotion::emote_type_for_command(cmd) {
-                    self.channel
-                        .send_packet(build_emotion_packet(emote_type, self.config.packetver));
+            ChatCommand::StatUp { status_id, amount } => {
+                self.channel.send_packet(build_stat_change_packet(
+                    status_id,
+                    amount.min(u8::MAX as u32) as u8,
+                    pv,
+                ));
+            }
+            ChatCommand::ToggleEffect => {
+                let show = !self.config.show_skill_effects;
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    show,
+                    self.config.display.clone(),
+                    self.config.refuse_trade,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                self.channel.send_packet(build_lesseffect_packet(!show, pv));
+                let status = if show { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Skill effects: {status}"));
+            }
+            ChatCommand::ToggleFog => {
+                let fog = !self.config.fog;
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    fog,
+                    self.config.show_skill_effects,
+                    self.config.display.clone(),
+                    self.config.refuse_trade,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                let status = if fog { "ON" } else { "OFF" };
+                self.game.chat_window.add_system(format!("Fog: {status}"));
+            }
+            ChatCommand::ToggleAura => {
+                let mut display = self.config.display.clone();
+                display.show_level_aura = !display.show_level_aura;
+                let status = if display.show_level_aura { "ON" } else { "OFF" };
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    self.config.show_skill_effects,
+                    display,
+                    self.config.refuse_trade,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                self.game
+                    .chat_window
+                    .add_system(format!("Level aura: {status}"));
+            }
+            ChatCommand::ToggleNoTrade => {
+                let refuse = !self.config.refuse_trade;
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    self.config.show_skill_effects,
+                    self.config.display.clone(),
+                    refuse,
+                    self.config.refuse_party_invite,
+                    true,
+                );
+                let status = if refuse { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Refuse trade requests: {status}"));
+            }
+            ChatCommand::RefuseParty(refuse) => {
+                self.apply_graphics_settings(
+                    self.config.screen_width,
+                    self.config.screen_height,
+                    self.config.fullscreen,
+                    self.config.fog,
+                    self.config.show_skill_effects,
+                    self.config.display.clone(),
+                    self.config.refuse_trade,
+                    refuse,
+                    true,
+                );
+                let status = if refuse { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Refuse party invites: {status}"));
+            }
+            ChatCommand::ToggleNoShift => {
+                self.game.noshift_mode = !self.game.noshift_mode;
+                let status = if self.game.noshift_mode { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("No-shift mode: {status}"));
+            }
+            ChatCommand::ToggleNoCtrl => {
+                self.game.noctrl_mode = !self.game.noctrl_mode;
+                let status = if self.game.noctrl_mode { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("No-ctrl mode: {status}"));
+            }
+            ChatCommand::ToggleBgm => {
+                self.config.bgm_enabled = !self.config.bgm_enabled;
+                self.sound.set_volumes(
+                    self.config.effective_bgm_volume(),
+                    self.config.effective_sfx_volume(),
+                );
+                self.config.save("config.json");
+                let status = if self.config.bgm_enabled { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Background music: {status}"));
+            }
+            ChatCommand::ToggleSound => {
+                self.config.sfx_enabled = !self.config.sfx_enabled;
+                self.sound.set_volumes(
+                    self.config.effective_bgm_volume(),
+                    self.config.effective_sfx_volume(),
+                );
+                self.config.save("config.json");
+                let status = if self.config.sfx_enabled { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Sound effects: {status}"));
+            }
+            ChatCommand::SetBgmVolume(vol) => {
+                self.config.bgm_volume = vol as f32 / 127.0;
+                self.sound.set_volumes(
+                    self.config.effective_bgm_volume(),
+                    self.config.effective_sfx_volume(),
+                );
+                self.config.save("config.json");
+                self.game
+                    .chat_window
+                    .add_system(format!("BGM volume: {vol}"));
+            }
+            ChatCommand::SetSfxVolume(vol) => {
+                self.config.sfx_volume = vol as f32 / 127.0;
+                self.sound.set_volumes(
+                    self.config.effective_bgm_volume(),
+                    self.config.effective_sfx_volume(),
+                );
+                self.config.save("config.json");
+                self.game
+                    .chat_window
+                    .add_system(format!("Sound volume: {vol}"));
+            }
+            ChatCommand::ToggleShowExp => {
+                self.game.show_exp = !self.game.show_exp;
+                let status = if self.game.show_exp { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Experience messages: {status}"));
+            }
+            ChatCommand::ToggleHidePublicChat => {
+                self.game.hide_public_chat = !self.game.hide_public_chat;
+                let status = if self.game.hide_public_chat { "OFF" } else { "ON" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Public chat: {status}"));
+            }
+            ChatCommand::BattleMode => {
+                self.game.character.hotkeys.toggle_battle_mode();
+                let status = if self.game.character.hotkeys.battle_mode() {
+                    "ON"
                 } else {
+                    "OFF"
+                };
+                self.game
+                    .chat_window
+                    .add_system(format!("Battle Mode {status}"));
+            }
+            ChatCommand::ToggleMiss => {
+                self.game.show_miss = !self.game.show_miss;
+                let status = if self.game.show_miss { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Miss text: {status}"));
+            }
+            ChatCommand::ToggleEqOpen => {
+                const CONFIG_OPEN_EQUIPMENT_WINDOW: i32 = 0;
+                self.game.equip_open = !self.game.equip_open;
+                self.channel.send_packet(build_config_packet(
+                    CONFIG_OPEN_EQUIPMENT_WINDOW,
+                    self.game.equip_open as i32,
+                    pv,
+                ));
+                let status = if self.game.equip_open { "ON" } else { "OFF" };
+                self.game
+                    .chat_window
+                    .add_system(format!("Equipment visible to others: {status}"));
+            }
+            ChatCommand::GuildChat(msg) => {
+                if msg.is_empty() {
                     self.game
                         .chat_window
-                        .add_system(format!("Unknown command: {cmd}"));
+                        .add_system("Usage: /gc <message>".to_string());
+                } else if self.game.guild.is_none() {
+                    self.game
+                        .chat_window
+                        .add_system("You are not in a guild.".to_string());
+                } else {
+                    let char_name = self
+                        .game
+                        .selected_character
+                        .as_ref()
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("Unknown");
+                    let full_msg = format!("{char_name} : {msg}");
+                    self.channel
+                        .send_packet(build_guild_chat_packet(&full_msg, pv));
                 }
+            }
+            ChatCommand::WhisperFriends(text) => {
+                if text.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("Usage: /hi <message>".to_string());
+                } else {
+                    let targets: Vec<String> = self
+                        .game
+                        .friends
+                        .friends
+                        .iter()
+                        .filter(|f| f.online)
+                        .map(|f| f.name.clone())
+                        .collect();
+                    if targets.is_empty() {
+                        self.game
+                            .chat_window
+                            .add_system("No friends are online.".to_string());
+                    } else {
+                        for name in targets {
+                            self.channel
+                                .send_packet(build_whisper_packet(&name, &text, pv));
+                        }
+                    }
+                }
+            }
+            ChatCommand::WhisperBlock { name, block } => {
+                if name.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("Usage: /ex <character name>".to_string());
+                } else {
+                    self.channel
+                        .send_packet(build_setting_whisper_pc_packet(&name, block, pv));
+                    self.game.blocked_whispers.retain(|n| n != &name);
+                    if block {
+                        self.game.blocked_whispers.push(name.clone());
+                    }
+                    let verb = if block { "Blocked" } else { "Unblocked" };
+                    self.game
+                        .chat_window
+                        .add_system(format!("{verb} whispers from {name}."));
+                }
+            }
+            ChatCommand::WhisperBlockAll(block) => {
+                self.channel
+                    .send_packet(build_setting_whisper_state_packet(block, pv));
+                let msg = if block {
+                    "Blocking all whispers."
+                } else {
+                    "Accepting all whispers."
+                };
+                self.game.chat_window.add_system(msg.to_string());
+            }
+            ChatCommand::WhisperListBlocked => {
+                if self.game.blocked_whispers.is_empty() {
+                    self.game
+                        .chat_window
+                        .add_system("No blocked players.".to_string());
+                } else {
+                    let list = self.game.blocked_whispers.join(", ");
+                    self.game
+                        .chat_window
+                        .add_system(format!("Blocked: {list}"));
+                }
+            }
+            ChatCommand::OpenChatCreate => {
+                self.game.chat_room_create_window.toggle();
+            }
+            ChatCommand::OpenEmotionList => {
+                self.game.emotion_window.toggle();
+            }
+            ChatCommand::Unsupported => {
+                self.game
+                    .chat_window
+                    .add_system("This command is not supported yet.".to_string());
+            }
+            ChatCommand::Emote(emote_type) => {
+                self.channel
+                    .send_packet(build_emotion_packet(emote_type, pv));
+            }
+            ChatCommand::Help => {
+                self.game.chat_window.add_system("Commands:".to_string());
+                for (cmd, desc) in ragnarok_game::chat_command::COMMAND_HELP {
+                    self.game
+                        .chat_window
+                        .add_system(format!("{cmd} - {desc}"));
+                }
+            }
+            ChatCommand::Outdated => {
+                self.game
+                    .chat_window
+                    .add_system("This command is no longer available.".to_string());
+            }
+            ChatCommand::Unknown => {
+                let cmd = command.split_whitespace().next().unwrap_or("");
+                self.game
+                    .chat_window
+                    .add_system(format!("Unknown command: {cmd}"));
             }
         }
     }
@@ -2947,7 +3244,14 @@ impl ApplicationHandler for App {
                 let (ui_draw_calls, ui_events, ui_any_hovered, ui_any_interactive) =
                     self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
-                self.handle_ui_events(ui_events, event_loop);
+                if let Some(dirty) = self.game.hotkey_config_window.take_dirty_bindings() {
+                    self.config.keybindings = dirty.interface;
+                    self.config.emotion_keys = dirty.emotion;
+                    self.config.save("config.json");
+                }
+                let mut queued = std::mem::take(&mut self.pending_events);
+                queued.extend(ui_events);
+                self.handle_ui_events(queued, event_loop);
 
                 if self.game.pending_disconnect_exit {
                     event_loop.exit();

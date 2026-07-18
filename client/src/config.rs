@@ -24,6 +24,7 @@ impl Default for WindowStateEntry {
 }
 
 pub use ragnarok_game::display::DisplayOptions;
+pub use ragnarok_game::keybinding::{EmotionKeys, KeyBindings};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -67,6 +68,10 @@ pub struct Config {
     pub map_recovery_command: String,
     /// Chat commands bound to Alt+1..Alt+0 by the Shortcut List window (10 slots).
     pub shortcut_commands: Vec<String>,
+    #[serde(default = "KeyBindings::defaults")]
+    pub keybindings: KeyBindings,
+    #[serde(default)]
+    pub emotion_keys: EmotionKeys,
 }
 
 fn default_map_recovery_command() -> String {
@@ -111,6 +116,8 @@ impl Default for Config {
             last_char_slot: None,
             map_recovery_command: default_map_recovery_command(),
             shortcut_commands: default_shortcut_commands(),
+            keybindings: KeyBindings::defaults(),
+            emotion_keys: EmotionKeys::default(),
         }
     }
 }
@@ -141,10 +148,12 @@ impl Config {
                 tracing::warn!("Failed to read config: {e}, using defaults");
                 String::new()
             });
-            serde_json::from_str(&content).unwrap_or_else(|e| {
+            let mut config: Config = serde_json::from_str(&content).unwrap_or_else(|e| {
                 tracing::warn!("Failed to parse config: {e}, using defaults");
                 Config::default()
-            })
+            });
+            config.keybindings.fill_missing_from_defaults();
+            config
         } else {
             let config = Config::default();
             if let Ok(json) = serde_json::to_string_pretty(&config) {
@@ -198,6 +207,30 @@ mod tests {
         let eq = parsed.window_state.get(&900).unwrap();
         assert!(!eq.open);
         assert!(eq.collapsed);
+    }
+
+    #[test]
+    fn keybinding_remap_roundtrips_and_missing_filled() {
+        use ragnarok_game::keybinding::{HotkeyAction, KeyChord};
+        let mut config = Config::default();
+        config.keybindings.set(
+            HotkeyAction::ToggleInventory,
+            KeyChord::new("KeyB", true, false, false),
+        );
+        let json = serde_json::to_string_pretty(&config).unwrap();
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            parsed.keybindings.get(HotkeyAction::ToggleInventory),
+            Some(&KeyChord::new("KeyB", true, false, false))
+        );
+
+        let mut sparse: Config = serde_json::from_str(r#"{"keybindings": {}}"#).unwrap();
+        assert!(sparse.keybindings.get(HotkeyAction::SitStand).is_none());
+        sparse.keybindings.fill_missing_from_defaults();
+        assert_eq!(
+            sparse.keybindings.get(HotkeyAction::SitStand),
+            Some(&KeyChord::new("Insert", false, false, false))
+        );
     }
 
     #[test]

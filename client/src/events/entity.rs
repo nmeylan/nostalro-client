@@ -266,7 +266,7 @@ impl App {
                             .is_some_and(|e| is_hidden(e.effect_state));
                         (!hidden).then_some(EffectId::Teleportation2)
                     }
-                    VanishType::Loggout => Some(EffectId::Exit2),
+                    VanishType::Loggout => Some(EffectId::Teleportation2),
                     _ => None,
                 };
                 if let Some(effect) = poof

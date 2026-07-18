@@ -76,6 +76,9 @@ use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWin
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
 use ragnarok_ui_component::game::graphic_options::{GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow};
+use ragnarok_ui_component::game::hotkey_config_window::{
+    HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
+};
 use ragnarok_ui_component::game::sound_options::{SOUND_OPTIONS_WINDOW_ID, SoundOptionsWindow};
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
@@ -243,11 +246,17 @@ pub struct GameState {
     pub attack_request_cooldown: f32,
     pub noshift_mode: bool,
     pub noctrl_mode: bool,
+    pub show_exp: bool,
+    pub hide_public_chat: bool,
+    pub show_miss: bool,
+    pub equip_open: bool,
+    pub blocked_whispers: Vec<String>,
     pub attack_is_locked: bool,
     pub item_info_window: ItemInfoWindow,
     pub book_window: BookWindow,
     pub sound_options: SoundOptionsWindow,
     pub graphic_options: GraphicOptionsWindow,
+    pub hotkey_config_window: HotkeyConfigWindow,
     pub item_pickup_notification: ItemPickupNotification,
     pub skill_tree_window: SkillTreeWindow,
     pub basic_info_window: BasicInfoWindow,
@@ -359,6 +368,7 @@ const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
     BOOK_WINDOW_ID,
     SOUND_OPTIONS_WINDOW_ID,
     GRAPHIC_OPTIONS_WINDOW_ID,
+    HOTKEY_CONFIG_WINDOW_ID,
     COMPANION_AI_CONFIG_WINDOW_ID,
     CHAT_ROOM_CREATE_WINDOW_ID,
     CHAT_ROOM_MEMBER_WINDOW_ID,
@@ -1065,6 +1075,13 @@ impl GameState {
                         .build(ui, &mut self.character, &self.data_table),
                 );
             }
+            HOTKEY_CONFIG_WINDOW_ID => {
+                events.extend(self.hotkey_config_window.build(
+                    ui,
+                    &mut self.character,
+                    &self.data_table,
+                ));
+            }
             CHAT_ROOM_CREATE_WINDOW_ID => {
                 events.extend(self.chat_room_create_window.build(
                     ui,
@@ -1238,6 +1255,11 @@ impl GameState {
             attack_request_cooldown: 0.0,
             noshift_mode: false,
             noctrl_mode: true,
+            show_exp: true,
+            hide_public_chat: false,
+            show_miss: true,
+            equip_open: false,
+            blocked_whispers: Vec::new(),
             attack_is_locked: false,
             basic_info_window: BasicInfoWindow::new(),
             status_window: StatusWindow::new(),
@@ -1245,6 +1267,7 @@ impl GameState {
             book_window: BookWindow::new(),
             sound_options: SoundOptionsWindow::new(),
             graphic_options: GraphicOptionsWindow::new(),
+            hotkey_config_window: HotkeyConfigWindow::new(),
             item_pickup_notification: ItemPickupNotification::new(),
             skill_tree_window: SkillTreeWindow::new(),
             hotkey_bar: HotkeyBarWindow::new(),

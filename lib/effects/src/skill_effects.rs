@@ -326,9 +326,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         S::AcConcentration => &[E::Incagidex],
         S::MoExtremityfist => &[E::Beginasura],
 
-        S::AmCallhomun | S::AmRest | S::AmResurrecthomun | S::WeMale | S::WeCallpartner => {
-            &[E::Couplecasting]
-        }
+        S::AmCallhomun | S::AmRest | S::AmResurrecthomun | S::WeMale => &[E::Couplecasting],
         S::WeFemale => &[E::Heartcasting],
 
         S::AmTwilight1 => &[E::Twilight1],
@@ -461,6 +459,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::McCartrevolution => C::cast(&[E::Cartrevolution]),
         S::AcConcentration => C::cast(&[E::Concentration]),
         S::NvFirstaid => C::cast(&[E::Firstaid]),
+        S::WeCallpartner => C::cast(&[E::Couplecasting]),
 
         S::KnPierce => C::cast(&[E::Pierceself]),
         S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
@@ -1290,8 +1289,8 @@ mod tests {
         use EffectId as E;
         use SkillEnum as S;
         assert_eq!(begin_cast_effect(S::WeMale), &[E::Couplecasting]);
-        assert_eq!(begin_cast_effect(S::WeCallpartner), &[E::Couplecasting]);
         assert_eq!(begin_cast_effect(S::WeFemale), &[E::Heartcasting]);
+        assert_eq!(caster_skill_effects(S::WeCallpartner).cast, &[E::Couplecasting]);
         assert!(is_cast_circle(E::Couplecasting));
         assert!(is_cast_circle(E::Heartcasting));
         assert_eq!(target_skill_effects(S::WeMale).on_target, &[E::Heal]);

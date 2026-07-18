@@ -1,13 +1,17 @@
 use eframe::egui;
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
+use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsm::RsmFile;
+use ragnarok_game::gr2_model::{
+    AnimationClip, Gr2Action, SkeletonPose, animation_file_path, bone_type_from_name,
+};
 use ragnarok_game::sprite_loader;
 use ragnarok_renderer::wgpu;
 use ragnarok_renderer::{
-    Camera, EntitySprite, GlobalUniforms, LightUniform, ModelRenderer, SpriteRenderer,
-    SpriteUniforms, StrEffectCache, StrEmitterInput, TextureCache, block_on, build_entity_sprite,
-    build_str_effect_batches,
+    Camera, EntitySprite, GlobalUniforms, Gr2ModelRenderer, LightUniform, ModelRenderer,
+    SpriteRenderer, SpriteUniforms, StrEffectCache, StrEmitterInput, TextureCache, block_on,
+    build_entity_sprite, build_str_effect_batches,
 };
 
 const CANVAS: u32 = 384;
@@ -19,6 +23,7 @@ enum Content {
     Sprite,
     Str,
     Model,
+    Gr2,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -83,6 +88,11 @@ pub struct SpritePreview {
     camera: Camera,
     global_uniforms: GlobalUniforms,
     model: Option<ModelRenderer>,
+    gr2: Option<Gr2ModelRenderer>,
+    gr2_pose: Option<SkeletonPose>,
+    gr2_clips: [Option<AnimationClip>; 5],
+    gr2_action: usize,
+    gr2_time: f32,
     model_center: [f32; 3],
     model_size: [f32; 3],
     model_yaw: f32,
@@ -196,6 +206,11 @@ impl SpritePreview {
             },
             global_uniforms,
             model: None,
+            gr2: None,
+            gr2_pose: None,
+            gr2_clips: Default::default(),
+            gr2_action: 0,
+            gr2_time: 0.0,
             model_center: [0.0; 3],
             model_size: [1.0; 3],
             model_yaw: 0.7,
@@ -217,15 +232,68 @@ impl SpritePreview {
         self.entity = None;
         self.str_name = None;
         self.model = None;
+        self.gr2 = None;
+        self.gr2_pose = None;
+        self.gr2_clips = Default::default();
+        self.gr2_action = 0;
 
         let lower = path.to_lowercase();
         if lower.ends_with(".str") {
             self.load_str(grf, path);
         } else if lower.ends_with(".rsm") {
             self.load_model(grf, path);
+        } else if lower.ends_with(".gr2") {
+            self.load_gr2(grf, path);
+        } else if lower.ends_with(".act") {
+            self.load_sprite(grf, &spr_sibling(path));
         } else {
             self.load_sprite(grf, path);
         }
+    }
+
+    fn load_gr2(&mut self, grf: &GrfArchive, path: &str) {
+        self.zoom = 1.0;
+        self.model_yaw = 0.7;
+        self.model_pitch = 0.35;
+        self.gr2_time = 0.0;
+
+        let data = match grf.read_file(path) {
+            Ok(d) => d,
+            Err(e) => {
+                self.error = Some(format!("Could not read {path}: {e}"));
+                return;
+            }
+        };
+        let file = match Gr2Container::parse(&data).and_then(|c| Gr2File::parse(&c)) {
+            Ok(f) => f,
+            Err(e) => {
+                self.error = Some(format!("Could not parse {path}: {e:?}"));
+                return;
+            }
+        };
+        let Some(pose) = SkeletonPose::from_model(&file, 0) else {
+            self.error = Some(format!("Model has no skeleton: {path}"));
+            return;
+        };
+        let Some(renderer) = Gr2ModelRenderer::from_gr2(
+            &file,
+            0,
+            &self.device,
+            &self.queue,
+            &self.global_uniforms,
+            &self.tex_cache,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        ) else {
+            self.error = Some(format!("Model has no drawable geometry: {path}"));
+            return;
+        };
+        renderer.set_transform(&self.queue, z_up_transform());
+        self.model_center = renderer.center;
+        self.model_size = renderer.size;
+        self.gr2 = Some(renderer);
+        self.gr2_pose = Some(pose);
+        self.gr2_clip = AnimationClip::from_gr2(&file, 0);
+        self.content = Content::Gr2;
     }
 
     fn load_model(&mut self, grf: &GrfArchive, rsm_path: &str) {
@@ -268,14 +336,15 @@ impl SpritePreview {
         }
     }
 
-    fn frame_model_camera(&mut self) {
+    fn frame_model_camera(&mut self, z_up: bool) {
         let [sx, sy, sz] = self.model_size;
         let radius = 0.5 * (sx * sx + sy * sy + sz * sz).sqrt().max(1.0);
         let fov_y = 40_f32.to_radians();
         self.camera.fov_y = fov_y;
         self.camera.aspect = 1.0;
-        self.camera
-            .set_target(self.model_center[0], self.model_center[1], self.model_center[2]);
+        let [cx, cy, cz] = self.model_center;
+        let (tx, ty, tz) = if z_up { (cx, -cz, cy) } else { (cx, cy, cz) };
+        self.camera.set_target(tx, ty, tz);
         self.camera.yaw = self.model_yaw;
         self.camera.pitch = self.model_pitch;
         self.camera.distance = radius / (fov_y * 0.5).tan() / self.zoom.max(0.05);
@@ -345,10 +414,15 @@ impl SpritePreview {
             },
         );
 
-        if matches!(self.content, Content::Model) {
-            self.frame_model_camera();
+        if matches!(self.content, Content::Model | Content::Gr2) {
+            self.frame_model_camera(matches!(self.content, Content::Gr2));
             self.global_uniforms.update_camera(&self.queue, &self.camera);
             self.global_uniforms.update_light(&self.queue, &model_light());
+        }
+        if matches!(self.content, Content::Gr2) {
+            if let (Some(gr2), Some(pose)) = (&self.gr2, &self.gr2_pose) {
+                gr2.set_palette(&self.queue, &gr2_palette(&self.gr2_clip, pose, self.gr2_time));
+            }
         }
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -431,6 +505,32 @@ impl SpritePreview {
                     model.render(&mut pass, &self.global_uniforms, &self.tex_cache);
                 }
             }
+            Content::Gr2 => {
+                if let Some(gr2) = &self.gr2 {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("gr2_preview"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &self.color_view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(self.background.clear_color()),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &self.depth_view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
+                        ..Default::default()
+                    });
+                    gr2.render(&mut pass, &self.global_uniforms);
+                }
+            }
             Content::None => {}
         }
 
@@ -505,6 +605,10 @@ impl SpritePreview {
             self.render_str_thumbnail(grf, path)?
         } else if lower.ends_with(".rsm") {
             self.render_model_thumbnail(grf, path)?
+        } else if lower.ends_with(".gr2") {
+            self.render_gr2_thumbnail(grf, path)?
+        } else if lower.ends_with(".act") {
+            self.render_sprite_thumbnail(grf, &spr_sibling(path))?
         } else {
             self.render_sprite_thumbnail(grf, path)?
         };
@@ -617,7 +721,7 @@ impl SpritePreview {
         self.model_pitch = 0.5;
         let saved_zoom = self.zoom;
         self.zoom = 1.0;
-        self.frame_model_camera();
+        self.frame_model_camera(false);
         self.zoom = saved_zoom;
         self.global_uniforms.update_camera(&self.queue, &self.camera);
         self.global_uniforms.update_light(&self.queue, &model_light());
@@ -646,6 +750,64 @@ impl SpritePreview {
                 ..Default::default()
             });
             model.render(&mut pass, &self.global_uniforms, &self.tex_cache);
+        }
+        Some(self.finish_read(encoder))
+    }
+
+    fn render_gr2_thumbnail(&mut self, grf: &GrfArchive, path: &str) -> Option<Vec<u8>> {
+        let data = grf.read_file(path).ok()?;
+        let file = Gr2Container::parse(&data)
+            .and_then(|c| Gr2File::parse(&c))
+            .ok()?;
+        let pose = SkeletonPose::from_model(&file, 0)?;
+        let clip = AnimationClip::from_gr2(&file, 0);
+        let renderer = Gr2ModelRenderer::from_gr2(
+            &file,
+            0,
+            &self.device,
+            &self.queue,
+            &self.global_uniforms,
+            &self.tex_cache,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        )?;
+        renderer.set_transform(&self.queue, z_up_transform());
+        renderer.set_palette(&self.queue, &gr2_palette(&clip, &pose, 0.0));
+
+        self.model_center = renderer.center;
+        self.model_size = renderer.size;
+        self.model_yaw = 0.7;
+        self.model_pitch = 0.35;
+        let saved_zoom = self.zoom;
+        self.zoom = 1.0;
+        self.frame_model_camera(true);
+        self.zoom = saved_zoom;
+        self.global_uniforms.update_camera(&self.queue, &self.camera);
+        self.global_uniforms.update_light(&self.queue, &model_light());
+
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("gr2_thumb"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.color_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(Background::Checkerboard.clear_color()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            renderer.render(&mut pass, &self.global_uniforms);
         }
         Some(self.finish_read(encoder))
     }
@@ -683,6 +845,30 @@ impl SpritePreview {
                     }
                 }
                 Content::Model => {
+                    ui.label("Rotate");
+                    if ui.button("◀").clicked() {
+                        self.model_yaw -= std::f32::consts::FRAC_PI_8;
+                    }
+                    if ui.button("▶").clicked() {
+                        self.model_yaw += std::f32::consts::FRAC_PI_8;
+                    }
+                    ui.separator();
+                    ui.label("Tilt");
+                    if ui.button("▲").clicked() {
+                        self.model_pitch = (self.model_pitch + 0.15).min(1.5);
+                    }
+                    if ui.button("▼").clicked() {
+                        self.model_pitch = (self.model_pitch - 0.15).max(-1.5);
+                    }
+                }
+                Content::Gr2 => {
+                    if ui
+                        .button(if self.paused { "▶ Play" } else { "⏸ Pause" })
+                        .clicked()
+                    {
+                        self.paused = !self.paused;
+                    }
+                    ui.separator();
                     ui.label("Rotate");
                     if ui.button("◀").clicked() {
                         self.model_yaw -= std::f32::consts::FRAC_PI_8;
@@ -754,6 +940,7 @@ impl SpritePreview {
                     }
                 }
                 Content::Str => self.str_time += dt,
+                Content::Gr2 => self.gr2_time += dt,
                 Content::Model | Content::None => {}
             }
         }
@@ -808,6 +995,10 @@ impl SpritePreview {
             Content::Model => {
                 let [sx, sy, sz] = self.model_size;
                 Some(format!("RSM  Size: {sx:.0} × {sy:.0} × {sz:.0}"))
+            }
+            Content::Gr2 => {
+                let bones = self.gr2_pose.as_ref().map_or(0, |p| p.bone_count());
+                Some(format!("GR2  Bones: {bones}"))
             }
             Content::None => None,
         };
@@ -890,10 +1081,66 @@ impl SpritePreview {
     }
 }
 
+/// Sibling `.spr` path for a selected `.act` file — the sprite loader keys on the
+/// `.spr` and derives the `.act` back from it.
+fn spr_sibling(act_path: &str) -> String {
+    let lower = act_path.to_lowercase();
+    match lower.strip_suffix(".act") {
+        Some(base) => format!("{base}.spr"),
+        None => lower,
+    }
+}
+
+/// GR2 models are authored Z-up; a +90° X-rotation maps model +Z to world -Y
+/// (up in RO coordinates) without flipping handedness.
+fn z_up_transform() -> glam::Mat4 {
+    glam::Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2)
+}
+
+/// Skinning palette for the stand clip at time `t`, falling back to the bind
+/// pose when the model carries no animation.
+fn gr2_palette(clip: &Option<AnimationClip>, pose: &SkeletonPose, t: f32) -> Vec<glam::Mat4> {
+    match clip {
+        Some(clip) if clip.duration > 0.0 => clip.skinning_palette(pose, t % clip.duration),
+        Some(clip) => clip.skinning_palette(pose, 0.0),
+        None => pose.bind_palette(),
+    }
+}
+
 /// Angled directional light so standalone models read as 3D rather than flat.
 fn model_light() -> LightUniform {
     LightUniform {
         light_dir: [-0.5, -1.0, -0.4, 0.0],
         ..LightUniform::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn gr2_thumbnail_renders_geometry() {
+        let Some(grf_path) = ["data/data.grf", "../../data/data.grf", "../../../../data/data.grf"]
+            .iter()
+            .find(|p| Path::new(p).exists())
+        else {
+            eprintln!("skipping: data.grf not found");
+            return;
+        };
+        let grf = GrfArchive::open(Path::new(grf_path)).expect("open grf");
+        let Some(mut preview) = SpritePreview::new() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+
+        let image = preview
+            .thumbnail(&grf, "data/model/3dmob/empelium90_0.gr2", 96)
+            .expect("gr2 thumbnail renders");
+
+        let first = image.pixels[0];
+        let varied = image.pixels.iter().any(|p| *p != first);
+        assert!(varied, "gr2 thumbnail is a flat frame — model did not render");
     }
 }

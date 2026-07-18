@@ -134,12 +134,25 @@ pub fn is_sprite_previewable(name: &str, archive: &GrfArchive) -> bool {
     archive.file_exists(&format!("{base}.act"))
 }
 
+/// A `.act` is animatable when its sibling `.spr` also exists in the archive.
+pub fn is_act_previewable(name: &str, archive: &GrfArchive) -> bool {
+    let lower = name.to_lowercase();
+    let Some(base) = lower.strip_suffix(".act") else {
+        return false;
+    };
+    archive.file_exists(&format!("{base}.spr"))
+}
+
 pub fn is_str_previewable(name: &str) -> bool {
     name.to_lowercase().ends_with(".str")
 }
 
 pub fn is_model_previewable(name: &str) -> bool {
     name.to_lowercase().ends_with(".rsm")
+}
+
+pub fn is_gr2_previewable(name: &str) -> bool {
+    name.to_lowercase().ends_with(".gr2")
 }
 
 pub fn is_audio_previewable(name: &str) -> bool {
@@ -149,7 +162,11 @@ pub fn is_audio_previewable(name: &str) -> bool {
 
 /// True for any file the GPU preview can render (sprite, STR effect, or model).
 pub fn is_animated_previewable(name: &str, archive: &GrfArchive) -> bool {
-    is_sprite_previewable(name, archive) || is_str_previewable(name) || is_model_previewable(name)
+    is_sprite_previewable(name, archive)
+        || is_act_previewable(name, archive)
+        || is_str_previewable(name)
+        || is_model_previewable(name)
+        || is_gr2_previewable(name)
 }
 
 #[cfg(test)]
@@ -211,11 +228,17 @@ mod tests {
         archive.add_file("data/sprite/poring.spr", b"spr").unwrap();
         archive.add_file("data/sprite/poring.act", b"act").unwrap();
         archive.add_file("data/sprite/lonely.spr", b"spr").unwrap();
+        archive.add_file("data/sprite/orphan.act", b"act").unwrap();
 
         assert!(is_sprite_previewable("data/sprite/poring.spr", &archive));
         assert!(is_sprite_previewable("DATA/SPRITE/PORING.SPR", &archive));
         assert!(!is_sprite_previewable("data/sprite/lonely.spr", &archive));
         assert!(!is_sprite_previewable("data/texture/foo.bmp", &archive));
+
+        assert!(is_act_previewable("data/sprite/poring.act", &archive));
+        assert!(is_act_previewable("DATA/SPRITE/PORING.ACT", &archive));
+        assert!(!is_act_previewable("data/sprite/orphan.act", &archive));
+        assert!(!is_act_previewable("data/sprite/poring.spr", &archive));
 
         assert!(is_str_previewable("data/texture/effect/fire.str"));
         assert!(is_str_previewable("data/texture/effect/FIRE.STR"));
@@ -225,9 +248,16 @@ mod tests {
         assert!(is_model_previewable("data/model/TREE.RSM"));
         assert!(!is_model_previewable("data/sprite/poring.spr"));
 
+        assert!(is_gr2_previewable("data/model/emperium.gr2"));
+        assert!(is_gr2_previewable("data/model/EMPERIUM.GR2"));
+        assert!(!is_gr2_previewable("data/model/tree.rsm"));
+
         assert!(is_animated_previewable("data/sprite/poring.spr", &archive));
+        assert!(is_animated_previewable("data/sprite/poring.act", &archive));
+        assert!(!is_animated_previewable("data/sprite/orphan.act", &archive));
         assert!(is_animated_previewable("data/texture/effect/fire.str", &archive));
         assert!(is_animated_previewable("data/model/tree.rsm", &archive));
+        assert!(is_animated_previewable("data/model/emperium.gr2", &archive));
         assert!(!is_animated_previewable("data/sprite/lonely.spr", &archive));
         assert!(!is_animated_previewable("readme.txt", &archive));
 

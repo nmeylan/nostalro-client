@@ -48,6 +48,7 @@ const UNT_DONTFORGETME: u8 = 0xad;
 const UNT_FORTUNEKISS: u8 = 0xae;
 const UNT_SERVICEFORYOU: u8 = 0xaf;
 const UNT_DEMONSTRATION: u8 = 0xb1;
+const UNT_CALLFAMILY: u8 = 0xb2;
 const UNT_GOSPEL: u8 = 0xb3;
 const UNT_BASILICA: u8 = 0xb4;
 const UNT_FOGWALL: u8 = 0xb6;
@@ -77,6 +78,7 @@ pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
         UNT_VIOLENTGALE => E::BottomVi,
         UNT_LANDPROTECTOR => E::BottomLa,
         UNT_DEMONSTRATION => E::Demonstration,
+        UNT_CALLFAMILY => E::Portal3,
         UNT_GOSPEL => E::BottomGospel,
         UNT_BASILICA => E::BottomBasilica,
         UNT_FOGWALL => E::BottomFogwall,
@@ -187,6 +189,7 @@ mod tests {
             skill_unit_effect(UNT_POEMBRAGI),
             Some(EffectId::BottomPoembragi)
         );
+        assert_eq!(skill_unit_effect(UNT_CALLFAMILY), Some(EffectId::Portal3));
         assert_eq!(skill_unit_effect(0x86), None);
         assert_eq!(skill_unit_effect(0x00), None);
     }

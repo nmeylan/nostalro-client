@@ -44,7 +44,15 @@ impl App {
                 .chat_room_member_window
                 .push_message(message.clone(), OTHER_MSG_COLOR);
         }
-        self.game.chat_window.add_chat(message);
+        let is_own = self
+            .game
+            .selected_character
+            .as_ref()
+            .zip(message.split_once(" : "))
+            .is_some_and(|(c, (sender, _))| sender == c.name);
+        if is_own || !self.game.hide_public_chat {
+            self.game.chat_window.add_chat(message);
+        }
     }
 
     pub(super) fn handle_own_chat_message(&mut self, message: String) {
@@ -70,6 +78,9 @@ impl App {
         is_quest: bool,
     ) {
         tracing::debug!(aid, amount, is_base, is_quest, "exp gained");
+        if !self.game.show_exp {
+            return;
+        }
         let message = if is_base {
             format!("Gained {amount} base experience")
         } else {

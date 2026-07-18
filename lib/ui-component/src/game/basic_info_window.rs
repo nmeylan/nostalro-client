@@ -105,6 +105,7 @@ const SHADOW_DRAIN_SPEED: f32 = 3.0;
 
 pub struct BasicInfoWindow {
     pub has_grf_textures: bool,
+    hidden: bool,
     minimized: bool,
     hp_shadow: f32,
     sp_shadow: f32,
@@ -125,6 +126,7 @@ impl BasicInfoWindow {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
+            hidden: false,
             minimized: false,
             hp_shadow: 1.0,
             sp_shadow: 1.0,
@@ -134,6 +136,10 @@ impl BasicInfoWindow {
             menu_btn_size: (MENU_BTN_W, MENU_BTN_H),
             sys_btn_size: (11.0, 11.0),
         }
+    }
+
+    pub fn toggle(&mut self) {
+        self.hidden = !self.hidden;
     }
 
     fn update_shadow(shadow: &mut f32, current: f32, delta: f32) {
@@ -653,6 +659,9 @@ impl InGameWindow for BasicInfoWindow {
         character: &mut Character,
         _data: &DataTable,
     ) -> Vec<GameEvent> {
+        if self.hidden {
+            return Vec::new();
+        }
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 

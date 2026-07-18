@@ -852,6 +852,7 @@ pub enum GameEvent {
         persist: bool,
     },
     ToggleGraphicOptions,
+    ToggleHotkeyConfig,
     GraphicsSettingsChanged {
         width: u32,
         height: u32,

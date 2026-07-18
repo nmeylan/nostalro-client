@@ -293,6 +293,7 @@ impl App {
             preload_window(&mut self.game.book_window, renderer, grf);
             preload_window(&mut self.game.sound_options, renderer, grf);
             preload_window(&mut self.game.graphic_options, renderer, grf);
+            preload_window(&mut self.game.hotkey_config_window, renderer, grf);
             preload_window(&mut self.game.item_pickup_notification, renderer, grf);
             preload_window(&mut self.game.skill_tree_window, renderer, grf);
             preload_window(&mut self.game.hotkey_bar, renderer, grf);

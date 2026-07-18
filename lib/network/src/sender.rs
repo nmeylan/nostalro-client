@@ -369,6 +369,57 @@ pub fn build_exit_room_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_remember_warppoint_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzRememberWarppoint::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_lesseffect_packet(is_less: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzLesseffect::new(packetver);
+    pkt.set_is_less(is_less as i32);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_guild_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzGuildChat::new(packetver);
+    let msg_null = format!("{msg}\0");
+    pkt.set_packet_length((4 + msg_null.len()) as i16);
+    pkt.set_msg(msg_null);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_whisper_packet(receiver: &str, msg: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzWhisper::new(packetver);
+    pkt.set_receiver(name_to_char24(receiver));
+    let msg_null = format!("{msg}\0");
+    pkt.set_packet_length((28 + msg_null.len()) as i16);
+    pkt.set_msg(msg_null);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+/// `block` = add the player to the ignore list (`/ex`); `false` removes them
+/// (`/in`). The wire `type` byte is 0 for add, 1 for remove.
+pub fn build_setting_whisper_pc_packet(name: &str, block: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzSettingWhisperPc::new(packetver);
+    pkt.set_name(name_to_char24(name));
+    pkt.set_atype(if block { 0 } else { 1 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
+/// `block_all` = ignore every incoming whisper (`/exall`); `false` accepts all
+/// (`/inall`).
+pub fn build_setting_whisper_state_packet(block_all: bool, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzSettingWhisperState::new(packetver);
+    pkt.set_atype(if block_all { 0 } else { 1 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_purchase_item_list_packet(items: &[(i16, u16)], packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzPcPurchaseItemlist::new(packetver);
     let item_list: Vec<CzPurchaseItem> = items

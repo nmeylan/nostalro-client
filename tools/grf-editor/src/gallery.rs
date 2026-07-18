@@ -25,7 +25,9 @@ fn kind(name: &str, archive: &GrfArchive) -> Option<Kind> {
     }
     if preview::is_str_previewable(name)
         || preview::is_model_previewable(name)
+        || preview::is_gr2_previewable(name)
         || preview::is_sprite_previewable(name, archive)
+        || preview::is_act_previewable(name, archive)
     {
         return Some(Kind::Gpu);
     }

@@ -51,6 +51,9 @@ use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWind
 use ragnarok_ui_component::game::graphic_options::{
     GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow,
 };
+use ragnarok_ui_component::game::hotkey_config_window::{
+    HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
+};
 use ragnarok_ui_component::game::shortcut_list_window::{
     SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
 };
@@ -119,6 +122,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "quest",
     "quest_detail",
     "graphic_options",
+    "hotkey_config",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
@@ -253,6 +257,11 @@ enum State {
     },
     GraphicOptions {
         win: GraphicOptionsWindow,
+        character: Character,
+        data: DataTable,
+    },
+    HotkeyConfig {
+        win: HotkeyConfigWindow,
         character: Character,
         data: DataTable,
     },
@@ -1081,6 +1090,19 @@ fn create_single(name: &str) -> State {
             );
             win.toggle();
             State::GraphicOptions {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "hotkey_config" => {
+            let mut win = HotkeyConfigWindow::new();
+            win.set_bindings(
+                &ragnarok_game::keybinding::KeyBindings::defaults(),
+                &ragnarok_game::keybinding::EmotionKeys::default(),
+            );
+            win.toggle();
+            State::HotkeyConfig {
                 win,
                 character: Character::new(),
                 data: DataTable::new(),
@@ -1981,6 +2003,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::HotkeyConfig { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::Quest { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -2105,6 +2131,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Emotion { .. } => Some(EMOTION_WINDOW_ID),
         State::ShortcutList { .. } => Some(SHORTCUT_LIST_WINDOW_ID),
         State::GraphicOptions { .. } => Some(GRAPHIC_OPTIONS_WINDOW_ID),
+        State::HotkeyConfig { .. } => Some(HOTKEY_CONFIG_WINDOW_ID),
         State::Quest { .. } => Some(QUEST_WINDOW_ID),
         State::QuestDetail { .. } => Some(QUEST_DETAIL_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
@@ -2140,6 +2167,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::Emotion { win, .. } => Some((EMOTION_WINDOW_ID, win)),
         State::ShortcutList { win, .. } => Some((SHORTCUT_LIST_WINDOW_ID, win)),
         State::GraphicOptions { win, .. } => Some((GRAPHIC_OPTIONS_WINDOW_ID, win)),
+        State::HotkeyConfig { win, .. } => Some((HOTKEY_CONFIG_WINDOW_ID, win)),
         State::Quest { win, .. } => Some((QUEST_WINDOW_ID, win)),
         State::QuestDetail { win, .. } => Some((QUEST_DETAIL_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
@@ -2709,6 +2737,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, character, data);
         }
         State::GraphicOptions {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, character, data);
+        }
+        State::HotkeyConfig {
             win,
             character,
             data,

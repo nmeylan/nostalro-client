@@ -105,6 +105,9 @@ TODO:
 
 # Network
 - ~~Chat packets~~ (done — multi-channel chat)
+- Guild chat
+- Whisper
+- Team chat 
 - ~~Combat packets (attack, skill use, damage)~~
 - ~~Item packets (pickup, drop, use, equip, unequip)~~
 ~~- Skill packets (cast, execute, ground target)~~
@@ -129,7 +132,7 @@ TODO:
 - Weather per map
 
 # Input
-- Slash commands (/sit, /emotion, /where, etc.)
+- Slash commands (/sit, /emotion, /where, etc.) https://irowiki.org/classic/Basic_Game_Control
 - ~~Keyboard shortcuts~~
 - Hotkey configuration
 - ~~Battle mode (keyboard skill activation)~~
