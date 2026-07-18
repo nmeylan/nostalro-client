@@ -124,6 +124,7 @@ Below what has been implemented and validated.
 - Skill casting, cooldowns, cast bars
 - Emotions (emote balloons, /commands)
 - Full server-time sync of hits & moves
+- Marriage system
 
 # Status appearance
 - Status-icon bar (EFST icons, clock-wedge timer, tooltips)
@@ -189,6 +190,8 @@ Below what has been implemented and validated.
 - Sound options window
 - System / game menu
 - Map-missing window
+- Shortcut configuration
+- Slash command
 
 # Game mechanics
 ## Items & equipment

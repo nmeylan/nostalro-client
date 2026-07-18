@@ -1,10 +1,6 @@
 use crate::App;
 use ragnarok_game::event::PartyMemberData;
 use ragnarok_game::party::{Party, PartyMember};
-use ragnarok_ui_component::game::chat_window::ChatChannel;
-
-const PARTY_CHAT_COLOR: [f32; 4] = [0.4, 0.8, 1.0, 1.0];
-
 impl App {
     pub(super) fn handle_party_member_list(&mut self, name: String, members: Vec<PartyMemberData>) {
         let old = self.game.party.take();
@@ -166,8 +162,6 @@ impl App {
             Some(name) => format!("{name} : {message}"),
             None => message,
         };
-        self.game
-            .chat_window
-            .add_message(text, PARTY_CHAT_COLOR, ChatChannel::Party);
+        self.game.chat_window.add_party(text);
     }
 }

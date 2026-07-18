@@ -76,6 +76,7 @@ use ragnarok_network::{
     build_expel_chat_member_packet, build_exit_room_packet,
     build_remember_warppoint_packet, build_lesseffect_packet, build_guild_chat_packet,
     build_whisper_packet, build_setting_whisper_pc_packet, build_setting_whisper_state_packet,
+    build_alchemist_rank_packet, build_blacksmith_rank_packet, build_taekwon_rank_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
     build_restart_packet, build_return_savepoint_packet, build_standing_resurrection_packet,
     build_select_char_packet, build_select_warppoint_packet,
@@ -1407,6 +1408,11 @@ impl App {
                 GameEvent::RequestSendChat { message } => {
                     self.run_chat_command(&message);
                 }
+                GameEvent::RequestSendWhisper { name, message } => {
+                    self.channel
+                        .send_packet(build_whisper_packet(&name, &message, self.config.packetver));
+                    self.game.chat_window.add_whisper_out(name, message);
+                }
                 GameEvent::ToggleShortcutList => {
                     if !self.game.shortcut_list_window.is_open() {
                         self.game
@@ -2110,15 +2116,21 @@ impl App {
         if message.starts_with('/') {
             self.handle_slash_command(message);
         } else if let Some(party_msg) = message.strip_prefix('%') {
-            let char_name = self
-                .game
-                .selected_character
-                .as_ref()
-                .map(|c| c.name.as_str())
-                .unwrap_or("Unknown");
-            let full_msg = format!("{char_name} : {}", party_msg.trim_start());
-            self.channel
-                .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
+            if self.game.party.is_none() {
+                self.game
+                    .chat_window
+                    .add_system("You are not in a party.".to_string());
+            } else {
+                let char_name = self
+                    .game
+                    .selected_character
+                    .as_ref()
+                    .map(|c| c.name.as_str())
+                    .unwrap_or("Unknown");
+                let full_msg = format!("{char_name} : {}", party_msg.trim_start());
+                self.channel
+                    .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
+            }
         } else if let Some(guild_msg) = message.strip_prefix('$') {
             if self.game.guild.is_none() {
                 self.game
@@ -2480,6 +2492,15 @@ impl App {
                     .chat_window
                     .add_system(format!("Battle Mode {status}"));
             }
+            ChatCommand::Ranking(kind) => {
+                use ragnarok_game::chat_command::RankKind;
+                let packet = match kind {
+                    RankKind::Alchemist => build_alchemist_rank_packet(pv),
+                    RankKind::Blacksmith => build_blacksmith_rank_packet(pv),
+                    RankKind::Taekwon => build_taekwon_rank_packet(pv),
+                };
+                self.channel.send_packet(packet);
+            }
             ChatCommand::ToggleMiss => {
                 self.game.show_miss = !self.game.show_miss;
                 let status = if self.game.show_miss { "ON" } else { "OFF" };
@@ -2592,6 +2613,11 @@ impl App {
             }
             ChatCommand::OpenEmotionList => {
                 self.game.emotion_window.toggle();
+            }
+            ChatCommand::OpenCompanionAi { mercenary } => {
+                self.game
+                    .companion_ai_config_window
+                    .open_at_tab(if mercenary { 1 } else { 0 });
             }
             ChatCommand::Unsupported => {
                 self.game

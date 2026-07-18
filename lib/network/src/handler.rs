@@ -424,6 +424,24 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
         return vec![GameEvent::OwnChatMessage { message }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcAlchemistRank>() {
+        return vec![GameEvent::RankingReceived {
+            title: "Top 10 Alchemists",
+            entries: parse_ranking(&p.name_raw, &p.point_raw),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBlacksmithRank>() {
+        return vec![GameEvent::RankingReceived {
+            title: "Top 10 Blacksmiths",
+            entries: parse_ranking(&p.name_raw, &p.point_raw),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcTaekwonRank>() {
+        return vec![GameEvent::RankingReceived {
+            title: "Top 10 TaeKwon",
+            entries: parse_ranking(&p.name_raw, &p.point_raw),
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcBroadcast>() {
         let raw: String = p.msg.chars().take_while(|c| *c != '\0').collect();
         let (message, color) = parse_broadcast(&raw);
@@ -933,6 +951,18 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             aid: p.aid,
             message,
         }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcGuildChat>() {
+        let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::GuildChatMessage { message }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcWhisper>() {
+        let sender: String = p.sender.iter().take_while(|c| **c != '\0').collect();
+        let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
+        return vec![GameEvent::WhisperReceived { sender, message }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckWhisper>() {
+        return vec![GameEvent::WhisperAck { result: p.result }];
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcAckGuildMenuinterface>() {
@@ -2467,6 +2497,18 @@ fn raw_cstr(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
+/// ZC_*_RANK payloads carry 10 names (24 bytes each) followed by 10 int points.
+/// The generated struct mis-types both fields, so parse the raw bytes directly.
+fn parse_ranking(name_raw: &[u8], point_raw: &[u8]) -> Vec<(String, i32)> {
+    (0..10)
+        .filter_map(|i| {
+            let name = raw_cstr(name_raw.get(i * 24..i * 24 + 24)?);
+            let point = i32::from_le_bytes(point_raw.get(i * 4..i * 4 + 4)?.try_into().ok()?);
+            (!name.is_empty()).then_some((name, point))
+        })
+        .collect()
+}
+
 /// ZC_BAN_LIST (0x0163) elements for this packetver are `char_name[24] +
 /// message[40]`; the generated struct carries an extra account field, so parse
 /// the wire bytes directly.
@@ -2627,6 +2669,46 @@ mod tests {
             [GameEvent::BroadcastMessage { message, banner: BannerKind::Once, .. }]
                 if message == "Server maintenance"
         ));
+    }
+
+    #[test]
+    fn dispatch_channel_chat_packets_map_to_events() {
+        let packetver = 20120307;
+
+        let mut guild = PacketZcGuildChat::new(packetver);
+        guild.set_msg("Leader : rally at emp".to_string());
+        guild.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&guild, packetver).as_slice(),
+            [GameEvent::GuildChatMessage { message }] if message == "Leader : rally at emp"
+        ));
+
+        let mut whisper = PacketZcWhisper::new(packetver);
+        whisper.set_sender(str_to_char_array("Alice"));
+        whisper.set_is_admin(0);
+        whisper.set_msg("hi there".to_string());
+        whisper.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&whisper, packetver).as_slice(),
+            [GameEvent::WhisperReceived { sender, message }]
+                if sender == "Alice" && message == "hi there"
+        ));
+
+        let mut ack = PacketZcAckWhisper::new(packetver);
+        ack.set_result(1);
+        ack.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&ack, packetver).as_slice(),
+            [GameEvent::WhisperAck { result: 1 }]
+        ));
+    }
+
+    fn str_to_char_array(s: &str) -> [char; 24] {
+        let mut arr = ['\0'; 24];
+        for (dst, c) in arr.iter_mut().zip(s.chars()) {
+            *dst = c;
+        }
+        arr
     }
 
     #[test]

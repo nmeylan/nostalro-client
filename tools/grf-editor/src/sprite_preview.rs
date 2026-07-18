@@ -17,6 +17,7 @@ use ragnarok_renderer::{
 const CANVAS: u32 = 384;
 const BYTES_PER_PIXEL: u32 = 4;
 const STR_EFFECT_PREFIX: &str = "data/texture/effect/";
+const GR2_ACTION_NAMES: [&str; 5] = ["Stand", "Move", "Attack", "Dead", "Damage"];
 
 enum Content {
     None,
@@ -290,9 +291,20 @@ impl SpritePreview {
         renderer.set_transform(&self.queue, z_up_transform());
         self.model_center = renderer.center;
         self.model_size = renderer.size;
+
+        let bone_type = bone_type_from_name(path);
+        self.gr2_clips = std::array::from_fn(|i| match Gr2Action::ALL[i] {
+            Gr2Action::Stand => AnimationClip::from_gr2(&file, 0),
+            action => {
+                let anim_path = animation_file_path(bone_type?, action)?;
+                let bytes = grf.read_file(&anim_path).ok()?;
+                let anim = Gr2Container::parse(&bytes).and_then(|c| Gr2File::parse(&c)).ok()?;
+                AnimationClip::from_gr2(&anim, 0)
+            }
+        });
+        self.gr2_action = 0;
         self.gr2 = Some(renderer);
         self.gr2_pose = Some(pose);
-        self.gr2_clip = AnimationClip::from_gr2(&file, 0);
         self.content = Content::Gr2;
     }
 
@@ -421,7 +433,8 @@ impl SpritePreview {
         }
         if matches!(self.content, Content::Gr2) {
             if let (Some(gr2), Some(pose)) = (&self.gr2, &self.gr2_pose) {
-                gr2.set_palette(&self.queue, &gr2_palette(&self.gr2_clip, pose, self.gr2_time));
+                let clip = &self.gr2_clips[self.gr2_action];
+                gr2.set_palette(&self.queue, &gr2_palette(clip, pose, self.gr2_time));
             }
         }
 
@@ -869,6 +882,15 @@ impl SpritePreview {
                         self.paused = !self.paused;
                     }
                     ui.separator();
+                    ui.label("Action");
+                    if ui.button("◀").clicked() {
+                        self.step_gr2_action(-1);
+                    }
+                    ui.label(GR2_ACTION_NAMES[self.gr2_action]);
+                    if ui.button("▶").clicked() {
+                        self.step_gr2_action(1);
+                    }
+                    ui.separator();
                     ui.label("Rotate");
                     if ui.button("◀").clicked() {
                         self.model_yaw -= std::f32::consts::FRAC_PI_8;
@@ -998,7 +1020,11 @@ impl SpritePreview {
             }
             Content::Gr2 => {
                 let bones = self.gr2_pose.as_ref().map_or(0, |p| p.bone_count());
-                Some(format!("GR2  Bones: {bones}"))
+                let actions = self.gr2_clips.iter().filter(|c| c.is_some()).count();
+                Some(format!(
+                    "GR2  {}  Bones: {bones}  Actions: {actions}",
+                    GR2_ACTION_NAMES[self.gr2_action],
+                ))
             }
             Content::None => None,
         };
@@ -1024,6 +1050,20 @@ impl SpritePreview {
         if !self.paused {
             ui.ctx().request_repaint();
         }
+    }
+
+    /// Cycle to the next/previous GR2 action that actually has a clip loaded.
+    fn step_gr2_action(&mut self, delta: i32) {
+        let avail: Vec<usize> = (0..self.gr2_clips.len())
+            .filter(|&i| self.gr2_clips[i].is_some())
+            .collect();
+        if avail.is_empty() {
+            return;
+        }
+        let cur = avail.iter().position(|&i| i == self.gr2_action).unwrap_or(0) as i32;
+        let next = (cur + delta).rem_euclid(avail.len() as i32) as usize;
+        self.gr2_action = avail[next];
+        self.gr2_time = 0.0;
     }
 
     fn step_action(&mut self, delta: i32, action_count: usize) {
@@ -1142,5 +1182,10 @@ mod tests {
         let first = image.pixels[0];
         let varied = image.pixels.iter().any(|p| *p != first);
         assert!(varied, "gr2 thumbnail is a flat frame — model did not render");
+
+        preview.load_gr2(&grf, "data/model/3dmob/kguardian90_7.gr2");
+        assert!(preview.error.is_none(), "{:?}", preview.error);
+        let actions = preview.gr2_clips.iter().filter(|c| c.is_some()).count();
+        assert!(actions > 1, "guardian should load external action clips, got {actions}");
     }
 }

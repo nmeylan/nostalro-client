@@ -356,6 +356,12 @@ impl CompanionAiConfigWindow {
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
     }
+
+    pub fn open_at_tab(&mut self, tab: usize) {
+        self.tab = tab.min(TABS.len() - 1);
+        self.scroll_offset = 0;
+        self.visible = true;
+    }
     pub fn is_visible(&self) -> bool {
         self.visible
     }

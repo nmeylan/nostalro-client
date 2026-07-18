@@ -775,6 +775,9 @@ impl App {
                 GameEvent::OwnChatMessage { message } => {
                     self.handle_own_chat_message(message);
                 }
+                GameEvent::RankingReceived { title, entries } => {
+                    self.handle_ranking_received(title, entries);
+                }
                 GameEvent::BroadcastMessage {
                     message,
                     color,
@@ -1033,6 +1036,15 @@ impl App {
                 }
                 GameEvent::PartyChatMessage { aid, message } => {
                     self.handle_party_chat_message(aid, message);
+                }
+                GameEvent::GuildChatMessage { message } => {
+                    self.handle_guild_chat_message(message);
+                }
+                GameEvent::WhisperReceived { sender, message } => {
+                    self.handle_whisper_received(sender, message);
+                }
+                GameEvent::WhisperAck { result } => {
+                    self.handle_whisper_ack(result);
                 }
                 GameEvent::FriendListReceived { friends } => {
                     self.handle_friend_list_received(friends);

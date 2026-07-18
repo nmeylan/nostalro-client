@@ -78,8 +78,10 @@ lib/ui-component/dev.sh account
 lib/ui-component/dev.sh companion
 # Guild
 lib/ui-component/dev.sh guild
-# Social: chat, chat room, guild, party
+# Social: guild, party, vending board, emotion, mailbox, trade
 lib/ui-component/dev.sh social
+# Chat: chat, chat room create/member/board
+lib/ui-component/dev.sh chat
 ```
 
 ## Effect viewer hot reload

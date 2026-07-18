@@ -341,6 +341,10 @@ pub enum GameEvent {
     OwnChatMessage {
         message: String,
     },
+    RankingReceived {
+        title: &'static str,
+        entries: Vec<(String, i32)>,
+    },
     BroadcastMessage {
         message: String,
         color: [f32; 4],
@@ -922,6 +926,20 @@ pub enum GameEvent {
     },
     PartyChatMessage {
         aid: u32,
+        message: String,
+    },
+    GuildChatMessage {
+        message: String,
+    },
+    WhisperReceived {
+        sender: String,
+        message: String,
+    },
+    WhisperAck {
+        result: u8,
+    },
+    RequestSendWhisper {
+        name: String,
         message: String,
     },
     TogglePartyWindow,

@@ -38,6 +38,7 @@ pub struct UiContext {
     pub key_f12: bool,
     pub ctrl_pressed: bool,
     pub shift_pressed: bool,
+    pub alt_pressed: bool,
     pub scroll_delta: f32,
     pub dpi_scale: f32,
     pub now_ms: u64,
@@ -80,6 +81,7 @@ impl UiContext {
             key_f12: false,
             ctrl_pressed: false,
             shift_pressed: false,
+            alt_pressed: false,
             scroll_delta: 0.0,
             dpi_scale: 1.0,
         }
@@ -177,6 +179,7 @@ impl UiContext {
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.ctrl_pressed = modifiers.state().control_key();
                 self.shift_pressed = modifiers.state().shift_key();
+                self.alt_pressed = modifiers.state().alt_key();
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed {

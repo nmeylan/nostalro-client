@@ -382,6 +382,24 @@ pub fn build_lesseffect_packet(is_less: bool, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_alchemist_rank_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAlchemistRank::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_blacksmith_rank_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzBlacksmithRank::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_taekwon_rank_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzTaekwonRank::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_guild_chat_packet(msg: &str, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzGuildChat::new(packetver);
     let msg_null = format!("{msg}\0");

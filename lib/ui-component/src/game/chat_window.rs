@@ -16,27 +16,23 @@ const SCROLL_UP_ID: WidgetId = WidgetId(305);
 const SCROLL_DOWN_ID: WidgetId = WidgetId(306);
 const SCROLL_THUMB_ID: WidgetId = WidgetId(308);
 const SIZE_BTN_ID: WidgetId = WidgetId(302);
-const FILTER_BTN_ID: WidgetId = WidgetId(310);
-const CHATMODE_BTN_ID: WidgetId = WidgetId(311);
-const MINIMIZE_BTN_ID: WidgetId = WidgetId(315);
-const LOCK_BTN_ID: WidgetId = WidgetId(316);
+const CHANNEL_BTN_ID: WidgetId = WidgetId(311);
+const CHANNEL_MENU_ITEM_BASE: u32 = 330;
+const WHISPER_MENU_BTN_ID: WidgetId = WidgetId(320);
+const WHISPER_MENU_ITEM_BASE: u32 = 321;
+const MAX_WHISPER_HISTORY: usize = 7;
+const WHISPER_MENU_ITEM_H: f32 = 16.0;
+const MENU_TEXT_BASELINE: f32 = 12.0;
 
 const MAX_MESSAGES: usize = 100;
 const MAX_HISTORY: usize = 32;
 const MAX_INPUT_LEN: usize = 100;
 const MAX_WHISPER_NAME_LEN: usize = 24;
-const WHISPER_INPUT_W: f32 = 90.0;
 const INPUT_GAP: f32 = 4.0;
 
-const DIALOG_BG_W: f32 = 600.0;
-const DIALOG_BG_WHISPER_X: f32 = 3.0;
-const DIALOG_BG_WHISPER_W: f32 = 90.0;
-const DIALOG_BG_MSG_X: f32 = 110.0;
-const DIALOG_BG_MSG_W: f32 = 460.0;
-
-const DEFAULT_CHAT_W: f32 = 350.0;
-const MIN_CHAT_W: f32 = 250.0;
-const MAX_CHAT_W: f32 = 600.0;
+const DEFAULT_CHAT_W: f32 = 550.0;
+const MIN_CHAT_W: f32 = 550.0;
+const MAX_CHAT_W: f32 = 2000.0;
 const MIN_MSG_AREA_H: f32 = 0.0;
 const INPUT_H: f32 = 22.0;
 const PADDING: f32 = 4.0;
@@ -45,9 +41,19 @@ const DRAG_HANDLE_VISUAL: f32 = 3.0;
 const DRAG_HIT_AREA: f32 = 6.0;
 const SCROLLBAR_W: f32 = 14.0;
 const SCROLL_BTN_H: f32 = 14.0;
-const TOOLBAR_BTN_SIZE: f32 = 11.0;
-const TOOLBAR_BTN_GAP: f32 = 2.0;
-const TOOLBAR_H: f32 = 17.0;
+const BUBBLE_SIZE: f32 = 10.0;
+const BUBBLE_GAP: f32 = 2.0;
+const LIST_BTN_W: f32 = 8.0;
+const CHANNEL_MENU_ITEM_H: f32 = 16.0;
+
+// dialog_bg.bmp is 600px wide with fixed painted wells; the input row stretches
+// it to chat_w, so each field sits at its native well coordinate scaled by chat_w/600.
+const TEX_NATIVE_W: f32 = 600.0;
+const WHISPER_NATIVE_X: f32 = 4.0;
+const WHISPER_NATIVE_W: f32 = 90.0;
+const LIST_NATIVE_X: f32 = 97.0;
+const MSG_NATIVE_X: f32 = 108.0;
+const MSG_NATIVE_RIGHT: f32 = 32.0;
 
 const SIZE_STEP: f32 = LINE_H * 3.0;
 const SIZE_CYCLE: [f32; 7] = [
@@ -65,24 +71,92 @@ const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const YELLOW: [f32; 4] = [1.0, 1.0, 0.4, 1.0];
 const RED: [f32; 4] = [1.0, 0.1, 0.1, 1.0];
+pub const PARTY_COLOR: [f32; 4] = [0.173, 0.576, 0.859, 1.0];
+pub const GUILD_COLOR: [f32; 4] = [0.427, 0.996, 0.012, 1.0];
+pub const WHISPER_IN_COLOR: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
+pub const WHISPER_OUT_COLOR: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum SendChannel {
+    #[default]
+    Public,
+    Party,
+    Guild,
+    Whisper,
+}
+
+const SEND_CHANNELS: [SendChannel; 3] = [
+    SendChannel::Public,
+    SendChannel::Party,
+    SendChannel::Guild,
+];
+
+impl SendChannel {
+    fn color(self) -> [f32; 4] {
+        match self {
+            SendChannel::Public => WHITE,
+            SendChannel::Party => PARTY_COLOR,
+            SendChannel::Guild => GUILD_COLOR,
+            SendChannel::Whisper => WHISPER_OUT_COLOR,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            SendChannel::Public => "Public",
+            SendChannel::Party => "Party",
+            SendChannel::Guild => "Guild",
+            SendChannel::Whisper => "Whisper",
+        }
+    }
+}
+
+/// Lines that fit fully inside a message area of height `h`, accounting for the
+/// top padding so the bottom line is never clipped by the input row drawn over it.
+fn visible_line_count(h: f32) -> usize {
+    ((h - PADDING) / LINE_H).max(0.0) as usize
+}
+
+fn route_message(message: String, send_channel: SendChannel) -> String {
+    if message.starts_with(['/', '%', '$']) {
+        return message;
+    }
+    match send_channel {
+        SendChannel::Party => format!("%{message}"),
+        SendChannel::Guild => format!("${message}"),
+        _ => message,
+    }
+}
+
+/// The channel a typed line will go to. Explicit prefix/modifier overrides win
+/// first, then a filled whisper target, then the sticky selection.
+fn effective_channel(
+    msg: &str,
+    sticky: SendChannel,
+    ctrl: bool,
+    alt: bool,
+    whisper_active: bool,
+) -> SendChannel {
+    if msg.starts_with('%') || ctrl {
+        SendChannel::Party
+    } else if msg.starts_with('$') || msg.starts_with("/gc ") || alt {
+        SendChannel::Guild
+    } else if whisper_active {
+        SendChannel::Whisper
+    } else {
+        sticky
+    }
+}
 
 const DIALOG_BG: &str = "data/texture/유저인터페이스/basic_interface/dialog_bg.bmp";
 const SCROLL_UP: &str = "data/texture/유저인터페이스/basic_interface/dialscr_up.bmp";
 const SCROLL_DOWN: &str = "data/texture/유저인터페이스/basic_interface/dialscr_down.bmp";
-const CHANNEL_BTN: ButtonTextures = ButtonTextures {
+const LIST_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/basic_interface/dialog_btn0.bmp",
     hover: "data/texture/유저인터페이스/basic_interface/dialog_btn1.bmp",
     pressed: "data/texture/유저인터페이스/basic_interface/dialog_btn2.bmp",
 };
-const SYS_BASE_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
-const CHATMODE_ON: &str = "data/texture/유저인터페이스/basic_interface/chatmode_on.bmp";
-const CHATMODE_OFF: &str = "data/texture/유저인터페이스/basic_interface/chatmode_off.bmp";
-const NEW_TAB_BTN: &str = "data/texture/유저인터페이스/basic_interface/battle_option_a.bmp";
-const BATTLE_OPT_BTN: &str = "data/texture/유저인터페이스/basic_interface/battle_option2_a.bmp";
-const STICKY_BTN: &str = "data/texture/유저인터페이스/basic_interface/stickoff.bmp";
-const MINIMIZE_BTN: &str = "data/texture/유저인터페이스/basic_interface/wnd_mini_b.bmp";
-const LOCK_DRAG_BTN: &str = "data/texture/유저인터페이스/basic_interface/lock_dragwnd.bmp";
-const UNLOCK_DRAG_BTN: &str = "data/texture/유저인터페이스/basic_interface/unlock_dragwnd.bmp";
+const BUBBLE_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChatChannel {
@@ -90,43 +164,7 @@ pub enum ChatChannel {
     Public,
     Party,
     Guild,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ChatFilter {
-    All,
-    Public,
-    Party,
-    Guild,
-}
-
-impl ChatFilter {
-    fn next(self) -> Self {
-        match self {
-            ChatFilter::All => ChatFilter::Public,
-            ChatFilter::Public => ChatFilter::Party,
-            ChatFilter::Party => ChatFilter::Guild,
-            ChatFilter::Guild => ChatFilter::All,
-        }
-    }
-
-    fn passes(self, channel: ChatChannel) -> bool {
-        match self {
-            ChatFilter::All => true,
-            ChatFilter::Public => matches!(channel, ChatChannel::System | ChatChannel::Public),
-            ChatFilter::Party => matches!(channel, ChatChannel::System | ChatChannel::Party),
-            ChatFilter::Guild => matches!(channel, ChatChannel::System | ChatChannel::Guild),
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            ChatFilter::All => "All",
-            ChatFilter::Public => "Pub",
-            ChatFilter::Party => "Pty",
-            ChatFilter::Guild => "Gld",
-        }
-    }
+    Whisper,
 }
 
 #[derive(Default)]
@@ -138,35 +176,14 @@ struct ChatWindowState {
     pos_y: f32,
     scroll_offset: usize,
     initialized: bool,
-    chat_mode_on: bool,
-    locked: bool,
+    send_channel: SendChannel,
+    channel_menu_open: bool,
     dragging: bool,
     drag_offset_x: f32,
     drag_offset_y: f32,
-    filter: u8,
     drag_start_msg_h: f32,
     drag_start_chat_w: f32,
     drag_start_scroll: f32,
-}
-
-impl ChatWindowState {
-    fn chat_filter(&self) -> ChatFilter {
-        match self.filter {
-            1 => ChatFilter::Public,
-            2 => ChatFilter::Party,
-            3 => ChatFilter::Guild,
-            _ => ChatFilter::All,
-        }
-    }
-
-    fn set_chat_filter(&mut self, f: ChatFilter) {
-        self.filter = match f {
-            ChatFilter::All => 0,
-            ChatFilter::Public => 1,
-            ChatFilter::Party => 2,
-            ChatFilter::Guild => 3,
-        };
-    }
 }
 
 pub struct ChatLine {
@@ -188,6 +205,8 @@ pub struct ChatWindow {
     draft: String,
     initial_size_index: Option<usize>,
     pending_focus: bool,
+    whisper_history: Vec<String>,
+    whisper_menu_open: bool,
 }
 
 impl Default for ChatWindow {
@@ -211,7 +230,20 @@ impl ChatWindow {
             draft: String::new(),
             initial_size_index: None,
             pending_focus: false,
+            whisper_history: Vec::new(),
+            whisper_menu_open: false,
         }
+    }
+
+    /// Remembers a recent whisper partner (most recent first, capped), so the
+    /// Whisper tab's history dropdown can re-target them without retyping.
+    pub fn remember_whisper(&mut self, name: String) {
+        if name.is_empty() {
+            return;
+        }
+        self.whisper_history.retain(|n| n != &name);
+        self.whisper_history.insert(0, name);
+        self.whisper_history.truncate(MAX_WHISPER_HISTORY);
     }
 
     pub fn start_whisper(&mut self, name: String) {
@@ -265,6 +297,30 @@ impl ChatWindow {
         self.add_message(message, YELLOW, ChatChannel::System);
     }
 
+    pub fn add_party(&mut self, message: String) {
+        self.add_message(message, PARTY_COLOR, ChatChannel::Party);
+    }
+
+    pub fn add_guild(&mut self, message: String) {
+        self.add_message(message, GUILD_COLOR, ChatChannel::Guild);
+    }
+
+    pub fn add_whisper_in(&mut self, sender: String, message: String) {
+        self.add_message(
+            format!("(From {sender}) : {message}"),
+            WHISPER_IN_COLOR,
+            ChatChannel::Whisper,
+        );
+    }
+
+    pub fn add_whisper_out(&mut self, name: String, message: String) {
+        self.add_message(
+            format!("(To {name}) : {message}"),
+            WHISPER_OUT_COLOR,
+            ChatChannel::Whisper,
+        );
+    }
+
     pub fn add_error(&mut self, message: String) {
         self.add_message(message, RED, ChatChannel::System);
     }
@@ -291,7 +347,7 @@ impl ChatWindow {
             texture: draw::TextureRef::White,
         });
 
-        let max_lines = (h / line_h) as usize;
+        let max_lines = visible_line_count(h);
         let end = visual_lines.len().saturating_sub(scroll_offset);
         let start = end.saturating_sub(max_lines);
         let visible = &visual_lines[start..end];
@@ -312,11 +368,10 @@ impl ChatWindow {
         total: usize,
     ) {
         use ragnarok_ui::draw;
-        let line_h = LINE_H;
         let scrollbar_w = SCROLLBAR_W;
         let scroll_btn_h = SCROLL_BTN_H;
 
-        let max_lines = (h / line_h) as usize;
+        let max_lines = visible_line_count(h);
         let max_scroll = total.saturating_sub(max_lines);
 
         let track_color = [0.0, 0.0, 0.0, 0.3];
@@ -449,229 +504,161 @@ impl ChatWindow {
         }
     }
 
-    fn draw_toolbar(
-        &self,
-        ui: &mut UiFrame,
-        x: f32,
-        y: f32,
-        w: f32,
-        filter: ChatFilter,
-        locked: bool,
-    ) {
+    fn draw_bubble(&self, ui: &mut UiFrame, id: WidgetId, rect: Rect, tint: [f32; 4]) -> bool {
         use ragnarok_ui::draw;
-        let toolbar_h = TOOLBAR_H;
-        let btn_size = TOOLBAR_BTN_SIZE;
-        let btn_gap = TOOLBAR_BTN_GAP;
-
-        let bg_color = [0.0, 0.0, 0.0, 0.3];
-        let (v, i) = draw::quad_vertices(x, y, w, toolbar_h, bg_color);
+        let resp = ui.interact(id, rect);
+        if resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        let color = if resp.hovered() {
+            [
+                (tint[0] + 0.25).min(1.0),
+                (tint[1] + 0.25).min(1.0),
+                (tint[2] + 0.25).min(1.0),
+                tint[3],
+            ]
+        } else {
+            tint
+        };
+        let tex = if self.has_grf_textures {
+            draw::TextureRef::Named(BUBBLE_TEX.to_string())
+        } else {
+            draw::TextureRef::White
+        };
+        let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, color);
         ui.draw_calls.push(draw::DrawCall {
             vertices: v.to_vec(),
             indices: i.to_vec(),
-            texture: draw::TextureRef::White,
+            texture: tex,
         });
+        resp.clicked()
+    }
 
-        let btn_visual_y = y + (toolbar_h - btn_size) / 2.0;
-        let mut btn_x = x + w - btn_gap;
-
-        btn_x -= btn_size;
-        let lock_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
-        let lock_resp = ui.interact(LOCK_BTN_ID, lock_rect);
-        if lock_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        if self.has_grf_textures {
-            let tex = if locked {
-                LOCK_DRAG_BTN
-            } else {
-                UNLOCK_DRAG_BTN
-            };
-            let (v, i) = draw::quad_vertices(
-                btn_x,
-                btn_visual_y,
-                btn_size,
-                btn_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let color = if locked {
-                [0.6, 0.3, 0.3, 1.0]
-            } else if lock_resp.hovered() {
-                [0.5, 0.5, 0.6, 1.0]
-            } else {
-                [0.3, 0.3, 0.4, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, color);
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::White,
-            });
-        }
-        btn_x -= btn_gap;
-
-        btn_x -= btn_size;
-        let min_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
-        let min_resp = ui.interact(MINIMIZE_BTN_ID, min_rect);
-        if min_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(
-                btn_x,
-                btn_visual_y,
-                btn_size,
-                btn_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::Named(MINIMIZE_BTN.to_string()),
-            });
-        } else {
-            let color = if min_resp.hovered() {
-                [0.5, 0.5, 0.6, 1.0]
-            } else {
-                [0.3, 0.3, 0.4, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, color);
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::White,
-            });
-        }
-        btn_x -= btn_gap;
-
-        let mode_w = btn_size + (4.0);
-        btn_x -= mode_w;
-        let mode_rect = Rect::new(btn_x, y, mode_w, toolbar_h);
-        let mode_resp = ui.interact(CHATMODE_BTN_ID, mode_rect);
-        if mode_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        let chat_mode_on = ui
+    fn draw_channel_menu(&mut self, ui: &mut UiFrame, anchor: Rect) {
+        let open = ui
             .state
             .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
-            .chat_mode_on;
-        if self.has_grf_textures {
-            let tex = if chat_mode_on {
-                CHATMODE_ON
-            } else {
-                CHATMODE_OFF
-            };
-            let (v, i) =
-                draw::quad_vertices(btn_x, btn_visual_y, mode_w, btn_size, [1.0, 1.0, 1.0, 1.0]);
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::Named(tex.to_string()),
-            });
-        } else {
-            let color = if chat_mode_on {
-                [0.3, 0.6, 0.3, 1.0]
-            } else if mode_resp.hovered() {
-                [0.5, 0.5, 0.6, 1.0]
-            } else {
-                [0.3, 0.3, 0.4, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, mode_w, btn_size, color);
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::White,
-            });
+            .channel_menu_open;
+        if !open {
+            return;
         }
-        btn_x -= btn_gap;
-
-        btn_x -= btn_size;
-        let size_rect = Rect::new(btn_x, y, btn_size, toolbar_h);
-        let size_resp = ui.interact(SIZE_BTN_ID, size_rect);
-        if size_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        if self.has_grf_textures {
-            let (v, i) = draw::quad_vertices(
-                btn_x,
-                btn_visual_y,
-                btn_size,
-                btn_size,
-                [1.0, 1.0, 1.0, 1.0],
-            );
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::Named(SYS_BASE_OFF.to_string()),
-            });
-        } else {
-            let color = if size_resp.hovered() {
-                [0.5, 0.5, 0.6, 1.0]
-            } else {
-                [0.3, 0.3, 0.4, 1.0]
-            };
-            let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, btn_size, btn_size, color);
-            ui.draw_calls.push(draw::DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: draw::TextureRef::White,
-            });
-        }
-        btn_x -= btn_gap;
-
-        let filter_w = 24.0;
-        btn_x -= filter_w;
-        let filter_rect = Rect::new(btn_x, y, filter_w, toolbar_h);
-        let filter_resp = ui.interact(FILTER_BTN_ID, filter_rect);
-        if filter_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        let color = if filter_resp.hovered() {
-            [0.5, 0.5, 0.6, 1.0]
-        } else {
-            [0.3, 0.3, 0.4, 1.0]
-        };
-        let (v, i) = draw::quad_vertices(btn_x, btn_visual_y, filter_w, btn_size, color);
+        use ragnarok_ui::draw;
+        let item_h = CHANNEL_MENU_ITEM_H;
+        let w = SEND_CHANNELS
+            .iter()
+            .map(|c| ui.atlas.measure_text(c.label()))
+            .fold(0.0_f32, f32::max)
+            + 8.0;
+        let w = w.max(72.0);
+        let h = SEND_CHANNELS.len() as f32 * item_h;
+        let list = Rect::new(anchor.x + anchor.w - w, anchor.y - h, w, h);
+        ui.begin_popup_layer(list);
+        let (v, i) = draw::quad_vertices(list.x, list.y, list.w, list.h, [0.1, 0.1, 0.13, 0.97]);
         ui.draw_calls.push(draw::DrawCall {
             vertices: v.to_vec(),
             indices: i.to_vec(),
             texture: draw::TextureRef::White,
         });
-        ui.text(
-            btn_x + (2.0),
-            btn_visual_y + ui.atlas.line_height,
-            filter.label(),
-            [0.8, 0.8, 0.8, 1.0],
-        );
+        let mut picked = None;
+        for (idx, ch) in SEND_CHANNELS.iter().enumerate() {
+            let item = Rect::new(list.x, list.y + idx as f32 * item_h, w, item_h);
+            let r = ui.interact(WidgetId(CHANNEL_MENU_ITEM_BASE + idx as u32), item);
+            if r.hovered() {
+                ui.any_interactive_hovered = true;
+                let (v, i) =
+                    draw::quad_vertices(item.x, item.y, item.w, item.h, [0.28, 0.28, 0.36, 1.0]);
+                ui.draw_calls.push(draw::DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: draw::TextureRef::White,
+                });
+            }
+            ui.text(item.x + 4.0, item.y + MENU_TEXT_BASELINE, ch.label(), ch.color());
+            if r.clicked() {
+                picked = Some(*ch);
+            }
+        }
+        ui.end_popup_layer();
 
-        if lock_resp.clicked() {
-            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            state.locked = !state.locked;
+        let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
+        if let Some(ch) = picked {
+            state.send_channel = ch;
+            state.channel_menu_open = false;
+            self.whisper_target.text.clear();
+            self.whisper_target.cursor_pos = 0;
+        } else if ui.ctx.mouse_clicked
+            && !anchor.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+            && !list.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+        {
+            state.channel_menu_open = false;
         }
-        if min_resp.clicked() {
-            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            state.size_index = 1;
-            state.msg_area_h = SIZE_CYCLE[1];
+    }
+
+    fn draw_whisper_list_button(&mut self, ui: &mut UiFrame, btn_rect: Rect, popup_anchor: Rect) {
+        use ragnarok_ui::draw;
+        let has_history = !self.whisper_history.is_empty();
+        let clicked = ui
+            .button(WHISPER_MENU_BTN_ID, btn_rect, &LIST_BTN, "\u{25BC}")
+            .clicked();
+        if clicked && has_history {
+            self.whisper_menu_open = !self.whisper_menu_open;
         }
-        if mode_resp.clicked() {
-            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            state.chat_mode_on = !state.chat_mode_on;
+
+        if !self.whisper_menu_open || !has_history {
+            return;
         }
-        if size_resp.clicked() {
-            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            let next = state.size_index + 1;
-            state.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
-            state.msg_area_h = SIZE_CYCLE[state.size_index];
+
+        let list_h = self.whisper_history.len() as f32 * WHISPER_MENU_ITEM_H;
+        let list_w = self
+            .whisper_history
+            .iter()
+            .map(|n| ui.atlas.measure_text(n))
+            .fold(0.0_f32, f32::max)
+            .max(popup_anchor.w - 6.0)
+            + 6.0;
+        let list = Rect::new(popup_anchor.x, popup_anchor.y - list_h, list_w, list_h);
+        ui.begin_popup_layer(list);
+        let (v, i) = draw::quad_vertices(list.x, list.y, list.w, list.h, [0.1, 0.1, 0.13, 0.97]);
+        ui.draw_calls.push(draw::DrawCall {
+            vertices: v.to_vec(),
+            indices: i.to_vec(),
+            texture: draw::TextureRef::White,
+        });
+        let mut picked = None;
+        for (idx, name) in self.whisper_history.iter().enumerate() {
+            let item = Rect::new(
+                list.x,
+                list.y + idx as f32 * WHISPER_MENU_ITEM_H,
+                list.w,
+                WHISPER_MENU_ITEM_H,
+            );
+            let r = ui.interact(WidgetId(WHISPER_MENU_ITEM_BASE + idx as u32), item);
+            if r.hovered() {
+                ui.any_interactive_hovered = true;
+                let (v, i) = draw::quad_vertices(item.x, item.y, item.w, item.h, [0.28, 0.28, 0.36, 1.0]);
+                ui.draw_calls.push(draw::DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: draw::TextureRef::White,
+                });
+            }
+            ui.text(item.x + 3.0, item.y + MENU_TEXT_BASELINE, name, [0.9, 0.9, 0.9, 1.0]);
+            if r.clicked() {
+                picked = Some(idx);
+            }
         }
-        if filter_resp.clicked() {
-            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            let next = state.chat_filter().next();
-            state.set_chat_filter(next);
+        ui.end_popup_layer();
+
+        if let Some(idx) = picked {
+            self.whisper_target.text = self.whisper_history[idx].clone();
+            self.whisper_target.cursor_pos = self.whisper_target.text.chars().count();
+            self.whisper_menu_open = false;
+            self.focused_input = WHISPER_INPUT_ID;
+        } else if ui.ctx.mouse_clicked
+            && !btn_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+            && !list.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+        {
+            self.whisper_menu_open = false;
         }
     }
 
@@ -713,18 +700,10 @@ impl Window for ChatWindow {
             DIALOG_BG,
             SCROLL_UP,
             SCROLL_DOWN,
-            CHANNEL_BTN.normal,
-            CHANNEL_BTN.hover,
-            CHANNEL_BTN.pressed,
-            SYS_BASE_OFF,
-            CHATMODE_ON,
-            CHATMODE_OFF,
-            NEW_TAB_BTN,
-            BATTLE_OPT_BTN,
-            STICKY_BTN,
-            MINIMIZE_BTN,
-            LOCK_DRAG_BTN,
-            UNLOCK_DRAG_BTN,
+            LIST_BTN.normal,
+            LIST_BTN.hover,
+            LIST_BTN.pressed,
+            BUBBLE_TEX,
         ]
     }
 }
@@ -739,9 +718,7 @@ impl InGameWindow for ChatWindow {
         let mut events = Vec::new();
         let screen_h = ui.ctx.screen_height;
         let input_h = INPUT_H;
-        let toolbar_h = TOOLBAR_H;
         let padding = PADDING;
-        let line_h = LINE_H;
         let scrollbar_w = SCROLLBAR_W;
         let max_msg_h = screen_h - input_h - (50.0);
 
@@ -752,14 +729,14 @@ impl InGameWindow for ChatWindow {
             state.msg_area_h = SIZE_CYCLE[idx];
             state.chat_w = DEFAULT_CHAT_W;
             state.pos_x = padding;
-            let default_h = SIZE_CYCLE[idx] + toolbar_h + input_h;
+            let default_h = SIZE_CYCLE[idx] + input_h;
             state.pos_y = screen_h - default_h - padding;
             state.initialized = true;
         }
 
         if ui.ctx.key_f10 {
             let next = state.size_index + 1;
-            state.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
+            state.size_index = if next >= SIZE_CYCLE.len() { 0 } else { next };
             state.msg_area_h = SIZE_CYCLE[state.size_index];
         }
 
@@ -773,11 +750,6 @@ impl InGameWindow for ChatWindow {
         }
 
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
-        let total_h = if show_messages {
-            msg_area_h + toolbar_h + input_h
-        } else {
-            toolbar_h + input_h
-        };
         let chat_x = ui
             .state
             .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -787,11 +759,6 @@ impl InGameWindow for ChatWindow {
             .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
             .pos_y;
 
-        let drag_locked = ui
-            .state
-            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
-            .locked;
-
         if show_messages {
             let handle_center_y = chat_y + msg_area_h;
             let handle_rect = Rect::new(
@@ -800,7 +767,7 @@ impl InGameWindow for ChatWindow {
                 chat_w,
                 DRAG_HIT_AREA,
             );
-            let h = ui.drag_handle(HEIGHT_DRAG_ID, handle_rect, !drag_locked);
+            let h = ui.drag_handle(HEIGHT_DRAG_ID, handle_rect, true);
             if h.started {
                 ui.state
                     .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -819,6 +786,12 @@ impl InGameWindow for ChatWindow {
             }
         }
 
+        let total_h = if show_messages {
+            msg_area_h + input_h
+        } else {
+            input_h
+        };
+
         {
             let right_edge_x = chat_x + chat_w;
             let handle_rect = Rect::new(
@@ -827,7 +800,7 @@ impl InGameWindow for ChatWindow {
                 DRAG_HIT_AREA,
                 total_h,
             );
-            let w = ui.drag_handle(WIDTH_DRAG_ID, handle_rect, !drag_locked);
+            let w = ui.drag_handle(WIDTH_DRAG_ID, handle_rect, true);
             if w.started {
                 ui.state
                     .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -845,12 +818,13 @@ impl InGameWindow for ChatWindow {
                 state.chat_w = chat_w;
             }
         }
+        let tex_scale = chat_w / TEX_NATIVE_W;
 
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
         let total_h = if show_messages {
-            msg_area_h + toolbar_h + input_h
+            msg_area_h + input_h
         } else {
-            toolbar_h + input_h
+            input_h
         };
         let chat_x = ui
             .state
@@ -877,13 +851,27 @@ impl InGameWindow for ChatWindow {
 
         if ui.ctx.key_enter && !self.active {
             self.active = true;
+            let forced = if ui.ctx.ctrl_pressed {
+                Some(SendChannel::Party)
+            } else if ui.ctx.alt_pressed {
+                Some(SendChannel::Guild)
+            } else {
+                None
+            };
+            if let Some(channel) = forced {
+                ui.state
+                    .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                    .send_channel = channel;
+                self.whisper_target.text.clear();
+                self.whisper_target.cursor_pos = 0;
+            }
             ui.set_focus(INPUT_ID);
             return events;
         }
 
         if self.active {
             if ui.ctx.key_enter {
-                if !self.input.text.is_empty() {
+                if !self.input.text.trim().is_empty() {
                     let message = self.input.text.clone();
                     if self.sent_history.last() != Some(&message) {
                         self.sent_history.push(message.clone());
@@ -895,7 +883,36 @@ impl InGameWindow for ChatWindow {
                     self.draft.clear();
                     self.input.text.clear();
                     self.input.cursor_pos = 0;
-                    events.push(GameEvent::RequestSendChat { message });
+                    let sticky = ui
+                        .state
+                        .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                        .send_channel;
+                    let whisper = self.whisper_target.text.trim().to_string();
+                    let channel = effective_channel(
+                        &message,
+                        sticky,
+                        ui.ctx.ctrl_pressed,
+                        ui.ctx.alt_pressed,
+                        !whisper.is_empty(),
+                    );
+                    if matches!(channel, SendChannel::Party | SendChannel::Guild) {
+                        ui.state
+                            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+                            .send_channel = channel;
+                        self.whisper_target.text.clear();
+                        self.whisper_target.cursor_pos = 0;
+                    }
+                    if channel == SendChannel::Whisper {
+                        self.remember_whisper(whisper.clone());
+                        events.push(GameEvent::RequestSendWhisper {
+                            name: whisper,
+                            message,
+                        });
+                    } else {
+                        events.push(GameEvent::RequestSendChat {
+                            message: route_message(message, channel),
+                        });
+                    }
                 }
                 self.active = false;
             } else if ui.ctx.key_escape {
@@ -946,20 +963,11 @@ impl InGameWindow for ChatWindow {
             }
         }
 
-        let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-        let filter = state.chat_filter();
-        let locked = state.locked;
-
-        let filtered: Vec<&ChatLine> = self
-            .messages
-            .iter()
-            .filter(|line| filter.passes(line.channel))
-            .collect();
-
         if show_messages {
             let text_area_w = chat_w - padding * 2.0;
             let atlas = ui.atlas;
-            let visual_lines: Vec<(String, [f32; 4])> = filtered
+            let visual_lines: Vec<(String, [f32; 4])> = self
+                .messages
                 .iter()
                 .flat_map(|line| {
                     let wrapped = ragnarok_ui::draw::word_wrap(
@@ -980,7 +988,7 @@ impl InGameWindow for ChatWindow {
                 ui.any_hovered = true;
             }
             if hovered && ui.ctx.scroll_delta != 0.0 {
-                let max_lines = (msg_area_h / line_h) as usize;
+                let max_lines = visible_line_count(msg_area_h);
                 let max_scroll = total_visual.saturating_sub(max_lines);
                 let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
                 let delta = ui.ctx.scroll_delta.round() as isize;
@@ -1013,15 +1021,133 @@ impl InGameWindow for ChatWindow {
             self.draw_height_handle(ui, chat_x, chat_y + msg_area_h, chat_w);
         }
 
-        let toolbar_y = chat_y + if show_messages { msg_area_h } else { 0.0 };
-        let input_y = toolbar_y + toolbar_h;
+        let input_y = chat_y + if show_messages { msg_area_h } else { 0.0 };
+        let bubble_y = input_y + (input_h - BUBBLE_SIZE) / 2.0;
+        let height_bubble = Rect::new(
+            chat_x + chat_w - padding * tex_scale - BUBBLE_SIZE,
+            bubble_y,
+            BUBBLE_SIZE,
+            BUBBLE_SIZE,
+        );
+        let channel_bubble = Rect::new(
+            height_bubble.x - BUBBLE_GAP - BUBBLE_SIZE,
+            bubble_y,
+            BUBBLE_SIZE,
+            BUBBLE_SIZE,
+        );
+        let whisper_rect = Rect::new(
+            chat_x + WHISPER_NATIVE_X * tex_scale,
+            input_y,
+            WHISPER_NATIVE_W * tex_scale,
+            input_h,
+        );
+        let list_rect = Rect::new(
+            chat_x + LIST_NATIVE_X * tex_scale,
+            input_y,
+            LIST_BTN_W * tex_scale,
+            input_h,
+        );
+        let msg_x = chat_x + MSG_NATIVE_X * tex_scale;
+        let msg_right = (chat_x + (TEX_NATIVE_W - MSG_NATIVE_RIGHT) * tex_scale)
+            .min(channel_bubble.x - INPUT_GAP);
+        let msg_rect = Rect::new(msg_x, input_y, (msg_right - msg_x).max(20.0), input_h);
 
-        self.draw_toolbar(ui, chat_x, toolbar_y, chat_w, filter, locked);
+        if self.active {
+            let input_bg = if self.has_grf_textures {
+                let (v, i) =
+                    ragnarok_ui::draw::quad_vertices(chat_x, input_y, chat_w, input_h, [1.0; 4]);
+                ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: ragnarok_ui::draw::TextureRef::Named(DIALOG_BG.to_string()),
+                });
+                TextInputBg::Gray
+            } else {
+                let (v, i) = ragnarok_ui::draw::quad_vertices(
+                    chat_x,
+                    input_y,
+                    chat_w,
+                    input_h,
+                    [0.0, 0.0, 0.0, 0.6],
+                );
+                ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
+                    vertices: v.to_vec(),
+                    indices: i.to_vec(),
+                    texture: ragnarok_ui::draw::TextureRef::White,
+                });
+                TextInputBg::Gray
+            };
 
-        if !drag_locked {
-            let toolbar_rect = Rect::new(chat_x, toolbar_y, chat_w, toolbar_h);
+            if self.pending_focus {
+                self.pending_focus = false;
+                self.focused_input = INPUT_ID;
+                ui.set_focus(INPUT_ID);
+            }
+            if ui.ctx.key_tab {
+                self.focused_input = if self.focused_input == INPUT_ID {
+                    WHISPER_INPUT_ID
+                } else {
+                    INPUT_ID
+                };
+                ui.set_focus(self.focused_input);
+            }
+            if ui.ctx.mouse_clicked {
+                if whisper_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+                    self.focused_input = WHISPER_INPUT_ID;
+                } else if msg_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
+                    self.focused_input = INPUT_ID;
+                }
+            }
+
+            ui.text_input(WHISPER_INPUT_ID, whisper_rect, &mut self.whisper_target, input_bg);
+            let popup_anchor = Rect::new(
+                whisper_rect.x,
+                input_y,
+                list_rect.x + list_rect.w - whisper_rect.x,
+                input_h,
+            );
+            self.draw_whisper_list_button(ui, list_rect, popup_anchor);
+            ui.text_input(INPUT_ID, msg_rect, &mut self.input, input_bg);
+        } else {
+            self.whisper_menu_open = false;
+        }
+
+        let sticky = ui
+            .state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .send_channel;
+        if self.draw_bubble(ui, CHANNEL_BTN_ID, channel_bubble, sticky.color()) {
+            let st = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
+            st.channel_menu_open = !st.channel_menu_open;
+        }
+        if self.draw_bubble(ui, SIZE_BTN_ID, height_bubble, [0.55, 0.55, 0.6, 1.0]) {
+            let st = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
+            let next = st.size_index + 1;
+            st.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
+            st.msg_area_h = SIZE_CYCLE[st.size_index];
+        }
+        self.draw_channel_menu(ui, channel_bubble);
+
+        {
+            let input_row = Rect::new(chat_x, input_y, chat_w, input_h);
+            let on_widget = channel_bubble.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+                || height_bubble.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+                || (self.active
+                    && (whisper_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+                        || list_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+                        || msg_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)));
+            let in_input = input_row.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && !on_widget;
+            let in_msg_area = show_messages && {
+                let drag_area = Rect::new(
+                    chat_x,
+                    chat_y,
+                    chat_w - scrollbar_w,
+                    (msg_area_h - DRAG_HIT_AREA / 2.0).max(0.0),
+                );
+                drag_area.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+            };
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            if toolbar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
+            if (in_input || in_msg_area)
                 && ui.ctx.mouse_clicked
                 && !state.dragging
             {
@@ -1039,75 +1165,6 @@ impl InGameWindow for ChatWindow {
                     state.dragging = false;
                 }
             }
-        }
-
-        if self.active {
-            if self.pending_focus {
-                self.pending_focus = false;
-                self.focused_input = INPUT_ID;
-                ui.set_focus(INPUT_ID);
-            }
-            if ui.ctx.key_tab {
-                if self.focused_input == INPUT_ID {
-                    self.focused_input = WHISPER_INPUT_ID;
-                } else {
-                    self.focused_input = INPUT_ID;
-                }
-                ui.set_focus(self.focused_input);
-            }
-
-            let (whisper_rect, msg_rect, input_bg) = if self.has_grf_textures {
-                let scale = chat_w / (DIALOG_BG_W);
-                let wr = Rect::new(
-                    chat_x + (DIALOG_BG_WHISPER_X) * scale,
-                    input_y,
-                    (DIALOG_BG_WHISPER_W) * scale,
-                    input_h,
-                );
-                let mr = Rect::new(
-                    chat_x + (DIALOG_BG_MSG_X) * scale,
-                    input_y,
-                    (DIALOG_BG_MSG_W) * scale,
-                    input_h,
-                );
-
-                let input_row = Rect::new(chat_x, input_y, chat_w, input_h);
-                let (v, i) = ragnarok_ui::draw::quad_vertices(
-                    input_row.x,
-                    input_row.y,
-                    input_row.w,
-                    input_row.h,
-                    [1.0; 4],
-                );
-                ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
-                    vertices: v.to_vec(),
-                    indices: i.to_vec(),
-                    texture: ragnarok_ui::draw::TextureRef::Named(DIALOG_BG.to_string()),
-                });
-                (wr, mr, TextInputBg::Transparent)
-            } else {
-                let wr = Rect::new(chat_x, input_y, WHISPER_INPUT_W, input_h);
-                let msg_x = chat_x + (WHISPER_INPUT_W) + (INPUT_GAP);
-                let msg_w = chat_w - (WHISPER_INPUT_W) - (INPUT_GAP);
-                let mr = Rect::new(msg_x, input_y, msg_w, input_h);
-                (wr, mr, TextInputBg::Default)
-            };
-
-            if ui.ctx.mouse_clicked {
-                if whisper_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-                    self.focused_input = WHISPER_INPUT_ID;
-                } else if msg_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
-                    self.focused_input = INPUT_ID;
-                }
-            }
-
-            ui.text_input(
-                WHISPER_INPUT_ID,
-                whisper_rect,
-                &mut self.whisper_target,
-                input_bg,
-            );
-            ui.text_input(INPUT_ID, msg_rect, &mut self.input, input_bg);
         }
 
         self.draw_width_handle(ui, chat_x + chat_w, chat_y, total_h);
@@ -1237,7 +1294,7 @@ mod tests {
         assert!(!ui.draw_calls.is_empty());
         assert!(chat.bounding_rect.is_some());
         let rect = chat.bounding_rect.unwrap();
-        assert_eq!(rect.h, TOOLBAR_H + INPUT_H);
+        assert_eq!(rect.h, INPUT_H);
     }
 
     #[test]
@@ -1275,7 +1332,7 @@ mod tests {
             .unwrap()
             .msg_area_h;
 
-        let handle_y = 600.0 - TOOLBAR_H - INPUT_H - PADDING;
+        let handle_y = 600.0 - INPUT_H - PADDING;
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 100.0;
         ctx.mouse_y = handle_y;
@@ -1341,6 +1398,57 @@ mod tests {
             new_w,
             initial_w
         );
+    }
+
+    #[test]
+    fn visible_line_count_never_overflows_area() {
+        for &h in &SIZE_CYCLE[2..] {
+            let n = visible_line_count(h);
+            assert!(
+                PADDING + n as f32 * LINE_H <= h,
+                "{n} lines overflow area of height {h}",
+            );
+            assert!(
+                PADDING + (n + 1) as f32 * LINE_H > h,
+                "area of height {h} could fit more than {n} lines",
+            );
+        }
+    }
+
+    #[test]
+    fn message_area_drag_moves_window() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+        let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        let (start_x, start_y) = (st.pos_x, st.pos_y);
+        let grab_x = start_x + 40.0;
+        let grab_y = start_y + 20.0;
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = grab_x;
+        ctx.mouse_y = grab_y;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = grab_x + 60.0;
+        ctx.mouse_y = grab_y - 30.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+
+        let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        assert_eq!(st.pos_x, start_x + 60.0);
+        assert_eq!(st.pos_y, start_y - 30.0);
     }
 
     #[test]
@@ -1415,7 +1523,7 @@ mod tests {
             .get::<ChatWindowState>(CHAT_WINDOW_ID)
             .unwrap()
             .scroll_offset;
-        let max_lines = (SIZE_CYCLE[DEFAULT_SIZE_INDEX] / LINE_H) as usize;
+        let max_lines = visible_line_count(SIZE_CYCLE[DEFAULT_SIZE_INDEX]);
         let max_scroll = 50_usize.saturating_sub(max_lines);
         assert!(
             offset <= max_scroll,
@@ -1465,76 +1573,66 @@ mod tests {
         assert_eq!(offset, 3, "Scroll offset should increase by 3");
     }
 
-    #[test]
-    fn filter_cycles_and_filters_messages() {
-        let mut chat = ChatWindow::new();
-        chat.add_chat("public msg".to_string());
-        chat.add_message(
-            "party msg".to_string(),
-            [0.5, 0.5, 1.0, 1.0],
-            ChatChannel::Party,
-        );
-        chat.add_message(
-            "guild msg".to_string(),
-            [0.5, 1.0, 0.5, 1.0],
-            ChatChannel::Guild,
-        );
-        chat.add_system("system msg".to_string());
-
-        let filter_all = ChatFilter::All;
-        assert_eq!(
-            chat.messages
-                .iter()
-                .filter(|m| filter_all.passes(m.channel))
-                .count(),
-            4
-        );
-
-        let filter_pub = ChatFilter::Public;
-        let pub_msgs: Vec<_> = chat
-            .messages
-            .iter()
-            .filter(|m| filter_pub.passes(m.channel))
-            .collect();
-        assert_eq!(pub_msgs.len(), 2); // public + system
-        assert_eq!(pub_msgs[0].text, "public msg");
-        assert_eq!(pub_msgs[1].text, "system msg");
-
-        let filter_party = ChatFilter::Party;
-        let party_msgs: Vec<_> = chat
-            .messages
-            .iter()
-            .filter(|m| filter_party.passes(m.channel))
-            .collect();
-        assert_eq!(party_msgs.len(), 2); // party + system
-
-        let filter_guild = ChatFilter::Guild;
-        let guild_msgs: Vec<_> = chat
-            .messages
-            .iter()
-            .filter(|m| filter_guild.passes(m.channel))
-            .collect();
-        assert_eq!(guild_msgs.len(), 2); // guild + system
+    fn bubble_centers(state: &mut StateCache) -> (f32, f32, f32) {
+        let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        let input_y = st.pos_y + st.msg_area_h;
+        let bubble_cy = input_y + (INPUT_H - BUBBLE_SIZE) / 2.0 + BUBBLE_SIZE / 2.0;
+        let height_cx = st.pos_x + st.chat_w - PADDING - BUBBLE_SIZE / 2.0;
+        let channel_cx = height_cx - BUBBLE_SIZE - BUBBLE_GAP;
+        (channel_cx, height_cx, bubble_cy)
     }
 
     #[test]
-    fn filter_cycles_through_all_modes() {
-        let mut f = ChatFilter::All;
-        f = f.next();
-        assert_eq!(f, ChatFilter::Public);
-        f = f.next();
-        assert_eq!(f, ChatFilter::Party);
-        f = f.next();
-        assert_eq!(f, ChatFilter::Guild);
-        f = f.next();
-        assert_eq!(f, ChatFilter::All);
-    }
-
-    #[test]
-    fn lock_button_prevents_drag() {
+    fn channel_bubble_sets_send_channel() {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
-        chat.active = true;
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        chat.whisper_target.text = "Bob".to_string();
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+
+        let (channel_cx, _, bubble_cy) = bubble_centers(&mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = channel_cx;
+        ctx.mouse_y = bubble_cy;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+        assert!(
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .channel_menu_open
+        );
+
+        let party_idx = SEND_CHANNELS.iter().position(|c| *c == SendChannel::Party).unwrap();
+        let item_y = bubble_cy - BUBBLE_SIZE / 2.0
+            - SEND_CHANNELS.len() as f32 * CHANNEL_MENU_ITEM_H
+            + (party_idx as f32 + 0.5) * CHANNEL_MENU_ITEM_H;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = channel_cx - 20.0;
+        ctx.mouse_y = item_y;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+        assert_eq!(
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .send_channel,
+            SendChannel::Party
+        );
+        assert!(chat.whisper_target.text.is_empty(), "changing channel clears whisper");
+    }
+
+    #[test]
+    fn height_bubble_cycles_size() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
         let mut character = Character::new();
         let data = DataTable::new();
         let mut state = StateCache::new();
@@ -1542,31 +1640,192 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
+        let before = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().size_index;
 
-        state
-            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
-            .locked = true;
-        let initial_w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
-
-        let rect = chat.bounding_rect.unwrap();
-        let edge_x = rect.x + rect.w;
+        let (_, height_cx, bubble_cy) = bubble_centers(&mut state);
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.mouse_x = edge_x;
-        ctx.mouse_y = rect.y + rect.h / 2.0;
+        ctx.mouse_x = height_cx;
+        ctx.mouse_y = bubble_cy;
         ctx.mouse_clicked = true;
-        ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
+        let after = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().size_index;
+        assert_ne!(after, before, "height bubble should cycle size_index");
+    }
+
+    #[test]
+    fn blank_input_sends_nothing() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        for blank in ["", "   ", "\t "] {
+            chat.active = true;
+            chat.input.text = blank.to_string();
+            chat.input.cursor_pos = chat.input.text.chars().count();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.key_enter = true;
+            let mut ui = make_frame(&ctx, &atlas, &mut state);
+            let events = chat.build(&mut ui, &mut character, &data);
+            assert!(
+                !events.iter().any(|e| matches!(
+                    e,
+                    GameEvent::RequestSendChat { .. } | GameEvent::RequestSendWhisper { .. }
+                )),
+                "blank {blank:?} must not send"
+            );
+        }
+    }
+
+    #[test]
+    fn opening_chat_with_modifier_sets_channel() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        chat.whisper_target.text = "Bob".to_string();
 
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.mouse_x = edge_x + 100.0;
-        ctx.mouse_y = rect.y + rect.h / 2.0;
-        ctx.mouse_down = true;
+        ctx.key_enter = true;
+        ctx.ctrl_pressed = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut character, &data);
+        assert!(chat.is_active());
+        assert_eq!(
+            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            SendChannel::Party
+        );
+        assert!(chat.whisper_target.text.is_empty());
 
-        let w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
-        assert_eq!(w, initial_w, "Width should not change when locked");
+        chat.active = false;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        ctx.alt_pressed = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut character, &data);
+        assert_eq!(
+            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            SendChannel::Guild
+        );
+    }
+
+    #[test]
+    fn enter_routes_by_channel_and_override() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        chat.active = true;
+        chat.whisper_target.text = "Bob".to_string();
+        chat.input.text = "psst".to_string();
+        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Public;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let events = chat.build(&mut ui, &mut character, &data);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            GameEvent::RequestSendWhisper { name, message } if name == "Bob" && message == "psst"
+        )));
+
+        chat.active = true;
+        chat.whisper_target.text = "Bob".to_string();
+        chat.input.text = "%to party".to_string();
+        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Public;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let events = chat.build(&mut ui, &mut character, &data);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            GameEvent::RequestSendChat { message } if message == "%to party"
+        )));
+        assert_eq!(
+            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            SendChannel::Party,
+            "override switches the sticky channel"
+        );
+        assert!(chat.whisper_target.text.is_empty(), "override clears whisper");
+
+        chat.active = true;
+        chat.whisper_target.text.clear();
+        chat.input.text = "team up".to_string();
+        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Party;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let events = chat.build(&mut ui, &mut character, &data);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            GameEvent::RequestSendChat { message } if message == "%team up"
+        )));
+
+        chat.active = true;
+        chat.input.text = "hi".to_string();
+        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Public;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        ctx.ctrl_pressed = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let events = chat.build(&mut ui, &mut character, &data);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            GameEvent::RequestSendChat { message } if message == "%hi"
+        )));
+        assert_eq!(
+            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            SendChannel::Party,
+            "ctrl+enter switches the sticky channel to party"
+        );
+    }
+
+    #[test]
+    fn effective_channel_overrides_sticky() {
+        assert_eq!(effective_channel("hi", SendChannel::Public, false, false, false), SendChannel::Public);
+        assert_eq!(effective_channel("hi", SendChannel::Guild, false, false, false), SendChannel::Guild);
+        assert_eq!(effective_channel("%hi", SendChannel::Public, false, false, false), SendChannel::Party);
+        assert_eq!(effective_channel("$hi", SendChannel::Public, false, false, false), SendChannel::Guild);
+        assert_eq!(effective_channel("hi", SendChannel::Public, true, false, false), SendChannel::Party);
+        assert_eq!(effective_channel("hi", SendChannel::Public, false, true, false), SendChannel::Guild);
+        // filled whisper target overrides the sticky channel...
+        assert_eq!(effective_channel("hi", SendChannel::Public, false, false, true), SendChannel::Whisper);
+        // ...but explicit prefix/modifier still wins over whisper
+        assert_eq!(effective_channel("%hi", SendChannel::Public, false, false, true), SendChannel::Party);
+        assert_eq!(effective_channel("$hi", SendChannel::Public, false, false, true), SendChannel::Guild);
+        assert_eq!(effective_channel("hi", SendChannel::Public, true, false, true), SendChannel::Party);
+        assert_eq!(effective_channel("hi", SendChannel::Public, false, true, true), SendChannel::Guild);
+    }
+
+    #[test]
+    fn whisper_history_dedups_caps_and_orders_recent_first() {
+        let mut chat = ChatWindow::new();
+        chat.remember_whisper("".to_string());
+        assert!(chat.whisper_history.is_empty());
+
+        for name in ["Alice", "Bob", "Alice", "Carol"] {
+            chat.remember_whisper(name.to_string());
+        }
+        assert_eq!(chat.whisper_history, vec!["Carol", "Alice", "Bob"]);
+
+        for i in 0..MAX_WHISPER_HISTORY + 3 {
+            chat.remember_whisper(format!("P{i}"));
+        }
+        assert_eq!(chat.whisper_history.len(), MAX_WHISPER_HISTORY);
+        assert_eq!(chat.whisper_history[0], format!("P{}", MAX_WHISPER_HISTORY + 2));
+    }
+
+    #[test]
+    fn route_message_prefixes_party_and_guild_only() {
+        assert_eq!(route_message("hi".to_string(), SendChannel::Public), "hi");
+        assert_eq!(route_message("hi".to_string(), SendChannel::Party), "%hi");
+        assert_eq!(route_message("hi".to_string(), SendChannel::Guild), "$hi");
+        assert_eq!(route_message("/sit".to_string(), SendChannel::Party), "/sit");
+        assert_eq!(route_message("%x".to_string(), SendChannel::Guild), "%x");
     }
 
     #[test]

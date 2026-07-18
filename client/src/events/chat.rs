@@ -55,6 +55,18 @@ impl App {
         }
     }
 
+    pub(super) fn handle_ranking_received(&mut self, title: &str, entries: Vec<(String, i32)>) {
+        self.game.chat_window.add_system(format!("== {title} =="));
+        if entries.is_empty() {
+            self.game.chat_window.add_system("  (no entries)".to_string());
+        }
+        for (i, (name, point)) in entries.iter().enumerate() {
+            self.game
+                .chat_window
+                .add_system(format!("  {}. {name} - {point}", i + 1));
+        }
+    }
+
     pub(super) fn handle_own_chat_message(&mut self, message: String) {
         if let Some(bubble_text) = message.split(" : ").nth(1)
             && let Some(player_id) = self.game.entities.player_id()
@@ -68,6 +80,26 @@ impl App {
                 .push_message(message.clone(), OWN_MSG_COLOR);
         }
         self.game.chat_window.add_own_chat(message);
+    }
+
+    pub(super) fn handle_guild_chat_message(&mut self, message: String) {
+        self.game.chat_window.add_guild(message);
+    }
+
+    pub(super) fn handle_whisper_received(&mut self, sender: String, message: String) {
+        self.game.chat_window.remember_whisper(sender.clone());
+        self.game.chat_window.add_whisper_in(sender, message);
+    }
+
+    pub(super) fn handle_whisper_ack(&mut self, result: u8) {
+        let text = match result {
+            0 => return,
+            1 => "The target character is not logged in.",
+            2 => "The target character is ignoring whispers.",
+            3 => "The target character is ignoring everyone.",
+            _ => "Failed to send whisper.",
+        };
+        self.game.chat_window.add_error(text.to_string());
     }
 
     pub(super) fn handle_exp_gained(

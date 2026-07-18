@@ -127,10 +127,6 @@ const GAME_COMPONENTS: &[&str] = &[
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
     "guild",
-    "chat",
-    "chat_room_create",
-    "chat_room_member",
-    "chat_room_board",
     "vending_board",
     "party",
     "emotion",
@@ -138,6 +134,12 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "mailbox",
     "read_mail",
     "trade",
+];
+const CHAT_COMPONENTS: &[&str] = &[
+    "chat",
+    "chat_room_create",
+    "chat_room_member",
+    "chat_room_board",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
     &["login", "server_list", "char_select", "char_create"];
@@ -704,6 +706,12 @@ fn create_single(name: &str) -> State {
             chat.add_chat("[Archer]: WTB Composite Bow +5".into());
             chat.add_chat("^FF0000[System]: Server maintenance in 30 minutes.".into());
             chat.add_chat("[Mage]: Trading Fire Bolt 10 for Cold Bolt 10".into());
+            chat.add_whisper_in("Lidia".into(), "are you online?".into());
+            chat.add_whisper_out("Gandalf".into(), "on my way".into());
+            chat.add_whisper_in("Zephyr".into(), "meet at Prontera fountain".into());
+            for name in ["Lidia", "Gandalf", "Zephyr", "Mint", "Raki"] {
+                chat.remember_whisper(name.into());
+            }
             State::Chat {
                 chat,
                 character: Character::new(),
@@ -1772,6 +1780,9 @@ pub unsafe extern "C" fn hot_create(name_ptr: *const u8, name_len: usize) -> *mu
         },
         "social" => State::Category {
             components: SOCIAL_COMPONENTS.iter().map(|n| create_single(n)).collect(),
+        },
+        "chat" => State::Category {
+            components: CHAT_COMPONENTS.iter().map(|n| create_single(n)).collect(),
         },
         "companion" => State::Category {
             components: COMPANION_COMPONENTS

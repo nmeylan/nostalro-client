@@ -37,6 +37,8 @@ pub enum ChatCommand {
     ToggleHidePublicChat,
     /// `/battlemode` — keyboard skill-bar mode.
     BattleMode,
+    /// `/alchemist`, `/blacksmith`, `/taekwon` — request a top-10 ranking.
+    Ranking(RankKind),
     /// `/miss` — toggle the "Miss" damage text.
     ToggleMiss,
     /// `/eqopen` — toggle whether other players can view your equipment.
@@ -56,6 +58,9 @@ pub enum ChatCommand {
     OpenChatCreate,
     /// `/emotion` — open the emotion-list window.
     OpenEmotionList,
+    /// `/hoai` / `/mercai` — open the companion AI settings at the homunculus
+    /// (`false`) or mercenary (`true`) tab.
+    OpenCompanionAi { mercenary: bool },
     Emote(u8),
     /// List the supported commands ([`COMMAND_HELP`]) in the chat window.
     Help,
@@ -64,6 +69,13 @@ pub enum ChatCommand {
     /// Recognised but removed from the classic client (`/who`, `/showname`, …).
     Outdated,
     Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RankKind {
+    Alchemist,
+    Blacksmith,
+    Taekwon,
 }
 
 /// Commands the original client recognises but which have no backing in this
@@ -93,9 +105,7 @@ const UNSUPPORTED: &[&str] = &[
     "/objlight",
     "/lightmap",
     "/clipmouse",
-    "/hoai",
     "/traceai",
-    "/merai",
     "/hw",
     "/am",
     "/notalkmsg2",
@@ -106,6 +116,7 @@ const UNSUPPORTED: &[&str] = &[
     "/li",
     "/shopping",
     "/sh",
+    "/pk",
 ];
 
 /// `(command, description)` shown by `/h`. Descriptions follow the classic
@@ -147,6 +158,12 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
     ("/exall or /inall", "Blocks or unblocks all whispers."),
     ("/chat", "Opens the chat-room creation window."),
     ("/emotion", "Opens the emotion list."),
+    ("/hoai", "Opens the homunculus AI settings."),
+    ("/mercai", "Opens the mercenary AI settings."),
+    (
+        "/alchemist /blacksmith /taekwon",
+        "Shows the top-10 ranking.",
+    ),
     ("/notrade or /nt", "Blocks all trade offers."),
     ("/refuse", "Auto-declines party invites (/accept re-enables)."),
     ("/noctrl or /nc", "Attack monsters with a single left-click."),
@@ -246,6 +263,11 @@ pub fn parse_chat_command(input: &str) -> ChatCommand {
         "/inall" => ChatCommand::WhisperBlockAll(false),
         "/chat" => ChatCommand::OpenChatCreate,
         "/emotion" => ChatCommand::OpenEmotionList,
+        "/hoai" => ChatCommand::OpenCompanionAi { mercenary: false },
+        "/mercai" | "/merai" => ChatCommand::OpenCompanionAi { mercenary: true },
+        "/alchemist" => ChatCommand::Ranking(RankKind::Alchemist),
+        "/blacksmith" => ChatCommand::Ranking(RankKind::Blacksmith),
+        "/taekwon" => ChatCommand::Ranking(RankKind::Taekwon),
         "/h" | "/help" => ChatCommand::Help,
         "/who" | "/w" | "/showname" | "/report" | "/loading" => ChatCommand::Outdated,
         _ => match emote_type_for_command(raw_cmd) {
@@ -318,5 +340,34 @@ mod tests {
         );
         assert_eq!(parse_chat_command("/mineffect"), ChatCommand::ToggleEffect);
         assert_eq!(parse_chat_command("/camera"), ChatCommand::Unsupported);
+    }
+
+    #[test]
+    fn parses_rankings_and_pk() {
+        assert_eq!(
+            parse_chat_command("/alchemist"),
+            ChatCommand::Ranking(RankKind::Alchemist)
+        );
+        assert_eq!(
+            parse_chat_command("/taekwon"),
+            ChatCommand::Ranking(RankKind::Taekwon)
+        );
+        assert_eq!(parse_chat_command("/pk"), ChatCommand::Unsupported);
+    }
+
+    #[test]
+    fn parses_companion_ai_tabs() {
+        assert_eq!(
+            parse_chat_command("/hoai"),
+            ChatCommand::OpenCompanionAi { mercenary: false }
+        );
+        assert_eq!(
+            parse_chat_command("/mercai"),
+            ChatCommand::OpenCompanionAi { mercenary: true }
+        );
+        assert_eq!(
+            parse_chat_command("/merai"),
+            ChatCommand::OpenCompanionAi { mercenary: true }
+        );
     }
 }
