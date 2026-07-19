@@ -95,6 +95,7 @@ impl Effect for WaterballEffect {
             texture: TEXTURES[tex_idx],
             color: [1.0, 1.0, 1.0, 1.0],
             blend: BlendKind::Alpha,
+            no_depth: false,
         });
     }
 }

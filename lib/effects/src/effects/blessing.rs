@@ -204,6 +204,9 @@ impl Effect for BlessingEffect {
                     texture: DISC_TEXTURE,
                     color: [DISC_TINT[0], DISC_TINT[1], DISC_TINT[2], alpha],
                     blend: BlendKind::Alpha,
+                    no_depth: false,
+                    tilt_rad: 0.0,
+                    spin_rad: 0.0,
                 });
             }
         }

@@ -252,13 +252,12 @@ fn pipeline_for<'a>(
                 &cylinder.pipeline_alpha
             }
         }
-        PipelineKind::GroundDisc => {
-            if additive {
-                &ground_disc.pipeline_additive
-            } else {
-                &ground_disc.pipeline_alpha
-            }
-        }
+        PipelineKind::GroundDisc => match bucket {
+            BlendBucket::AlphaNoDepth => &ground_disc.pipeline_alpha_no_depth,
+            BlendBucket::AdditiveNoDepth => &ground_disc.pipeline_additive_no_depth,
+            _ if additive => &ground_disc.pipeline_additive,
+            _ => &ground_disc.pipeline_alpha,
+        },
         PipelineKind::QuadHorn => {
             if additive {
                 &quad_horn.pipeline_additive
@@ -266,13 +265,12 @@ fn pipeline_for<'a>(
                 &quad_horn.pipeline_alpha
             }
         }
-        PipelineKind::Sphere => {
-            if additive {
-                &sphere.pipeline_additive
-            } else {
-                &sphere.pipeline_alpha
-            }
-        }
+        PipelineKind::Sphere => match bucket {
+            BlendBucket::AlphaNoDepth => &sphere.pipeline_alpha_no_depth,
+            BlendBucket::AdditiveNoDepth => &sphere.pipeline_additive_no_depth,
+            _ if additive => &sphere.pipeline_additive,
+            _ => &sphere.pipeline_alpha,
+        },
         PipelineKind::WorldQuad => match bucket {
             BlendBucket::Alpha => &world_quad.pipeline_alpha,
             BlendBucket::AlphaNoDepth => &world_quad.pipeline_alpha_no_depth,

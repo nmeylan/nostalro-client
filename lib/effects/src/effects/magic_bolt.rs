@@ -320,6 +320,9 @@ impl MagicBoltEffect {
                 alpha,
             ],
             blend: BlendKind::Additive,
+            no_depth: false,
+            tilt_rad: 0.0,
+            spin_rad: 0.0,
         });
     }
 }

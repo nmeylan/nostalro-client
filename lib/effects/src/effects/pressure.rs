@@ -243,6 +243,9 @@ impl Effect for PressureEffect {
                     texture: self.params.ring_texture,
                     color: [t[0], t[1], t[2], alpha.max(0.0)],
                     blend: self.params.ring_blend,
+                    no_depth: false,
+                    tilt_rad: 0.0,
+                    spin_rad: 0.0,
                 });
             }
         }

@@ -102,6 +102,13 @@ pub enum EffectPrimitiveDraw {
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,
+        /// When true, render as an overlay the terrain never depth-occludes.
+        no_depth: bool,
+        /// Tilt of the disc plane about a horizontal axis: `0` = flat on the
+        /// ground, `PI/2` = standing vertical.
+        tilt_rad: f32,
+        /// Rotation of the (tilted) disc plane about the vertical axis.
+        spin_rad: f32,
     },
     Frustum {
         base: [f32; 3],
@@ -147,6 +154,8 @@ pub enum EffectPrimitiveDraw {
         texture: &'static str,
         color: [f32; 4],
         blend: BlendKind,
+        /// When true, render as an overlay the terrain never depth-occludes.
+        no_depth: bool,
     },
     Cylinder {
         base: [f32; 3],

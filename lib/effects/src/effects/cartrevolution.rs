@@ -3,7 +3,7 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const STR_FILE: &str = "CartRevolution";
 pub const RING_TEXTURE: &str = "ring_yellow.tga";
-pub const SPHERE_TEXTURE: &str = "bigbang.tga";
+pub const SPHERE_TEXTURE: &str = "대폭발.tga";
 pub const TEXTURES: &[&str] = &[RING_TEXTURE, SPHERE_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -35,7 +35,6 @@ const SPHERE_FADE_OUT_START_FRAME: f32 = 5.0;
 const SPHERE_ROT_DEG_PER_FRAME: f32 = 3.0;
 const SPHERE_SIDES_LAT: u32 = 5;
 const SPHERE_SIDES_LON: u32 = 10;
-const SPHERE_SINK_FRAC: f32 = 0.5;
 
 fn radius_at(initial: f32, speed: f32, accel: f32, frame: f32) -> f32 {
     initial + speed * frame + accel * frame * (frame + 1.0) / 2.0
@@ -96,7 +95,10 @@ impl CartRevolutionEffect {
                 uv_repeat: RING_UV_REPEAT,
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, ring_alpha],
-                blend: BlendKind::Additive,
+                blend: BlendKind::Alpha,
+                no_depth: true,
+                tilt_rad: 0.0,
+                spin_rad: 0.0,
             });
         }
 
@@ -114,14 +116,9 @@ impl CartRevolutionEffect {
             SUB_DURATION_FRAMES,
         );
         if sphere_radius > 0.0 && sphere_alpha > 0.0 {
-            let centre = [
-                self.world_pos[0],
-                self.world_pos[1] + sphere_radius * SPHERE_SINK_FRAC,
-                self.world_pos[2],
-            ];
             let long_offset = (local_frame * SPHERE_ROT_DEG_PER_FRAME).to_radians();
             out.push(EffectPrimitiveDraw::Sphere {
-                center: centre,
+                center: self.world_pos,
                 radius: sphere_radius,
                 sides_lat: SPHERE_SIDES_LAT,
                 sides_lon: SPHERE_SIDES_LON,
@@ -130,7 +127,8 @@ impl CartRevolutionEffect {
                 uv_repeat: [1.0, 1.0],
                 texture: SPHERE_TEXTURE,
                 color: [1.0, 1.0, 1.0, sphere_alpha],
-                blend: BlendKind::Additive,
+                blend: BlendKind::Alpha,
+                no_depth: true,
             });
         }
     }

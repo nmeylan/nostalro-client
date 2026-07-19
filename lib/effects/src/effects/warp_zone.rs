@@ -425,6 +425,9 @@ impl Effect for WarpZoneEffect {
                 texture: BASE_TEXTURE,
                 color: [tr, tg, tb, d.alpha()],
                 blend: BlendKind::Alpha,
+                no_depth: false,
+                tilt_rad: 0.0,
+                spin_rad: 0.0,
             });
         }
         if self.params.funnel {
@@ -449,6 +452,9 @@ impl Effect for WarpZoneEffect {
                     // source/inverse-source alpha, not additive —
                     // additive vanishes against a bright lightmap.
                     blend: BlendKind::Alpha,
+                    no_depth: false,
+                    tilt_rad: 0.0,
+                    spin_rad: 0.0,
                 });
             }
         }

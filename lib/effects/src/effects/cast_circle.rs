@@ -183,6 +183,9 @@ impl Effect for CastCircleEffect {
                 texture: RING_TEXTURE,
                 color: [r, g, b, ring_alpha],
                 blend: BlendKind::Alpha,
+                no_depth: false,
+                tilt_rad: 0.0,
+                spin_rad: 0.0,
             });
         }
 

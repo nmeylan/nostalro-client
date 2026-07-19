@@ -7,6 +7,8 @@ use crate::sprite::SpriteVertex;
 pub struct SphereRenderer {
     pub pipeline_alpha: wgpu::RenderPipeline,
     pub pipeline_additive: wgpu::RenderPipeline,
+    pub pipeline_alpha_no_depth: wgpu::RenderPipeline,
+    pub pipeline_additive_no_depth: wgpu::RenderPipeline,
 }
 
 impl SphereRenderer {
@@ -22,10 +24,21 @@ impl SphereRenderer {
             camera_bind_group_layout,
             texture_bind_group_layout,
             include_str!("../../shaders/effect_sphere.wgsl"),
+            wgpu::CompareFunction::LessEqual,
+        );
+        let (pipeline_alpha_no_depth, pipeline_additive_no_depth) = Self::build_pipelines(
+            device,
+            surface_format,
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+            include_str!("../../shaders/effect_sphere.wgsl"),
+            wgpu::CompareFunction::Always,
         );
         Self {
             pipeline_alpha,
             pipeline_additive,
+            pipeline_alpha_no_depth,
+            pipeline_additive_no_depth,
         }
     }
 
@@ -43,9 +56,20 @@ impl SphereRenderer {
             camera_bind_group_layout,
             texture_bind_group_layout,
             shader_source,
+            wgpu::CompareFunction::LessEqual,
         );
         self.pipeline_alpha = alpha;
         self.pipeline_additive = additive;
+        let (alpha_nd, additive_nd) = Self::build_pipelines(
+            device,
+            surface_format,
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+            shader_source,
+            wgpu::CompareFunction::Always,
+        );
+        self.pipeline_alpha_no_depth = alpha_nd;
+        self.pipeline_additive_no_depth = additive_nd;
     }
 
     fn build_pipelines(
@@ -54,6 +78,7 @@ impl SphereRenderer {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
         shader_source: &str,
+        depth_compare: wgpu::CompareFunction,
     ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("effect_sphere"),
@@ -80,10 +105,22 @@ impl SphereRenderer {
             },
         };
 
-        let pipeline_alpha =
-            Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, alpha);
-        let pipeline_additive =
-            Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, additive);
+        let pipeline_alpha = Self::create_pipeline(
+            device,
+            surface_format,
+            &pipeline_layout,
+            &shader,
+            alpha,
+            depth_compare,
+        );
+        let pipeline_additive = Self::create_pipeline(
+            device,
+            surface_format,
+            &pipeline_layout,
+            &shader,
+            additive,
+            depth_compare,
+        );
         (pipeline_alpha, pipeline_additive)
     }
 
@@ -93,6 +130,7 @@ impl SphereRenderer {
         pipeline_layout: &wgpu::PipelineLayout,
         shader: &wgpu::ShaderModule,
         blend: wgpu::BlendState,
+        depth_compare: wgpu::CompareFunction,
     ) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("effect_sphere"),
@@ -121,7 +159,7 @@ impl SphereRenderer {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::LessEqual,
+                depth_compare,
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -151,6 +189,7 @@ pub fn prepare_sphere_records<'tex>(
             texture,
             color,
             blend,
+            no_depth,
         } = prim
         else {
             continue;
@@ -203,10 +242,15 @@ pub fn prepare_sphere_records<'tex>(
             }
         }
 
+        let bucket = match (BlendBucket::from_blend_kind(*blend), *no_depth) {
+            (BlendBucket::Alpha, true) => BlendBucket::AlphaNoDepth,
+            (BlendBucket::Additive, true) => BlendBucket::AdditiveNoDepth,
+            (bucket, _) => bucket,
+        };
         records.push(DrawRecord::new(
             view_z(camera, *center),
             emission as u32,
-            BlendBucket::from_blend_kind(*blend),
+            bucket,
             PipelineKind::Sphere,
             vertices,
             indices,

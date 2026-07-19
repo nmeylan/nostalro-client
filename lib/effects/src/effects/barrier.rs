@@ -3,7 +3,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const SPHERE_TEXTURE: &str = "bigbang.tga";
+pub const SPHERE_TEXTURE: &str = "대폭발.tga";
 pub const TEXTURES: &[&str] = &[SPHERE_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -82,6 +82,7 @@ impl Effect for BarrierEffect {
             texture: SPHERE_TEXTURE,
             color: [1.0, 0.92, 0.45, a],
             blend: BlendKind::Additive,
+            no_depth: false,
         });
     }
 }

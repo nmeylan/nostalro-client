@@ -243,6 +243,9 @@ impl Effect for SpraypondEffect {
                 texture: RING_TEXTURE,
                 color: [1.0, 1.0, 1.0, alpha],
                 blend: BlendKind::Additive,
+                no_depth: false,
+                tilt_rad: 0.0,
+                spin_rad: 0.0,
             });
         }
     }

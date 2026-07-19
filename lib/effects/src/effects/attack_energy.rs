@@ -81,6 +81,7 @@ impl DomeLayer {
             texture: "white02.bmp",
             color: [DOME_TINT[0], DOME_TINT[1], DOME_TINT[2], alpha],
             blend: BlendKind::Alpha,
+            no_depth: false,
         });
     }
 }
