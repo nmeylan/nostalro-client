@@ -62,6 +62,10 @@ impl App {
         h.skill_points = p.skill_points;
         h.atk_range = p.atk_range;
         h.vaporized = p.vaporized;
+        if p.vaporized {
+            self.game.homunculus_window.set_visible(false);
+            self.game.homun_skill_window.set_visible(false);
+        }
     }
 
     pub(super) fn handle_homun_feed_result(&mut self, success: bool, item_id: u16) {

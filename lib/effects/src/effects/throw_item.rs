@@ -25,7 +25,12 @@
 //! (298 염산병, 308 돌, 600 베넘나이프, 613 수리검, 614 쿠나이_독, 616
 //! `effect/coin_a.bmp`); 615 names the faithful 풍마_뇌우 (absent here) with
 //! the present 풍마_대차륜 sibling as a `|`-separated alias fallback; and
-//! 299/539/541 have no classic icon (they render nothing).
+//! 539 has no classic icon (renders nothing).
+//!
+//! The pitcher throws (Potion / Slim Potion / Berserk Pitcher) reuse a single
+//! greyscale bottle in the original, tinted per skill level. That bottle is
+//! absent from the classic GRF, so [`potion_throw_params`] substitutes the real
+//! potion item icon matching each level instead.
 //!
 //!
 //! A texture field may list `|`-separated alias candidates — the first one
@@ -50,6 +55,15 @@ pub const TEXTURES: &[&str] = &[
     "유저인터페이스/item/풍마_뇌우.bmp",
     "유저인터페이스/item/풍마_대차륜.bmp",
     "coin_a.bmp",
+    "유저인터페이스/item/빨간포션.bmp",
+    "유저인터페이스/item/주홍포션.bmp",
+    "유저인터페이스/item/노란포션.bmp",
+    "유저인터페이스/item/하얀포션.bmp",
+    "유저인터페이스/item/파란포션.bmp",
+    "유저인터페이스/item/레드슬림포션.bmp",
+    "유저인터페이스/item/옐로우슬림포션.bmp",
+    "유저인터페이스/item/화이트슬림포션.bmp",
+    "유저인터페이스/item/버서크포션.bmp",
 ];
 
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
@@ -152,14 +166,15 @@ const fn coin_throw(texture: &'static str) -> ThrowItemParams {
 
 // 298 Acid Terror — throws an acid bottle (염산병).
 pub const THROW_BOTTLES: ThrowItemParams = default_throw("유저인터페이스/item/염산병.bmp", 0);
-// 299 fireworks throw — no classic icon (renders nothing).
-pub const THROW_ITEM2: ThrowItemParams = default_throw("throwitem2.bmp", 0);
+// Potion Pitcher: the icon is chosen per level by `potion_throw_params`; this
+// is the flight-timing representative.
+pub const THROW_ITEM2: ThrowItemParams = default_throw("유저인터페이스/item/빨간포션.bmp", 0);
 // 308 Throw Stone (돌).
 pub const THROW_STONE: ThrowItemParams = stone_throw("유저인터페이스/item/돌.bmp");
 // 539 Acid Demonstration — throws a molotov (화염병), launched at frame 5.
 pub const THROW_MOLOTOV: ThrowItemParams = default_throw("유저인터페이스/item/화염병.bmp", 5);
-// 541 — no classic icon (disabled).
-pub const THROW_ITEM4: ThrowItemParams = default_throw("throwitem4.bmp", 0);
+// Berserk Pitcher — throws a Berserk Potion (버서크포션).
+pub const THROW_ITEM4: ThrowItemParams = default_throw("유저인터페이스/item/버서크포션.bmp", 0);
 // 600 Throw Venom Knife (베넘나이프).
 pub const THROW_ITEM6: ThrowItemParams = coin_throw("유저인터페이스/item/베넘나이프.bmp");
 // 613 Throw Shuriken (수리검).
@@ -176,6 +191,25 @@ pub const THROW_ITEM9: ThrowItemParams = coin_throw(concat!(
 ));
 // 616 Throw Money (effect/coin_a.bmp).
 pub const THROW_COIN: ThrowItemParams = coin_throw("coin_a.bmp");
+
+/// Icon for a pitcher-thrown potion, selected by the caller from skill + level.
+/// 1‑5 are Potion Pitcher's red/orange/yellow/white/blue potions, 6‑8 are Slim
+/// Potion Pitcher's red/yellow/white slim potions, and any other value is the
+/// Berserk Potion. All share the default bottle arc.
+pub fn potion_throw_params(potion: u8) -> ThrowItemParams {
+    let texture = match potion {
+        1 => "유저인터페이스/item/빨간포션.bmp",
+        2 => "유저인터페이스/item/주홍포션.bmp",
+        3 => "유저인터페이스/item/노란포션.bmp",
+        4 => "유저인터페이스/item/하얀포션.bmp",
+        5 => "유저인터페이스/item/파란포션.bmp",
+        6 => "유저인터페이스/item/레드슬림포션.bmp",
+        7 => "유저인터페이스/item/옐로우슬림포션.bmp",
+        8 => "유저인터페이스/item/화이트슬림포션.bmp",
+        _ => "유저인터페이스/item/버서크포션.bmp",
+    };
+    default_throw(texture, 0)
+}
 
 /// One in-flight projectile. Travel and arrival are delegated to the shared
 /// [`ProjectileCursor`] so the item lands exactly on the target; the arc and
@@ -395,6 +429,22 @@ mod tests {
             let mut e = ThrowItemEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 20.0], &[params]);
             step(&mut e, FRAME_DT);
             assert_eq!(lead(&e).1, tex);
+        }
+    }
+
+    #[test]
+    fn pitcher_throws_the_potion_icon_for_its_index() {
+        for (potion, tex) in [
+            (1u8, "유저인터페이스/item/빨간포션.bmp"),
+            (5, "유저인터페이스/item/파란포션.bmp"),
+            (6, "유저인터페이스/item/레드슬림포션.bmp"),
+            (8, "유저인터페이스/item/화이트슬림포션.bmp"),
+            (9, "유저인터페이스/item/버서크포션.bmp"),
+        ] {
+            let params = potion_throw_params(potion);
+            let mut e = ThrowItemEffect::new([0.0, 0.0, 0.0], [0.0, 0.0, 20.0], &[params]);
+            step(&mut e, FRAME_DT);
+            assert_eq!(lead(&e).1, tex, "potion {potion}");
         }
     }
 

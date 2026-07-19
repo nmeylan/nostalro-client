@@ -1,3 +1,4 @@
+use crate::helper::CHECKBOX;
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
@@ -5,7 +6,7 @@ use crate::{InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 pub const SOUND_OPTIONS_WINDOW_ID: WidgetId = WidgetId(2800);
@@ -25,14 +26,7 @@ const CLOSE_SIZE: f32 = 11.0;
 const ROW_H: f32 = 40.0;
 const SLIDER_W: f32 = 150.0;
 const SLIDER_H: f32 = 18.0;
-const MUTE_W: f32 = 44.0;
-const MUTE_H: f32 = 18.0;
-
-const MUTE_BTN: ButtonTextures = ButtonTextures {
-    normal: "",
-    hover: "",
-    pressed: "",
-};
+const CB_SIZE: f32 = 12.0;
 
 #[derive(Default)]
 pub struct SoundOptionsWindow {
@@ -152,16 +146,11 @@ impl InGameWindow for SoundOptionsWindow {
         if bgm_resp.released {
             events.push(self.changed_event(true));
         }
-        let bgm_mute_rect = Rect::new(mute_x, row(0), MUTE_W, MUTE_H);
-        ui.has_grf_textures = false;
-        if ui
-            .button(BGM_MUTE_ID, bgm_mute_rect, &MUTE_BTN, if self.bgm_enabled { "On" } else { "Off" })
-            .clicked()
-        {
-            self.bgm_enabled = !self.bgm_enabled;
+        let bgm_cb = Rect::new(mute_x, row(0) + (SLIDER_H - CB_SIZE) / 2.0, CB_SIZE, CB_SIZE);
+        if ui.checkbox(BGM_MUTE_ID, bgm_cb, &mut self.bgm_enabled, &CHECKBOX).clicked() {
             events.push(self.changed_event(true));
         }
-        ui.has_grf_textures = grf;
+        ui.text(bgm_cb.x + CB_SIZE + 4.0, row(0) + SLIDER_H - 4.0, "On", label_color);
 
         // SFX row
         ui.text(win.x + 12.0, row(1) + SLIDER_H - 4.0, "SFX", label_color);
@@ -173,16 +162,11 @@ impl InGameWindow for SoundOptionsWindow {
         if sfx_resp.released {
             events.push(self.changed_event(true));
         }
-        let sfx_mute_rect = Rect::new(mute_x, row(1), MUTE_W, MUTE_H);
-        ui.has_grf_textures = false;
-        if ui
-            .button(SFX_MUTE_ID, sfx_mute_rect, &MUTE_BTN, if self.sfx_enabled { "On" } else { "Off" })
-            .clicked()
-        {
-            self.sfx_enabled = !self.sfx_enabled;
+        let sfx_cb = Rect::new(mute_x, row(1) + (SLIDER_H - CB_SIZE) / 2.0, CB_SIZE, CB_SIZE);
+        if ui.checkbox(SFX_MUTE_ID, sfx_cb, &mut self.sfx_enabled, &CHECKBOX).clicked() {
             events.push(self.changed_event(true));
         }
-        ui.has_grf_textures = grf;
+        ui.text(sfx_cb.x + CB_SIZE + 4.0, row(1) + SLIDER_H - 4.0, "On", label_color);
 
         ui.has_grf_textures = prev_grf;
         events

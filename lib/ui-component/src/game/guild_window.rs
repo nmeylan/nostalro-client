@@ -1,3 +1,4 @@
+use crate::helper::CHECKBOX;
 use crate::helper::dropdown::{self, Dropdown};
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
@@ -918,8 +919,25 @@ impl GuildWindow {
 
             let invite_on = right & GUILD_PERM_INVITE != 0;
             let punish_on = right & GUILD_PERM_EXPEL != 0;
-            Self::checkbox(ui, inv_x, row_y + 4.0, invite_on);
-            Self::checkbox(ui, pun_x, row_y + 4.0, punish_on);
+            let inv_rect = Rect::new(inv_x, row_y + 4.0, 11.0, 11.0);
+            let pun_rect = Rect::new(pun_x, row_y + 4.0, 11.0, 11.0);
+
+            // Rank 0 permissions are fixed; only lower ranks toggle.
+            if is_master && !is_rank0 {
+                let mut inv = invite_on;
+                if ui.checkbox(WidgetId(POS_INVITE_BASE + idx as u32), inv_rect, &mut inv, &CHECKBOX).clicked() {
+                    self.pos_edits[idx].right ^= GUILD_PERM_INVITE;
+                    self.pos_dirty = true;
+                }
+                let mut pun = punish_on;
+                if ui.checkbox(WidgetId(POS_PUNISH_BASE + idx as u32), pun_rect, &mut pun, &CHECKBOX).clicked() {
+                    self.pos_edits[idx].right ^= GUILD_PERM_EXPEL;
+                    self.pos_dirty = true;
+                }
+            } else {
+                ui.checkbox_display(inv_rect, invite_on, &CHECKBOX);
+                ui.checkbox_display(pun_rect, punish_on, &CHECKBOX);
+            }
 
             if editable {
                 let tax_rect = Rect::new(tax_x, row_y + 1.0, 30.0, POS_ROW_H - 2.0);
@@ -937,28 +955,6 @@ impl GuildWindow {
             } else {
                 let tax_text = self.pos_edits[idx].tax.text.clone();
                 ui.text(tax_x, baseline, &format!("{tax_text} %"), TEXT);
-            }
-
-            // Rank 0 permissions are fixed; only lower ranks toggle.
-            if is_master && !is_rank0 {
-                let inv_rect = Rect::new(inv_x, row_y + 4.0, 11.0, 11.0);
-                let inv_resp = ui.interact(WidgetId(POS_INVITE_BASE + idx as u32), inv_rect);
-                if inv_resp.hovered() {
-                    ui.any_interactive_hovered = true;
-                }
-                let pun_rect = Rect::new(pun_x, row_y + 4.0, 11.0, 11.0);
-                let pun_resp = ui.interact(WidgetId(POS_PUNISH_BASE + idx as u32), pun_rect);
-                if pun_resp.hovered() {
-                    ui.any_interactive_hovered = true;
-                }
-                if inv_resp.clicked() {
-                    self.pos_edits[idx].right ^= GUILD_PERM_INVITE;
-                    self.pos_dirty = true;
-                }
-                if pun_resp.clicked() {
-                    self.pos_edits[idx].right ^= GUILD_PERM_EXPEL;
-                    self.pos_dirty = true;
-                }
             }
         }
     }
@@ -1170,13 +1166,6 @@ impl GuildWindow {
         }
     }
 
-    fn checkbox(ui: &mut UiFrame, x: f32, y: f32, on: bool) {
-        Self::fill(ui, x, y, 11.0, 11.0, [0.6, 0.6, 0.65, 1.0]);
-        Self::fill(ui, x + 1.0, y + 1.0, 9.0, 9.0, [1.0, 1.0, 1.0, 1.0]);
-        if on {
-            Self::fill(ui, x + 2.0, y + 2.0, 7.0, 7.0, SELECTION_COLOR);
-        }
-    }
 }
 
 fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {

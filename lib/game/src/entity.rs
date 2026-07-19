@@ -11,6 +11,20 @@ use crate::sprite_path::weapon_view_id_to_type;
 
 pub const AVG_ATTACKED_SPEED_SECS: f32 = 0.288;
 
+/// Attack-motion time (ms) that plays the swing at its native ACT frame delay.
+/// Slower attacks scale up to a cap of 2×, matching the original client.
+const AVG_ATTACK_MT_MS: f32 = 432.0;
+const MAX_ATTACK_MT_MS: f32 = AVG_ATTACK_MT_MS * 2.0;
+
+/// Maps a server attack-motion time to the swing's animation speed factor.
+/// A missing time (`<= 0`) plays at the native ACT speed.
+pub fn attack_motion_factor(attack_mt_ms: i32) -> f32 {
+    if attack_mt_ms <= 0 {
+        return 1.0;
+    }
+    (attack_mt_ms as f32).min(MAX_ATTACK_MT_MS) / AVG_ATTACK_MT_MS
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityType {
     Player,
@@ -184,6 +198,7 @@ pub struct Entity {
     pub animation_duration: Option<f32>,
     pub animation_start_frame: Option<usize>,
     attack_motion_duration: f32,
+    pub attack_motion_factor: f32,
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
     pub emotion: Option<EmotionState>,
@@ -275,6 +290,7 @@ impl Entity {
             animation_duration: None,
             animation_start_frame: None,
             attack_motion_duration: 0.0,
+            attack_motion_factor: 1.0,
             movement,
             animation: SpriteAnimationState::new(direction),
             emotion: None,
@@ -417,13 +433,14 @@ impl Entity {
         self.animation_duration = Some(damage_motion_secs);
     }
 
-    pub fn enter_attack(&mut self, duration_secs: f32) {
+    pub fn enter_attack(&mut self, duration_secs: f32, motion_factor: f32) {
         if self.state == EntityState::Dead {
             return;
         }
         self.state = EntityState::Attacking;
         self.state_timer = duration_secs;
         self.attack_motion_duration = duration_secs;
+        self.attack_motion_factor = motion_factor;
         self.animation_duration = Some(duration_secs);
     }
 
@@ -1028,7 +1045,7 @@ mod tests {
         e.enter_hurt(1.0);
         assert_eq!(e.state, EntityState::Dead);
 
-        e.enter_attack(1.0);
+        e.enter_attack(1.0, 1.0);
         assert_eq!(e.state, EntityState::Dead);
 
         e.enter_skill_exec(1.0, 0, 1);
@@ -1045,9 +1062,17 @@ mod tests {
     }
 
     #[test]
+    fn attack_motion_factor_is_native_at_average_and_capped_when_slow() {
+        assert_eq!(attack_motion_factor(432), 1.0);
+        assert_eq!(attack_motion_factor(216), 0.5);
+        assert_eq!(attack_motion_factor(5000), 2.0, "slow attacks cap at 2x native");
+        assert_eq!(attack_motion_factor(0), 1.0, "missing time plays at native speed");
+    }
+
+    #[test]
     fn attacking_and_skill_exec_block_hurt() {
         let mut e = make_entity();
-        e.enter_attack(1.0);
+        e.enter_attack(1.0, 1.0);
         assert_eq!(e.state, EntityState::Attacking);
         e.enter_hurt(0.5);
         assert_eq!(e.state, EntityState::Attacking);
@@ -1167,7 +1192,7 @@ mod tests {
     #[test]
     fn attack_expires_to_readyfight_for_player() {
         let mut e = make_entity();
-        e.enter_attack(0.5);
+        e.enter_attack(0.5, 1.0);
         assert_eq!(e.state, EntityState::Attacking);
 
         e.update_state(0.6);
@@ -1210,7 +1235,7 @@ mod tests {
             0,
             200,
         );
-        e.enter_attack(0.5);
+        e.enter_attack(0.5, 1.0);
         e.update_state(0.6);
         assert_eq!(e.state, EntityState::Standing);
     }

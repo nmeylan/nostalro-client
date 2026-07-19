@@ -262,6 +262,7 @@ impl App {
             0,
             0,
             self.shield_view_id,
+            false,
         ) {
             Some(d) => d,
             None => {

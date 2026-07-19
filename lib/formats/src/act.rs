@@ -297,6 +297,7 @@ pub struct SpriteAnimationState {
     motion_type: MotionType,
     finished: bool,
     motion_speed_override_ms: Option<f32>,
+    motion_speed_factor: Option<f32>,
     remaining_repeats: u16,
     walk_dist: f32,
     prev_motion: usize,
@@ -313,6 +314,7 @@ impl SpriteAnimationState {
             motion_type: MotionType::Loop,
             finished: false,
             motion_speed_override_ms: None,
+            motion_speed_factor: None,
             remaining_repeats: 0,
             walk_dist: 0.0,
             prev_motion: 0,
@@ -384,10 +386,12 @@ impl SpriteAnimationState {
             self.accumulated_ms = 0.0;
             self.finished = false;
             self.motion_speed_override_ms = None;
+            self.motion_speed_factor = None;
             self.remaining_repeats = 0;
         } else if self.motion_type != motion_type {
             self.finished = false;
             self.motion_speed_override_ms = None;
+            self.motion_speed_factor = None;
             self.remaining_repeats = 0;
         }
         self.motion_type = motion_type;
@@ -400,6 +404,21 @@ impl SpriteAnimationState {
         self.motion_type = MotionType::OneShot;
         self.finished = false;
         self.motion_speed_override_ms = Some(total_ms);
+        self.motion_speed_factor = None;
+        self.remaining_repeats = 0;
+    }
+
+    /// Plays `action` looping at the ACT's native frame delay multiplied by
+    /// `speed_factor` (attack-speed relative to average). The attack state is
+    /// ended by the entity state machine, so the swing simply loops meanwhile.
+    pub fn play_attack_loop(&mut self, action: usize, speed_factor: f32, start_frame: usize) {
+        self.action = action;
+        self.motion_index = start_frame;
+        self.accumulated_ms = 0.0;
+        self.motion_type = MotionType::Loop;
+        self.finished = false;
+        self.motion_speed_override_ms = None;
+        self.motion_speed_factor = Some(if speed_factor > 0.0 { speed_factor } else { 1.0 });
         self.remaining_repeats = 0;
     }
 
@@ -410,6 +429,7 @@ impl SpriteAnimationState {
         self.motion_type = MotionType::OneShot;
         self.finished = false;
         self.motion_speed_override_ms = Some(total_ms / repeat_count.max(1) as f32);
+        self.motion_speed_factor = None;
         self.remaining_repeats = repeat_count.saturating_sub(1);
     }
 
@@ -502,17 +522,19 @@ impl SpriteAnimationState {
             return;
         }
 
+        let native_delay = if action_idx < act.delays.len() && act.delays[action_idx] > 0.0 {
+            act.delays[action_idx] * 25.0
+        } else {
+            150.0
+        };
         let delay_ms = if let Some(total_ms) = self.motion_speed_override_ms {
             if motion_count > 0 {
                 total_ms / motion_count as f32
             } else {
                 150.0
             }
-        } else if action_idx < act.delays.len() {
-            let d = act.delays[action_idx] * 25.0;
-            if d > 0.0 { d } else { 150.0 }
         } else {
-            150.0
+            native_delay * self.motion_speed_factor.unwrap_or(1.0)
         };
 
         self.accumulated_ms += dt_secs * 1000.0;

@@ -5,10 +5,10 @@ use crate::helper::window_chrome::{
 };
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::event::{GameEvent, SelfConfigKind};
-use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
+use crate::helper::CHECKBOX;
 use crate::helper::colors;
 
 pub const HOMUN_WINDOW_ID: WidgetId = WidgetId(2900);
@@ -85,7 +85,7 @@ impl HomunWindow {
             bar_cap_w: 4.0,
             del_size: (42.0, 20.0),
             skill_size: (42.0, 20.0),
-            feed_size: (64.0, 20.0),
+            feed_size: (42.0, 20.0),
         }
     }
 
@@ -247,28 +247,11 @@ impl HomunWindow {
         let cb_size = 12.0;
         let cb_x = right_edge - 56.0;
         let cb_rect = Rect::new(cb_x, ry, cb_size, cb_size);
-        let cb_resp = ui.interact(SELFFEED_BTN_ID, cb_rect);
-        if cb_resp.hovered() {
-            ui.any_interactive_hovered = true;
-        }
-        if cb_resp.clicked() {
+        let mut on = autofeed;
+        if ui.checkbox(SELFFEED_BTN_ID, cb_rect, &mut on, &CHECKBOX).clicked() {
             events.push(GameEvent::RequestSetConfig {
                 kind: SelfConfigKind::HomunculusAutofeed,
                 enabled: !autofeed,
-            });
-        }
-        let (v, i) = draw::quad_vertices(cb_x, ry, cb_size, cb_size, [0.9, 0.9, 0.9, 1.0]);
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
-        if autofeed {
-            let (v, i) = draw::quad_vertices(cb_x + 3.0, ry + 3.0, cb_size - 6.0, cb_size - 6.0, crate::helper::colors::GREEN);
-            ui.draw_calls.push(DrawCall {
-                vertices: v.to_vec(),
-                indices: i.to_vec(),
-                texture: TextureRef::White,
             });
         }
         ui.text(cb_x + cb_size + 4.0, ry + BASELINE, "Self", tc);
@@ -281,16 +264,6 @@ impl HomunWindow {
         ui.text(rx + 52.0, ry + BASELINE, intimacy_label(homun.intimacy), tc);
         ry += 16.0;
 
-        let btn_h = 18.0;
-        let rest_w = 46.0;
-        let rest_rect = Rect::new(rx, ry, rest_w, btn_h);
-        if ui.button(REST_BTN_ID, rest_rect, &FEED_BTN, "Rest").clicked() {
-            events.push(GameEvent::RequestHomunRest);
-        }
-        let ai_rect = Rect::new(rx + rest_w + 6.0, ry, bar_w - rest_w - 6.0, btn_h);
-        if ui.button(AI_BTN_ID, ai_rect, &SKILL_BTN, "AI...").clicked() {
-            events.push(GameEvent::ToggleCompanionAiConfig);
-        }
 
         // Red note, placed below the left stat column.
         let note_y = y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0;

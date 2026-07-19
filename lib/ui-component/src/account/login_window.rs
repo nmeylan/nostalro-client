@@ -1,7 +1,7 @@
 use crate::Window;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, CheckboxTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
@@ -14,11 +14,12 @@ pub enum LoginFocus {
 pub struct LoginWindow {
     pub username: TextInput,
     pub password: TextInput,
-    pub error_message: Option<String>,
+    pub keep_id: bool,
     pub focus: LoginFocus,
     pub has_grf_textures: bool,
     win_size: (f32, f32),
     btn_size: (f32, f32),
+    keep_size: (f32, f32),
 }
 
 const FALLBACK_WIN_W: f32 = 280.0;
@@ -38,13 +39,23 @@ const BTN_BOTTOM: f32 = 4.0;
 const INPUT_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/name-edit.bmp";
 const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_login.bmp";
 
-const WINDOW_ID: WidgetId = WidgetId(10);
+pub const LOGIN_WINDOW_ID: WidgetId = WidgetId(10);
 const TITLE_BAR_H: f32 = 25.0;
 
 const USERNAME_ID: WidgetId = WidgetId(0);
 const PASSWORD_ID: WidgetId = WidgetId(1);
 const CONNECT_ID: WidgetId = WidgetId(2);
 const EXIT_ID: WidgetId = WidgetId(3);
+const KEEP_ID: WidgetId = WidgetId(4);
+
+const KEEP_X: f32 = 12.0;
+const FALLBACK_KEEP_W: f32 = 34.0;
+const FALLBACK_KEEP_H: f32 = 10.0;
+
+const KEEP_CHECKBOX: CheckboxTextures = CheckboxTextures {
+    off: "data/texture/유저인터페이스/login_interface/chk_saveoff.bmp",
+    on: "data/texture/유저인터페이스/login_interface/chk_saveon.bmp",
+};
 
 const CONNECT_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/login_interface/btn_connect.bmp",
@@ -69,11 +80,12 @@ impl LoginWindow {
         Self {
             username: TextInput::new(23, false),
             password: TextInput::new(23, true),
-            error_message: None,
+            keep_id: false,
             focus: LoginFocus::Username,
             has_grf_textures: false,
             win_size: (FALLBACK_WIN_W, FALLBACK_WIN_H),
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
+            keep_size: (FALLBACK_KEEP_W, FALLBACK_KEEP_H),
         }
     }
 
@@ -90,7 +102,7 @@ impl LoginWindow {
             ((FALLBACK_BTN_W), (FALLBACK_BTN_H))
         };
         let field_w = win_w - (FIELD_X) - (FIELD_RIGHT_MARGIN);
-        let win = ui.window(WINDOW_ID, win_w, win_h, TITLE_BAR_H);
+        let win = ui.window(LOGIN_WINDOW_ID, win_w, win_h, TITLE_BAR_H);
 
         if ui.ctx.key_tab {
             self.focus = match self.focus {
@@ -170,9 +182,21 @@ impl LoginWindow {
         let connect = ui.button(CONNECT_ID, connect_rect, &CONNECT_BTN, "Connect");
         let exit = ui.button(EXIT_ID, exit_rect, &EXIT_BTN, "Exit");
 
+        let (keep_w, keep_h) = if self.has_grf_textures {
+            self.keep_size
+        } else {
+            (FALLBACK_KEEP_W, FALLBACK_KEEP_H)
+        };
+        let keep_rect = Rect::new(
+            win.x + self.win_size.0 - keep_w - 20.0,
+            username_rect.y + (btn_h - keep_h) / 2.0,
+            keep_w,
+            keep_h,
+        );
+        ui.checkbox(KEEP_ID, keep_rect, &mut self.keep_id, &KEEP_CHECKBOX);
+
         let submit = ui.ctx.key_enter || connect.clicked();
         if submit && !self.username.text.is_empty() && !self.password.text.is_empty() {
-            self.error_message = None;
             events.push(GameEvent::RequestLogin {
                 username: self.username.text.clone(),
                 password: self.password.text.clone(),
@@ -183,18 +207,7 @@ impl LoginWindow {
             events.push(GameEvent::Disconnected("User exit".to_string()));
         }
 
-        if let Some(msg) = &self.error_message {
-            let error_y = win.y + win_h + (5.0);
-            let error_w = ui.atlas.measure_text(msg);
-            let error_x = win.x + (win_w - error_w) / 2.0;
-            ui.text(error_x, error_y, msg, [1.0, 0.3, 0.3, 1.0]);
-        }
-
         events
-    }
-
-    pub fn set_error(&mut self, msg: &str) {
-        self.error_message = Some(msg.to_string());
     }
 }
 
@@ -206,12 +219,23 @@ impl Window for LoginWindow {
         self.has_grf_textures = value;
     }
 
+    fn window_size(&self) -> (f32, f32) {
+        if self.has_grf_textures {
+            self.win_size
+        } else {
+            (FALLBACK_WIN_W, FALLBACK_WIN_H)
+        }
+    }
+
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
         if let Some((w, h)) = size_fn(WIN_TEXTURE) {
             self.win_size = (w as f32, h as f32);
         }
         if let Some((w, h)) = size_fn(CONNECT_BTN.normal) {
             self.btn_size = (w as f32, h as f32);
+        }
+        if let Some((w, h)) = size_fn(KEEP_CHECKBOX.off) {
+            self.keep_size = (w as f32, h as f32);
         }
     }
 
@@ -225,6 +249,8 @@ impl Window for LoginWindow {
             EXIT_BTN.pressed,
             INPUT_TEXTURE,
             WIN_TEXTURE,
+            KEEP_CHECKBOX.off,
+            KEEP_CHECKBOX.on,
         ]
     }
 }
@@ -299,10 +325,23 @@ mod tests {
     }
 
     #[test]
-    fn set_error_stores_message() {
+    fn clicking_keep_checkbox_toggles_state() {
         let mut login = LoginWindow::new();
-        assert!(login.error_message.is_none());
-        login.set_error("Invalid credentials");
-        assert_eq!(login.error_message.as_deref(), Some("Invalid credentials"));
+        let mut state = StateCache::new();
+        assert!(!login.keep_id);
+
+        let win_x = (800.0 - FALLBACK_WIN_W) / 2.0;
+        let win_y = (600.0 - FALLBACK_WIN_H) / 2.0;
+        let btn_y = win_y + FALLBACK_WIN_H - BTN_BOTTOM - FALLBACK_BTN_H;
+        let keep_y = btn_y + (FALLBACK_BTN_H - FALLBACK_KEEP_H) / 2.0;
+
+        let mut ctx = make_ctx();
+        ctx.mouse_x = win_x + KEEP_X + FALLBACK_KEEP_W / 2.0;
+        ctx.mouse_y = keep_y + FALLBACK_KEEP_H / 2.0;
+        ctx.mouse_clicked = true;
+
+        let mut ui = make_frame(&ctx, &mut state);
+        login.build(&mut ui);
+        assert!(login.keep_id);
     }
 }

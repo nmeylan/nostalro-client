@@ -188,6 +188,21 @@ pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId]
     }
 }
 
+/// Potion index for a pitcher throw (see `throw_item::potion_throw_params`),
+/// or `None` for skills that don't throw a potion. Potion Pitcher's five levels
+/// map to red/orange/yellow/white/blue; Slim Potion Pitcher's tiers to
+/// red/yellow/white slim potions.
+pub fn potion_throw_index(skill: SkillEnum, level: i16) -> Option<u8> {
+    use SkillEnum as S;
+    Some(match skill {
+        S::AmPotionpitcher => level.clamp(1, 5) as u8,
+        S::CrSlimpitcher if level < 6 => 6,
+        S::CrSlimpitcher if level < 10 => 7,
+        S::CrSlimpitcher => 8,
+        _ => return None,
+    })
+}
+
 pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
     let skill = merc_skill_base(skill);
     use EffectId as E;

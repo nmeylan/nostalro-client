@@ -925,8 +925,19 @@ pub fn make_effect(
             anchor.point(),
         )),
 
+        // Potion / Slim Potion Pitcher throw a level-dependent potion icon; the
+        // caller passes the potion index through `hit_count`.
+        EffectId::Throwitem2 => {
+            let (from, to) = match anchor {
+                EffectAnchor::Trail { from, to } => (from, to),
+                EffectAnchor::Point(p) => (p, p),
+            };
+            use effects::throw_item as ti;
+            let params = ti::potion_throw_params(hit_count.unwrap_or(1));
+            Box::new(ti::ThrowItemEffect::new(from, to, &[params]))
+        }
+
         EffectId::Throwitem
-        | EffectId::Throwitem2
         | EffectId::Throwitem3
         | EffectId::Throwitem4
         | EffectId::Throwitem5
@@ -942,7 +953,6 @@ pub fn make_effect(
             use effects::throw_item as ti;
             let variants: &[ti::ThrowItemParams] = match id {
                 EffectId::Throwitem => &[ti::THROW_BOTTLES],
-                EffectId::Throwitem2 => &[ti::THROW_ITEM2],
                 EffectId::Throwitem3 => &[ti::THROW_STONE],
                 EffectId::Throwitem4 => &[ti::THROW_MOLOTOV],
                 EffectId::Throwitem5 => &[ti::THROW_ITEM4],

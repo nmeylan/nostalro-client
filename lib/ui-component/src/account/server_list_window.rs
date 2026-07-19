@@ -18,7 +18,7 @@ const OK_BTN_RIGHT: f32 = 50.0;
 const CANCEL_BTN_RIGHT: f32 = 5.0;
 const BTN_BOTTOM: f32 = 4.0;
 
-const WINDOW_ID: WidgetId = WidgetId(110);
+pub const SERVER_LIST_WINDOW_ID: WidgetId = WidgetId(110);
 const FALLBACK_TITLE_BAR_H: f32 = 30.0;
 
 const OK_ID: WidgetId = WidgetId(100);
@@ -102,7 +102,7 @@ impl ServerListWindow {
         let header_h = HEADER_H;
         let list_x = LIST_X;
         let row_h = ROW_H;
-        let win = ui.window(WINDOW_ID, win_w, win_h, header_h);
+        let win = ui.window(SERVER_LIST_WINDOW_ID, win_w, win_h, header_h);
 
         let (v, i) = draw::quad_vertices(win.x, win.y, win_w, win_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall {
@@ -149,7 +149,7 @@ impl ServerListWindow {
                 break;
             }
             let row_rect = Rect::new(list_rect.x + 1.0, row_y, list_w - 2.0, row_h);
-            let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
+            let row = ui.interact(WidgetId(SERVER_LIST_WINDOW_ID.0 + 10 + idx as u32), row_rect);
             if row.hovered() {
                 ui.any_interactive_hovered = true;
             }
@@ -220,7 +220,7 @@ impl ServerListWindow {
         let padding = 8.0;
         let title_h = 30.0;
         let win_h = title_h + list_h + padding + btn_h + padding;
-        let win = ui.window(WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H);
+        let win = ui.window(SERVER_LIST_WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H);
 
         let (v, i) = draw::quad_vertices(win.x, win.y, win.w, win_h, [0.08, 0.08, 0.12, 0.95]);
         ui.draw_calls.push(DrawCall {
@@ -255,7 +255,7 @@ impl ServerListWindow {
         for (idx, server) in self.servers.iter().enumerate() {
             let row_y = list_y + idx as f32 * row_h;
             let row_rect = Rect::new(win.x + padding, row_y, win.w - padding * 2.0, row_h);
-            let row = ui.interact(WidgetId(WINDOW_ID.0 + 10 + idx as u32), row_rect);
+            let row = ui.interact(WidgetId(SERVER_LIST_WINDOW_ID.0 + 10 + idx as u32), row_rect);
             if row.hovered() {
                 ui.any_interactive_hovered = true;
             }
@@ -325,6 +325,16 @@ impl Window for ServerListWindow {
     }
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+    }
+
+    fn window_size(&self) -> (f32, f32) {
+        if self.has_grf_textures {
+            self.win_size
+        } else {
+            let win_h =
+                FALLBACK_TITLE_BAR_H + self.servers.len() as f32 * ROW_H + 8.0 + FALLBACK_BTN_H + 8.0;
+            (FALLBACK_WIN_W, win_h)
+        }
     }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {

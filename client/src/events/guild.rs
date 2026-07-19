@@ -62,6 +62,10 @@ impl App {
             guild.emblem_version = emblem_version;
             changed && emblem_version != 0
         };
+        if let Some(player) = self.game.entities.player_mut() {
+            player.guild_id = gdid;
+            player.guild_emblem_version = emblem_version;
+        }
         if request_emblem {
             self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
                 gdid,
@@ -236,6 +240,11 @@ impl App {
         if !name.is_empty() {
             guild.name = name;
         }
+        if let Some(player) = self.game.entities.player_mut() {
+            player.guild_id = gdid;
+            player.guild_emblem_version = emblem_version;
+        }
+        self.request_entity_guild_emblem(gdid, emblem_version);
     }
 
     pub(super) fn handle_guild_create_result(&mut self, result: u8) {

@@ -586,9 +586,19 @@ impl<'a> UiFrame<'a> {
         if response.clicked {
             *checked = !*checked;
         }
+        self.draw_checkbox(rect, *checked, textures);
+        response
+    }
 
+    /// Draw a checkbox glyph without registering interaction, for read-only
+    /// displays reflecting state the user cannot toggle here.
+    pub fn checkbox_display(&mut self, rect: Rect, checked: bool, textures: &CheckboxTextures) {
+        self.draw_checkbox(rect, checked, textures);
+    }
+
+    fn draw_checkbox(&mut self, rect: Rect, checked: bool, textures: &CheckboxTextures) {
         if self.has_grf_textures {
-            let tex = if *checked { textures.on } else { textures.off };
+            let tex = if checked { textures.on } else { textures.off };
             let (verts, indices) =
                 draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [1.0, 1.0, 1.0, 1.0]);
             self.draw_calls.push(DrawCall {
@@ -607,7 +617,7 @@ impl<'a> UiFrame<'a> {
             };
             fill(rect.x, rect.y, rect.w, rect.h, [0.6, 0.6, 0.65, 1.0]);
             fill(rect.x + 1.0, rect.y + 1.0, rect.w - 2.0, rect.h - 2.0, [1.0, 1.0, 1.0, 1.0]);
-            if *checked {
+            if checked {
                 fill(
                     rect.x + 2.0,
                     rect.y + 2.0,
@@ -617,8 +627,6 @@ impl<'a> UiFrame<'a> {
                 );
             }
         }
-
-        response
     }
 
     /// A labeled button drawn procedurally regardless of GRF textures — for

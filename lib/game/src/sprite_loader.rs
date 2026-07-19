@@ -141,8 +141,14 @@ pub fn load_head_sprite(
     head_id: u16,
     sex: u8,
     hair_color: u16,
+    orc_face: bool,
 ) -> Option<SpriteData> {
-    let base_path = head_sprite_path(head_id, sex);
+    let base_path = if orc_face {
+        crate::sprite_path::ORCFACE_SPRITE_PATH.to_string()
+    } else {
+        head_sprite_path(head_id, sex)
+    };
+    let hair_color = if orc_face { 0 } else { hair_color };
     let spr_path = format!("{base_path}.spr");
     let act_path = format!("{base_path}.act");
 
@@ -348,9 +354,10 @@ pub fn load_player_sprite_data(
     head_mid: u16,
     head_bottom: u16,
     shield_id: u16,
+    orc_face: bool,
 ) -> Option<PlayerSpriteData> {
     let body = load_body_sprite(grf, job, sex, cloth_color)?;
-    let head = load_head_sprite(grf, head_id, sex, hair_color);
+    let head = load_head_sprite(grf, head_id, sex, hair_color, orc_face);
     // Costume bodies never render a weapon or shield.
     let (weapon, shield_id) = if crate::sprite_path::is_costume_job(job) {
         (None, 0)
@@ -402,7 +409,7 @@ pub fn load_mercenary_sprite_data(
     let base = mercenary_sprite_path(name);
     let body = load_sprite_data(grf, &format!("{base}.spr"), &format!("{base}.act"))?;
     let head_id = (job % 23) + 1;
-    let head = load_head_sprite(grf, head_id, sex, 0);
+    let head = load_head_sprite(grf, head_id, sex, 0, false);
     let shadow = load_shadow_sprite(grf);
     let weapon_base = mercenary_weapon_sprite_path(name);
     let weapon = weapon_base

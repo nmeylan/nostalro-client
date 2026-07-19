@@ -858,8 +858,7 @@ pub enum GameEvent {
     ToggleGraphicOptions,
     ToggleHotkeyConfig,
     GraphicsSettingsChanged {
-        width: u32,
-        height: u32,
+        ui_scale: f32,
         fullscreen: bool,
         fog: bool,
         show_skill_effects: bool,
@@ -1400,7 +1399,7 @@ pub enum GameEvent {
     PetCaptureResult {
         ok: bool,
     },
-    /// 0x1a2: full pet info (opens/refreshes the pet window).
+    /// 0x1a2: full pet info; refreshes pet data without opening the window.
     PetProperty {
         property: PetProperty,
     },

@@ -5,18 +5,20 @@ It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, d
 **This repository does not and will not provide any game assets**.
 
 # Progress
-see [todo](docs/TODO.md)
+see [features](docs/Features.md)
 
 # Why yet another client?
 I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
 
-Other implementations are not focusing on this version of the client or do not aim for an exact match
+Other implementations are not focusing on this version of the client or do not aim for an exact match.
+
+I also wanted to have a clear view on what is implemented and what is not implemented.
 
 
 # Principles
 - Support any game resources until EP 12 (included)
 - Support any packet version until 20120307 (reason is that rust-ro was implemented with this packet version support first)
-- Support ALL visual effects accurately
+- Support **ALL** visual effects accurately
 - Do not alter original game resources: render actual resources with high dpi support
 - Runnable on windows and linux
 - We use a "mini framework" for the UI, in immediate mode, inspired by `egui`

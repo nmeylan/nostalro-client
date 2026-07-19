@@ -26,7 +26,7 @@ TODO:
 - ~~Particle system (2D/3D particles for skills, weather, buffs)~~
 - ~~Fog~~
 - ~~Weather (rain, snow, sakura)~~
-- Day/night cycle (lighting changes)
+- ~~Day/night cycle (lighting changes)~~
 - ~~Granny models (emperium, guardian)~~
 - ~~ALL 1050 effects https://casual-ragnarok.github.io/ro-effects/~~
 # UI
@@ -45,7 +45,7 @@ TODO:
 - ~~Party window~~
 - ~~Guild window (members, positions, skills, emblem, notices)~~
 - ~~Friend/messenger list~~
-- Game menu: graphic/audio options
+- ~~Game menu: graphic/audio options~~
 - ~~Emotion selector~~
 - ~~Char delete~~
 - ~~Quest window~~
@@ -56,8 +56,10 @@ TODO:
 - ~~Escape/system menu~~
 - ~~Card illustration display~~
 ~~- Refining UI~~
-- Mail/Rodex
-
+- ~~Mail/Rodex~~
+- Loading screen
+- Login background
+- 
 # Entities
 - ~~Multiple entity management (spawn, despawn, update)~~ (done — entity_collection.rs)
 - ~~Other players (full sprite layers)~~
@@ -92,6 +94,7 @@ TODO:
 ~~- Item refining~~
 ~~- Cart system~~
 - ~~Storage/warehouse~~
+- Bank
 
 # Social
 - ~~Party (create, join, leave, exp/item share settings)~~
@@ -139,3 +142,7 @@ TODO:
 
 # Tools
 ~~- Effect viewer tool~~
+
+# Performance
+- Profile memory
+- Profile CPU

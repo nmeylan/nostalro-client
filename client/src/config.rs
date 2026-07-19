@@ -32,6 +32,10 @@ pub struct Config {
     pub packetver: u32,
     pub login_ip: String,
     pub login_port: u16,
+    /// When true, the last login ID is stored in `saved_username` and pre-filled
+    /// on the login screen (never the password).
+    pub keep_login_id: bool,
+    pub saved_username: String,
     pub screen_width: u32,
     pub screen_height: u32,
     pub bgm_volume: f32,
@@ -88,6 +92,8 @@ impl Default for Config {
             packetver: 20120307,
             login_ip: "127.0.0.1".to_string(),
             login_port: 6900,
+            keep_login_id: false,
+            saved_username: String::new(),
             screen_width: 1024,
             screen_height: 768,
             bgm_volume: 0.8,
@@ -97,7 +103,7 @@ impl Default for Config {
             bgm_path: "BGM".to_string(),
             emblem_path: "emblem".to_string(),
             free_camera: false,
-            dpi_scale: 120.0,
+            dpi_scale: 125.0,
             grf_paths: vec!["data/data.grf".to_string()],
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,

@@ -105,6 +105,7 @@ use ragnarok_ui::state::StateCache;
 use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_ui_component::Window as _;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
 use ragnarok_ui_component::game::party_helper_window::MODE_CREATE;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
@@ -174,6 +175,7 @@ struct App {
     ui_context: Option<UiContext>,
     ui_state_cache: StateCache,
     login_window: LoginWindow,
+    account_dialog: ConfirmDialog,
     server_list_window: Option<ServerListWindow>,
     char_select_window: Option<CharSelectWindow>,
     char_create_window: Option<CharCreateWindow>,
@@ -231,6 +233,7 @@ impl App {
             ui_context: None,
             ui_state_cache: StateCache::new(),
             login_window: LoginWindow::new(),
+            account_dialog: ConfirmDialog::new(),
             server_list_window: None,
             char_select_window: None,
             char_create_window: None,
@@ -517,6 +520,14 @@ impl App {
             match event {
                 GameEvent::RequestLogin { username, password } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::LOGIN);
+                    self.config.keep_login_id = self.login_window.keep_id;
+                    self.config.saved_username = if self.login_window.keep_id {
+                        username.clone()
+                    } else {
+                        String::new()
+                    };
+                    self.config.save("config.json");
+                    self.account_dialog.show_message("Please wait...");
                     let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
                     self.channel.send_cmd(NetworkCommand::Connect(addr));
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
@@ -1490,8 +1501,7 @@ impl App {
                     self.open_graphic_options();
                 }
                 GameEvent::GraphicsSettingsChanged {
-                    width,
-                    height,
+                    ui_scale,
                     fullscreen,
                     fog,
                     show_skill_effects,
@@ -1501,8 +1511,7 @@ impl App {
                     persist,
                 } => {
                     self.apply_graphics_settings(
-                        width,
-                        height,
+                        ui_scale,
                         fullscreen,
                         fog,
                         show_skill_effects,
@@ -1860,6 +1869,11 @@ impl App {
                 GameEvent::RequestPetCommand { csub } => {
                     self.channel
                         .send_packet(build_command_pet_packet(csub, self.config.packetver));
+                    // The window opens on this explicit request, not on the
+                    // incoming property packet (which also arrives unsolicited).
+                    if csub == 0 {
+                        self.game.pet_window.set_visible(true);
+                    }
                     // Return-to-egg: the pet vanishes and the egg becomes usable again.
                     if csub == 3
                         && let Some(index) = self.game.pet.egg_index.take()
@@ -2034,10 +2048,8 @@ impl App {
 
     fn open_graphic_options(&mut self) {
         if !self.game.graphic_options.open {
-            let resolutions = self.available_resolutions();
             self.game.graphic_options.set_values(
-                resolutions,
-                (self.config.screen_width, self.config.screen_height),
+                self.config.dpi_scale,
                 self.config.fullscreen,
                 self.config.fog,
                 self.config.show_skill_effects,
@@ -2049,33 +2061,10 @@ impl App {
         self.game.graphic_options.toggle();
     }
 
-    fn available_resolutions(&self) -> Vec<(u32, u32)> {
-        let Some(monitor) = self.window.as_ref().and_then(|w| w.current_monitor()) else {
-            return Vec::new();
-        };
-        let monitor_size = monitor.size();
-        let is_standard_aspect =
-            |w: u32, h: u32| w * 3 == h * 4 || w * 9 == h * 16 || w * 10 == h * 16;
-        let mut resolutions: Vec<(u32, u32)> = monitor
-            .video_modes()
-            .map(|m| (m.size().width, m.size().height))
-            .filter(|&(w, h)| {
-                w > 800
-                    && w <= monitor_size.width
-                    && h <= monitor_size.height
-                    && is_standard_aspect(w, h)
-            })
-            .collect();
-        resolutions.sort();
-        resolutions.dedup();
-        resolutions
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn apply_graphics_settings(
         &mut self,
-        width: u32,
-        height: u32,
+        ui_scale: f32,
         fullscreen: bool,
         fog: bool,
         show_skill_effects: bool,
@@ -2084,13 +2073,11 @@ impl App {
         refuse_party_invite: bool,
         persist: bool,
     ) {
-        let resolution_changed =
-            (width, height) != (self.config.screen_width, self.config.screen_height);
         let fullscreen_changed = fullscreen != self.config.fullscreen;
         let aura_changed = display.show_level_aura != self.config.display.show_level_aura;
+        let ui_scale_changed = ui_scale != self.config.dpi_scale;
 
-        self.config.screen_width = width;
-        self.config.screen_height = height;
+        self.config.dpi_scale = ui_scale;
         self.config.fullscreen = fullscreen;
         self.config.fog = fog;
         self.config.show_skill_effects = show_skill_effects;
@@ -2105,8 +2092,18 @@ impl App {
                     fullscreen.then(|| winit::window::Fullscreen::Borderless(None)),
                 );
             }
-            if resolution_changed && !fullscreen {
-                let _ = window.request_inner_size(winit::dpi::LogicalSize::new(width, height));
+        }
+        if ui_scale_changed {
+            let new_dpi = ui_scale / 100.0;
+            if let Some(renderer) = &mut self.renderer {
+                renderer.set_dpi_scale(new_dpi);
+                let phys_w = renderer.device.surface_config.width as f32;
+                let phys_h = renderer.device.surface_config.height as f32;
+                if let Some(ui_ctx) = &mut self.ui_context {
+                    ui_ctx.dpi_scale = new_dpi;
+                    ui_ctx.screen_width = phys_w / new_dpi;
+                    ui_ctx.screen_height = phys_h / new_dpi;
+                }
             }
         }
         if let Some(renderer) = &mut self.renderer {
@@ -2336,8 +2333,7 @@ impl App {
             ChatCommand::ToggleEffect => {
                 let show = !self.config.show_skill_effects;
                 self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
+                    self.config.dpi_scale,
                     self.config.fullscreen,
                     self.config.fog,
                     show,
@@ -2355,8 +2351,7 @@ impl App {
             ChatCommand::ToggleFog => {
                 let fog = !self.config.fog;
                 self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
+                    self.config.dpi_scale,
                     self.config.fullscreen,
                     fog,
                     self.config.show_skill_effects,
@@ -2373,8 +2368,7 @@ impl App {
                 display.show_level_aura = !display.show_level_aura;
                 let status = if display.show_level_aura { "ON" } else { "OFF" };
                 self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
+                    self.config.dpi_scale,
                     self.config.fullscreen,
                     self.config.fog,
                     self.config.show_skill_effects,
@@ -2390,8 +2384,7 @@ impl App {
             ChatCommand::ToggleNoTrade => {
                 let refuse = !self.config.refuse_trade;
                 self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
+                    self.config.dpi_scale,
                     self.config.fullscreen,
                     self.config.fog,
                     self.config.show_skill_effects,
@@ -2407,8 +2400,7 @@ impl App {
             }
             ChatCommand::RefuseParty(refuse) => {
                 self.apply_graphics_settings(
-                    self.config.screen_width,
-                    self.config.screen_height,
+                    self.config.dpi_scale,
                     self.config.fullscreen,
                     self.config.fog,
                     self.config.show_skill_effects,
@@ -2687,6 +2679,7 @@ impl App {
                         &self.saved_window_positions,
                     );
                     let events = self.login_window.build(&mut ui);
+                    self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
                     (ui.draw_calls, events, any_hovered, any_interactive)
@@ -2710,6 +2703,7 @@ impl App {
                         &self.saved_window_positions,
                     );
                     let events = server_win.build(&mut ui);
+                    self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
                     (ui.draw_calls, events, any_hovered, any_interactive)
@@ -2733,6 +2727,7 @@ impl App {
                         &self.saved_window_positions,
                     );
                     let events = char_win.build(&mut ui);
+                    self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
                     (ui.draw_calls, events, any_hovered, any_interactive)
@@ -2756,6 +2751,7 @@ impl App {
                         &self.saved_window_positions,
                     );
                     let events = create_win.build(&mut ui);
+                    self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
                     let any_interactive = ui.any_interactive_hovered;
                     (ui.draw_calls, events, any_hovered, any_interactive)
@@ -3221,6 +3217,12 @@ impl ApplicationHandler for App {
                     if let Some(renderer) = &mut self.renderer {
                         renderer.try_load_grf_font(&grf);
                         events::preload_window(&mut self.login_window, renderer, &grf);
+                        events::preload_window(&mut self.account_dialog, renderer, &grf);
+                    }
+                    self.login_window.keep_id = self.config.keep_login_id;
+                    if self.config.keep_login_id {
+                        self.login_window.username.text = self.config.saved_username.clone();
+                        self.login_window.focus = LoginFocus::Password;
                     }
 
                     self.load_cursor_sprite(&grf);

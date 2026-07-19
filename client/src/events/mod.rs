@@ -529,17 +529,23 @@ impl App {
                     success,
                 } => {
                     if success {
-                        let used_effect = self.game.character.inventory.get_item(index).and_then(
-                            |item| {
-                                ragnarok_game::effect::consumable_effects::consumable_use_effect(
-                                    item.item_id as u32,
-                                )
-                            },
-                        );
-                        if let (Some(effect), Some(player_gid)) =
-                            (used_effect, self.game.entities.player_id())
-                        {
-                            self.effect_queue.spawn_on(effect, player_gid);
+                        use ragnarok_game::effect::consumable_effects::{
+                            consumable_use_effect, is_mercenary_potion,
+                        };
+                        let item_id = self
+                            .game
+                            .character
+                            .inventory
+                            .get_item(index)
+                            .map(|item| item.item_id as u32);
+                        let used_effect = item_id.and_then(consumable_use_effect);
+                        let target_gid = item_id
+                            .filter(|id| is_mercenary_potion(*id))
+                            .and(self.game.mercenary.as_ref().map(|m| m.gid))
+                            .filter(|gid| *gid != 0)
+                            .or_else(|| self.game.entities.player_id());
+                        if let (Some(effect), Some(gid)) = (used_effect, target_gid) {
+                            self.effect_queue.spawn_on(effect, gid);
                         }
                         self.game
                             .character
@@ -915,7 +921,7 @@ impl App {
                     self.game
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
-                    self.spawn_ground_skill_effects(skill_id, level, x, y);
+                    self.spawn_ground_skill_effects(skill_id, src_gid, level, x, y);
                     let falcon_target = if self.game.falcons.contains_key(&src_gid)
                         && matches!(
                             SkillEnum::from_id(skill_id as u32),

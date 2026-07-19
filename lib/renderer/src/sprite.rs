@@ -805,6 +805,28 @@ pub fn build_clip_quad(
     Some((vertices, indices, tex_index))
 }
 
+/// Same as [`build_clip_quad`], but grows the quad about `screen_anchor` so the
+/// sprite tracks the entity's on-screen size (`sprite_scale`) instead of staying
+/// a fixed pixel size.
+pub fn build_clip_quad_scaled(
+    clip: &SpriteFrame,
+    textures: &SpriteTextures,
+    screen_anchor: [f32; 2],
+    depth: f32,
+    offset: [i32; 2],
+    scale: f32,
+) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
+    let (mut vertices, indices, tex_index) =
+        build_clip_quad(clip, textures, screen_anchor, depth, offset)?;
+    if scale != 1.0 {
+        for v in &mut vertices {
+            v.position[0] = screen_anchor[0] + (v.position[0] - screen_anchor[0]) * scale;
+            v.position[1] = screen_anchor[1] + (v.position[1] - screen_anchor[1]) * scale;
+        }
+    }
+    Some((vertices, indices, tex_index))
+}
+
 pub type ClipQuad = (Vec<SpriteVertex>, Vec<u32>, usize);
 
 pub struct CompositeClips {
@@ -1883,6 +1905,31 @@ mod tests {
         assert!((verts[2].position[0] - 112.0).abs() < 0.01);
         assert!((verts[2].position[1] - 112.0).abs() < 0.01);
         assert!((verts[0].position[2] - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn build_clip_quad_scaled_grows_size_and_offset_about_anchor() {
+        let clip = SpriteFrame {
+            x: 10,
+            y: 0,
+            sprite_index: 0,
+            mirror: 0,
+            color: [255, 255, 255, 255],
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle: 0,
+            sprite_type: 0,
+            width: None,
+            height: None,
+        };
+        let textures = dummy_textures();
+        let (verts, _, _) =
+            build_clip_quad_scaled(&clip, &textures, [100.0, 100.0], 0.0, [0, 0], 2.0).unwrap();
+
+        let width = verts[2].position[0] - verts[0].position[0];
+        let center_x = (verts[0].position[0] + verts[2].position[0]) / 2.0;
+        assert!((width - 48.0).abs() < 0.01, "24px sprite doubles to 48px");
+        assert!((center_x - 120.0).abs() < 0.01, "clip offset scales about anchor");
     }
 
     #[test]

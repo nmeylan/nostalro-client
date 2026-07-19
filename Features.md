@@ -1,4 +1,4 @@
-Below what has been implemented and validated.
+Below what has been implemented and validated with rathena packetver 20120307
 
 # Account
 - Login
@@ -213,10 +213,12 @@ Below what has been implemented and validated.
 - Trade between players
 - Vending (open shop from cart, browse others)
 - Mail (send / read)
+- Woe: emblem over head, hide damage
 
 ## World & progression
 - Quest log (list + detail, NPC markers, minimap dots)
 - Marriage / couples (wedding costume, partner name, cut-ins, WE_ skill effects)
+- Adoption: Adopt baby, children sprite
 - Storage access
 
 ## Companions

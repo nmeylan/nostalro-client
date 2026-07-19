@@ -73,9 +73,14 @@ impl App {
         head_bottom: u16,
         shield_id: u16,
     ) {
+        let orc_face = self
+            .game
+            .entities
+            .get(gid)
+            .is_some_and(|e| ragnarok_game::sprite_path::is_orcish(e.effect_state));
         if let Some(sprite) = self.build_player_entity_sprite(
             job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom,
-            shield_id,
+            shield_id, orc_face,
         ) {
             self.game.sprites.insert(gid, sprite);
         } else {
@@ -96,6 +101,7 @@ impl App {
         head_mid: u16,
         head_bottom: u16,
         shield_id: u16,
+        orc_face: bool,
     ) -> Option<Rc<EntitySprite>> {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
@@ -121,6 +127,7 @@ impl App {
             head_mid,
             head_bottom,
             shield_id,
+            orc_face,
         )?;
         Some(Rc::new(build_entity_sprite(
             &renderer.device.device,
@@ -167,8 +174,8 @@ impl App {
             None => return,
         };
         for (gid, job, sex, head, hair_color) in members {
-            if let Some(sprite) =
-                self.build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0)
+            if let Some(sprite) = self
+                .build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false)
             {
                 self.game.guild_head_sprites.insert(gid, sprite);
             }

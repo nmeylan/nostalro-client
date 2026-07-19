@@ -231,6 +231,10 @@ impl App {
             dir,
         );
         entity.effect_state = effect_state;
+        if let Some(guild) = self.game.guild.as_ref() {
+            entity.guild_id = guild.gdid;
+            entity.guild_emblem_version = guild.emblem_version;
+        }
         self.game.entities.set_player_id(account_id);
         self.game.entities.insert(entity);
 
@@ -310,6 +314,7 @@ impl App {
             preload_window(&mut self.game.pet_window, renderer, grf);
             preload_window(&mut self.game.mercenary_skill_window, renderer, grf);
             preload_window(&mut self.game.homun_skill_window, renderer, grf);
+            preload_window(&mut self.game.companion_ai_config_window, renderer, grf);
             preload_window(&mut self.game.confirm_dialog, renderer, grf);
             self.game.drop_dialog_has_grf_textures =
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
@@ -526,8 +531,8 @@ impl App {
                 |_| {},
             );
         } else {
-            self.login_window
-                .set_error(&format!("Disconnected: {reason}"));
+            self.account_dialog
+                .show(&format!("Disconnected: {reason}"), false, |_| {});
         }
     }
 }

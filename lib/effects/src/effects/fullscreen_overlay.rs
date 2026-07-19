@@ -56,7 +56,7 @@ pub const BLIND: FullscreenOverlayParams = FullscreenOverlayParams {
     max_alpha: 1.0,
     pulse: false,
     slashes: false,
-    distance: 50.0,
+    distance: 18.0,
     duration_ms: PERSISTENT_DURATION_MS,
 };
 

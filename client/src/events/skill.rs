@@ -7,7 +7,7 @@ use models::enums::weapon::WeaponType;
 use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
-    is_trail_effect, target_skill_effects, trail_arrival_secs,
+    is_trail_effect, potion_throw_index, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::{ChatBubbleState, EntityState};
@@ -513,6 +513,12 @@ impl App {
                     .despawn_effect_on_entity(EffectId::Jumpbody, src_gid);
             }
             match trail {
+                // Potion Pitcher throws the potion icon for its level.
+                Some((from, to)) if *e == EffectId::Throwitem2 => {
+                    let potion = potion_throw_index(skill, level).unwrap_or(1);
+                    self.effect_queue
+                        .spawn_trail_with_count(*e, from, to, potion);
+                }
                 Some((from, to)) if is_trail_effect(*e) => self.effect_queue.spawn_trail(*e, from, to),
                 _ => self.effect_queue.spawn_on(*e, src_gid),
             }
@@ -664,7 +670,14 @@ impl App {
         self.effect_queue.spawn_on(EffectId::Autocounter, player_gid);
     }
 
-    pub(super) fn spawn_ground_skill_effects(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {
+    pub(super) fn spawn_ground_skill_effects(
+        &mut self,
+        skill_id: u16,
+        src_gid: u32,
+        level: i16,
+        x: i16,
+        y: i16,
+    ) {
         let skill = SkillEnum::from_id(skill_id as u32);
         let effects = ground_placed_effect(skill, level);
         if effects.is_empty() {
@@ -677,6 +690,21 @@ impl App {
         let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
         let (wx, _, wz) = coords.cell_to_world(cx, cy);
         let world = [wx, gat.get_height(cx, cy), wz];
+        // Slim Potion Pitcher lobs the level's slim potion from the caster onto
+        // the target cell before the splash lands.
+        if let Some(potion) = potion_throw_index(skill, level)
+            && let Some(caster) = self.game.entities.get(src_gid)
+        {
+            let (ccx, ccy) = caster.movement.cell_position();
+            let (fx, _, fz) = coords.cell_to_world(ccx as f32 + 0.5, ccy as f32 + 0.5);
+            let from = [
+                fx,
+                gat.get_height(ccx as f32 + 0.5, ccy as f32 + 0.5) - Self::PROJECTILE_CHEST_LIFT,
+                fz,
+            ];
+            self.effect_queue
+                .spawn_trail_with_count(EffectId::Throwitem2, from, world, potion);
+        }
         for e in effects {
             self.effect_queue.spawn_at(*e, world);
         }

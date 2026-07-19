@@ -7,7 +7,6 @@ impl App {
         self.game.pet.apply_property(&property);
         let illust = self.game.pet.illust_path().to_string();
         self.preload_item_icons(vec![illust]);
-        self.game.pet_window.set_visible(true);
     }
 
     pub(super) fn handle_pet_state_changed(&mut self, ty: i8, gid: u32, data: i32) {

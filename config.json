@@ -2,6 +2,8 @@
   "packetver": 20120307,
   "login_ip": "127.0.0.1",
   "login_port": 6900,
+  "keep_login_id": true,
+  "saved_username": "test2",
   "screen_width": 1024,
   "screen_height": 768,
   "bgm_volume": 0.18214396,
@@ -21,33 +23,9 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "110": {
-      "position": [
-        341.3333,
-        568.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        143.33334,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        274.79034,
-        346.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "1300": {
       "position": [
-        313.3333,
+        1204.1458,
         0.0
       ],
       "open": false,
@@ -61,18 +39,66 @@
       "open": true,
       "collapsed": false
     },
-    "900": {
+    "10": {
       "position": [
-        12.332031,
-        246.2565
+        472.76303,
+        375.29947
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1200": {
+      "position": [
+        400.0,
+        100.0
       ],
       "open": true,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        274.79034,
+        346.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        341.3333,
+        568.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "900": {
+      "position": [
+        0.0,
+        248.5026
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "3000": {
+      "position": [
+        686.7344,
+        202.92969
+      ],
+      "open": false,
       "collapsed": false
     },
     "1400": {
       "position": [
         0.0,
         0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "2900": {
+      "position": [
+        66.03516,
+        372.39062
       ],
       "open": false,
       "collapsed": false
@@ -93,7 +119,7 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 0,
+  "last_char_slot": 1,
   "map_recovery_command": "@go prontera",
   "shortcut_commands": [
     "/rock",
@@ -108,104 +134,8 @@
     "/..."
   ],
   "keybindings": {
-    "ToggleSoundOptions": {
-      "key": "KeyO",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleGuild": {
-      "key": "KeyG",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleMercenary": {
-      "key": "KeyR",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleEquipment": {
-      "key": "KeyQ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleCart": {
-      "key": "KeyW",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleStatus": {
-      "key": "KeyA",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleChatRoomCreate": {
-      "key": "KeyC",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleInventory": {
-      "key": "KeyE",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
     "ToggleBasicInfo": {
       "key": "KeyV",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleHomunculus": {
-      "key": "KeyR",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleParty": {
-      "key": "KeyZ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "MercenaryFollow": {
-      "key": "KeyT",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleEmotion": {
-      "key": "KeyL",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleSkillTree": {
-      "key": "KeyS",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "SitStand": {
-      "key": "Insert",
-      "alt": false,
-      "ctrl": false,
-      "shift": false
-    },
-    "CycleMinimap": {
-      "key": "Tab",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleFriends": {
-      "key": "KeyH",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -216,10 +146,40 @@
       "ctrl": false,
       "shift": false
     },
+    "ToggleInventory": {
+      "key": "KeyE",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "TogglePet": {
+      "key": "KeyJ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleStatus": {
+      "key": "KeyA",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
     "ToggleQuest": {
       "key": "KeyU",
       "alt": true,
       "ctrl": false,
+      "shift": false
+    },
+    "ToggleParty": {
+      "key": "KeyZ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "CycleMinimap": {
+      "key": "Tab",
+      "alt": false,
+      "ctrl": true,
       "shift": false
     },
     "ToggleShortcutList": {
@@ -228,8 +188,74 @@
       "ctrl": false,
       "shift": false
     },
-    "TogglePet": {
-      "key": "KeyJ",
+    "ToggleEmotion": {
+      "key": "KeyL",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleCart": {
+      "key": "KeyW",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleChatRoomCreate": {
+      "key": "KeyC",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleMercenary": {
+      "key": "KeyR",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
+    "SitStand": {
+      "key": "Insert",
+      "alt": false,
+      "ctrl": false,
+      "shift": false
+    },
+    "MercenaryFollow": {
+      "key": "KeyT",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
+    "ToggleGuild": {
+      "key": "KeyG",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleEquipment": {
+      "key": "KeyQ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleSoundOptions": {
+      "key": "KeyO",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleHomunculus": {
+      "key": "KeyR",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleFriends": {
+      "key": "KeyH",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleSkillTree": {
+      "key": "KeyS",
       "alt": true,
       "ctrl": false,
       "shift": false

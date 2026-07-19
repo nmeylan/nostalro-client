@@ -46,7 +46,7 @@ const VAL_COL1_X: f32 = 68.0;
 const VAL_COL2_X: f32 = 216.0;
 const ROW_YS: [f32; 6] = [2.0, 18.0, 34.0, 50.0, 66.0, 82.0];
 
-const WINDOW_ID: WidgetId = WidgetId(210);
+pub const CHAR_SELECT_WINDOW_ID: WidgetId = WidgetId(210);
 const OK_ID: WidgetId = WidgetId(200);
 const CANCEL_ID: WidgetId = WidgetId(201);
 const MAKE_ID: WidgetId = WidgetId(202);
@@ -290,7 +290,7 @@ impl CharSelectWindow {
     }
 
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
+        let win = ui.window(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
 
         push_quad(ui, win.x, win.y, WIN_W, WIN_H, TextureRef::Named(WIN_TEXTURE.to_string()));
@@ -302,7 +302,7 @@ impl CharSelectWindow {
     }
 
     fn build_fallback(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
+        let win = ui.window(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
 
         push_color_quad(ui, win.x, win.y, WIN_W, WIN_H, [0.08, 0.08, 0.12, 0.95]);
@@ -329,7 +329,7 @@ impl CharSelectWindow {
                 push_border(ui, slot_rect, SLOT_BORDER_COLOR);
             }
 
-            let resp = ui.interact(WidgetId(WINDOW_ID.0 + 10 + col as u32), slot_rect);
+            let resp = ui.interact(WidgetId(CHAR_SELECT_WINDOW_ID.0 + 10 + col as u32), slot_rect);
             if resp.hovered() {
                 ui.any_interactive_hovered = true;
             }
@@ -526,6 +526,10 @@ impl Window for CharSelectWindow {
     }
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+    }
+
+    fn window_size(&self) -> (f32, f32) {
+        (WIN_W, WIN_H)
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {

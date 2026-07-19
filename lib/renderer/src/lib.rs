@@ -44,7 +44,8 @@ pub use ground_proxy::GroundProxyRenderer;
 pub use model::ModelRenderer;
 pub use sprite::{
     BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
-    SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_composite_clips,
+    SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_clip_quad_scaled,
+    build_composite_clips,
     build_entity_sprite, compose_actor_batches, scale_clip_vertices, transform_batch_vertices,
     upload_sprite_textures,
 };
@@ -609,6 +610,23 @@ impl Renderer {
             }
         }
         all_loaded
+    }
+
+    /// Changes the UI scale at runtime. The font atlas is re-rasterized at the
+    /// new scale so text stays crisp; per-frame layout picks up `dpi_scale`.
+    pub fn set_dpi_scale(&mut self, dpi_scale: f32) {
+        if dpi_scale <= 0.0 || (dpi_scale - self.dpi_scale).abs() < f32::EPSILON {
+            return;
+        }
+        self.dpi_scale = dpi_scale;
+        self.font_atlas = FontAtlas::from_embedded(self.font_px_height, dpi_scale);
+        self.font_atlas_bind_group = texture::create_font_atlas_bind_group(
+            &self.device.device,
+            &self.device.queue,
+            &self.font_atlas.image,
+            &self.texture_cache.bind_group_layout,
+            "font_atlas",
+        );
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {

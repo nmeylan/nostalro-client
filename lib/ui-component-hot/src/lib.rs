@@ -24,10 +24,10 @@ use ragnarok_game::party::{Party, PartyMember};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
-use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
-use ragnarok_ui_component::account::login_window::LoginWindow;
-use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::account::char_create_window::{CHAR_CREATE_WINDOW_ID, CharCreateWindow};
+use ragnarok_ui_component::account::char_select_window::{CHAR_SELECT_WINDOW_ID, CharSelectWindow};
+use ragnarok_ui_component::account::login_window::{LOGIN_WINDOW_ID, LoginWindow};
+use ragnarok_ui_component::account::server_list_window::{SERVER_LIST_WINDOW_ID, ServerListWindow};
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
 use ragnarok_ui_component::game::card_insert_dialog::{
     CARD_INSERT_WINDOW_ID, CardInsertDialog, EligibleItem,
@@ -1087,8 +1087,7 @@ fn create_single(name: &str) -> State {
         "graphic_options" => {
             let mut win = GraphicOptionsWindow::new();
             win.set_values(
-                vec![(1024, 768), (1280, 720), (1280, 800), (1920, 1080)],
-                (1024, 768),
+                100.0,
                 false,
                 false,
                 true,
@@ -2122,6 +2121,10 @@ pub unsafe extern "C" fn hot_grf_init(
 
 fn z_order_id(state: &State) -> Option<WidgetId> {
     match state {
+        State::Login { .. } => Some(LOGIN_WINDOW_ID),
+        State::ServerList { .. } => Some(SERVER_LIST_WINDOW_ID),
+        State::CharSelect { .. } => Some(CHAR_SELECT_WINDOW_ID),
+        State::CharCreate { .. } => Some(CHAR_CREATE_WINDOW_ID),
         State::Chat { .. } => Some(CHAT_WINDOW_ID),
         State::Inventory { .. } => Some(INV_WINDOW_ID),
         State::Cart { .. } => Some(CART_WINDOW_ID),
@@ -2160,11 +2163,15 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
 
 /// The draggable, `window_at`-based windows a component contributes to the
 /// packer, each with its nominal size. Most states own a single `Window`;
-/// composites (the NPC shop) return several. Fixed bars, full-screen account
-/// screens, head boards, and centered modal dialogs return nothing here — they
-/// position themselves (dialogs are seeded separately by `seed_modal_layout`).
+/// composites (the NPC shop) return several. Fixed bars, head boards, and
+/// centered modal dialogs return nothing here — they position themselves
+/// (dialogs are seeded separately by `seed_modal_layout`).
 fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
     let single: Option<(WidgetId, &dyn Window)> = match state {
+        State::Login { login, .. } => Some((LOGIN_WINDOW_ID, login)),
+        State::ServerList { win, .. } => Some((SERVER_LIST_WINDOW_ID, win)),
+        State::CharSelect { win, .. } => Some((CHAR_SELECT_WINDOW_ID, win)),
+        State::CharCreate { win, .. } => Some((CHAR_CREATE_WINDOW_ID, win)),
         State::Inventory { inv, .. } => Some((INV_WINDOW_ID, inv)),
         State::Equipment { equip, .. } => Some((EQ_WINDOW_ID, equip)),
         State::StatusDemo { win, .. } => Some((STATUS_WINDOW_ID, win)),
@@ -2426,6 +2433,21 @@ fn repack_gallery_layout(components: &[State], ui: &mut UiFrame) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn account_windows_report_packable_size() {
+        // The packer lays out windows by their `window_size`; a (0,0) here means
+        // the window collapses into a corner and renders on top of the others.
+        let sizes = [
+            LoginWindow::new().window_size(),
+            ServerListWindow::new(Vec::new()).window_size(),
+            CharSelectWindow::new(Vec::new()).window_size(),
+            CharCreateWindow::new(0, true).window_size(),
+        ];
+        for (w, h) in sizes {
+            assert!(w > 0.0 && h > 0.0, "account window size was {w}x{h}");
+        }
+    }
 
     #[test]
     fn packed_windows_never_overlap_and_stay_on_screen() {

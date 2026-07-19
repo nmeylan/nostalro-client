@@ -24,14 +24,25 @@ impl FallbackPalette {
     pub const SLOT_FILL: [f32; 4] = rgb(0xFF, 0xFF, 0xFF);
     pub const SLOT_INSET: [f32; 4] = rgb(0xCF, 0xD6, 0xE5);
 
-    pub const BTN_FACE_TOP: [f32; 4] = rgb(0xDC, 0xDC, 0xDC);
-    pub const BTN_FACE_BOT: [f32; 4] = rgb(0xFA, 0xFA, 0xFA);
-    pub const BTN_BEVEL_HI: [f32; 4] = rgb(0xAE, 0xAE, 0xAE);
-    pub const BTN_BEVEL_LO: [f32; 4] = rgb(0x6E, 0x6E, 0x6E);
-    pub const BTN_HOVER_TOP: [f32; 4] = rgb(0xC6, 0xCD, 0xDB);
-    pub const BTN_HOVER_BOT: [f32; 4] = rgb(0xDA, 0xE4, 0xF7);
-    pub const BTN_PRESS_TOP: [f32; 4] = rgb(0xCB, 0xDC, 0xFE);
-    pub const BTN_PRESS_BOT: [f32; 4] = rgb(0xE7, 0xF0, 0xFF);
+    pub const BTN_BORDER: [f32; 4] = rgb(0xCF, 0xC7, 0xCB);
+
+    pub const BTN_FACE_TOP: [f32; 4] = rgb(0xEE, 0xEA, 0xEC);
+    pub const BTN_FACE_MID: [f32; 4] = rgb(0xDA, 0xD4, 0xD7);
+    pub const BTN_FACE_BOT: [f32; 4] = rgb(0xF9, 0xF6, 0xF8);
+
+    pub const BTN_HOVER_TOP: [f32; 4] = rgb(0xC6, 0xCF, 0xE4);
+    pub const BTN_HOVER_MID: [f32; 4] = rgb(0x97, 0xAA, 0xD1);
+    pub const BTN_HOVER_BOT: [f32; 4] = rgb(0xD4, 0xDE, 0xF1);
+    pub const BTN_HOVER_BORDER: [f32; 4] = rgb(0x8E, 0xA6, 0xD2);
+
+    pub const BTN_PRESS_TOP: [f32; 4] = rgb(0xAB, 0xBC, 0xE0);
+    pub const BTN_PRESS_MID: [f32; 4] = rgb(0x83, 0x98, 0xC6);
+    pub const BTN_PRESS_BOT: [f32; 4] = rgb(0xC4, 0xD3, 0xF3);
+
+    pub const BTN_INSET_SHADOW_TOP: [f32; 4] = rgb(0xA9, 0xA2, 0xA5);
+    pub const BTN_INSET_SHADOW_BOT: [f32; 4] = rgb(0xC4, 0xBD, 0xC0);
+    pub const BTN_INSET_SHADOW_BLUE_TOP: [f32; 4] = rgb(0x88, 0x9C, 0xC6);
+    pub const BTN_INSET_SHADOW_BLUE_BOT: [f32; 4] = rgb(0xA6, 0xBD, 0xE8);
 
     pub const SYS_BTN: [f32; 4] = rgb(0x3E, 0x6B, 0xC7);
     pub const SYS_BTN_HOVER: [f32; 4] = rgb(0x57, 0x96, 0xFE);
@@ -66,23 +77,59 @@ pub fn bevel(ui: &mut UiFrame, r: Rect, radius: f32, hi: [f32; 4], lo: [f32; 4])
     seg(ui, r.x + r.w - 1.0, r.y + rad, 1.0, r.h - 2.0 * rad, lo);
 }
 
-/// Light glossy rounded button with a raised bevel (sunken when pressed) and a
-/// centered dark label.
+/// Glossy rounded button that reads recessed: a `border` ring, then a dark inset
+/// shadow groove around all four inner edges (darkest at the top, fading down),
+/// then a concave top→mid→bottom glossy face, then a centered dark label.
 pub fn fallback_button(ui: &mut UiFrame, r: Rect, hovered: bool, pressed: bool, label: &str) {
-    let (face_top, face_bot) = if pressed {
-        (FallbackPalette::BTN_PRESS_TOP, FallbackPalette::BTN_PRESS_BOT)
+    let (top, mid, bot, border, sh_top, sh_bot) = if pressed {
+        (
+            FallbackPalette::BTN_PRESS_TOP,
+            FallbackPalette::BTN_PRESS_MID,
+            FallbackPalette::BTN_PRESS_BOT,
+            FallbackPalette::BTN_HOVER_BORDER,
+            FallbackPalette::BTN_INSET_SHADOW_BLUE_TOP,
+            FallbackPalette::BTN_INSET_SHADOW_BLUE_BOT,
+        )
     } else if hovered {
-        (FallbackPalette::BTN_HOVER_TOP, FallbackPalette::BTN_HOVER_BOT)
+        (
+            FallbackPalette::BTN_HOVER_TOP,
+            FallbackPalette::BTN_HOVER_MID,
+            FallbackPalette::BTN_HOVER_BOT,
+            FallbackPalette::BTN_HOVER_BORDER,
+            FallbackPalette::BTN_INSET_SHADOW_BLUE_TOP,
+            FallbackPalette::BTN_INSET_SHADOW_BLUE_BOT,
+        )
     } else {
-        (FallbackPalette::BTN_FACE_TOP, FallbackPalette::BTN_FACE_BOT)
+        (
+            FallbackPalette::BTN_FACE_TOP,
+            FallbackPalette::BTN_FACE_MID,
+            FallbackPalette::BTN_FACE_BOT,
+            FallbackPalette::BTN_BORDER,
+            FallbackPalette::BTN_INSET_SHADOW_TOP,
+            FallbackPalette::BTN_INSET_SHADOW_BOT,
+        )
     };
-    fallback_panel(ui, r, CORNER_RADIUS, face_top, face_bot, FallbackPalette::WIN_BORDER);
-    let (hi, lo) = if pressed {
-        (FallbackPalette::BTN_BEVEL_LO, FallbackPalette::BTN_BEVEL_HI)
-    } else {
-        (FallbackPalette::BTN_BEVEL_HI, FallbackPalette::BTN_BEVEL_LO)
-    };
-    bevel(ui, r, CORNER_RADIUS, hi, lo);
+    let (v, i) = draw::rounded_rect(r.x, r.y, r.w, r.h, CORNER_RADIUS, border);
+    push_white(ui, v, i);
+    let (v, i) = draw::rounded_rect_vgrad(
+        r.x + 1.0,
+        r.y + 1.0,
+        r.w - 2.0,
+        r.h - 2.0,
+        (CORNER_RADIUS - 1.0).max(0.0),
+        sh_top,
+        sh_bot,
+    );
+    push_white(ui, v, i);
+
+    let (fx, fy, fw, fh) = (r.x + 2.0, r.y + 2.0, r.w - 4.0, r.h - 4.0);
+    let fr = (CORNER_RADIUS - 2.0).max(0.0);
+    let half = (fh * 0.5).round();
+    let (v, i) = draw::rounded_rect_corners_vgrad(fx, fy, fw, half, [fr, fr, 0.0, 0.0], top, mid);
+    push_white(ui, v, i);
+    let (v, i) =
+        draw::rounded_rect_corners_vgrad(fx, fy + half, fw, fh - half, [0.0, 0.0, fr, fr], mid, bot);
+    push_white(ui, v, i);
 
     if !label.is_empty() {
         let tw = ui.atlas.measure_text(label);
@@ -136,5 +183,27 @@ pub fn fallback_panel(
         fill_top,
         fill_bot,
     );
+    push_white(ui, v, i);
+}
+
+/// Rounded panel with a concave glossy fill: `top`→`mid` over the upper half,
+/// `mid`→`bot` over the lower half, ringed by a `border`-colored rounded rect.
+pub fn fallback_glossy_panel(
+    ui: &mut UiFrame,
+    r: Rect,
+    radius: f32,
+    top: [f32; 4],
+    mid: [f32; 4],
+    bot: [f32; 4],
+    border: [f32; 4],
+) {
+    let (v, i) = draw::rounded_rect(r.x, r.y, r.w, r.h, radius, border);
+    push_white(ui, v, i);
+    let ir = (radius - 1.0).max(0.0);
+    let (x, y, w, h) = (r.x + 1.0, r.y + 1.0, r.w - 2.0, r.h - 2.0);
+    let half = (h * 0.5).round();
+    let (v, i) = draw::rounded_rect_corners_vgrad(x, y, w, half, [ir, ir, 0.0, 0.0], top, mid);
+    push_white(ui, v, i);
+    let (v, i) = draw::rounded_rect_corners_vgrad(x, y + half, w, h - half, [0.0, 0.0, ir, ir], mid, bot);
     push_white(ui, v, i);
 }

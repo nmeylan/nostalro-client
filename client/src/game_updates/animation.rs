@@ -114,13 +114,23 @@ impl App {
                             0
                         }
                     });
-                    entity
-                        .animation
-                        .play(action, duration * 1000.0, start_frame);
+                    if entity.state == EntityState::Attacking {
+                        entity.animation.play_attack_loop(
+                            action,
+                            entity.attack_motion_factor,
+                            start_frame,
+                        );
+                    } else {
+                        entity
+                            .animation
+                            .play(action, duration * 1000.0, start_frame);
+                    }
                 } else if entity.state == EntityState::Casting {
                     entity.animation.set_action(action, MotionType::Static);
                     entity.animation.set_direction(entity.direction);
                     continue;
+                } else if entity.state == EntityState::Attacking {
+                    entity.animation.set_action(action, MotionType::Loop);
                 } else if is_transient {
                     entity.animation.set_action(action, MotionType::OneShot);
                 } else {

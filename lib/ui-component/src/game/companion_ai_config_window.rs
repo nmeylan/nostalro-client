@@ -1,5 +1,7 @@
 use crate::Window;
+use crate::helper::CHECKBOX;
 use crate::helper::colors;
+use crate::helper::dropdown::{self, Dropdown};
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     TITLEBAR_TEX, draw_container, draw_sys_button, draw_titlebar, text_color,
@@ -12,7 +14,7 @@ use ragnarok_ai::consts::{
 use ragnarok_ai::tactics::{SkillUse, Tactic};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 pub const COMPANION_AI_CONFIG_WINDOW_ID: WidgetId = WidgetId(3200);
@@ -29,6 +31,43 @@ const TACT_NEXT_ID: WidgetId = WidgetId(3227);
 const TACT_ADD_ID: WidgetId = WidgetId(3228);
 const TACT_DEL_ID: WidgetId = WidgetId(3229);
 const ROW_WIDGET_BASE: u32 = 3230;
+const ENUM_OPTION_BASE: u32 = 3300;
+
+const OK_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_ok.bmp",
+    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+};
+const ADD_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_add.bmp",
+    hover: "data/texture/유저인터페이스/btn_add_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_add_b.bmp",
+};
+const DEL_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/btn_del.bmp",
+    hover: "data/texture/유저인터페이스/btn_del_a.bmp",
+    pressed: "data/texture/유저인터페이스/btn_del_b.bmp",
+};
+const PREV_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/basic_interface/arw_left.bmp",
+    hover: "data/texture/유저인터페이스/basic_interface/arw_left.bmp",
+    pressed: "data/texture/유저인터페이스/basic_interface/arw_left.bmp",
+};
+const NEXT_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/basic_interface/arw_right.bmp",
+    hover: "data/texture/유저인터페이스/basic_interface/arw_right_on.bmp",
+    pressed: "data/texture/유저인터페이스/basic_interface/arw_right_on.bmp",
+};
+const PLUS_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/map/map_plus0.bmp",
+    hover: "data/texture/유저인터페이스/map/map_plus1.bmp",
+    pressed: "data/texture/유저인터페이스/map/map_plus1.bmp",
+};
+const MINUS_BTN: ButtonTextures = ButtonTextures {
+    normal: "data/texture/유저인터페이스/map/map_minus0.bmp",
+    hover: "data/texture/유저인터페이스/map/map_minus1.bmp",
+    pressed: "data/texture/유저인터페이스/map/map_minus1.bmp",
+};
 
 const BASIC_OPTS: &[(i32, &str)] = &[
     (-2, "Tank Mob"),
@@ -334,6 +373,10 @@ pub struct CompanionAiConfigWindow {
     tab: usize,
     scroll_offset: usize,
     tactic_sel: usize,
+    enum_dd: Dropdown,
+    open_enum: Option<u32>,
+    enum_overlay_cur: Option<(Rect, u32, &'static [(i32, &'static str)])>,
+    enum_overlay_prev: Option<Rect>,
 }
 
 impl Default for CompanionAiConfigWindow {
@@ -350,6 +393,10 @@ impl CompanionAiConfigWindow {
             tab: 0,
             scroll_offset: 0,
             tactic_sel: 0,
+            enum_dd: Dropdown::default(),
+            open_enum: None,
+            enum_overlay_cur: None,
+            enum_overlay_prev: None,
         }
     }
 
@@ -360,6 +407,7 @@ impl CompanionAiConfigWindow {
     pub fn open_at_tab(&mut self, tab: usize) {
         self.tab = tab.min(TABS.len() - 1);
         self.scroll_offset = 0;
+        self.open_enum = None;
         self.visible = true;
     }
     pub fn is_visible(&self) -> bool {
@@ -382,6 +430,8 @@ impl CompanionAiConfigWindow {
         let grf = self.has_grf_textures;
         let mut events = Vec::new();
         let tc = text_color(grf);
+        self.enum_dd.begin_frame();
+        self.enum_overlay_cur = None;
 
         let win = ui.window_at(COMPANION_AI_CONFIG_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 160.0, 90.0);
         let (x, y) = (win.x, win.y);
@@ -398,6 +448,7 @@ impl CompanionAiConfigWindow {
         }
         if close_resp.clicked() {
             self.visible = false;
+            self.open_enum = None;
         }
         draw_sys_button(
             ui,
@@ -424,6 +475,7 @@ impl CompanionAiConfigWindow {
             if resp.clicked() && self.tab != i {
                 self.tab = i;
                 self.scroll_offset = 0;
+                self.open_enum = None;
             }
             let bg = if i == self.tab {
                 [0.72, 0.79, 0.93, 1.0]
@@ -450,10 +502,10 @@ impl CompanionAiConfigWindow {
                 self.render_fields(ui, &mut config.mercenary, &specs, x, content_y, content_h, tc, grf);
             }
             2 => {
-                self.render_tactics(ui, &mut config.homunculus_tactics, x, content_y, tc, grf);
+                self.render_tactics(ui, &mut config.homunculus_tactics, x, content_y, content_h, tc, grf);
             }
             3 => {
-                self.render_tactics(ui, &mut config.mercenary_tactics, x, content_y, tc, grf);
+                self.render_tactics(ui, &mut config.mercenary_tactics, x, content_y, content_h, tc, grf);
             }
             _ => {
                 ui.text(x + PAD, content_y + 24.0, "This tab arrives with a later tier.", colors::YELLOW);
@@ -463,7 +515,7 @@ impl CompanionAiConfigWindow {
         // Footer buttons.
         let bw = 84.0;
         let by = footer_y + 3.0;
-        if ui.text_button(APPLY_BTN_ID, Rect::new(x + PAD, by, bw, 18.0), "Apply").clicked() {
+        if ui.button(APPLY_BTN_ID, Rect::new(x + PAD, by, 32.0, 18.0), &OK_BTN, "Apply").clicked() {
             events.push(GameEvent::SaveCompanionAiConfig);
         }
         if ui.text_button(REVERT_BTN_ID, Rect::new(x + PAD + bw + 6.0, by, bw, 18.0), "Revert").clicked() {
@@ -493,6 +545,7 @@ impl CompanionAiConfigWindow {
         let visible_rows = (h / ROW_H) as usize;
         let max_scroll = rows.len().saturating_sub(visible_rows);
         let content_rect = Rect::new(x, y, WIN_W - SCROLLBAR_W - 2.0, h);
+        let prev_scroll = self.scroll_offset;
         self.scroll_offset = scrollbar::scrollbar(
             ui,
             ScrollbarIds { up: SCROLL_UP_ID, down: SCROLL_DOWN_ID, thumb: SCROLL_THUMB_ID },
@@ -504,11 +557,15 @@ impl CompanionAiConfigWindow {
             y,
             h,
         );
+        if self.scroll_offset != prev_scroll {
+            self.open_enum = None;
+        }
 
         let label_x = x + PAD + 8.0;
         let widget_x = x + WIN_W - SCROLLBAR_W - 6.0 - 120.0;
         let widget_w = 120.0;
         let mut ry = y;
+        let mut open_field: Option<usize> = None;
         for (slot, row) in rows.iter().skip(self.scroll_offset).take(visible_rows).enumerate() {
             match row {
                 Row::Header(name) => {
@@ -521,9 +578,12 @@ impl CompanionAiConfigWindow {
                     ui.text(label_x, ry + BASELINE, s.label, tc);
                     let wrect = Rect::new(widget_x, ry + 1.0, widget_w, ROW_H - 3.0);
                     let cur = (s.get)(cfg);
-                    let new = self.render_widget(ui, slot, s, cur, wrect, tc, grf);
+                    let (new, is_open) = self.render_widget(ui, slot, s, cur, wrect, content_rect, tc, grf);
                     if new != cur {
                         (s.set)(cfg, new);
+                    }
+                    if is_open {
+                        open_field = Some(*i);
                     }
                     let hover_rect = Rect::new(label_x, ry, widget_x - label_x, ROW_H);
                     if hover_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && !s.tip.is_empty() {
@@ -533,14 +593,27 @@ impl CompanionAiConfigWindow {
             }
             ry += ROW_H;
         }
+
+        if let (Some(i), Some((rect, base, opts))) = (open_field, self.enum_overlay_cur.take()) {
+            let labels: Vec<&str> = opts.iter().map(|(_, l)| *l).collect();
+            if let Some(idx) = self.enum_dd.show_overlay(ui, rect, base, &labels) {
+                (specs[i].set)(cfg, opts[idx].0);
+                self.open_enum = None;
+            }
+            self.enum_overlay_prev = Some(rect);
+        } else {
+            self.enum_overlay_prev = None;
+        }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_tactics(
         &mut self,
         ui: &mut UiFrame,
         rows: &mut Vec<Tactic>,
         x: f32,
         y: f32,
+        h: f32,
         tc: [f32; 4],
         grf: bool,
     ) {
@@ -549,11 +622,13 @@ impl CompanionAiConfigWindow {
         }
         self.tactic_sel = self.tactic_sel.min(rows.len() - 1);
 
-        // Selector row: ◀ id:name ▶  Add  Del
         let bw = 22.0;
         let mut cx = x + PAD;
-        if ui.text_button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), "<").clicked() && self.tactic_sel > 0 {
+        if ui.button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), &PREV_BTN, "<").clicked()
+            && self.tactic_sel > 0
+        {
             self.tactic_sel -= 1;
+            self.open_enum = None;
         }
         cx += bw + 2.0;
         let sel = &rows[self.tactic_sel];
@@ -562,85 +637,93 @@ impl CompanionAiConfigWindow {
         push_quad(ui, cx, y, name_w, 16.0, [0.95, 0.95, 0.96, 1.0]);
         ui.text(cx + 4.0, y + BASELINE, &label, tc);
         cx += name_w + 2.0;
-        if ui.text_button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), ">").clicked()
+        if ui.button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), &NEXT_BTN, ">").clicked()
             && self.tactic_sel + 1 < rows.len()
         {
             self.tactic_sel += 1;
+            self.open_enum = None;
         }
         cx += bw + 4.0;
-        if ui.text_button(TACT_ADD_ID, Rect::new(cx, y, 56.0, 16.0), "Add").clicked() {
+        if ui.text_button(TACT_ADD_ID, Rect::new(cx, y, 32.0, 18.0), "Add").clicked() {
             let mut t = Tactic::default_row();
             t.id = next_free_class_id(rows);
             t.name = "New".to_string();
             rows.push(t);
             self.tactic_sel = rows.len() - 1;
+            self.open_enum = None;
         }
         cx += 58.0;
-        if ui.text_button(TACT_DEL_ID, Rect::new(cx, y, 56.0, 16.0), "Del").clicked()
+        if ui.button(TACT_DEL_ID, Rect::new(cx, y, 32.0, 18.0), &DEL_BTN, "Del").clicked()
             && rows[self.tactic_sel].id != 0
             && rows[self.tactic_sel].id != 13
         {
             rows.remove(self.tactic_sel);
             self.tactic_sel = self.tactic_sel.saturating_sub(1);
+            self.open_enum = None;
         }
 
+        let content_bounds = Rect::new(x, y, WIN_W - SCROLLBAR_W - 2.0, h);
         let cols = tactic_cols();
         let sel = &mut rows[self.tactic_sel];
         let mut ry = y + 22.0;
+        let mut open_field: Option<usize> = None;
         for (slot, spec) in cols.iter().enumerate() {
             ui.text(x + PAD + 8.0, ry + BASELINE, spec.label, tc);
             let widget_x = x + WIN_W - SCROLLBAR_W - 6.0 - 130.0;
             let wrect = Rect::new(widget_x, ry + 1.0, 130.0, ROW_H - 3.0);
             let cur = (spec.get)(sel);
-            let new = self.render_widget(ui, slot, spec, cur, wrect, tc, grf);
+            let (new, is_open) = self.render_widget(ui, slot, spec, cur, wrect, content_bounds, tc, grf);
             if new != cur {
                 (spec.set)(sel, new);
             }
+            if is_open {
+                open_field = Some(slot);
+            }
             ry += ROW_H;
+        }
+
+        if let (Some(i), Some((rect, base, opts))) = (open_field, self.enum_overlay_cur.take()) {
+            let labels: Vec<&str> = opts.iter().map(|(_, l)| *l).collect();
+            if let Some(idx) = self.enum_dd.show_overlay(ui, rect, base, &labels) {
+                (cols[i].set)(sel, opts[idx].0);
+                self.open_enum = None;
+            }
+            self.enum_overlay_prev = Some(rect);
+        } else {
+            self.enum_overlay_prev = None;
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_widget<C>(
-        &self,
+        &mut self,
         ui: &mut UiFrame,
         slot: usize,
         spec: &FieldSpec<C>,
         cur: i32,
         rect: Rect,
+        content_bounds: Rect,
         tc: [f32; 4],
         grf: bool,
-    ) -> i32 {
+    ) -> (i32, bool) {
+        let _ = grf;
         let base = ROW_WIDGET_BASE + slot as u32 * 3;
         match spec.widget {
             Widget::Bool => {
                 let sz = 12.0;
                 let cb = Rect::new(rect.x + rect.w - sz, rect.y + 1.0, sz, sz);
-                let resp = ui.interact(WidgetId(base), cb);
-                if resp.hovered() {
-                    ui.any_interactive_hovered = true;
+                let mut on = cur != 0;
+                if ui.checkbox(WidgetId(base), cb, &mut on, &CHECKBOX).clicked() {
+                    return (if cur != 0 { 0 } else { 1 }, false);
                 }
-                push_quad(ui, cb.x, cb.y, sz, sz, [0.85, 0.85, 0.85, 1.0]);
-                if cur != 0 {
-                    push_quad(ui, cb.x + 3.0, cb.y + 3.0, sz - 6.0, sz - 6.0, colors::GREEN);
-                }
-                if resp.clicked() {
-                    return if cur != 0 { 0 } else { 1 };
-                }
-                cur
+                (cur, false)
             }
             Widget::Int { min, max, step } => {
                 let bw = 16.0;
                 let minus = Rect::new(rect.x, rect.y, bw, rect.h);
                 let plus = Rect::new(rect.x + rect.w - bw, rect.y, bw, rect.h);
-                let m = ui.interact(WidgetId(base), minus);
-                let p = ui.interact(WidgetId(base + 1), plus);
-                if m.hovered() || p.hovered() {
-                    ui.any_interactive_hovered = true;
-                }
-                push_quad(ui, minus.x, minus.y, bw, rect.h, [0.35, 0.35, 0.40, 1.0]);
-                push_quad(ui, plus.x, plus.y, bw, rect.h, [0.35, 0.35, 0.40, 1.0]);
-                ui.text_centered(minus.x, rect.y + BASELINE - 2.0, bw, "-", tc);
-                ui.text_centered(plus.x, rect.y + BASELINE - 2.0, bw, "+", tc);
+                let m = ui.button(WidgetId(base), minus, &MINUS_BTN, "-");
+                let p = ui.button(WidgetId(base + 1), plus, &PLUS_BTN, "+");
                 ui.text_centered(rect.x + bw, rect.y + BASELINE - 2.0, rect.w - 2.0 * bw, &cur.to_string(), tc);
                 let mut v = cur;
                 if m.clicked() {
@@ -649,23 +732,33 @@ impl CompanionAiConfigWindow {
                 if p.clicked() {
                     v = (v + step).min(max);
                 }
-                let _ = grf;
-                v
+                (v, false)
             }
             Widget::Enum(opts) => {
-                let resp = ui.interact(WidgetId(base), rect);
-                if resp.hovered() {
-                    ui.any_interactive_hovered = true;
-                }
-                push_quad(ui, rect.x, rect.y, rect.w, rect.h, [0.30, 0.30, 0.40, 1.0]);
                 let label = opts.iter().find(|(v, _)| *v == cur).map(|(_, l)| *l).unwrap_or("?");
-                ui.text_centered(rect.x, rect.y + BASELINE - 2.0, rect.w, label, tc);
-                if resp.clicked() {
-                    let idx = opts.iter().position(|(v, _)| *v == cur).unwrap_or(0);
-                    let next = (idx + 1) % opts.len();
-                    return opts[next].0;
+                self.enum_dd.open = self.open_enum == Some(base);
+                let (mx, my) = (ui.ctx.mouse_x, ui.ctx.mouse_y);
+                let blocked = self.open_enum.is_some()
+                    && self.open_enum != Some(base)
+                    && self.enum_overlay_prev.map(|r| r.contains(mx, my)).unwrap_or(false);
+                let dr = self.enum_dd.show(
+                    ui,
+                    WidgetId(base),
+                    rect,
+                    label,
+                    opts.len(),
+                    content_bounds,
+                    blocked,
+                );
+                if dr.toggled {
+                    self.open_enum = self.enum_dd.open.then_some(base);
                 }
-                cur
+                if let Some(list_rect) = dr.overlay_rect {
+                    self.enum_overlay_cur = Some((list_rect, ENUM_OPTION_BASE, opts));
+                    (cur, true)
+                } else {
+                    (cur, false)
+                }
             }
         }
     }
@@ -700,8 +793,80 @@ impl Window for CompanionAiConfigWindow {
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        let mut paths = vec![TITLEBAR_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX];
+        let mut paths = vec![
+            TITLEBAR_TEX,
+            CLOSE_OFF_TEX,
+            CLOSE_ON_TEX,
+            CHECKBOX.off,
+            CHECKBOX.on,
+            OK_BTN.normal,
+            OK_BTN.hover,
+            OK_BTN.pressed,
+            ADD_BTN.normal,
+            ADD_BTN.hover,
+            ADD_BTN.pressed,
+            DEL_BTN.normal,
+            DEL_BTN.hover,
+            DEL_BTN.pressed,
+            PREV_BTN.normal,
+            NEXT_BTN.normal,
+            NEXT_BTN.hover,
+            PLUS_BTN.normal,
+            PLUS_BTN.hover,
+            MINUS_BTN.normal,
+            MINUS_BTN.hover,
+        ];
         paths.extend(scrollbar::grf_texture_paths());
+        paths.extend(dropdown::grf_texture_paths());
         paths
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
+
+    fn frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
+    }
+
+    #[test]
+    fn tactic_enum_select_opens_then_applies_pick() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let mut cfg = CompanionAiConfig::default();
+        let mut win = CompanionAiConfigWindow::new();
+        win.open_at_tab(2);
+
+        // The window opens at (160, 90); the Basic enum is the first tactics row.
+        let box_x = 160.0 + WIN_W - SCROLLBAR_W - 6.0 - 130.0;
+        let box_cx = box_x + 65.0;
+        let box_y = 90.0 + TITLE_H + TAB_H + 2.0 + 22.0 + 1.0;
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = box_cx;
+        ctx.mouse_y = box_y + 7.0;
+        ctx.mouse_clicked = true;
+        {
+            let mut ui = frame(&ctx, &atlas, &mut state);
+            win.build(&mut ui, &mut cfg);
+        }
+        assert_eq!(win.open_enum, Some(ROW_WIDGET_BASE));
+
+        let picked = BASIC_OPTS[0].0;
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = box_cx;
+        ctx.mouse_y = box_y + 15.0 + 8.0; // first option, just below the closed box
+        ctx.mouse_clicked = true;
+        {
+            let mut ui = frame(&ctx, &atlas, &mut state);
+            win.build(&mut ui, &mut cfg);
+        }
+        assert_eq!(i32::from(cfg.homunculus_tactics[0].basic), picked);
+        assert!(win.open_enum.is_none());
     }
 }

@@ -1,3 +1,4 @@
+use crate::helper::CHECKBOX;
 use crate::helper::dropdown::Dropdown;
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
@@ -7,12 +8,12 @@ use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display::DisplayOptions;
 use ragnarok_game::event::GameEvent;
-use ragnarok_ui::frame::{CheckboxTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
 pub const GRAPHIC_OPTIONS_WINDOW_ID: WidgetId = WidgetId(4200);
 const CLOSE_BTN_ID: WidgetId = WidgetId(4201);
-const RESOLUTION_DROPDOWN_ID: WidgetId = WidgetId(4202);
+const UI_SCALE_DROPDOWN_ID: WidgetId = WidgetId(4202);
 const FULLSCREEN_CB_ID: WidgetId = WidgetId(4203);
 const FOG_CB_ID: WidgetId = WidgetId(4204);
 const EFFECTS_CB_ID: WidgetId = WidgetId(4205);
@@ -24,14 +25,12 @@ const NAME_MONSTER_CB_ID: WidgetId = WidgetId(4210);
 const NAME_NPC_CB_ID: WidgetId = WidgetId(4211);
 const REFUSE_TRADE_CB_ID: WidgetId = WidgetId(4212);
 const REFUSE_PARTY_CB_ID: WidgetId = WidgetId(4213);
-const RESOLUTION_OPTION_BASE: u32 = 4230;
+const UI_SCALE_OPTION_BASE: u32 = 4230;
+
+const UI_SCALE_OPTIONS: [u32; 6] = [75, 100, 125, 150, 175, 200];
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const CHECKBOX: CheckboxTextures = CheckboxTextures {
-    off: "data/texture/유저인터페이스/checkbox_0.bmp",
-    on: "data/texture/유저인터페이스/checkbox_1.bmp",
-};
 
 const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 20.0;
@@ -46,8 +45,7 @@ const CB_SIZE: f32 = 11.0;
 pub struct GraphicOptionsWindow {
     pub open: bool,
     pub has_grf_textures: bool,
-    resolutions: Vec<(u32, u32)>,
-    selected_resolution: usize,
+    selected_ui_scale: usize,
     fullscreen: bool,
     fog: bool,
     show_skill_effects: bool,
@@ -68,8 +66,7 @@ impl GraphicOptionsWindow {
     #[allow(clippy::too_many_arguments)]
     pub fn set_values(
         &mut self,
-        mut resolutions: Vec<(u32, u32)>,
-        current: (u32, u32),
+        ui_scale_percent: f32,
         fullscreen: bool,
         fog: bool,
         show_skill_effects: bool,
@@ -77,12 +74,9 @@ impl GraphicOptionsWindow {
         refuse_trade: bool,
         refuse_party_invite: bool,
     ) {
-        if !resolutions.contains(&current) {
-            resolutions.push(current);
-            resolutions.sort();
-        }
-        self.selected_resolution = resolutions.iter().position(|&r| r == current).unwrap_or(0);
-        self.resolutions = resolutions;
+        self.selected_ui_scale = (0..UI_SCALE_OPTIONS.len())
+            .min_by_key(|&i| (UI_SCALE_OPTIONS[i] as f32 - ui_scale_percent).abs() as u32)
+            .unwrap_or(1);
         self.fullscreen = fullscreen;
         self.fog = fog;
         self.show_skill_effects = show_skill_effects;
@@ -96,14 +90,12 @@ impl GraphicOptionsWindow {
     }
 
     fn changed_event(&self) -> GameEvent {
-        let (width, height) = self
-            .resolutions
-            .get(self.selected_resolution)
+        let ui_scale = UI_SCALE_OPTIONS
+            .get(self.selected_ui_scale)
             .copied()
-            .unwrap_or((1024, 768));
+            .unwrap_or(100) as f32;
         GameEvent::GraphicsSettingsChanged {
-            width,
-            height,
+            ui_scale,
             fullscreen: self.fullscreen,
             fog: self.fog,
             show_skill_effects: self.show_skill_effects,
@@ -193,15 +185,11 @@ impl InGameWindow for GraphicOptionsWindow {
         let text_y = |n: usize| row_y(n) + 13.0;
         let mut changed = false;
 
-        // Row 0: resolution dropdown + full screen
-        ui.text(win.x + 10.0, text_y(0), "Resolution", label_color);
-        let labels: Vec<String> = self
-            .resolutions
-            .iter()
-            .map(|(w, h)| format!("{w} x {h}"))
-            .collect();
+        // Row 0: UI scale dropdown + full screen
+        ui.text(win.x + 10.0, text_y(0), "UI Scale", label_color);
+        let labels: Vec<String> = UI_SCALE_OPTIONS.iter().map(|p| format!("{p}%")).collect();
         let selected_label = labels
-            .get(self.selected_resolution)
+            .get(self.selected_ui_scale)
             .cloned()
             .unwrap_or_default();
         let dd_rect = Rect::new(win.x + 75.0, row_y(0), 100.0, 16.0);
@@ -209,7 +197,7 @@ impl InGameWindow for GraphicOptionsWindow {
         self.dropdown.begin_frame();
         let dd_resp = self.dropdown.show(
             ui,
-            RESOLUTION_DROPDOWN_ID,
+            UI_SCALE_DROPDOWN_ID,
             dd_rect,
             &selected_label,
             labels.len(),
@@ -284,10 +272,10 @@ impl InGameWindow for GraphicOptionsWindow {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
             if let Some(idx) = self
                 .dropdown
-                .show_overlay(ui, overlay, RESOLUTION_OPTION_BASE, &label_refs)
+                .show_overlay(ui, overlay, UI_SCALE_OPTION_BASE, &label_refs)
             {
-                if idx != self.selected_resolution {
-                    self.selected_resolution = idx;
+                if idx != self.selected_ui_scale {
+                    self.selected_ui_scale = idx;
                     changed = true;
                 }
             }
@@ -336,11 +324,10 @@ mod tests {
     }
 
     #[test]
-    fn fog_checkbox_and_resolution_change_emit_snapshot() {
+    fn fog_checkbox_and_ui_scale_change_emit_snapshot() {
         let mut win = GraphicOptionsWindow::new();
         win.set_values(
-            vec![(1024, 768), (1280, 720)],
-            (1024, 768),
+            100.0,
             false,
             false,
             true,
@@ -348,7 +335,7 @@ mod tests {
             false,
             false,
         );
-        assert_eq!(win.selected_resolution, 0);
+        assert_eq!(win.selected_ui_scale, 1, "100% is the second option");
         win.toggle();
         assert!(win.open);
         let mut state = StateCache::new();
@@ -366,26 +353,26 @@ mod tests {
         );
         assert_eq!(events.len(), 1);
         match &events[0] {
-            GameEvent::GraphicsSettingsChanged { fog, persist, width, height, .. } => {
+            GameEvent::GraphicsSettingsChanged { fog, persist, ui_scale, .. } => {
                 assert!(*fog);
                 assert!(*persist);
-                assert_eq!((*width, *height), (1024, 768));
+                assert_eq!(*ui_scale, 100.0);
             }
             other => panic!("unexpected event: {other:?}"),
         }
 
-        // Open the resolution dropdown, then pick the second option next frame.
+        // Open the UI-scale dropdown, then pick the second option next frame.
         let dd_x = wx + 75.0 + 10.0;
         let dd_y = row_y(0) + 8.0;
         let events = build_at(&mut win, &mut state, Some((dd_x, dd_y)));
         assert!(events.is_empty());
 
-        let option_y = row_y(0) + 16.0 + crate::helper::dropdown::OPTION_H + 8.0;
+        let option_y = row_y(0) + 16.0 + 2.0 * crate::helper::dropdown::OPTION_H + 8.0;
         let events = build_at(&mut win, &mut state, Some((dd_x, option_y)));
         assert_eq!(events.len(), 1);
         match &events[0] {
-            GameEvent::GraphicsSettingsChanged { width, height, fog, .. } => {
-                assert_eq!((*width, *height), (1280, 720));
+            GameEvent::GraphicsSettingsChanged { ui_scale, fog, .. } => {
+                assert_eq!(*ui_scale, 125.0, "picked the third option (125%)");
                 assert!(*fog, "earlier fog flip is part of the snapshot");
             }
             other => panic!("unexpected event: {other:?}"),

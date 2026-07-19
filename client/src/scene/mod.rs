@@ -11,7 +11,8 @@ use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{EffectFrameInputs, compose_effect_frame};
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, scale_clip_vertices,
+    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_clip_quad_scaled,
+    scale_clip_vertices,
 };
 
 /// Action index of the ice-shatter in `얼음땡.act` (action 0 is the block).
@@ -405,9 +406,14 @@ impl App {
                                 ]
                             };
                             for clip in &motion.clips {
-                                if let Some((vertices, indices, tex_idx)) =
-                                    build_clip_quad(clip, tex, center, entry.depth, [0, 0])
-                                    && tex_idx < tex.bind_groups.len()
+                                if let Some((vertices, indices, tex_idx)) = build_clip_quad_scaled(
+                                    clip,
+                                    tex,
+                                    center,
+                                    entry.depth,
+                                    [0, 0],
+                                    entry.sprite_scale,
+                                ) && tex_idx < tex.bind_groups.len()
                                 {
                                     sprite_batches.push(SpriteBatch {
                                         vertices,
@@ -451,12 +457,13 @@ impl App {
                                 continue;
                             }
                             for clip in &action.motions[frame].clips {
-                                if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                                if let Some((vertices, indices, tex_idx)) = build_clip_quad_scaled(
                                     clip,
                                     tex,
                                     entry.screen_anchor,
                                     entry.depth,
                                     [0, 0],
+                                    entry.sprite_scale,
                                 ) && tex_idx < tex.bind_groups.len()
                                 {
                                     sprite_batches.push(SpriteBatch {

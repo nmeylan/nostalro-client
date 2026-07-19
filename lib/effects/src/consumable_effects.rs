@@ -80,6 +80,12 @@ pub fn consumable_use_effect(item_id: u32) -> Option<EffectId> {
     Some(id)
 }
 
+/// Guild-issued potions consumed by the player but applied to the mercenary,
+/// so their use effect plays on the mercenary rather than the caster.
+pub fn is_mercenary_potion(item_id: u32) -> bool {
+    matches!(item_id, 12184 | 12185 | 12241 | 12242 | 12243)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +104,14 @@ mod tests {
         assert_eq!(consumable_use_effect(12018), Some(EffectId::Itempokjuk));
         assert_eq!(consumable_use_effect(12326), None);
         assert_eq!(consumable_use_effect(1), None);
+    }
+
+    #[test]
+    fn mercenary_potions_are_flagged_and_still_have_a_use_effect() {
+        assert!(is_mercenary_potion(12184));
+        assert!(is_mercenary_potion(12243));
+        assert!(!is_mercenary_potion(501));
+        assert_eq!(consumable_use_effect(12184), Some(EffectId::Potion7));
+        assert_eq!(consumable_use_effect(12243), Some(EffectId::PotionBerserk));
     }
 }

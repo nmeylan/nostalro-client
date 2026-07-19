@@ -41,6 +41,9 @@ pub enum ConfirmResult {
 pub struct ConfirmDialogState {
     pub message: String,
     pub show_cancel: bool,
+    /// Informational box with no buttons (e.g. "Please wait..."), dismissed
+    /// programmatically by clearing `state`.
+    pub no_buttons: bool,
     onclose: Option<Box<dyn FnMut(ConfirmResult)>>,
     out_param: Option<Rc<Cell<Option<ConfirmResult>>>>,
 }
@@ -50,6 +53,7 @@ impl ConfirmDialogState {
         Self {
             message: message.to_string(),
             show_cancel: false,
+            no_buttons: false,
             onclose: None,
             out_param: None,
         }
@@ -103,6 +107,18 @@ impl ConfirmDialog {
         state.onclose = Some(Box::new(onclose));
         state.out_param = Some(out_param);
         self.state = Some(state);
+    }
+
+    /// Shows a buttonless informational box (e.g. "Please wait...") that stays
+    /// until [`ConfirmDialog::dismiss`] or a new `show*` call replaces it.
+    pub fn show_message(&mut self, message: &str) {
+        let mut state = ConfirmDialogState::new(message);
+        state.no_buttons = true;
+        self.state = Some(state);
+    }
+
+    pub fn dismiss(&mut self) {
+        self.state = None;
     }
 
     pub fn close(&mut self) {
@@ -184,6 +200,22 @@ impl ConfirmDialog {
 
         let (btn_w, btn_h) = self.btn_size;
         let container = Rect::new(dx, dy, dialog_w, dialog_h);
+
+        if state.no_buttons {
+            let (text_y, text_x) = container.text_dialog_alignment(
+                PADDING,
+                dy + dialog_h - PADDING,
+                ui.atlas.line_height,
+            );
+            let text_color = if self.has_grf_textures {
+                [0.0, 0.0, 0.0, 1.0]
+            } else {
+                [1.0, 1.0, 1.0, 1.0]
+            };
+            ui.text(text_x, text_y, &state.message, text_color);
+            return;
+        }
+
         let num_buttons = if state.show_cancel { 2 } else { 1 };
         let btns = container.buttons_bottom_right(
             num_buttons,

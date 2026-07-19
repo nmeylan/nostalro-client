@@ -358,7 +358,7 @@ impl App {
                         }
                     }
                     let duration = ((attack_mt as f32 / 1000.0) - age).max(0.5);
-                    entity.enter_attack(duration);
+                    entity.enter_attack(duration, ragnarok_game::entity::attack_motion_factor(attack_mt));
                     entity.target_gid = Some(target_gid);
                     if entity.weapon == Some(WeaponType::Bow) {
                         shooter_cell = Some(entity.movement.cell_position());
@@ -574,8 +574,10 @@ impl App {
                 entity.effect_state,
                 entity.job
             );
+            let orcish_changed = ragnarok_game::sprite_path::is_orcish(entity.effect_state)
+                != ragnarok_game::sprite_path::is_orcish(effect_state);
             entity.effect_state = effect_state;
-            if old_sprite_job != new_sprite_job {
+            if old_sprite_job != new_sprite_job || orcish_changed {
                 let sprite_job = new_sprite_job;
                 let (sex, head, shield, head_top, head_mid, head_bottom, hair_color) = (
                     entity.sex,

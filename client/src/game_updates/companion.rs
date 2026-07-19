@@ -49,7 +49,7 @@ impl App {
                     gid: e.id,
                     x: x as i32,
                     y: y as i32,
-                    is_monster: e.entity_type == EntityType::Monster,
+                    is_monster: e.entity_type == EntityType::Monster && !e.is_pet,
                     is_player: e.entity_type == EntityType::Player,
                     class_id: e.job,
                     motion: motion_from_state(e.state),

@@ -22,6 +22,7 @@ impl App {
             preload_window(&mut server_win, renderer, grf);
         }
         self.server_list_window = Some(server_win);
+        self.account_dialog.dismiss();
         self.game.app_state = AppState::ServerSelect;
     }
 
@@ -36,6 +37,6 @@ impl App {
             6 => "Banned",
             _ => "Unknown error",
         };
-        self.login_window.set_error(msg);
+        self.account_dialog.show(msg, false, |_| {});
     }
 }

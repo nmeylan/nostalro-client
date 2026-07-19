@@ -87,6 +87,15 @@ pub const JT_MARRIED: u16 = 22;
 pub const JT_SANTA: u16 = 26;
 pub const JT_SUMMER: u16 = 27;
 
+pub const OPTION_ORCISH: i32 = 0x800;
+
+/// Reverse Orcish (Sage): the head layer is drawn with the orc-face sprite.
+pub const ORCFACE_SPRITE_PATH: &str = "data/sprite/이팩트/orcface";
+
+pub fn is_orcish(effect_state: i32) -> bool {
+    (effect_state & OPTION_ORCISH) != 0
+}
+
 pub fn is_wedding(effect_state: i32) -> bool {
     (effect_state & OPTION_WEDDING) != 0
 }

@@ -86,7 +86,7 @@ const STAT_HEX_ORDER: [usize; 6] = [0, 2, 5, 3, 4, 1];
 const STAT_HEX_MAX: f32 = 10.0;
 const STAT_HEX_COLOR: [f32; 4] = [0.5, 0.5, 0.5, 0.7];
 
-const WINDOW_ID: WidgetId = WidgetId(220);
+pub const CHAR_CREATE_WINDOW_ID: WidgetId = WidgetId(220);
 const NAME_ID: WidgetId = WidgetId(221);
 const STYLE_L_ID: WidgetId = WidgetId(222);
 const STYLE_R_ID: WidgetId = WidgetId(223);
@@ -322,7 +322,7 @@ impl CharCreateWindow {
     }
 
     fn build_stat_layout(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
+        let win = ui.window(CHAR_CREATE_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
         let (ox, oy) = (win.x, win.y);
 
@@ -435,7 +435,7 @@ impl CharCreateWindow {
     }
 
     fn build_compact_layout(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(WINDOW_ID, V2_W, V2_H, V2_HEADER_H);
+        let win = ui.window(CHAR_CREATE_WINDOW_ID, V2_W, V2_H, V2_HEADER_H);
         self.win_origin = (win.x, win.y);
         let (ox, oy) = (win.x, win.y);
         let has_grf = self.has_grf_textures;
@@ -521,6 +521,14 @@ impl Window for CharCreateWindow {
     }
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+    }
+
+    fn window_size(&self) -> (f32, f32) {
+        if self.with_stats {
+            (WIN_W, WIN_H)
+        } else {
+            (V2_W, V2_H)
+        }
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
