@@ -508,7 +508,8 @@ impl CompanionAiConfigWindow {
                 self.render_tactics(ui, &mut config.mercenary_tactics, x, content_y, content_h, tc, grf);
             }
             _ => {
-                ui.text(x + PAD, content_y + 24.0, "This tab arrives with a later tier.", colors::YELLOW);
+                let(color, shadow) = colors::ORANGE_WITH_SHADOW;
+                ui.text_with_shadow(x + PAD, content_y + 24.0, "This tab arrives with a later tier.", color, shadow);
             }
         }
 

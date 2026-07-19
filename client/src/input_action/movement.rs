@@ -1,3 +1,5 @@
+use models::enums::action::ActionType;
+use models::enums::EnumWithNumberValue;
 use crate::App;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::ailment;
@@ -148,7 +150,7 @@ impl App {
         self.game.last_attacked_enemy = Some(target_id);
         self.channel.send_packet(build_action_request_packet(
             target_id,
-            7,
+            ActionType::AttackRepeat.value() as u8,
             self.config.packetver,
         ));
     }

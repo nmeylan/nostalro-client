@@ -25,24 +25,24 @@ impl FallbackPalette {
     pub const SLOT_INSET: [f32; 4] = rgb(0xCF, 0xD6, 0xE5);
 
     pub const BTN_BORDER: [f32; 4] = rgb(0xCF, 0xC7, 0xCB);
+    pub const BTN_BORDER_ACTIVE: [f32; 4] = rgb(0xAC, 0xA4, 0xA8);
 
-    pub const BTN_FACE_TOP: [f32; 4] = rgb(0xEE, 0xEA, 0xEC);
-    pub const BTN_FACE_MID: [f32; 4] = rgb(0xDA, 0xD4, 0xD7);
-    pub const BTN_FACE_BOT: [f32; 4] = rgb(0xF9, 0xF6, 0xF8);
+    pub const BTN_FACE_TOP: [f32; 4] = rgb(0xED, 0xE8, 0xEA);
+    pub const BTN_FACE_MID: [f32; 4] = rgb(0xE6, 0xE0, 0xE3);
+    pub const BTN_FACE_BOT: [f32; 4] = rgb(0xF9, 0xF5, 0xF7);
 
-    pub const BTN_HOVER_TOP: [f32; 4] = rgb(0xC6, 0xCF, 0xE4);
-    pub const BTN_HOVER_MID: [f32; 4] = rgb(0x97, 0xAA, 0xD1);
-    pub const BTN_HOVER_BOT: [f32; 4] = rgb(0xD4, 0xDE, 0xF1);
-    pub const BTN_HOVER_BORDER: [f32; 4] = rgb(0x8E, 0xA6, 0xD2);
+    pub const BTN_HOVER_TOP: [f32; 4] = rgb(0xD0, 0xD7, 0xEA);
+    pub const BTN_HOVER_MID: [f32; 4] = rgb(0xAE, 0xC0, 0xE6);
+    pub const BTN_HOVER_BOT: [f32; 4] = rgb(0xD2, 0xDC, 0xF7);
 
-    pub const BTN_PRESS_TOP: [f32; 4] = rgb(0xAB, 0xBC, 0xE0);
-    pub const BTN_PRESS_MID: [f32; 4] = rgb(0x83, 0x98, 0xC6);
-    pub const BTN_PRESS_BOT: [f32; 4] = rgb(0xC4, 0xD3, 0xF3);
+    pub const BTN_PRESS_TOP: [f32; 4] = rgb(0xBF, 0xC9, 0xE6);
+    pub const BTN_PRESS_MID: [f32; 4] = rgb(0x9A, 0xB0, 0xDD);
+    pub const BTN_PRESS_BOT: [f32; 4] = rgb(0xC2, 0xCF, 0xF3);
 
     pub const BTN_INSET_SHADOW_TOP: [f32; 4] = rgb(0xA9, 0xA2, 0xA5);
-    pub const BTN_INSET_SHADOW_BOT: [f32; 4] = rgb(0xC4, 0xBD, 0xC0);
-    pub const BTN_INSET_SHADOW_BLUE_TOP: [f32; 4] = rgb(0x88, 0x9C, 0xC6);
-    pub const BTN_INSET_SHADOW_BLUE_BOT: [f32; 4] = rgb(0xA6, 0xBD, 0xE8);
+    pub const BTN_INSET_SHADOW_BOT: [f32; 4] = rgb(0xD4, 0xCD, 0xD0);
+    pub const BTN_INSET_SHADOW_BLUE_TOP: [f32; 4] = rgb(0x9E, 0xA6, 0xBE);
+    pub const BTN_INSET_SHADOW_BLUE_BOT: [f32; 4] = rgb(0xC6, 0xCF, 0xE6);
 
     pub const SYS_BTN: [f32; 4] = rgb(0x3E, 0x6B, 0xC7);
     pub const SYS_BTN_HOVER: [f32; 4] = rgb(0x57, 0x96, 0xFE);
@@ -53,7 +53,24 @@ impl FallbackPalette {
 
 pub const CORNER_RADIUS: f32 = 3.0;
 
-fn push_white(ui: &mut UiFrame, verts: Vec<UiVertex>, indices: Vec<u32>) {
+/// The UI surface is sRGB, so vertex colors on the untextured (White) path are
+/// re-encoded on write. Procedural fill colors are authored as sRGB, so convert
+/// them to linear here and the hardware encode lands them back on their value.
+fn to_linear(c: [f32; 4]) -> [f32; 4] {
+    let f = |x: f32| {
+        if x <= 0.04045 {
+            x / 12.92
+        } else {
+            ((x + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    [f(c[0]), f(c[1]), f(c[2]), c[3]]
+}
+
+fn push_white(ui: &mut UiFrame, mut verts: Vec<UiVertex>, indices: Vec<u32>) {
+    for v in &mut verts {
+        v.color = to_linear(v.color);
+    }
     ui.draw_calls.push(DrawCall {
         vertices: verts,
         indices,
@@ -77,16 +94,15 @@ pub fn bevel(ui: &mut UiFrame, r: Rect, radius: f32, hi: [f32; 4], lo: [f32; 4])
     seg(ui, r.x + r.w - 1.0, r.y + rad, 1.0, r.h - 2.0 * rad, lo);
 }
 
-/// Glossy rounded button that reads recessed: a `border` ring, then a dark inset
-/// shadow groove around all four inner edges (darkest at the top, fading down),
-/// then a concave top→mid→bottom glossy face, then a centered dark label.
+/// Glossy rounded button that reads recessed: a single shadow-gradient edge
+/// (dark at the top, fading lighter down the sides to the bottom) acts as the
+/// border, then a concave top→mid→bottom glossy face, then a centered dark label.
 pub fn fallback_button(ui: &mut UiFrame, r: Rect, hovered: bool, pressed: bool, label: &str) {
-    let (top, mid, bot, border, sh_top, sh_bot) = if pressed {
+    let (top, mid, bot, sh_top, sh_bot) = if pressed {
         (
             FallbackPalette::BTN_PRESS_TOP,
             FallbackPalette::BTN_PRESS_MID,
             FallbackPalette::BTN_PRESS_BOT,
-            FallbackPalette::BTN_HOVER_BORDER,
             FallbackPalette::BTN_INSET_SHADOW_BLUE_TOP,
             FallbackPalette::BTN_INSET_SHADOW_BLUE_BOT,
         )
@@ -95,7 +111,6 @@ pub fn fallback_button(ui: &mut UiFrame, r: Rect, hovered: bool, pressed: bool, 
             FallbackPalette::BTN_HOVER_TOP,
             FallbackPalette::BTN_HOVER_MID,
             FallbackPalette::BTN_HOVER_BOT,
-            FallbackPalette::BTN_HOVER_BORDER,
             FallbackPalette::BTN_INSET_SHADOW_BLUE_TOP,
             FallbackPalette::BTN_INSET_SHADOW_BLUE_BOT,
         )
@@ -104,38 +119,35 @@ pub fn fallback_button(ui: &mut UiFrame, r: Rect, hovered: bool, pressed: bool, 
             FallbackPalette::BTN_FACE_TOP,
             FallbackPalette::BTN_FACE_MID,
             FallbackPalette::BTN_FACE_BOT,
-            FallbackPalette::BTN_BORDER,
             FallbackPalette::BTN_INSET_SHADOW_TOP,
             FallbackPalette::BTN_INSET_SHADOW_BOT,
         )
     };
-    let (v, i) = draw::rounded_rect(r.x, r.y, r.w, r.h, CORNER_RADIUS, border);
-    push_white(ui, v, i);
-    let (v, i) = draw::rounded_rect_vgrad(
-        r.x + 1.0,
-        r.y + 1.0,
-        r.w - 2.0,
-        r.h - 2.0,
-        (CORNER_RADIUS - 1.0).max(0.0),
-        sh_top,
-        sh_bot,
-    );
+    let (v, i) = draw::rounded_rect_vgrad(r.x, r.y, r.w, r.h, CORNER_RADIUS, sh_top, sh_bot);
     push_white(ui, v, i);
 
-    let (fx, fy, fw, fh) = (r.x + 2.0, r.y + 2.0, r.w - 4.0, r.h - 4.0);
-    let fr = (CORNER_RADIUS - 2.0).max(0.0);
-    let half = (fh * 0.5).round();
-    let (v, i) = draw::rounded_rect_corners_vgrad(fx, fy, fw, half, [fr, fr, 0.0, 0.0], top, mid);
+    let (fx, fy, fw, fh) = (r.x + 1.0, r.y + 1.0, r.w - 2.0, r.h - 2.0);
+    let fr = (CORNER_RADIUS - 1.0).max(0.0);
+    let valley = (fh * 0.35).round();
+    let (v, i) = draw::rounded_rect_corners_vgrad(fx, fy, fw, valley, [fr, fr, 0.0, 0.0], top, mid);
     push_white(ui, v, i);
-    let (v, i) =
-        draw::rounded_rect_corners_vgrad(fx, fy + half, fw, fh - half, [0.0, 0.0, fr, fr], mid, bot);
+    let (v, i) = draw::rounded_rect_corners_vgrad(
+        fx,
+        fy + valley,
+        fw,
+        fh - valley,
+        [0.0, 0.0, fr, fr],
+        mid,
+        bot,
+    );
     push_white(ui, v, i);
 
     if !label.is_empty() {
         let tw = ui.atlas.measure_text(label);
         let tx = r.x + (r.w - tw) / 2.0;
         let ty = r.y + r.h - (ui.atlas.line_height / 2.0);
-        let (v, i) = draw::text_vertices(label, tx, ty, FallbackPalette::TEXT_ON_LIGHT, ui.atlas);
+        let (v, i) =
+            draw::text_vertices(label, tx, ty, to_linear(FallbackPalette::TEXT_ON_LIGHT), ui.atlas);
         if !v.is_empty() {
             ui.draw_calls.push(DrawCall {
                 vertices: v,

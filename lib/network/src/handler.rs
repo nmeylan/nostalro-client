@@ -40,6 +40,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             error_code: p.error_code,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketAcRefuseLoginR2>() {
+        return vec![GameEvent::LoginRefused {
+            error_code: p.error_code as u8,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketHcAcceptEnterNeoUnion>() {
         let characters = p
             .char_info
@@ -3205,6 +3210,20 @@ mod tests {
         assert_eq!(result.len(), 1);
         match &result[0] {
             GameEvent::LoginRefused { error_code } => assert_eq!(*error_code, 1),
+            other => panic!("expected LoginRefused, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_refuse_login_r2_returns_error_code() {
+        let packetver = 20120307;
+        let mut pkt = PacketAcRefuseLoginR2::new(packetver);
+        pkt.set_error_code(6);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::LoginRefused { error_code } => assert_eq!(*error_code, 6),
             other => panic!("expected LoginRefused, got {other:?}"),
         }
     }

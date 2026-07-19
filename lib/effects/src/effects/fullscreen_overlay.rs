@@ -24,6 +24,7 @@ const SLASH_FADE_FRAMES: f32 = 15.0;
 #[derive(Clone, Copy, PartialEq)]
 pub enum OverlayShape {
     WorldVignette,
+    CircleVignette,
     Wash,
 }
 
@@ -48,10 +49,10 @@ impl FullscreenOverlayParams {
 }
 
 pub const BLIND: FullscreenOverlayParams = FullscreenOverlayParams {
-    texture: "fullb.tga",
+    texture: "white02.bmp",
     tint: [10.0 / 255.0, 10.0 / 255.0, 10.0 / 255.0],
     blend: BlendKind::Alpha,
-    shape: OverlayShape::WorldVignette,
+    shape: OverlayShape::CircleVignette,
     ramp_per_frame: 1.0 / 255.0,
     max_alpha: 1.0,
     pulse: false,
@@ -258,6 +259,60 @@ fn push_world_vignette(
     band(out, -f, -d, -d, d);
 }
 
+const CIRCLE_SEGMENTS: usize = 96;
+// Clear/dark radii in world units, so the hole covers a fixed number of cells and
+// shrinks on screen as the camera zooms out. CAMERA_HALF_FOV_Y mirrors the renderer's
+// fixed 15° vertical FOV (zoom is done by moving the eye, not changing FOV).
+const CIRCLE_CLEAR_WORLD: f32 = 4.7;
+const CIRCLE_DARK_WORLD: f32 = 11.0;
+const CAMERA_HALF_FOV_Y_DEG: f32 = 7.5;
+
+fn push_circle_vignette(
+    out: &mut EffectDrawList,
+    screen_w: f32,
+    screen_h: f32,
+    ndc_per_world: f32,
+    tint: [f32; 3],
+    alpha: f32,
+) {
+    let aspect = (screen_w / screen_h).max(1e-3);
+    let clear = [tint[0], tint[1], tint[2], 0.0];
+    let dark = [tint[0], tint[1], tint[2], alpha];
+    let ry_clear = CIRCLE_CLEAR_WORLD * ndc_per_world;
+    let ry_dark = CIRCLE_DARK_WORLD * ndc_per_world;
+
+    let circle = |ry: f32, ang: f32| [ry * ang.cos() / aspect, ry * ang.sin()];
+    let screen_edge = |ang: f32| {
+        let dx = ang.cos() / aspect;
+        let dy = ang.sin();
+        let t = 1.05 / dx.abs().max(dy.abs());
+        [dx * t, dy * t]
+    };
+
+    let mut vertices: Vec<([f32; 2], [f32; 4])> = Vec::with_capacity(CIRCLE_SEGMENTS * 3);
+    for i in 0..CIRCLE_SEGMENTS {
+        let ang = i as f32 / CIRCLE_SEGMENTS as f32 * std::f32::consts::TAU;
+        vertices.push((circle(ry_clear, ang), clear));
+        vertices.push((circle(ry_dark, ang), dark));
+        vertices.push((screen_edge(ang), dark));
+    }
+
+    let mut indices: Vec<u32> = Vec::with_capacity(CIRCLE_SEGMENTS * 12);
+    for i in 0..CIRCLE_SEGMENTS {
+        let a = (3 * i) as u32;
+        let b = (3 * ((i + 1) % CIRCLE_SEGMENTS)) as u32;
+        indices.extend_from_slice(&[a, a + 1, b + 1, a, b + 1, b]);
+        indices.extend_from_slice(&[a + 1, a + 2, b + 2, a + 1, b + 2, b + 1]);
+    }
+
+    out.push(EffectPrimitiveDraw::ScreenMesh {
+        texture: "white02.bmp",
+        blend: BlendKind::Alpha,
+        vertices,
+        indices,
+    });
+}
+
 fn slash_quad(
     i: usize,
     process: f32,
@@ -343,6 +398,22 @@ impl Effect for FullscreenOverlayEffect {
                         self.params.blend,
                     );
                 }
+                OverlayShape::CircleVignette => {
+                    let eye_dist = {
+                        let d = sub(ctx.camera.eye, ctx.camera.target);
+                        (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
+                    };
+                    let ndc_per_world =
+                        1.0 / (eye_dist.max(1.0) * CAMERA_HALF_FOV_Y_DEG.to_radians().tan());
+                    push_circle_vignette(
+                        out,
+                        ctx.screen_w,
+                        ctx.screen_h,
+                        ndc_per_world,
+                        self.params.tint,
+                        self.alpha,
+                    );
+                }
                 OverlayShape::Wash => {
                     out.push(EffectPrimitiveDraw::ScreenQuad {
                         texture: self.params.texture,
@@ -402,29 +473,6 @@ mod tests {
         render_ctx_at(100.0)
     }
 
-    fn world_quads(
-        e: &FullscreenOverlayEffect,
-        ctx: &EffectRenderCtx,
-    ) -> Vec<([[f32; 3]; 4], &'static str)> {
-        let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, ctx);
-        list.primitives
-            .iter()
-            .filter_map(|p| match p {
-                EffectPrimitiveDraw::WorldQuad {
-                    corners,
-                    texture,
-                    no_depth,
-                    ..
-                } => {
-                    assert!(*no_depth, "overlay quads ignore depth");
-                    Some((*corners, *texture))
-                }
-                _ => None,
-            })
-            .collect()
-    }
-
     fn step_frames(e: &mut FullscreenOverlayEffect, n: u32) {
         for _ in 0..n {
             e.update(&ctx(1.0 / FRAMES_PER_SECOND));
@@ -451,75 +499,54 @@ mod tests {
             .collect()
     }
 
-    fn radius(p: [f32; 3]) -> f32 {
-        (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt()
+    fn screen_mesh(
+        e: &FullscreenOverlayEffect,
+        ctx: &EffectRenderCtx,
+    ) -> Vec<([f32; 2], [f32; 4])> {
+        let mut list = EffectDrawList::new();
+        e.collect_draws(&mut list, ctx);
+        list.primitives
+            .iter()
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::ScreenMesh { vertices, .. } => Some(vertices.clone()),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
+
+    fn clear_ring_radius(e: &FullscreenOverlayEffect, dist: f32) -> f32 {
+        let ctx = render_ctx_at(dist);
+        let verts = screen_mesh(e, &ctx);
+        let aspect = ctx.screen_w / ctx.screen_h;
+        let radii: Vec<f32> = verts
+            .iter()
+            .filter(|(_, c)| c[3] == 0.0)
+            .map(|([x, y], _)| ((x * aspect).powi(2) + y.powi(2)).sqrt())
+            .collect();
+        assert!(!radii.is_empty(), "inner ring is fully transparent");
+        let min = radii.iter().cloned().fold(f32::MAX, f32::min);
+        let max = radii.iter().cloned().fold(0.0_f32, f32::max);
+        assert!((max - min).abs() < 1e-3, "clear ring is a circle: {min}..{max}");
+        max
     }
 
     #[test]
-    fn blind_is_a_world_vignette_clear_hole_plus_dark_frame() {
+    fn blind_clear_hole_is_circular_and_shrinks_when_zooming_out() {
         let mut e = FullscreenOverlayEffect::new([0.0, 0.0, 0.0], BLIND);
-        step_frames(&mut e, 30);
-        let qs = world_quads(&e, &render_ctx());
+        step_frames(&mut e, 200);
 
-        let grad: Vec<_> = qs.iter().filter(|(_, t)| *t == "fullb.tga").collect();
-        let fill: Vec<_> = qs.iter().filter(|(_, t)| *t == "white02.bmp").collect();
-        assert_eq!(grad.len(), 4, "four mirrored gradient quadrants");
-        assert_eq!(fill.len(), 4, "four solid frame bands");
-
-        for (corners, _) in &grad {
-            assert!(radius(corners[0]) < 1e-3, "gradient quad starts at centre");
-        }
-        let hole = grad
-            .iter()
-            .flat_map(|(c, _)| *c)
-            .map(radius)
-            .fold(0.0_f32, f32::max);
-        let frame = fill
-            .iter()
-            .flat_map(|(c, _)| *c)
-            .map(radius)
-            .fold(0.0_f32, f32::max);
+        let near = clear_ring_radius(&e, 100.0);
+        let far = clear_ring_radius(&e, 400.0);
+        assert!(near > 0.0);
         assert!(
-            (hole - BLIND.distance * std::f32::consts::SQRT_2).abs() < 1.0,
-            "hole = distance: {hole}"
+            far < near * 0.6,
+            "zooming out shrinks the clear circle: {near} -> {far}"
         );
-        assert!(
-            frame > hole * 3.0,
-            "frame blankets far beyond the hole: {frame} vs {hole}"
-        );
-    }
 
-    #[test]
-    fn blind_hole_is_fixed_world_size_while_frame_tracks_zoom() {
-        let mut e = FullscreenOverlayEffect::new([0.0, 0.0, 0.0], BLIND);
-        step_frames(&mut e, 30);
-
-        let measure = |dist: f32| {
-            let qs = world_quads(&e, &render_ctx_at(dist));
-            let hole = qs
-                .iter()
-                .filter(|(_, t)| *t == "fullb.tga")
-                .flat_map(|(c, _)| *c)
-                .map(radius)
-                .fold(0.0_f32, f32::max);
-            let frame = qs
-                .iter()
-                .filter(|(_, t)| *t == "white02.bmp")
-                .flat_map(|(c, _)| *c)
-                .map(radius)
-                .fold(0.0_f32, f32::max);
-            (hole, frame)
-        };
-        let (near_hole, near_frame) = measure(100.0);
-        let (far_hole, far_frame) = measure(400.0);
-
+        let verts = screen_mesh(&e, &render_ctx_at(100.0));
         assert!(
-            (near_hole - far_hole).abs() < 1e-3,
-            "clear hole is zoom-independent"
-        );
-        assert!(
-            far_frame > near_frame * 3.5,
-            "dark frame grows with zoom-out: {near_frame} -> {far_frame}"
+            verts.iter().any(|(_, c)| c[3] > 0.5),
+            "outer rings darken the screen"
         );
     }
 

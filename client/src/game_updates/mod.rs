@@ -16,10 +16,6 @@ pub(crate) const CREATE_PREVIEW_GID: u32 = u32::MAX;
 
 impl App {
     fn update_account_sprites(&mut self, _delta: f32, elapsed: f32) {
-        // Player idle is a static pose (`SpriteActionType::Idle` is not animated),
-        // so char-select slots are never ticked — advancing the idle makes the head
-        // bob against the body's per-frame anchor. Only the creation preview moves,
-        // and only by turning: its idle frame stays frozen while the direction spins.
         if self.game.app_state != AppState::CharacterCreate {
             return;
         }
