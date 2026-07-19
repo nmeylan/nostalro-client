@@ -23,38 +23,6 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1300": {
-      "position": [
-        476.6667,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        524.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        490.0,
-        635.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "701": {
-      "position": [
-        100.0,
-        100.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "1400": {
       "position": [
         0.0,
@@ -63,44 +31,68 @@
       "open": false,
       "collapsed": false
     },
-    "2900": {
+    "1200": {
       "position": [
-        122.9375,
-        310.10156
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "702": {
-      "position": [
-        390.0,
-        260.0
+        400.0,
+        100.0
       ],
       "open": false,
       "collapsed": false
     },
     "10": {
       "position": [
-        420.00912,
-        553.5807
+        402.6667,
+        392.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "2900": {
+      "position": [
+        200.0,
+        120.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "900": {
+      "position": [
+        6.453125,
+        248.01172
+      ],
+      "open": true,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        476.6667,
+        0.0
       ],
       "open": false,
       "collapsed": false
     },
     "800": {
       "position": [
-        0.0,
-        100.0
+        2.9179688,
+        128.58594
       ],
       "open": true,
       "collapsed": false
     },
-    "900": {
+    "110": {
       "position": [
-        0.0,
-        210.0
+        490.0,
+        568.0
       ],
-      "open": true,
+      "open": false,
+      "collapsed": false
+    },
+    "210": {
+      "position": [
+        342.0,
+        346.0
+      ],
+      "open": false,
       "collapsed": false
     }
   },
@@ -134,44 +126,8 @@
     "/..."
   ],
   "keybindings": {
-    "ToggleEmotion": {
-      "key": "KeyL",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
     "ToggleQuest": {
       "key": "KeyU",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleShortcutList": {
-      "key": "KeyM",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleParty": {
-      "key": "KeyZ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleEquipment": {
-      "key": "KeyQ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleChatRoomCreate": {
-      "key": "KeyC",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleStatus": {
-      "key": "KeyA",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -182,8 +138,14 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleGraphicOptions": {
-      "key": "KeyD",
+    "ToggleParty": {
+      "key": "KeyZ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleEmotion": {
+      "key": "KeyL",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -194,20 +156,14 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleFriends": {
-      "key": "KeyH",
+    "ToggleStatus": {
+      "key": "KeyA",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleMercenary": {
+    "ToggleHomunculus": {
       "key": "KeyR",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleSoundOptions": {
-      "key": "KeyO",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -230,14 +186,8 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleHomunculus": {
-      "key": "KeyR",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "TogglePet": {
-      "key": "KeyJ",
+    "ToggleFriends": {
+      "key": "KeyH",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -248,16 +198,58 @@
       "ctrl": false,
       "shift": false
     },
-    "CycleMinimap": {
-      "key": "Tab",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
     "ToggleCart": {
       "key": "KeyW",
       "alt": true,
       "ctrl": false,
+      "shift": false
+    },
+    "ToggleSoundOptions": {
+      "key": "KeyO",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleGraphicOptions": {
+      "key": "KeyD",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleShortcutList": {
+      "key": "KeyM",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleEquipment": {
+      "key": "KeyQ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "TogglePet": {
+      "key": "KeyJ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleMercenary": {
+      "key": "KeyR",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
+    "ToggleChatRoomCreate": {
+      "key": "KeyC",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "CycleMinimap": {
+      "key": "Tab",
+      "alt": false,
+      "ctrl": true,
       "shift": false
     }
   },

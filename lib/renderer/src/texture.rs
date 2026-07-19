@@ -250,6 +250,12 @@ pub fn load_keyed_texture(
 
     let w = rgba.width();
     let h = rgba.height();
+    let format = if path.contains("/item/") {
+        // Avoid texture color wash for items
+        wgpu::TextureFormat::Rgba8UnormSrgb
+    } else {
+        wgpu::TextureFormat::Rgba8Unorm
+    };
     let bg = create_texture_bind_group_from_rgba(
         device,
         queue,
@@ -259,7 +265,7 @@ pub fn load_keyed_texture(
         layout,
         path,
         wgpu::FilterMode::Nearest,
-        wgpu::TextureFormat::Rgba8Unorm,
+        format,
         wgpu::AddressMode::Repeat,
     );
     Some((bg, w, h))

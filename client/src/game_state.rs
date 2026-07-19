@@ -1043,11 +1043,7 @@ impl GameState {
                 );
             }
             HOMUN_WINDOW_ID => {
-                events.extend(self.homunculus_window.build(
-                    ui,
-                    self.homunculus.as_ref(),
-                    self.self_config.homun_autofeed,
-                ));
+                events.extend(self.homunculus_window.build(ui, self.homunculus.as_ref()));
             }
             MERCENARY_WINDOW_ID => {
                 events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));

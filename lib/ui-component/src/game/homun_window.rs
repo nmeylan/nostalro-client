@@ -4,18 +4,16 @@ use crate::helper::window_chrome::{
     draw_sys_button, draw_titlebar, gauge_texture_paths, label_color, text_color,
 };
 use ragnarok_game::companion::HomunculusState;
-use ragnarok_game::event::{GameEvent, SelfConfigKind};
+use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use crate::helper::CHECKBOX;
 use crate::helper::colors;
 
 pub const HOMUN_WINDOW_ID: WidgetId = WidgetId(2900);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2901);
 const FEED_BTN_ID: WidgetId = WidgetId(2902);
 const DEL_BTN_ID: WidgetId = WidgetId(2903);
-const SELFFEED_BTN_ID: WidgetId = WidgetId(2904);
 const RENAME_INPUT_ID: WidgetId = WidgetId(2905);
 const RENAME_BTN_ID: WidgetId = WidgetId(2906);
 const SKILL_BTN_ID: WidgetId = WidgetId(2907);
@@ -103,7 +101,6 @@ impl HomunWindow {
         &mut self,
         ui: &mut UiFrame,
         homun: Option<&HomunculusState>,
-        autofeed: bool,
     ) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
@@ -241,23 +238,10 @@ impl HomunWindow {
         draw_exp_bar(ui, rx, ry + 14.0, bar_w - fw - 6.0, EXP_BAR_H, exp_ratio, grf);
         ry += fh.max(BAR_H + 14.0) + 3.0;
 
-        // Hunger row + Self Feeding checkbox.
         ui.text(rx, ry + BASELINE, "Hunger", tc);
         ui.text(rx + 46.0, ry + BASELINE, &format!("{} / 100", homun.hunger), tc);
-        let cb_size = 12.0;
-        let cb_x = right_edge - 56.0;
-        let cb_rect = Rect::new(cb_x, ry, cb_size, cb_size);
-        let mut on = autofeed;
-        if ui.checkbox(SELFFEED_BTN_ID, cb_rect, &mut on, &CHECKBOX).clicked() {
-            events.push(GameEvent::RequestSetConfig {
-                kind: SelfConfigKind::HomunculusAutofeed,
-                enabled: !autofeed,
-            });
-        }
-        ui.text(cb_x + cb_size + 4.0, ry + BASELINE, "Self", tc);
-        ui.text(cb_x + cb_size + 4.0, ry + BASELINE + 11.0, "Feeding", tc);
         let hunger_ratio = (homun.hunger.max(0) as f32 / 100.0).clamp(0.0, 1.0);
-        draw_exp_bar(ui, rx, ry + 14.0, cb_x - rx - 6.0, EXP_BAR_H, hunger_ratio, grf);
+        draw_exp_bar(ui, rx, ry + 14.0, bar_w, EXP_BAR_H, hunger_ratio, grf);
         ry += BAR_H + 16.0;
 
         ui.text(rx, ry + BASELINE, "Intimacy", tc);
