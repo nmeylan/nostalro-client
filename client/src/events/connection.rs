@@ -368,6 +368,7 @@ impl App {
         self.game.spirit_keys.clear();
         self.game.sight_aura_keys.clear();
         self.game.ruwach_aura_keys.clear();
+        self.game.weather_keys.clear();
     }
 
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
@@ -377,6 +378,7 @@ impl App {
         self.game.trade_window.reset_input();
         self.game.pending_trade_partner = None;
         self.game.map_properties = MapProperties::default();
+        self.game.damage_numbers.combat_hidden = false;
         self.game.pending_skill_target = None;
         self.game.pending_skill_id = None;
         self.game.pending_skill_level = None;

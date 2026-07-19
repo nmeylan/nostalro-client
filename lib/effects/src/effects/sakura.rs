@@ -4,23 +4,44 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 const FRAMES_PER_SECOND: f32 = 60.0;
 pub const TOTAL_DURATION_MS: u32 = 99990;
 
-const SPRITE: &str = "data/sprite/이팩트/sakura01";
-pub const SPRITES: &[&str] = &[SPRITE];
+const SAKURA_SPRITE: &str = "data/sprite/이팩트/sakura01";
+const MAPLE_SPRITE: &str = "data/sprite/이팩트/단풍";
+pub const SPRITES: &[&str] = &[SAKURA_SPRITE, MAPLE_SPRITE];
 
-const WORLD_SCALE: f32 = 0.15;
-const SPREAD: f32 = 150.0 * WORLD_SCALE;
-const TOP_HEIGHT: f32 = 200.0 * WORLD_SCALE;
-const FALL_MIN: f32 = 0.2 * WORLD_SCALE;
-const FALL_MAX: f32 = 0.4 * WORLD_SCALE;
-const DRIFT_X: f32 = 0.24 * WORLD_SCALE;
-const DRIFT_Z: f32 = 0.30 * WORLD_SCALE;
+const SPREAD: f32 = 150.0;
+const TOP_HEIGHT: f32 = 200.0;
 
-const MAX_PETALS: usize = 150;
 const SPAWN_INTERVAL_FRAMES: f32 = 2.0;
-const SIZE_MIN: f32 = 0.22;
-const SIZE_MAX: f32 = 0.28;
 const ALPHA: f32 = 200.0 / 255.0;
 const ANIM_SPEED_TICKS: f32 = 36.0;
+
+#[derive(Clone, Copy)]
+pub struct SakuraParams {
+    pub sprite: &'static str,
+    pub max_particles: usize,
+    pub fall: (f32, f32),
+    pub drift: (f32, f32),
+    pub size: (f32, f32),
+    pub random_action: bool,
+}
+
+pub const SAKURA: SakuraParams = SakuraParams {
+    sprite: SAKURA_SPRITE,
+    max_particles: 150,
+    fall: (0.2, 0.4),
+    drift: (0.24, 0.30),
+    size: (0.22, 0.28),
+    random_action: true,
+};
+
+pub const MAPLE: SakuraParams = SakuraParams {
+    sprite: MAPLE_SPRITE,
+    max_particles: 100,
+    fall: (0.06, 0.15),
+    drift: (0.12, 0.15),
+    size: (0.35, 0.40),
+    random_action: false,
+};
 
 struct Petal {
     pos: [f32; 3],
@@ -45,6 +66,7 @@ impl Rng {
 
 pub struct SakuraEffect {
     world_pos: [f32; 3],
+    params: SakuraParams,
     rng: Rng,
     petals: Vec<Petal>,
     spawn_accumulator: f32,
@@ -52,10 +74,11 @@ pub struct SakuraEffect {
 }
 
 impl SakuraEffect {
-    pub fn new(world_pos: [f32; 3]) -> Self {
+    pub fn new(world_pos: [f32; 3], params: SakuraParams) -> Self {
         let seed = (world_pos[0] * 91.0 + world_pos[2] * 57.0) as i64 as u32 ^ 0x1357_9BDF;
         Self {
             world_pos,
+            params,
             rng: Rng(seed | 1),
             petals: Vec::new(),
             spawn_accumulator: 0.0,
@@ -71,15 +94,20 @@ impl SakuraEffect {
         } else {
             top
         };
+        let action_index = if self.params.random_action {
+            (self.rng.next_u32() % 3) as usize
+        } else {
+            0
+        };
         self.petals.push(Petal {
             pos: [
                 cx + self.rng.range(-SPREAD, SPREAD),
                 y,
                 cz + self.rng.range(-SPREAD, SPREAD),
             ],
-            fall_speed: self.rng.range(FALL_MIN, FALL_MAX),
-            size: self.rng.range(SIZE_MIN, SIZE_MAX),
-            action_index: (self.rng.next_u32() % 3) as usize,
+            fall_speed: self.rng.range(self.params.fall.0, self.params.fall.1),
+            size: self.rng.range(self.params.size.0, self.params.size.1),
+            action_index,
             sway_x_phase: self.rng.range(0.0, 360.0),
             sway_z_phase: self.rng.range(0.0, 360.0),
             age_frames: 0.0,
@@ -88,12 +116,18 @@ impl SakuraEffect {
 }
 
 impl Effect for SakuraEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         let frames = ctx.delta * FRAMES_PER_SECOND;
         self.frame += frames;
 
         self.spawn_accumulator += frames;
-        while self.spawn_accumulator >= SPAWN_INTERVAL_FRAMES && self.petals.len() < MAX_PETALS {
+        while self.spawn_accumulator >= SPAWN_INTERVAL_FRAMES
+            && self.petals.len() < self.params.max_particles
+        {
             self.spawn_accumulator -= SPAWN_INTERVAL_FRAMES;
             let initial_fill = self.frame < 1.5;
             self.spawn(initial_fill);
@@ -101,18 +135,19 @@ impl Effect for SakuraEffect {
 
         let cy = self.world_pos[1];
         let ground = cy;
+        let (drift_x, drift_z) = self.params.drift;
         for p in &mut self.petals {
             p.age_frames += frames;
             p.pos[1] += p.fall_speed * frames;
             p.sway_x_phase = (p.sway_x_phase + 3.0 * frames) % 360.0;
             p.sway_z_phase = (p.sway_z_phase + 3.0 * frames) % 360.0;
-            p.pos[0] += DRIFT_X * p.sway_x_phase.to_radians().sin() * frames;
-            p.pos[2] += DRIFT_Z * p.sway_z_phase.to_radians().sin() * frames;
+            p.pos[0] += drift_x * p.sway_x_phase.to_radians().sin() * frames;
+            p.pos[2] += drift_z * p.sway_z_phase.to_radians().sin() * frames;
             if p.pos[1] > ground {
                 p.pos[0] = self.world_pos[0] + self.rng.range(-SPREAD, SPREAD);
                 p.pos[1] = cy - TOP_HEIGHT;
                 p.pos[2] = self.world_pos[2] + self.rng.range(-SPREAD, SPREAD);
-                p.fall_speed = self.rng.range(FALL_MIN, FALL_MAX);
+                p.fall_speed = self.rng.range(self.params.fall.0, self.params.fall.1);
                 p.age_frames = 0.0;
             }
         }
@@ -123,7 +158,7 @@ impl Effect for SakuraEffect {
         for p in &self.petals {
             let motion = (p.age_frames / ANIM_SPEED_TICKS) as usize;
             out.push(EffectPrimitiveDraw::SpriteParticle {
-                sprite_path: SPRITE,
+                sprite_path: self.params.sprite,
                 position: p.pos,
                 action_index: p.action_index,
                 motion_index: motion,
@@ -168,18 +203,18 @@ mod tests {
 
     #[test]
     fn petals_accumulate_to_the_cap() {
-        let mut e = SakuraEffect::new([0.0; 3]);
+        let mut e = SakuraEffect::new([0.0; 3], SAKURA);
         tick(&mut e, 10);
         let early = petals(&e).len();
         tick(&mut e, 400);
         let full = petals(&e).len();
         assert!(full > early, "petals accumulate ({early} → {full})");
-        assert_eq!(full, MAX_PETALS, "capped at {MAX_PETALS}");
+        assert_eq!(full, SAKURA.max_particles, "capped at {}", SAKURA.max_particles);
     }
 
     #[test]
     fn petals_fall_toward_the_ground() {
-        let mut e = SakuraEffect::new([0.0; 3]);
+        let mut e = SakuraEffect::new([0.0; 3], SAKURA);
         tick(&mut e, 30);
         let y0: f32 = petals(&e)
             .iter()
@@ -203,7 +238,7 @@ mod tests {
 
     #[test]
     fn action_index_varies_across_petals() {
-        let mut e = SakuraEffect::new([3.0, 0.0, 7.0]);
+        let mut e = SakuraEffect::new([3.0, 0.0, 7.0], SAKURA);
         tick(&mut e, 400);
         let actions: std::collections::BTreeSet<usize> = petals(&e)
             .iter()
@@ -217,11 +252,26 @@ mod tests {
     }
 
     #[test]
-    fn uses_resolved_sakura_sprite() {
-        let mut e = SakuraEffect::new([0.0; 3]);
-        tick(&mut e, 5);
+    fn maple_uses_its_sprite_and_action_zero() {
+        let mut e = SakuraEffect::new([0.0; 3], MAPLE);
+        tick(&mut e, 300);
+        assert_eq!(petals(&e).len(), MAPLE.max_particles, "maple leaf cap");
         assert!(petals(&e).iter().all(|p| matches!(p,
-            EffectPrimitiveDraw::SpriteParticle { sprite_path, .. } if *sprite_path == SPRITE)));
-        assert!(SPRITES.contains(&SPRITE));
+            EffectPrimitiveDraw::SpriteParticle { sprite_path, action_index, .. }
+                if *sprite_path == MAPLE_SPRITE && *action_index == 0)));
+    }
+
+    #[test]
+    fn recycled_petals_track_the_live_anchor() {
+        let mut e = SakuraEffect::new([0.0; 3], SAKURA);
+        tick(&mut e, 300);
+        e.set_position([500.0, 0.0, 500.0]);
+        tick(&mut e, 1500);
+        let near_new_anchor = petals(&e).iter().any(|p| matches!(p,
+            EffectPrimitiveDraw::SpriteParticle { position, .. } if position[0] > 300.0));
+        assert!(
+            near_new_anchor,
+            "petals that reach the ground re-enter around the moved anchor"
+        );
     }
 }

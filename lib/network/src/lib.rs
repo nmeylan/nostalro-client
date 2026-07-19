@@ -20,6 +20,7 @@ pub use sender::{
     build_make_party2_packet, build_change_party_leader_packet, build_party_invite_by_name_packet,
     build_add_friend_packet, build_ack_add_friend_packet, build_delete_friend_packet,
     build_party_chat_packet, build_req_join_party_packet,
+    build_adopt_request_packet, build_adopt_reply_packet,
     build_create_chatroom_packet, build_change_chatroom_packet, build_change_chat_owner_packet,
     build_expel_chat_member_packet, build_exit_room_packet,
     build_remember_warppoint_packet, build_lesseffect_packet, build_guild_chat_packet,

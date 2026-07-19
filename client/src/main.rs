@@ -78,6 +78,7 @@ use ragnarok_network::{
     build_whisper_packet, build_setting_whisper_pc_packet, build_setting_whisper_state_packet,
     build_alchemist_rank_packet, build_blacksmith_rank_packet, build_taekwon_rank_packet,
     build_req_disconnect_packet, build_req_join_party_packet, build_reqname_packet,
+    build_adopt_request_packet, build_adopt_reply_packet,
     build_restart_packet, build_return_savepoint_packet, build_standing_resurrection_packet,
     build_select_char_packet, build_select_warppoint_packet,
     build_sell_item_list_packet, build_shortcut_key_change_packet, build_stat_change_packet,
@@ -1550,6 +1551,20 @@ impl App {
                         accept,
                         self.config.packetver,
                     ));
+                }
+                GameEvent::RequestAdoption { target_aid } => {
+                    self.channel
+                        .send_packet(build_adopt_request_packet(target_aid, self.config.packetver));
+                }
+                GameEvent::RespondAdoptionRequest { accept } => {
+                    if let Some((father_aid, mother_aid)) = self.game.pending_adopt_request.take() {
+                        self.channel.send_packet(build_adopt_reply_packet(
+                            father_aid,
+                            mother_aid,
+                            accept,
+                            self.config.packetver,
+                        ));
+                    }
                 }
                 GameEvent::RespondGuildInvite { gdid, accept } => {
                     self.channel

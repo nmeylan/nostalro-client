@@ -223,6 +223,10 @@ fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) ->
 }
 
 impl Effect for CloudEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.step(ctx.delta * FRAMES_PER_SECOND);
         EffectStatus::Running

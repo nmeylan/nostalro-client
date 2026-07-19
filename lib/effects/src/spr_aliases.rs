@@ -52,7 +52,6 @@ impl SprDef {
 pub fn spr_def(id: EffectId) -> Option<SprDef> {
     Some(match id {
         EffectId::Torch => SprDef::new("data/sprite/이팩트/torch_01").with_anim_speed(1.0),
-        EffectId::Maple => SprDef::new("data/sprite/이팩트/단풍"),
         EffectId::Aqua => SprDef::new("data/sprite/이팩트/성수뜨기")
             .with_anim_speed(2.0)
             .one_shot()

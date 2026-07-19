@@ -101,7 +101,7 @@ TODO:
 - ~~Chat rooms~~
 - Trade
 ~~- Vending/merchant shop~~
-- Marriage/couples
+- ~~Marriage/couples~~
 
 # Network
 - ~~Chat packets~~ (done — multi-channel chat)

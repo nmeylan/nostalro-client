@@ -1609,8 +1609,16 @@ pub fn make_effect(
             hit_count.map_or(effects::chookgi::MAX_ORBS, |c| c as usize),
         )),
 
-        EffectId::Sakura => Box::new(effects::sakura::SakuraEffect::new(anchor.point())),
+        EffectId::Sakura => Box::new(effects::sakura::SakuraEffect::new(
+            anchor.point(),
+            effects::sakura::SAKURA,
+        )),
+        EffectId::Maple => Box::new(effects::sakura::SakuraEffect::new(
+            anchor.point(),
+            effects::sakura::MAPLE,
+        )),
         EffectId::Pokjuk => Box::new(effects::pokjuk::PokjukEffect::new(anchor.point())),
+        EffectId::PokjukSound => Box::new(effects::pokjuk::PokjukSoundEffect::new()),
         EffectId::Firstaid => Box::new(effects::firstaid::FirstaidEffect::new(anchor.point())),
         EffectId::TorchRed => Box::new(
             effects::animated_texture_billboard::AnimatedTextureBillboardEffect::new(

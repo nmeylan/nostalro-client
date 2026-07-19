@@ -236,6 +236,14 @@ impl App {
                 },
             },
         ];
+        if matches!(entity.job, 0..=6 | 23) {
+            items.push(ContextMenuItem {
+                label: "Adopt as Baby".to_string(),
+                action: ContextMenuAction::AdoptBaby {
+                    target_aid: entity_id,
+                },
+            });
+        }
         if let Some(g) = &self.game.guild {
             let local_gid = self
                 .game

@@ -637,7 +637,6 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::NpcStop2Del
             | EffectId::Piercebody
             | EffectId::Pinkbody
-            | EffectId::PokjukSound
             | EffectId::Pressedbody
             | EffectId::PrintFoot
             | EffectId::Process2Begin

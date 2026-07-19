@@ -173,6 +173,19 @@ mod tests {
     fn standing_resurrection_builds() {
         assert!(!build_standing_resurrection_packet(20120307).is_empty());
     }
+
+    #[test]
+    fn adopt_reply_round_trips_through_parser() {
+        let raw = build_adopt_reply_packet(111, 222, true, 20120307);
+        let parsed = packets::packets_parser::parse(&raw, 20120307);
+        let pkt = parsed
+            .as_any()
+            .downcast_ref::<PacketCzJoinBaby>()
+            .expect("expected PacketCzJoinBaby");
+        assert_eq!(pkt.aid, 111);
+        assert_eq!(pkt.gid, 222);
+        assert_eq!(pkt.answer, 1);
+    }
 }
 
 pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
@@ -837,6 +850,27 @@ pub fn build_req_join_party_packet(target_aid: u32, packetver: u32) -> Vec<u8> {
 pub fn build_join_party_reply_packet(party_grid: u32, accept: bool, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzJoinGroup::new(packetver);
     pkt.set_grid(party_grid);
+    pkt.set_answer(if accept { 1 } else { 0 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_adopt_request_packet(target_aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqJoinBaby::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_adopt_reply_packet(
+    father_aid: u32,
+    mother_aid: u32,
+    accept: bool,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzJoinBaby::new(packetver);
+    pkt.set_aid(father_aid);
+    pkt.set_gid(mother_aid);
     pkt.set_answer(if accept { 1 } else { 0 });
     pkt.fill_raw();
     pkt.raw

@@ -12,6 +12,7 @@ const ITEM_H: f32 = 18.0;
 pub enum ContextMenuAction {
     InviteToParty { target_aid: u32 },
     RequestTrade { target_aid: u32 },
+    AdoptBaby { target_aid: u32 },
     Whisper { name: String },
     ChangeGuildPosition { aid: u32, gid: u32, position_id: i32 },
     ExpelFromGuild { aid: u32, gid: u32, name: String },
@@ -109,6 +110,9 @@ impl ContextMenu {
                 }
                 ContextMenuAction::RequestTrade { target_aid } => {
                     events.push(GameEvent::RequestExchangeItem { target_aid });
+                }
+                ContextMenuAction::AdoptBaby { target_aid } => {
+                    events.push(GameEvent::RequestAdoption { target_aid });
                 }
                 ContextMenuAction::Whisper { name } => {
                     events.push(GameEvent::RequestWhisper { name });

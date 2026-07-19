@@ -173,7 +173,8 @@ impl App {
         }
     }
 
-    /// Guild emblems above every guild member's head, shown only on WoE/siege maps.
+    /// Guild emblems above the head of every guilded character and guardian mob
+    /// (castle guardians, Emperium), shown only on WoE/siege maps.
     fn build_guild_emblems(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         if !self.game.map_properties.is_siege() {
             return;
@@ -185,9 +186,9 @@ impl App {
             let Some(entity) = self.game.entities.get(entry.id) else {
                 continue;
             };
-            if entity.entity_type != EntityType::Player
-                || entity.guild_id == 0
+            if entity.guild_id == 0
                 || entity.guild_emblem_version == 0
+                || ragnarok_game::sprite_path::is_hidden(entity.effect_state)
             {
                 continue;
             }
@@ -340,7 +341,7 @@ impl App {
     fn name_hidden(&self, entity_type: EntityType) -> bool {
         let display = &self.config.display;
         match entity_type {
-            EntityType::Player => display.hide_name_player,
+            EntityType::Player => display.hide_name_player || self.game.map_properties.is_siege(),
             EntityType::Monster => display.hide_name_monster,
             EntityType::Npc => display.hide_name_npc,
             EntityType::Homunculus | EntityType::Mercenary => false,

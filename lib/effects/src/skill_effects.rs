@@ -326,7 +326,8 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         S::AcConcentration => &[E::Incagidex],
         S::MoExtremityfist => &[E::Beginasura],
 
-        S::AmCallhomun | S::AmRest | S::AmResurrecthomun | S::WeMale => &[E::Couplecasting],
+        S::AmCallhomun | S::AmRest | S::AmResurrecthomun | S::WeMale | S::WeBaby | S::WeCallparent
+        | S::WeCallbaby => &[E::Couplecasting],
         S::WeFemale => &[E::Heartcasting],
 
         S::AmTwilight1 => &[E::Twilight1],

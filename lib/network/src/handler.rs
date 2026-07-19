@@ -565,6 +565,18 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcReqBaby>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::AdoptionRequested {
+            father_aid: p.aid,
+            mother_aid: p.gid,
+            name,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBabymsg>() {
+        return vec![GameEvent::AdoptionMessage { msg_no: p.msg_no }];
+    }
+
     if let Some(p) = any.downcast_ref::<PacketZcParChange>() {
         return vec![GameEvent::ParameterChanged {
             var_id: p.var_id,
@@ -2728,6 +2740,26 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_map_property_agitzone_is_siege() {
+        let packetver = 20120307;
+        let mut agit = PacketZcNotifyMapproperty::new(packetver);
+        agit.set_atype(3);
+        let agit_events = dispatch_packet(&agit, packetver);
+        let [GameEvent::MapPropertyChanged(props)] = agit_events.as_slice() else {
+            panic!("expected MapPropertyChanged");
+        };
+        assert!(props.is_siege());
+
+        let mut normal = PacketZcNotifyMapproperty::new(packetver);
+        normal.set_atype(0);
+        let normal_events = dispatch_packet(&normal, packetver);
+        let [GameEvent::MapPropertyChanged(props)] = normal_events.as_slice() else {
+            panic!("expected MapPropertyChanged");
+        };
+        assert!(!props.is_siege());
+    }
+
+    #[test]
     fn dispatch_change_members_ack_yields_position_changes() {
         let packetver = 20120307;
         let mut row = MemberPositionInfo::new(packetver);
@@ -3622,6 +3654,34 @@ mod tests {
                 assert_eq!(*value2, 0);
             }
             other => panic!("expected EntitySpriteChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_req_baby_returns_adoption_requested() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcReqBaby::new(packetver);
+        pkt.set_aid(111);
+        pkt.set_gid(222);
+        let mut name = ['\0'; 24];
+        for (i, c) in "Daddy".chars().enumerate() {
+            name[i] = c;
+        }
+        pkt.set_name(name);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::AdoptionRequested {
+                father_aid,
+                mother_aid,
+                name,
+            } => {
+                assert_eq!(*father_aid, 111);
+                assert_eq!(*mother_aid, 222);
+                assert_eq!(name, "Daddy");
+            }
+            other => panic!("expected AdoptionRequested, got {other:?}"),
         }
     }
 

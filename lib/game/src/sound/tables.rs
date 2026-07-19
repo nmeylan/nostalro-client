@@ -322,7 +322,10 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Cartrevolution => &[at!(Fixed("effect\\EF_MagnumBreak.wav"), &[7, 20])],
         E::PotionCon => &[fixed_at0!("effect\\ac_concentration.wav")],
         E::Potion => &[at!(Fixed("effect\\ac_concentration.wav"), &[30])],
-        E::PokjukSound => &[at!(Fixed("effect\\폭죽.wav"), &[300])],
+        E::PokjukSound => &[SfxCue {
+            wave: Fixed("effect\\폭죽.wav"),
+            timing: EveryFrames(300),
+        }],
         E::Colorpaper => &[fixed_at0!("effect\\wedding.wav")],
         E::Shieldboomerang => &[fixed_at0!("effect\\cru_shield boomerang.wav")],
         E::Shieldboomerang3 => &[fixed_at0!("effect\\cru_shield boomerang.wav")],

@@ -1514,6 +1514,25 @@ pub enum GameEvent {
         position: u8,
     },
 
+    // --- Adoption ---
+    /// 0x1f6: a married couple wishes to adopt the local player. `father_aid`/
+    /// `mother_aid` are the two parents' account ids, echoed back unchanged on reply.
+    AdoptionRequested {
+        father_aid: u32,
+        mother_aid: u32,
+        name: String,
+    },
+    /// 0x216: adoption failure notice to the requesting parent.
+    AdoptionMessage {
+        msg_no: i32,
+    },
+    RequestAdoption {
+        target_aid: u32,
+    },
+    RespondAdoptionRequest {
+        accept: bool,
+    },
+
     Acknowledged,
 }
 

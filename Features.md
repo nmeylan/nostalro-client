@@ -15,6 +15,7 @@ Below what has been implemented and validated.
 - Map ground (batched by texture, lightmap atlas)
 - Water
 - Day / night cycle (light tint fade, world lighting)
+- Weather: fog, cloud, firework, snow, leaves
 - Ambient RSW effects: e.g. torch, smoke, bubble, fog
 - Mob / entity sprites
 - GR2 3D models (emperium, guardians): pure-Rust Oodle0 + Bink texture decoders, skeletal animation

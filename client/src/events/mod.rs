@@ -1,3 +1,4 @@
+mod adoption;
 mod character;
 mod chat;
 mod companion;
@@ -121,6 +122,7 @@ impl App {
                     self.handle_map_changed(map_name, x, y);
                 }
                 GameEvent::MapPropertyChanged(properties) => {
+                    self.game.damage_numbers.combat_hidden = properties.is_siege();
                     self.game.map_properties = properties;
                 }
                 GameEvent::PlayerMoved {
@@ -1416,6 +1418,16 @@ impl App {
                 }
                 GameEvent::NpcCutin { image, position } => {
                     self.handle_npc_cutin(image, position);
+                }
+                GameEvent::AdoptionRequested {
+                    father_aid,
+                    mother_aid,
+                    name,
+                } => {
+                    self.handle_adoption_requested(father_aid, mother_aid, name);
+                }
+                GameEvent::AdoptionMessage { msg_no } => {
+                    self.handle_adoption_message(msg_no);
                 }
 
                 _ => {}

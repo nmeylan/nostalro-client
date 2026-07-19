@@ -182,6 +182,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::summon_slave::TEXTURES,
         effects::bubble_drop::TEXTURES,
         effects::cartter::TEXTURES,
+        effects::pokjuk::TEXTURES,
         effects::magic_bolt::ICE_TEXTURES,
     ];
     for list in texture_lists {

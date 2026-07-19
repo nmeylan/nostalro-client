@@ -33,6 +33,25 @@ const PET_HEAD_MARKER: u16 = 100;
 const LEVEL_AURA_LAYERS: &[EffectId] = &[EffectId::Level99, EffectId::Level992, EffectId::Level993];
 const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Level993];
 
+fn is_weather_effect(id: EffectId) -> bool {
+    matches!(
+        id,
+        EffectId::Snow
+            | EffectId::Sakura
+            | EffectId::Maple
+            | EffectId::Cloud
+            | EffectId::Cloud2
+            | EffectId::Cloud3
+            | EffectId::Cloud4
+            | EffectId::Cloud5
+            | EffectId::Cloud6
+            | EffectId::Cloud7
+            | EffectId::Cloud8
+            | EffectId::Pokjuk
+            | EffectId::PokjukSound
+    )
+}
+
 impl App {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn handle_entity_spawned(
@@ -1019,12 +1038,29 @@ impl App {
         let Ok(id) = EffectId::try_from_value(effect_id as usize) else {
             return;
         };
+        if is_weather_effect(id) {
+            self.spawn_weather_effect(id, gid);
+            return;
+        }
         match value {
             Some(v) if v > 0 => self
                 .effect_queue
                 .spawn_on_with_count(id, gid, v.min(255) as u8),
             _ => self.effect_queue.spawn_on(id, gid),
         }
+    }
+
+    /// Server-driven per-map weather (snow, sakura, maple, clouds, fireworks).
+    /// The mapflag is resent on every load-end and on `/refresh`; a live instance
+    /// suppresses the resend so weather never stacks. Duration `0` maps to
+    /// `u32::MAX` so the effect lives until map change clears `weather_keys`.
+    fn spawn_weather_effect(&mut self, id: EffectId, gid: u32) {
+        if self.game.weather_keys.contains_key(&id) {
+            return;
+        }
+        let key = self.next_entity_effect_key();
+        self.effect_queue.spawn_on_keyed_for(id, gid, key, 0);
+        self.game.weather_keys.insert(id, key);
     }
 
     pub(super) fn handle_play_misc_effect_on_entity(&mut self, gid: u32, code: u8) {
@@ -1184,5 +1220,29 @@ impl App {
         if let Some(trap) = self.game.hidden_traps.remove(&gid) {
             self.game.trap_units.insert(gid, trap);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weather_ids_dedup_but_fireworks_throw_stays_one_shot() {
+        for id in [
+            EffectId::Snow,
+            EffectId::Sakura,
+            EffectId::Maple,
+            EffectId::Cloud4,
+            EffectId::Cloud5,
+            EffectId::Pokjuk,
+            EffectId::PokjukSound,
+        ] {
+            assert!(is_weather_effect(id), "{id:?} should be keyed weather");
+        }
+        assert!(
+            !is_weather_effect(EffectId::Throwitem2),
+            "the fireworks item-toss is a normal one-shot, not deduped weather"
+        );
     }
 }

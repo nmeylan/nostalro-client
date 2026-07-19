@@ -42,6 +42,20 @@ impl DamageNumberType {
         matches!(self, Self::Miss | Self::Lucky)
     }
 
+    pub fn is_combat_damage(&self) -> bool {
+        matches!(
+            self,
+            Self::Normal
+                | Self::Skill
+                | Self::Critical
+                | Self::Enemy
+                | Self::Combo
+                | Self::ComboFinal
+                | Self::MultiHit
+                | Self::MultiHitTotal
+        )
+    }
+
     pub fn duration(&self) -> f32 {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
@@ -360,6 +374,7 @@ pub fn build_damage_number_quads(
 
 pub struct DamageNumberManager {
     pub numbers: Vec<DamageNumber>,
+    pub combat_hidden: bool,
 }
 
 impl Default for DamageNumberManager {
@@ -372,6 +387,7 @@ impl DamageNumberManager {
     pub fn new() -> Self {
         Self {
             numbers: Vec::new(),
+            combat_hidden: false,
         }
     }
 
@@ -380,6 +396,9 @@ impl DamageNumberManager {
     }
 
     pub fn add(&mut self, number: DamageNumber) {
+        if self.combat_hidden && number.number_type.is_combat_damage() {
+            return;
+        }
         let removes_combo = number.number_type.is_total() || number.number_type.is_combo();
         if removes_combo {
             self.numbers
@@ -614,6 +633,26 @@ mod tests {
         let d_right = DamageNumber::new(1, 100, DamageNumberType::Normal, 5);
         assert!(d_left.x_offset() < 0.0);
         assert!(d_right.x_offset() > 0.0);
+    }
+
+    #[test]
+    fn combat_hidden_suppresses_damage_but_keeps_miss_and_heal() {
+        let mut mgr = DamageNumberManager::new();
+        mgr.combat_hidden = true;
+
+        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false);
+        assert!(mgr.numbers.is_empty());
+
+        mgr.emit(1, 0, &ScheduledHit::single(0, 0, false), false);
+        assert_eq!(mgr.numbers.last().unwrap().number_type, DamageNumberType::Miss);
+
+        mgr.add(DamageNumber::new(1, 42, DamageNumberType::Heal, 0));
+        assert!(mgr.numbers.iter().any(|n| n.number_type == DamageNumberType::Heal));
+
+        mgr.combat_hidden = false;
+        let before = mgr.numbers.len();
+        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false);
+        assert_eq!(mgr.numbers.len(), before + 1);
     }
 
     #[test]

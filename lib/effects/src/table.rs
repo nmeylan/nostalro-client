@@ -764,12 +764,15 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             duration_ms: chookgi::TOTAL_DURATION_MS,
         },
 
-        EffectId::Sakura => EffectSpec::Custom {
+        EffectId::Sakura | EffectId::Maple => EffectSpec::Custom {
             duration_ms: sakura::TOTAL_DURATION_MS,
         },
 
         EffectId::Pokjuk => EffectSpec::Custom {
             duration_ms: pokjuk::TOTAL_DURATION_MS,
+        },
+        EffectId::PokjukSound => EffectSpec::Custom {
+            duration_ms: u32::MAX,
         },
 
         EffectId::Firstaid => EffectSpec::Custom {
@@ -1006,6 +1009,25 @@ mod tests {
             effect_spec(EffectId::Level99),
             Some(EffectSpec::Custom { .. })
         ));
+    }
+
+    #[test]
+    fn weather_effects_route_to_their_procedural_impls() {
+        assert!(
+            matches!(effect_spec(EffectId::Maple), Some(EffectSpec::Custom { .. })),
+            "Maple must reach the sakura machinery, not a frozen spr"
+        );
+        assert!(
+            matches!(
+                effect_spec(EffectId::PokjukSound),
+                Some(EffectSpec::Custom { .. })
+            ),
+            "PokjukSound must hold a silent entry so its SFX schedule fires"
+        );
+        assert!(
+            matches!(effect_spec(EffectId::Snow), Some(EffectSpec::SprBurst { .. })),
+            "Snow stays on the SprBurst path"
+        );
     }
 
     #[test]

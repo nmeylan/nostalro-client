@@ -20,6 +20,7 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
+use models::enums::effect_id::EffectId;
 use ragnarok_game::gr2_model::Gr2ModelInstance;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::skill::SkillTargetType;
@@ -302,6 +303,8 @@ pub struct GameState {
     pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_guild_invite: Option<u32>,
     pub guild_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_adopt_request: Option<(u32, u32)>,
+    pub adopt_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_guild_ally: Option<u32>,
     pub guild_ally_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_guild_confirm: Option<PendingGuildConfirm>,
@@ -328,6 +331,7 @@ pub struct GameState {
     pub spirit_keys: HashMap<u32, u32>,
     pub sight_aura_keys: HashMap<u32, u32>,
     pub ruwach_aura_keys: HashMap<u32, u32>,
+    pub weather_keys: HashMap<EffectId, u32>,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
     pub self_config: SelfConfig,
@@ -594,6 +598,14 @@ impl GameState {
                 accept: result == ConfirmResult::Ok,
             });
             self.pending_guild_invite = None;
+        }
+
+        if self.pending_adopt_request.is_some()
+            && let Some(result) = self.adopt_request_result.take()
+        {
+            events.push(GameEvent::RespondAdoptionRequest {
+                accept: result == ConfirmResult::Ok,
+            });
         }
 
         if let Some(aid) = self.pending_guild_ally
@@ -1308,6 +1320,8 @@ impl GameState {
             party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             pending_guild_invite: None,
             guild_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            pending_adopt_request: None,
+            adopt_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             pending_guild_ally: None,
             guild_ally_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             pending_guild_confirm: None,
@@ -1337,6 +1351,7 @@ impl GameState {
             spirit_keys: HashMap::new(),
             sight_aura_keys: HashMap::new(),
             ruwach_aura_keys: HashMap::new(),
+            weather_keys: HashMap::new(),
         }
     }
 

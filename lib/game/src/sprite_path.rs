@@ -200,6 +200,8 @@ pub fn mounted_job(job: u16) -> Option<u16> {
         14 => Some(21),
         4008 => Some(4014),
         4015 => Some(4022),
+        4030 => Some(4036),
+        4037 => Some(4044),
         _ => None,
     }
 }
@@ -240,12 +242,30 @@ pub fn unmounted_job(job: u16) -> Option<u16> {
         21 => Some(14),
         4014 => Some(4008),
         4022 => Some(4015),
+        4036 => Some(4030),
+        4044 => Some(4037),
         _ => None,
     }
 }
 
+/// Baby classes (4023–4045) reuse their base job's resources, drawn smaller.
+pub const BABY_BODY_SCALE: f32 = 0.8;
+
+pub fn is_baby(job: u16) -> bool {
+    (4023..=4045).contains(&job)
+}
+
+/// The adult job a baby class draws as. Identity for non-baby jobs.
+pub fn base_job(job: u16) -> u16 {
+    match job {
+        4045 => 23,
+        4023..=4044 => job - 4023,
+        _ => job,
+    }
+}
+
 fn job_name_kr(job_class: u16) -> &'static str {
-    match job_class {
+    match base_job(job_class) {
         0 => "초보자",
         1 => "검사",
         2 => "마법사",
@@ -779,6 +799,19 @@ mod tests {
         assert_eq!(visual_job(7, 0), 7);
         assert_eq!(visual_job(14, 0), 14);
         assert_eq!(visual_job(7, 0x01), 7);
+    }
+
+    #[test]
+    fn baby_class_resolves_to_base_job_sprite_and_rides() {
+        assert!(is_baby(4024));
+        assert!(!is_baby(1));
+        assert_eq!(
+            body_sprite_path(4024, 1),
+            "data/sprite/인간족/몸통/남/검사_남"
+        );
+        assert_eq!(base_job(4045), 23);
+        assert_eq!(visual_job(4030, OPTION_RIDING), 4036);
+        assert_eq!(unmounted_job(4036), Some(4030));
     }
 
     #[test]
