@@ -2231,17 +2231,17 @@ mod tests {
                 elapsed: 0.0,
             },
         );
-        let center = draws
+        let pos = draws
             .primitives
             .iter()
             .find_map(|p| match p {
-                EffectPrimitiveDraw::GroundDisc { center, .. } => Some(*center),
+                EffectPrimitiveDraw::BillboardRing { pos, .. } => Some(*pos),
                 _ => None,
             })
-            .expect("magnum_break emits a GroundDisc");
+            .expect("magnum_break emits a BillboardRing");
         assert!(
-            (center[0] - anchor_pos[0]).abs() < 1e-3 && (center[2] - anchor_pos[2]).abs() < 1e-3,
-            "GroundDisc centre {center:?} should match anchor {anchor_pos:?}",
+            (pos[0] - anchor_pos[0]).abs() < 1e-3 && (pos[2] - anchor_pos[2]).abs() < 1e-3,
+            "BillboardRing pos {pos:?} should match anchor {anchor_pos:?}",
         );
     }
 
