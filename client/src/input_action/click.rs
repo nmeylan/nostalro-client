@@ -1,5 +1,6 @@
 use crate::App;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
@@ -25,7 +26,7 @@ impl App {
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
-        if self.player_in_autocounter() {
+        if autocounter::player_in_autocounter(&self.game.entities) {
             self.dispel_autocounter();
             return;
         }

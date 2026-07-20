@@ -3,6 +3,7 @@ use models::enums::EnumWithNumberValue;
 use crate::App;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::ailment;
+use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::path::try_move_to_range;
@@ -163,7 +164,7 @@ impl App {
         py: u16,
         range: i32,
     ) -> bool {
-        if self.player_in_autocounter() {
+        if autocounter::player_in_autocounter(&self.game.entities) {
             self.dispel_autocounter();
             return false;
         }

@@ -2,6 +2,7 @@ pub mod ailment;
 pub mod animation;
 pub mod app_state;
 pub mod arrow;
+pub mod autocounter;
 pub mod banner;
 pub mod book;
 pub mod character;

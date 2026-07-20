@@ -289,7 +289,10 @@ impl EntityCollection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::autocounter::channel_params;
+    use crate::character::Character;
     use crate::entity::EntityType;
+    use crate::skill::{SkillData, SkillTargetType};
 
     fn make_entity(id: u32) -> Entity {
         Entity::new(
@@ -465,6 +468,25 @@ mod tests {
         assert_eq!(
             e.direction,
             direction_from_positions(10, 10, 10, 15).unwrap()
+        );
+
+        let mut character = Character::default();
+        character.skills.set_skills(vec![SkillData {
+            id: 61,
+            name: "KN_AUTOCOUNTER".to_string(),
+            level: 3,
+            selected_level: 3,
+            sp_cost: 0,
+            attack_range: 0,
+            upgradable: false,
+            skill_target_type: SkillTargetType::Target,
+        }]);
+        let params = channel_params(&character, true, Some(200), None);
+        assert_eq!(params.duration, 3.0 * 0.4);
+        assert_eq!(params.face, Some(200));
+        assert_eq!(
+            channel_params(&character, false, Some(200), Some(300)).face,
+            None
         );
     }
 

@@ -1225,8 +1225,12 @@ mod tests {
         let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.mouse_x = 300.0;
-        ctx.mouse_y = 226.0;
+        let win_x = 80.0;
+        let win_y = 50.0;
+        let content_y = win_y + TITLE_H + TAB_H;
+        let alliance_row_y = content_y + 98.0 + 2.0;
+        ctx.mouse_x = win_x + 301.0 + 168.0 / 2.0;
+        ctx.mouse_y = alliance_row_y + 13.0 / 2.0;
         ctx.mouse_right_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         let events = win.build(&mut ui, &mut character, &data);

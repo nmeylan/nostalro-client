@@ -28,6 +28,7 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_ui_component::game::chat_room_member_window;
+use ragnarok_game::autocounter;
 use ragnarok_game::event::GameEvent;
 use ragnarok_network::build_npc_close_packet;
 use ragnarok_renderer::Renderer;
@@ -831,7 +832,7 @@ impl App {
                     y,
                     skill_name,
                 } => {
-                    if Self::is_kn_autocounter(skill_id)
+                    if autocounter::is_kn_autocounter(skill_id)
                         && self.game.entities.player_id() == Some(gid)
                     {
                         self.start_autocounter_channel(gid);
@@ -898,7 +899,7 @@ impl App {
                     target_gid,
                     level,
                 } => {
-                    if Self::is_kn_autocounter(skill_id)
+                    if autocounter::is_kn_autocounter(skill_id)
                         && self.game.entities.player_id() == Some(src_gid)
                     {
                         self.start_autocounter_channel(src_gid);
