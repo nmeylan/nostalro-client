@@ -46,9 +46,9 @@ cpal = "0.16"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3"] }
 
 # Server crate git dependencies
-models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "4eafa57" }
-movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "4eafa57" }
-packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "4eafa57" }
+models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "e227bc5c" }
+movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "e227bc5c" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "e227bc5c" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }
@@ -64,6 +64,6 @@ libloading = "0.8"
 
 
 #[patch."https://github.com/nmeylan/rust-ro.git"]
-#packets = { path = "../rust-ragnarok-server/lib/packets" }
-#models = { path = "../rust-ragnarok-server/lib/models" }
-#movement = { path = "../rust-ragnarok-server/lib/movement" }
+#packets = { path = "../../../rust-ragnarok-server/lib/packets" }
+#models = { path = "../../../rust-ragnarok-server/lib/models" }
+#movement = { path = "../../../rust-ragnarok-server/lib/movement" }
