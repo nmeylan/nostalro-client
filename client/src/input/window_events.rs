@@ -292,8 +292,7 @@ impl App {
                     self.input.right_dragged = true;
                 }
                 if let Some(renderer) = &mut self.renderer {
-                    super::handle_camera_drag(
-                        &mut renderer.camera,
+                    renderer.camera.apply_drag(
                         dx,
                         dy,
                         self.config.free_camera,
@@ -312,7 +311,7 @@ impl App {
                 MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
             };
             if let Some(renderer) = &mut self.renderer {
-                super::handle_camera_zoom(&mut renderer.camera, scroll, self.game.camera_locked);
+                renderer.camera.apply_zoom(scroll, self.game.camera_locked);
             }
         }
     }

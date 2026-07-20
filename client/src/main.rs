@@ -278,7 +278,7 @@ impl App {
                 if !was_locked {
                     self.game.saved_camera_yaw = Some(renderer.camera.yaw);
                 }
-                input::lock_indoor_camera(&mut renderer.camera);
+                renderer.camera.lock_indoor();
             } else if was_locked && let Some(yaw) = self.game.saved_camera_yaw.take() {
                 renderer.camera.yaw = yaw;
             }
