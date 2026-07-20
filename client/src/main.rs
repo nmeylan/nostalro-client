@@ -397,15 +397,12 @@ impl App {
     }
 
     fn hovered_cell(&self) -> Option<(i32, i32)> {
-        let (renderer, coords) = match (&self.renderer, &self.game.map_coords) {
-            (Some(r), Some(c)) => (r, c),
-            _ => return None,
-        };
+        let (renderer, coords, screen_w, screen_h) = self.screen_dims()?;
         input::hovered_cell(
             self.input.mouse_position,
             &renderer.camera,
-            renderer.device.surface_config.width as f32 / renderer.dpi_scale,
-            renderer.device.surface_config.height as f32 / renderer.dpi_scale,
+            screen_w,
+            screen_h,
             coords,
             self.game.gat.as_ref(),
         )
@@ -2867,73 +2864,111 @@ impl App {
         None
     }
 
+    fn screen_dims(
+        &self,
+    ) -> Option<(
+        &Renderer,
+        &ragnarok_game::map_coordinates::MapCoordinates,
+        f32,
+        f32,
+    )> {
+        let renderer = self.renderer.as_ref()?;
+        let coords = self.game.map_coords.as_ref()?;
+        let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+        let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        Some((renderer, coords, screen_w, screen_h))
+    }
+
+    fn push_projected(
+        list: &mut Vec<RenderEntry>,
+        kind: RenderEntryKind,
+        id: u32,
+        projected: Option<([f32; 2], f32, u8, f32, [f32; 2])>,
+        flat_depth_gradient: Option<[f32; 2]>,
+        camera_dir: Option<u8>,
+        bounds: impl FnOnce([f32; 2], f32, u8, f32) -> ([f32; 4], f32),
+    ) {
+        let Some((screen_anchor, depth, projected_dir, sprite_scale, depth_gradient)) = projected
+        else {
+            return;
+        };
+        let (pick_bounds, head_offset) = bounds(screen_anchor, depth, projected_dir, sprite_scale);
+        list.push(RenderEntry {
+            kind,
+            id,
+            screen_anchor,
+            depth,
+            depth_gradient,
+            flat_depth_gradient: flat_depth_gradient.unwrap_or(depth_gradient),
+            camera_dir: camera_dir.unwrap_or(projected_dir),
+            sprite_scale,
+            pick_bounds,
+            head_offset,
+        });
+    }
+
     fn compute_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for entity in self.game.entities.iter() {
-                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
-                    input::entity_screen_params(
-                        entity.movement.position(),
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        renderer.device.surface_config.width as f32 / renderer.dpi_scale,
-                        renderer.device.surface_config.height as f32 / renderer.dpi_scale,
-                    )
-                {
-                    let (pick_bounds, head_offset) = match self.game.sprites.get(&entity.id) {
-                        Some(sprite) => (
-                            sprite.compute_pick_bounds(
-                                &entity.animation,
-                                Some(camera_dir),
-                                entity.head_dir,
-                                screen_anchor,
-                                depth,
-                                sprite_scale,
+                let projected = input::entity_screen_params(
+                    entity.movement.position(),
+                    self.game.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                let flat_depth_gradient = input::entity_ground_gradient(
+                    entity.movement.position(),
+                    self.game.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Entity,
+                    entity.id,
+                    projected,
+                    Some(flat_depth_gradient),
+                    None,
+                    |screen_anchor, depth, camera_dir, sprite_scale| {
+                        match self.game.sprites.get(&entity.id) {
+                            Some(sprite) => (
+                                sprite.compute_pick_bounds(
+                                    &entity.animation,
+                                    Some(camera_dir),
+                                    entity.head_dir,
+                                    screen_anchor,
+                                    depth,
+                                    sprite_scale,
+                                ),
+                                sprite.compute_head_offset(
+                                    &entity.animation,
+                                    Some(camera_dir),
+                                    entity.head_dir,
+                                    screen_anchor,
+                                    depth,
+                                    sprite_scale,
+                                ),
                             ),
-                            sprite.compute_head_offset(
-                                &entity.animation,
-                                Some(camera_dir),
-                                entity.head_dir,
-                                screen_anchor,
-                                depth,
-                                sprite_scale,
-                            ),
-                        ),
-                        None => {
-                            let half = 50.0;
-                            (
-                                [
-                                    screen_anchor[0] - half,
-                                    screen_anchor[1] - 100.0,
-                                    screen_anchor[0] + half,
-                                    screen_anchor[1],
-                                ],
-                                100.0,
-                            )
+                            None => {
+                                let half = 50.0;
+                                (
+                                    [
+                                        screen_anchor[0] - half,
+                                        screen_anchor[1] - 100.0,
+                                        screen_anchor[0] + half,
+                                        screen_anchor[1],
+                                    ],
+                                    100.0,
+                                )
+                            }
                         }
-                    };
-                    let flat_depth_gradient = input::entity_ground_gradient(
-                        entity.movement.position(),
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        renderer.device.surface_config.width as f32 / renderer.dpi_scale,
-                        renderer.device.surface_config.height as f32 / renderer.dpi_scale,
-                    );
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::Entity,
-                        id: entity.id,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient,
-                        camera_dir,
-                        sprite_scale,
-                        pick_bounds,
-                        head_offset,
-                    });
-                }
+                    },
+                );
             }
         }
         render_list.sort_by(|a, b| {
@@ -2946,9 +2981,7 @@ impl App {
 
     fn compute_cart_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for entity in self.game.entities.iter() {
                 if entity.cart_type.is_none() || !self.game.carts.contains_key(&entity.id) {
                     continue;
@@ -2959,29 +2992,23 @@ impl App {
                     px - ox * crate::sprite::cart::CART_TRAIL_DISTANCE,
                     py - oy * crate::sprite::cart::CART_TRAIL_DISTANCE,
                 );
-                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
-                    input::entity_screen_params(
-                        cart_pos,
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                    )
-                {
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::Cart,
-                        id: entity.id,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient: depth_gradient,
-                        camera_dir,
-                        sprite_scale,
-                        pick_bounds: [0.0; 4],
-                        head_offset: 0.0,
-                    });
-                }
+                let projected = input::entity_screen_params(
+                    cart_pos,
+                    self.game.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Cart,
+                    entity.id,
+                    projected,
+                    None,
+                    None,
+                    |_, _, _, _| ([0.0; 4], 0.0),
+                );
             }
         }
         render_list
@@ -2989,32 +3016,24 @@ impl App {
 
     fn compute_falcon_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for (gid, falcon) in self.game.falcons.iter() {
-                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
-                    input::project_world_screen(
-                        falcon.motion.pos,
-                        coords,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                    )
-                {
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::Falcon,
-                        id: *gid,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient: depth_gradient,
-                        camera_dir,
-                        sprite_scale,
-                        pick_bounds: [0.0; 4],
-                        head_offset: 0.0,
-                    });
-                }
+                let projected = input::project_world_screen(
+                    falcon.motion.pos,
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Falcon,
+                    *gid,
+                    projected,
+                    None,
+                    None,
+                    |_, _, _, _| ([0.0; 4], 0.0),
+                );
             }
         }
         render_list
@@ -3022,41 +3041,36 @@ impl App {
 
     fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for floor_item in self.game.floor_items.values() {
-                let pos = floor_item.world_position();
-                if let Some((screen_anchor, depth, _camera_dir, sprite_scale, depth_gradient)) =
-                    input::entity_screen_params(
-                        pos,
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                    )
-                {
-                    let half = 17.0 * sprite_scale;
-                    let pick_bounds = [
-                        screen_anchor[0] - half,
-                        screen_anchor[1] - half,
-                        screen_anchor[0] + half,
-                        screen_anchor[1] + half,
-                    ];
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::FloorItem,
-                        id: floor_item.id,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient: depth_gradient,
-                        camera_dir: 0,
-                        sprite_scale,
-                        pick_bounds,
-                        head_offset: half * 2.0,
-                    });
-                }
+                let projected = input::entity_screen_params(
+                    floor_item.world_position(),
+                    self.game.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::FloorItem,
+                    floor_item.id,
+                    projected,
+                    None,
+                    Some(0),
+                    |screen_anchor, _, _, sprite_scale| {
+                        let half = 17.0 * sprite_scale;
+                        (
+                            [
+                                screen_anchor[0] - half,
+                                screen_anchor[1] - half,
+                                screen_anchor[0] + half,
+                                screen_anchor[1] + half,
+                            ],
+                            half * 2.0,
+                        )
+                    },
+                );
             }
         }
         render_list.sort_by(|a, b| {
