@@ -92,20 +92,16 @@ impl App {
         if self.roulette_act.is_some() {
             return;
         }
-        if let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer) {
+        if let Some(grf) = &self.grf {
             let data = ragnarok_game::sprite_loader::load_sprite_data(
                 grf,
                 "data/sprite/slotmachine.spr",
                 "data/sprite/slotmachine.act",
             );
-            if let Some(data) = data {
-                self.roulette_textures = Some(ragnarok_renderer::upload_sprite_textures(
-                    &data.images,
-                    data.indexed_count,
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    &renderer.texture_cache.bind_group_layout,
-                ));
+            if let Some(data) = data
+                && let Some(textures) = self.upload_sprite(&data)
+            {
+                self.roulette_textures = Some(textures);
                 self.roulette_act = Some(data.act);
             }
         }

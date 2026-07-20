@@ -9,13 +9,14 @@ pub(crate) use falcon::FalconVisual;
 use crate::App;
 use models::enums::weapon::WeaponType;
 use ragnarok_formats::gr2::{Gr2Container, Gr2File};
+use ragnarok_formats::spr::SpriteData;
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::gr2_model::{self, AnimationClip, Gr2Action, Gr2ModelInstance, SkeletonPose};
 use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
 use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
-use ragnarok_renderer::{EntitySprite, build_entity_sprite};
+use ragnarok_renderer::{EntitySprite, SpriteTextures, build_entity_sprite, upload_sprite_textures};
 use std::rc::Rc;
 
 fn parse_gr2_file(bytes: &[u8], path: &str) -> Option<Gr2File> {
@@ -28,6 +29,17 @@ fn parse_gr2_file(bytes: &[u8], path: &str) -> Option<Gr2File> {
 }
 
 impl App {
+    pub(crate) fn upload_sprite(&self, data: &SpriteData) -> Option<SpriteTextures> {
+        let renderer = self.renderer.as_ref()?;
+        Some(upload_sprite_textures(
+            &data.images,
+            data.indexed_count,
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+        ))
+    }
+
     pub(crate) fn reload_player_sprite(&mut self, gid: u32) {
         let entity = match self.game.entities.get(gid) {
             Some(e) => e,

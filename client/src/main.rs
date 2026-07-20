@@ -97,7 +97,7 @@ use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
-    block_on, upload_sprite_textures,
+    block_on,
 };
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -492,19 +492,14 @@ impl App {
         self.game.floor_items.insert(id, floor_item);
 
         if let Some(res_name) = &resource_name
-            && let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer)
+            && let Some(grf) = &self.grf
         {
             let base = format!("data/sprite/아이템/{res_name}");
             let spr_path = format!("{base}.spr");
             let act_path = format!("{base}.act");
-            if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path) {
-                let tex = upload_sprite_textures(
-                    &data.images,
-                    data.indexed_count,
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    &renderer.texture_cache.bind_group_layout,
-                );
+            if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path)
+                && let Some(tex) = self.upload_sprite(&data)
+            {
                 self.game
                     .floor_item_sprites
                     .insert(id, (Rc::new(tex), data.act));

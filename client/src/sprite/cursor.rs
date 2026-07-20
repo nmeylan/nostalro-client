@@ -3,23 +3,13 @@ use crate::ClipData;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::cursor::{CursorType, RenderEntry};
 use ragnarok_game::sprite_loader;
-use ragnarok_renderer::{build_clip_quad, upload_sprite_textures};
+use ragnarok_renderer::build_clip_quad;
 
 impl App {
     pub(crate) fn load_cursor_sprite(&mut self, grf: &GrfArchive) {
-        let renderer = match &self.renderer {
-            Some(r) => r,
-            None => return,
-        };
-
-        if let Some(sprite_data) = sprite_loader::load_cursor_sprite(grf) {
-            let textures = upload_sprite_textures(
-                &sprite_data.images,
-                sprite_data.indexed_count,
-                &renderer.device.device,
-                &renderer.device.queue,
-                &renderer.texture_cache.bind_group_layout,
-            );
+        if let Some(sprite_data) = sprite_loader::load_cursor_sprite(grf)
+            && let Some(textures) = self.upload_sprite(&sprite_data)
+        {
             self.game.cursor_textures = Some(textures);
             self.game.cursor_act = Some(sprite_data.act);
 
