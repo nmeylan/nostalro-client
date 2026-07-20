@@ -15,6 +15,8 @@ use crate::data_table::skill_use_level_table::SkillUseLevelTable;
 pub mod accessory_table;
 pub mod card_illustration_table;
 pub mod card_name_table;
+pub mod fog_table;
+pub mod indoor_table;
 pub mod item_description_table;
 pub mod item_name_table;
 pub mod item_resource_table;

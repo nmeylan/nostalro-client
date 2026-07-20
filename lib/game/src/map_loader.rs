@@ -1,12 +1,11 @@
-use std::collections::HashSet;
-use std::sync::OnceLock;
-
-use ragnarok_formats::fog_table::{FogEntry, FogTable};
+use ragnarok_formats::fog_table::FogEntry;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::rsw::RswFile;
 
+use crate::data_table::fog_table::fog_table;
+use crate::data_table::indoor_table::indoor_table;
 use crate::map_coordinates::MapCoordinates;
 
 pub struct MapData {
@@ -17,54 +16,6 @@ pub struct MapData {
     pub fog: Option<FogEntry>,
     /// Indoor maps lock the camera rotation to a fixed angle.
     pub indoor: bool,
-}
-
-static FOG_TABLE: OnceLock<Option<FogTable>> = OnceLock::new();
-static INDOOR_TABLE: OnceLock<HashSet<String>> = OnceLock::new();
-
-fn indoor_table(grf: &GrfArchive) -> &'static HashSet<String> {
-    INDOOR_TABLE.get_or_init(|| {
-        let mut set = HashSet::new();
-        match grf.read_file("data/indoorrswtable.txt") {
-            Ok(data) => {
-                let text = String::from_utf8_lossy(&data);
-                for line in text.lines() {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() || trimmed.starts_with("//") {
-                        continue;
-                    }
-                    let name = trimmed.trim_end_matches('#').trim();
-                    if !name.is_empty() {
-                        set.insert(name.to_ascii_lowercase());
-                    }
-                }
-                tracing::info!("Loaded indoor rsw table ({} entries)", set.len());
-            }
-            Err(e) => tracing::info!("No indoor rsw table in GRF: {e}"),
-        }
-        set
-    })
-}
-
-fn fog_table(grf: &GrfArchive) -> Option<&'static FogTable> {
-    FOG_TABLE
-        .get_or_init(|| match grf.read_file("data/fogparametertable.txt") {
-            Ok(data) => match FogTable::parse(&data) {
-                Ok(table) => {
-                    tracing::info!("Loaded fog table ({} entries)", table.entries.len());
-                    Some(table)
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to parse fog table: {e}");
-                    None
-                }
-            },
-            Err(e) => {
-                tracing::info!("No fog table in GRF: {e}");
-                None
-            }
-        })
-        .as_ref()
 }
 
 pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
