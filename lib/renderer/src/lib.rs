@@ -32,7 +32,7 @@ pub use effect::{
     prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use effect_sprite::{
-    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, Smoke3DParticle, SpriteEffectEmitter,
+    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, BurstParticle, SpriteEffectEmitter,
     build_emitter_batches, collect_sprite_effect_draws, prepare_sprite_particle_records,
     project_billboard,
 };

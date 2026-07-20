@@ -1459,7 +1459,7 @@ impl App {
         spr_inputs.extend(
             burst_snapshots
                 .iter()
-                .map(|b| SpriteEffectEmitter::Smoke3D {
+                .map(|b| SpriteEffectEmitter::ParticleBurst {
                     sprite_path: &b.sprite,
                     alpha_max: b.alpha_max,
                     color: [1.0, 1.0, 1.0, 1.0],

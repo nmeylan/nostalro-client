@@ -63,7 +63,7 @@ ragnarok-audio = { path = "lib/audio" }
 libloading = "0.8"
 
 
-[patch."https://github.com/nmeylan/rust-ro.git"]
-packets = { path = "../rust-ragnarok-server/lib/packets" }
-models = { path = "../rust-ragnarok-server/lib/models" }
-movement = { path = "../rust-ragnarok-server/lib/movement" }
+#[patch."https://github.com/nmeylan/rust-ro.git"]
+#packets = { path = "../rust-ragnarok-server/lib/packets" }
+#models = { path = "../rust-ragnarok-server/lib/models" }
+#movement = { path = "../rust-ragnarok-server/lib/movement" }

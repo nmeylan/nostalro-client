@@ -13,7 +13,7 @@ use ragnarok_game::effect::{
 
 use ragnarok_game::sound::tables::{SfxSchedule, SfxTiming, WaveChoice, effect_sound};
 
-use crate::effect_sprite::Smoke3DParticle;
+use crate::effect_sprite::BurstParticle;
 
 pub trait ExternalCustomBackend: Send + Sync {
     fn spawn(
@@ -108,11 +108,11 @@ pub struct SprBurstSnapshot {
     pub anim_speed: f32,
     pub size_shrink: bool,
     pub twinkle: bool,
-    pub particles: Vec<Smoke3DParticle>,
+    pub particles: Vec<BurstParticle>,
 }
 
 #[derive(Clone, Copy)]
-struct BurstParticle {
+struct BurstParticleSim {
     pos: [f32; 3],
     velocity: [f32; 3],
     age: f32,
@@ -131,7 +131,7 @@ struct BurstParticle {
 struct BurstState {
     sprite: String,
     params: SprBurstParams,
-    particles: Vec<BurstParticle>,
+    particles: Vec<BurstParticleSim>,
     has_emitted: bool,
     cooldown_timer: f32,
     body_recolor: Option<SprBodyRecolor>,
@@ -849,7 +849,7 @@ impl EffectHolder {
                 let particles = b
                     .particles
                     .iter()
-                    .map(|p| Smoke3DParticle {
+                    .map(|p| BurstParticle {
                         pos: p.pos,
                         age: p.age,
                         lifetime: p.lifetime,
@@ -1158,7 +1158,7 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
             .unwrap_or(0.0);
         let (alpha, alpha_max, alpha_speed, keyframe_idx) =
             init_alpha_state(b.params.alpha_keyframes);
-        b.particles.push(BurstParticle {
+        b.particles.push(BurstParticleSim {
             pos: [
                 anchor[0] + ox,
                 anchor[1] + b.params.pos_y_start,
