@@ -373,12 +373,12 @@ impl EffectHolder {
             self.last_spawn = Some(SpawnOutcome::NoSpec);
             return None;
         };
+        if let Some(shake) = spawn_camera_shake(effect_id) {
+            self.shake.trigger(shake);
+        }
         if matches!(spec, EffectSpec::Noop) {
             self.last_spawn = Some(SpawnOutcome::Noop);
             return None;
-        }
-        if let Some(shake) = spawn_camera_shake(effect_id) {
-            self.shake.trigger(shake);
         }
         let payload = match &spec {
             EffectSpec::Str { file, repeat, .. } => {
@@ -1477,8 +1477,7 @@ mod tests {
     fn screen_quake_spawn_triggers_and_settles_camera_shake() {
         let mut h = EffectHolder::new();
         assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
-        h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None)
-            .expect("spawn");
+        h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None);
         h.update(&ctx(0.05), &|_| None, &|_| None);
         assert_ne!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
         h.update(&ctx(3.0), &|_| None, &|_| None);
