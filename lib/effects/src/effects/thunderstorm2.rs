@@ -5,7 +5,7 @@
 //! anim speed 2, lifted ~4.5 off the ground (native RO `-Y = up`,
 //! so the sprite floats above the tile),
 //! additive and drawn with no depth check. The sprite/act are absent from
-//! the classic GRF, but its
+//! the GRF, but its
 //! constituent textures survive: four jagged bolt segments
 //! (`썬더스톰1..4.tga`, 128×128) and one radial impact flash
 //! (`썬더스톰파티클.tga`, 64×64). We replay the sprite by compositing those

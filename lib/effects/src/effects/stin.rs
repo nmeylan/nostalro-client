@@ -25,7 +25,7 @@
 //! trail only smears a flying swirl). Alpha blend
 //! shows the ring's whole shape; STIN tints blue, STIN5 green.
 //!
-//! The English `wind.tga` is absent from the classic GRF; the real
+//! The English `wind.tga` is absent from the GRF; the real
 //! resource is stored under its Korean name `270바람.tga` (바람 = "wind") — a
 //! feathery ring of radiating fibers, exactly the swirl the gif shows. We name
 //! the English alias first with the Korean texture as the `|`-fallback.
@@ -45,7 +45,7 @@ pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
         units_per_frame: 0.8,
     };
 
-/// The English-named `wind.tga` is absent from the classic GRF; the real
+/// The English-named `wind.tga` is absent from the GRF; the real
 /// resource is the Korean-named `270바람.tga` (바람 = "wind"), a feathery
 /// fibre ring matching the gif's swirl.
 const WIND_TEXTURE: &str = "wind.tga|270바람.tga";
