@@ -1,5 +1,5 @@
 use crate::App;
-use ragnarok_game::event::PartyMemberData;
+use ragnarok_game::event::{GameEvent, PartyMemberData};
 use ragnarok_game::party::{Party, PartyMember};
 impl App {
     pub(super) fn handle_party_member_list(&mut self, name: String, members: Vec<PartyMemberData>) {
@@ -104,15 +104,13 @@ impl App {
                 ));
             return;
         }
-        self.game.pending_confirms.pending_party_invite = Some(party_grid);
-        self.game.pending_confirms.party_invite_result.set(None);
         let msg = format!("Join party \"{party_name}\"?");
-        self.game.confirm_dialog.show_with_out(
-            &msg,
-            true,
-            self.game.pending_confirms.party_invite_result.clone(),
-            |_| {},
-        );
+        self.game.arm_confirm(&msg, move |accept| {
+            Some(GameEvent::RespondPartyInvite {
+                party_grid,
+                accept,
+            })
+        });
     }
 
     pub(super) fn handle_party_invite_result(&mut self, name: String, answer: u8) {

@@ -119,11 +119,6 @@ pub struct FreezeShatter {
     pub started_at: Option<f32>,
 }
 
-pub enum PendingGuildConfirm {
-    Leave,
-    DeleteRelation { gdid: u32, relation: i32 },
-}
-
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SelfConfig {
     pub refuse_party_invite: bool,
@@ -137,24 +132,16 @@ pub struct SelfConfig {
 pub struct PendingConfirms {
     pub pending_trade_partner: Option<(u32, String)>,
     pub pending_trade_request: Option<u32>,
-    pub trade_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_friend_request: Option<(u32, u32)>,
-    pub friend_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pet_feed_pending: bool,
-    pub pet_feed_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_party_invite: Option<u32>,
-    pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_guild_invite: Option<u32>,
-    pub guild_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_adopt_request: Option<(u32, u32)>,
-    pub adopt_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_guild_ally: Option<u32>,
-    pub guild_ally_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_guild_confirm: Option<PendingGuildConfirm>,
-    pub guild_confirm_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub homun_delete_pending: bool,
-    pub homun_delete_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub pending_invite_aid: Option<u32>,
+    active: Option<Box<dyn FnOnce(bool) -> Option<GameEvent>>>,
+}
+
+impl PendingConfirms {
+    fn dispatch(&mut self, result: ConfirmResult) -> Option<GameEvent> {
+        let ctor = self.active.take()?;
+        ctor(result == ConfirmResult::Ok)
+    }
 }
 
 pub struct CombatState {
@@ -819,96 +806,10 @@ impl GameState {
             self.session.disconnect_dialog_shown = false;
         }
 
-        if let Some(grid) = self.pending_confirms.pending_party_invite
-            && let Some(result) = self.pending_confirms.party_invite_result.take()
+        if let Some(result) = self.confirm_dialog.take_result()
+            && let Some(event) = self.pending_confirms.dispatch(result)
         {
-            events.push(GameEvent::RespondPartyInvite {
-                party_grid: grid,
-                accept: result == ConfirmResult::Ok,
-            });
-            self.pending_confirms.pending_party_invite = None;
-        }
-
-        if let Some(gdid) = self.pending_confirms.pending_guild_invite
-            && let Some(result) = self.pending_confirms.guild_invite_result.take()
-        {
-            events.push(GameEvent::RespondGuildInvite {
-                gdid,
-                accept: result == ConfirmResult::Ok,
-            });
-            self.pending_confirms.pending_guild_invite = None;
-        }
-
-        if self.pending_confirms.pending_adopt_request.is_some()
-            && let Some(result) = self.pending_confirms.adopt_request_result.take()
-        {
-            events.push(GameEvent::RespondAdoptionRequest {
-                accept: result == ConfirmResult::Ok,
-            });
-        }
-
-        if let Some(aid) = self.pending_confirms.pending_guild_ally
-            && let Some(result) = self.pending_confirms.guild_ally_result.take()
-        {
-            events.push(GameEvent::RespondGuildAlly {
-                aid,
-                accept: result == ConfirmResult::Ok,
-            });
-            self.pending_confirms.pending_guild_ally = None;
-        }
-
-        if self.pending_confirms.pending_guild_confirm.is_some()
-            && let Some(result) = self.pending_confirms.guild_confirm_result.take()
-        {
-            let pending = self.pending_confirms.pending_guild_confirm.take().unwrap();
-            if result == ConfirmResult::Ok {
-                match pending {
-                    PendingGuildConfirm::Leave => {
-                        events.push(GameEvent::ConfirmedGuildLeave);
-                    }
-                    PendingGuildConfirm::DeleteRelation { gdid, relation } => {
-                        events.push(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation });
-                    }
-                }
-            }
-        }
-
-        if let Some((req_aid, req_gid)) = self.pending_confirms.pending_friend_request
-            && let Some(result) = self.pending_confirms.friend_request_result.take()
-        {
-            events.push(GameEvent::RespondFriendRequest {
-                req_aid,
-                req_gid,
-                accept: result == ConfirmResult::Ok,
-            });
-            self.pending_confirms.pending_friend_request = None;
-        }
-
-        if self.pending_confirms.homun_delete_pending
-            && let Some(result) = self.pending_confirms.homun_delete_result.take()
-        {
-            self.pending_confirms.homun_delete_pending = false;
-            if result == ConfirmResult::Ok {
-                events.push(GameEvent::RequestHomunMenu { command: 2 });
-            }
-        }
-
-        if self.pending_confirms.pet_feed_pending
-            && let Some(result) = self.pending_confirms.pet_feed_result.take()
-        {
-            self.pending_confirms.pet_feed_pending = false;
-            if result == ConfirmResult::Ok {
-                events.push(GameEvent::RequestPetCommand { csub: 1 });
-            }
-        }
-
-        if self.pending_confirms.pending_trade_request.is_some()
-            && let Some(result) = self.pending_confirms.trade_request_result.take()
-        {
-            self.pending_confirms.pending_trade_request = None;
-            events.push(GameEvent::RespondExchangeRequest {
-                accept: result == ConfirmResult::Ok,
-            });
+            events.push(event);
         }
 
         events.extend(self.context_menu.build(ui));
@@ -1509,6 +1410,15 @@ impl GameState {
         }
     }
 
+    pub fn arm_confirm(
+        &mut self,
+        message: &str,
+        ctor: impl FnOnce(bool) -> Option<GameEvent> + 'static,
+    ) {
+        self.pending_confirms.active = Some(Box::new(ctor));
+        self.confirm_dialog.show_confirm(message);
+    }
+
     /// Returns true when the request must be auto-refused; otherwise records the
     /// pending request and opens the accept dialog.
     pub fn begin_trade_request(&mut self, name: String, gid: u32, auto_refuse: bool) -> bool {
@@ -1517,13 +1427,9 @@ impl GameState {
         }
         self.pending_confirms.pending_trade_partner = Some((gid, name.clone()));
         self.pending_confirms.pending_trade_request = Some(gid);
-        self.pending_confirms.trade_request_result.set(None);
-        let result = self.pending_confirms.trade_request_result.clone();
-        self.confirm_dialog.show_with_out(
+        self.arm_confirm(
             &format!("Do you want to trade with {name}?"),
-            true,
-            result,
-            |_| {},
+            |accept| Some(GameEvent::RespondExchangeRequest { accept }),
         );
         false
     }
@@ -1627,6 +1533,31 @@ mod trade_request_tests {
         assert_eq!(game.pending_confirms.pending_trade_request, Some(42));
         assert_eq!(game.pending_confirms.pending_trade_partner, Some((42, "Alice".to_string())));
         assert!(game.confirm_dialog.state.is_some());
+    }
+}
+
+#[cfg(test)]
+mod pending_confirms_tests {
+    use super::*;
+
+    #[test]
+    fn arm_confirm_dispatches_on_accept_and_clears_on_refuse() {
+        let mut game = GameState::new();
+
+        game.arm_confirm("Join party?", |accept| {
+            Some(GameEvent::RespondPartyInvite { party_grid: 7, accept })
+        });
+        assert!(game.confirm_dialog.state.is_some());
+        assert!(matches!(
+            game.pending_confirms.dispatch(ConfirmResult::Ok),
+            Some(GameEvent::RespondPartyInvite { party_grid: 7, accept: true })
+        ));
+        assert!(game.pending_confirms.dispatch(ConfirmResult::Ok).is_none());
+
+        game.arm_confirm("Feed pet?", |accept| {
+            accept.then_some(GameEvent::RequestPetCommand { csub: 1 })
+        });
+        assert!(game.pending_confirms.dispatch(ConfirmResult::Cancel).is_none());
     }
 }
 

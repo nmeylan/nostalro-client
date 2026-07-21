@@ -1,6 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use crate::Window;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -45,7 +42,7 @@ pub struct ConfirmDialogState {
     /// programmatically by clearing `state`.
     pub no_buttons: bool,
     onclose: Option<Box<dyn FnMut(ConfirmResult)>>,
-    out_param: Option<Rc<Cell<Option<ConfirmResult>>>>,
+    deliver_result: bool,
 }
 
 impl ConfirmDialogState {
@@ -55,7 +52,7 @@ impl ConfirmDialogState {
             show_cancel: false,
             no_buttons: false,
             onclose: None,
-            out_param: None,
+            deliver_result: false,
         }
     }
 }
@@ -63,6 +60,7 @@ impl ConfirmDialogState {
 pub struct ConfirmDialog {
     pub state: Option<ConfirmDialogState>,
     pub has_grf_textures: bool,
+    result: Option<ConfirmResult>,
     btn_size: (f32, f32),
     win_size: (f32, f32),
 }
@@ -78,6 +76,7 @@ impl ConfirmDialog {
         Self {
             state: None,
             has_grf_textures: false,
+            result: None,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
             win_size: (DIALOG_W, DIALOG_H),
         }
@@ -93,20 +92,16 @@ impl ConfirmDialog {
         self.state = Some(state);
     }
 
-    pub fn show_with_out<F>(
-        &mut self,
-        message: &str,
-        show_cancel: bool,
-        out_param: Rc<Cell<Option<ConfirmResult>>>,
-        onclose: F,
-    ) where
-        F: FnMut(ConfirmResult) + 'static,
-    {
+    pub fn show_confirm(&mut self, message: &str) {
         let mut state = ConfirmDialogState::new(message);
-        state.show_cancel = show_cancel;
-        state.onclose = Some(Box::new(onclose));
-        state.out_param = Some(out_param);
+        state.show_cancel = true;
+        state.deliver_result = true;
+        self.result = None;
         self.state = Some(state);
+    }
+
+    pub fn take_result(&mut self) -> Option<ConfirmResult> {
+        self.result.take()
     }
 
     /// Shows a buttonless informational box (e.g. "Please wait...") that stays
@@ -236,13 +231,13 @@ impl ConfirmDialog {
         ui.text(text_x, text_y, &state.message, text_color);
 
         let mut callback = state.onclose.take();
-        let out_param = state.out_param.clone();
+        let deliver_result = state.deliver_result;
 
         if state.show_cancel {
             let cancel = ui.button(CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
             if cancel.clicked() {
-                if let Some(ref out) = out_param {
-                    out.set(Some(ConfirmResult::Cancel));
+                if deliver_result {
+                    self.result = Some(ConfirmResult::Cancel);
                 }
                 if let Some(ref mut cb) = callback {
                     cb(ConfirmResult::Cancel);
@@ -254,8 +249,8 @@ impl ConfirmDialog {
 
         let ok = ui.button(OK_BTN_ID, btns[num_buttons - 1], &OK_BTN, "OK");
         if ok.clicked() {
-            if let Some(ref out) = out_param {
-                out.set(Some(ConfirmResult::Ok));
+            if deliver_result {
+                self.result = Some(ConfirmResult::Ok);
             }
             if let Some(ref mut cb) = callback {
                 cb(ConfirmResult::Ok);
@@ -305,6 +300,7 @@ mod tests {
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
     use std::cell::RefCell;
+    use std::rc::Rc;
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);

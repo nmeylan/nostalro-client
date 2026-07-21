@@ -11,7 +11,7 @@ mod sprite;
 
 use config::Config;
 use game_state::{
-    CursorInput, CursorPending, GameState, HoverState, PendingGuildConfirm, cursor_type_from_hover,
+    CursorInput, CursorPending, GameState, HoverState, cursor_type_from_hover,
 };
 use input::InputState;
 use models::enums::skill_enums::SkillEnum;
@@ -1136,13 +1136,9 @@ impl App {
                         .map(|h| h.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "your homunculus".to_string());
-                    self.game.pending_confirms.homun_delete_result.set(None);
-                    self.game.pending_confirms.homun_delete_pending = true;
-                    self.game.confirm_dialog.show_with_out(
+                    self.game.arm_confirm(
                         &format!("Delete {name} permanently?"),
-                        true,
-                        self.game.pending_confirms.homun_delete_result.clone(),
-                        |_| {},
+                        |accept| accept.then_some(GameEvent::RequestHomunMenu { command: 2 }),
                     );
                 }
                 GameEvent::RequestMercenaryCommand { command } => {
@@ -1728,13 +1724,9 @@ impl App {
                         .map(|g| g.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "the guild".to_string());
-                    self.game.pending_confirms.guild_confirm_result.set(None);
-                    self.game.pending_confirms.pending_guild_confirm = Some(PendingGuildConfirm::Leave);
-                    self.game.confirm_dialog.show_with_out(
+                    self.game.arm_confirm(
                         &format!("Leave {name}?"),
-                        true,
-                        self.game.pending_confirms.guild_confirm_result.clone(),
-                        |_| {},
+                        |accept| accept.then_some(GameEvent::ConfirmedGuildLeave),
                     );
                 }
                 GameEvent::RequestGuildExpel { aid, gid, name } => {
@@ -1814,15 +1806,9 @@ impl App {
                     } else {
                         "Cancel this antagonist declaration?"
                     };
-                    self.game.pending_confirms.guild_confirm_result.set(None);
-                    self.game.pending_confirms.pending_guild_confirm =
-                        Some(PendingGuildConfirm::DeleteRelation { gdid, relation });
-                    self.game.confirm_dialog.show_with_out(
-                        msg,
-                        true,
-                        self.game.pending_confirms.guild_confirm_result.clone(),
-                        |_| {},
-                    );
+                    self.game.arm_confirm(msg, move |accept| {
+                        accept.then_some(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation })
+                    });
                 }
                 GameEvent::ConfirmedDeleteGuildRelation { gdid, relation } => {
                     self.channel.send_packet(build_req_delete_related_guild(
@@ -1899,13 +1885,9 @@ impl App {
                         .send_packet(build_pet_act_packet(data, self.config.packetver));
                 }
                 GameEvent::RequestPetFeed => {
-                    self.game.pending_confirms.pet_feed_result.set(None);
-                    self.game.pending_confirms.pet_feed_pending = true;
-                    self.game.confirm_dialog.show_with_out(
+                    self.game.arm_confirm(
                         "Are you sure you want to feed your pet?",
-                        true,
-                        self.game.pending_confirms.pet_feed_result.clone(),
-                        |_| {},
+                        |accept| accept.then_some(GameEvent::RequestPetCommand { csub: 1 }),
                     );
                 }
                 GameEvent::TogglePetWindow => {
