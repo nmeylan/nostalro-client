@@ -107,9 +107,9 @@ impl App {
     }
 
     pub(crate) fn handle_making_arrow_list(&mut self, item_ids: Vec<u16>) {
-        let converter = self.game.pending_list_skill
+        let converter = self.game.pending_casts.pending_list_skill
             == Some(SkillEnum::SaCreatecon.id() as u16);
-        self.game.pending_list_skill = None;
+        self.game.pending_casts.pending_list_skill = None;
         let rows: Vec<ListRow> = item_ids.iter().map(|&id| self.simple_row(id)).collect();
         let (title, context) = if converter {
             ("Elemental Converter", ListContext::ElementalConverter)
@@ -265,7 +265,7 @@ impl App {
         self.game
             .chat_window
             .add_system(format!("Your shop is open ({} items).", items.len()));
-        let shop_name = self.game.pending_shop_name.take().unwrap_or_default();
+        let shop_name = self.game.pending_casts.pending_shop_name.take().unwrap_or_default();
 
         let rows: Vec<(VendorItem, String, Option<String>)> = items
             .into_iter()
@@ -290,7 +290,7 @@ impl App {
         self.channel.send_packet(ragnarok_network::build_req_closestore_packet(
             self.config.packetver,
         ));
-        self.game.pending_shop_name = None;
+        self.game.pending_casts.pending_shop_name = None;
         self.game.my_shop_window.close();
         if let Some(pid) = self.game.entities.player_id()
             && let Some(entity) = self.game.entities.get_mut(pid)
@@ -325,7 +325,7 @@ impl App {
 
     pub(crate) fn handle_vending_open_result(&mut self, result: u8) {
         if result != 0 {
-            self.game.pending_shop_name = None;
+            self.game.pending_casts.pending_shop_name = None;
             self.game
                 .chat_window
                 .add_system("Failed to open your shop.".to_string());

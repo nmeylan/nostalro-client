@@ -79,7 +79,7 @@ impl App {
         if self.game.combat.attack_target_id.is_some() {
             return;
         }
-        if self.game.pending_skill_target.is_some() {
+        if self.game.pending_casts.pending_skill_target.is_some() {
             return;
         }
         if self.game.chat_window.is_active() {

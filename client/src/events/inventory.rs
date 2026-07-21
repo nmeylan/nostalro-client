@@ -288,7 +288,7 @@ impl App {
     }
 
     pub(super) fn handle_card_insert_item_list(&mut self, equip_indices: Vec<u16>) {
-        let card_index = match self.game.pending_card_composition_index.take() {
+        let card_index = match self.game.pending_casts.pending_card_composition_index.take() {
             Some(idx) => idx,
             None => return,
         };
@@ -336,7 +336,7 @@ impl App {
         result: u8,
     ) {
         self.game.card_insert_dialog = None;
-        self.game.pending_card_composition_index = None;
+        self.game.pending_casts.pending_card_composition_index = None;
         if result == 0 {
             let card_item_id = self
                 .game

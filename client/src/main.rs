@@ -1226,7 +1226,7 @@ impl App {
                     if skill_id == SkillEnum::AcMakingarrow.id() as u16
                         || skill_id == SkillEnum::SaCreatecon.id() as u16
                     {
-                        self.game.pending_list_skill = Some(skill_id);
+                        self.game.pending_casts.pending_list_skill = Some(skill_id);
                     }
                     let skill_target_type = self
                         .game
@@ -1246,13 +1246,13 @@ impl App {
                             }
                         }
                         SkillTargetType::Target | SkillTargetType::Friend => {
-                            self.game.pending_skill_target =
+                            self.game.pending_casts.pending_skill_target =
                                 Some(PendingSkillTarget::Entity { skill_id, level });
-                            self.game.pending_skill_id = Some(skill_id);
-                            self.game.pending_skill_level = Some(level);
+                            self.game.pending_casts.pending_skill_id = Some(skill_id);
+                            self.game.pending_casts.pending_skill_level = Some(level);
                         }
                         SkillTargetType::Ground | SkillTargetType::Trap => {
-                            self.game.pending_skill_target =
+                            self.game.pending_casts.pending_skill_target =
                                 Some(PendingSkillTarget::Ground { skill_id, level });
                         }
                         _ => {
@@ -1290,7 +1290,7 @@ impl App {
                     );
                     match target_type {
                         SkillTargetType::Target | SkillTargetType::Friend => {
-                            self.game.pending_companion_skill = Some(PendingCompanionSkill {
+                            self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                                 is_mercenary,
                                 skill_id,
                                 level,
@@ -1298,7 +1298,7 @@ impl App {
                             });
                         }
                         SkillTargetType::Ground | SkillTargetType::Trap => {
-                            self.game.pending_companion_skill = Some(PendingCompanionSkill {
+                            self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                                 is_mercenary,
                                 skill_id,
                                 level,
@@ -1324,7 +1324,7 @@ impl App {
                     }
                 }
                 GameEvent::RequestCardInsertList { card_index } => {
-                    self.game.pending_card_composition_index = Some(card_index);
+                    self.game.pending_casts.pending_card_composition_index = Some(card_index);
                     self.channel.send_packet(build_card_composition_list_packet(
                         card_index,
                         self.config.packetver,
@@ -1339,7 +1339,7 @@ impl App {
                         equip_index,
                         self.config.packetver,
                     ));
-                    self.game.pending_card_composition_index = None;
+                    self.game.pending_casts.pending_card_composition_index = None;
                 }
                 GameEvent::RequestIdentifyItem { index } => {
                     self.channel
@@ -1384,7 +1384,7 @@ impl App {
                         &items,
                         self.config.packetver,
                     ));
-                    self.game.pending_shop_name = Some(shop_name);
+                    self.game.pending_casts.pending_shop_name = Some(shop_name);
                 }
                 GameEvent::RequestCancelVendingSetup => {
                     self.channel
@@ -3105,7 +3105,7 @@ impl App {
                 (CursorType::Default, None)
             } else if companion_target_armed {
                 (CursorType::Lock, None)
-            } else if let Some(pending) = &self.game.pending_companion_skill {
+            } else if let Some(pending) = &self.game.pending_casts.pending_companion_skill {
                 if pending.is_ground {
                     (CursorType::Lock, None)
                 } else {
@@ -3130,7 +3130,7 @@ impl App {
                     Some(TargetClass::Offensive),
                 );
                 (CursorType::Lock, hovered.map(|(_, id)| id))
-            } else if let Some(pending) = &self.game.pending_skill_target {
+            } else if let Some(pending) = &self.game.pending_casts.pending_skill_target {
                 match pending {
                     PendingSkillTarget::Entity { skill_id, .. } => {
                         let class = self

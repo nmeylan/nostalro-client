@@ -1230,7 +1230,7 @@ impl App {
                     self.handle_weapon_refine_result(result, item_id);
                 }
                 GameEvent::RepairItemList { items } => {
-                    let target_aid = self.game.pending_repair_target.take().unwrap_or(0);
+                    let target_aid = self.game.pending_casts.pending_repair_target.take().unwrap_or(0);
                     self.handle_repair_item_list(target_aid, items);
                 }
                 GameEvent::RepairItemResult { index, ok } => {

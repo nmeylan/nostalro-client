@@ -56,9 +56,9 @@ impl App {
                         // so capture the target now, before it's lost.
                         self.input.right_press_entity = self.game.hover.hovered_player_id;
                         self.input.right_press_target = self.game.hover.hovered_entity_id;
-                        self.game.pending_skill_target = None;
-                        self.game.pending_skill_id = None;
-                        self.game.pending_skill_level = None;
+                        self.game.pending_casts.pending_skill_target = None;
+                        self.game.pending_casts.pending_skill_id = None;
+                        self.game.pending_casts.pending_skill_level = None;
                         self.game.capture_targeting = false;
                         self.game.pet_roulette = None;
                     } else {

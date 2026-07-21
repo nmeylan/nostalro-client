@@ -20,7 +20,7 @@ impl App {
         }
         tracing::info!(
             "handle_left_click: pending_companion={:?} hovered_entity={:?}",
-            self.game.pending_companion_skill.is_some(),
+            self.game.pending_casts.pending_companion_skill.is_some(),
             self.game.hover.hovered_entity_id
         );
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
@@ -51,7 +51,7 @@ impl App {
                 .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
             return;
         }
-        if let Some(pending) = self.game.pending_companion_skill.take() {
+        if let Some(pending) = self.game.pending_casts.pending_companion_skill.take() {
             let reserved = self.input.shift_pressed;
             if pending.is_ground {
                 if let Some((cx, cy)) = self.hovered_cell() {
@@ -73,15 +73,15 @@ impl App {
         if self.is_local_player_incapacitated() {
             return;
         }
-        if let Some(pending) = self.game.pending_skill_target {
+        if let Some(pending) = self.game.pending_casts.pending_skill_target {
             if self.player_hidden() && !hide_allows_skill(pending.skill_id()) {
-                self.game.pending_skill_target = None;
+                self.game.pending_casts.pending_skill_target = None;
                 return;
             }
             if self.skill_on_cooldown(pending.skill_id()) {
                 return;
             }
-            self.game.pending_skill_target = None;
+            self.game.pending_casts.pending_skill_target = None;
             let mut skill_cast = false;
             match pending {
                 PendingSkillTarget::Entity { skill_id, level } => {
@@ -131,15 +131,15 @@ impl App {
                                 self.config.packetver,
                             ));
                             if skill_id == SkillEnum::BsRepairweapon.id() as u16 {
-                                self.game.pending_repair_target = Some(entity_id);
+                                self.game.pending_casts.pending_repair_target = Some(entity_id);
                             }
                             skill_cast = true;
                         } else {
                             let dest_x = target_pos.0 as i32;
                             let dest_y = target_pos.1 as i32;
                             if self.try_move_toward(dest_x, dest_y, px, py, skill_range) {
-                                self.game.pending_skill_id = Some(skill_id);
-                                self.game.pending_skill_level = Some(level);
+                                self.game.pending_casts.pending_skill_id = Some(skill_id);
+                                self.game.pending_casts.pending_skill_level = Some(level);
                                 self.game.combat.attack_target_id = Some(entity_id);
                             }
                         }
@@ -169,7 +169,7 @@ impl App {
                                 self.config.packetver,
                             ));
                         } else {
-                            self.game.pending_ground_cast =
+                            self.game.pending_casts.pending_ground_cast =
                                 Some((skill_id, level, cx as i16, cy as i16));
                             self.try_move_toward(cx as i32, cy as i32, px, py, skill_range);
                         }
@@ -187,7 +187,7 @@ impl App {
                 return;
             }
             self.game.combat.attack_target_id = None;
-            self.game.pending_pickup_item_id = None;
+            self.game.pending_casts.pending_pickup_item_id = None;
             if let Some(floor_item) = self.game.floor_items.get(&item_id) {
                 let (px, py) = self
                     .game
@@ -212,7 +212,7 @@ impl App {
                             move_action.dest_y,
                             self.config.packetver,
                         ));
-                        self.game.pending_pickup_item_id = Some(item_id);
+                        self.game.pending_casts.pending_pickup_item_id = Some(item_id);
                     }
                 }
             }
@@ -259,8 +259,8 @@ impl App {
             }
         }
         self.game.combat.attack_target_id = None;
-        self.game.pending_pickup_item_id = None;
-        self.game.pending_ground_cast = None;
+        self.game.pending_casts.pending_pickup_item_id = None;
+        self.game.pending_casts.pending_ground_cast = None;
         // While running, the server auto-moves the character in a straight line and
         // rejects any client-issued move, which snaps the character back. Suppress
         // click-to-move (and the continuous-walk that routes through here) entirely.

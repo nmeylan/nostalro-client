@@ -707,9 +707,9 @@ impl App {
     }
 
     pub(super) fn handle_skill_failed(&mut self, skill_id: u16, cause: u8) {
-        self.game.pending_skill_target = None;
-        self.game.pending_skill_id = None;
-        self.game.pending_skill_level = None;
+        self.game.pending_casts.pending_skill_target = None;
+        self.game.pending_casts.pending_skill_id = None;
+        self.game.pending_casts.pending_skill_level = None;
         let msg = ragnarok_game::skill::skill_failure_message(cause).unwrap_or("Skill failed.");
         tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
         self.game.chat_window.add_error(msg.to_string());

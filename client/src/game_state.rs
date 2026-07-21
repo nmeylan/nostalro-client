@@ -207,6 +207,27 @@ pub struct HoverState {
     pub hovered_chat_room: Option<u32>,
 }
 
+#[derive(Default)]
+pub struct PendingCasts {
+    pub pending_skill_target: Option<PendingSkillTarget>,
+    pub pending_companion_skill: Option<PendingCompanionSkill>,
+    pub pending_skill_id: Option<u16>,
+    pub pending_skill_level: Option<i16>,
+    pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
+    pub pending_card_composition_index: Option<u16>,
+    /// Skill that opened the shared 0x01ad arrow/converter list, so the reply
+    /// can be routed to the right context (the server disambiguates the same way
+    /// via menuskill_id).
+    pub pending_list_skill: Option<u16>,
+    /// AID of the Repair Weapon target, remembered from the cast so the
+    /// server's broken-item list can be attributed back to that player.
+    pub pending_repair_target: Option<u32>,
+    pub pending_pickup_item_id: Option<u32>,
+    /// Shop title submitted with CZ_REQ_OPENSTORE2; applied to our own entity on
+    /// open since the server sends ZC_STORE_ENTRY to everyone but us.
+    pub pending_shop_name: Option<String>,
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -293,23 +314,7 @@ pub struct GameState {
     pub guild_expel_dialog: Option<GuildExpelDialog>,
     pub card_insert_dialog: Option<CardInsertDialog>,
     pub card_insert_dialog_has_grf_textures: bool,
-    pub pending_skill_target: Option<PendingSkillTarget>,
-    pub pending_companion_skill: Option<PendingCompanionSkill>,
-    pub pending_skill_id: Option<u16>,
-    pub pending_skill_level: Option<i16>,
-    pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
-    pub pending_card_composition_index: Option<u16>,
-    /// Skill that opened the shared 0x01ad arrow/converter list, so the reply
-    /// can be routed to the right context (the server disambiguates the same way
-    /// via menuskill_id).
-    pub pending_list_skill: Option<u16>,
-    /// AID of the Repair Weapon target, remembered from the cast so the
-    /// server's broken-item list can be attributed back to that player.
-    pub pending_repair_target: Option<u32>,
-    pub pending_pickup_item_id: Option<u32>,
-    /// Shop title submitted with CZ_REQ_OPENSTORE2; applied to our own entity on
-    /// open since the server sends ZC_STORE_ENTRY to everyone but us.
-    pub pending_shop_name: Option<String>,
+    pub pending_casts: PendingCasts,
     pub combat: CombatState,
     pub noshift_mode: bool,
     pub noctrl_mode: bool,
@@ -577,8 +582,8 @@ impl GameState {
             && !shop_open
             && !warp_list_open
             && !item_list_open;
-        if allow_escape && ui.ctx.key_escape && self.pending_skill_target.is_some() {
-            self.pending_skill_target = None;
+        if allow_escape && ui.ctx.key_escape && self.pending_casts.pending_skill_target.is_some() {
+            self.pending_casts.pending_skill_target = None;
             allow_escape = false;
         }
         if allow_escape && ui.ctx.key_escape && (self.capture_targeting || self.pet_roulette.is_some()) {
@@ -1280,16 +1285,7 @@ impl GameState {
             guild_expel_dialog: None,
             card_insert_dialog: None,
             card_insert_dialog_has_grf_textures: false,
-            pending_skill_target: None,
-            pending_companion_skill: None,
-            pending_skill_id: None,
-            pending_skill_level: None,
-            pending_ground_cast: None,
-            pending_card_composition_index: None,
-            pending_list_skill: None,
-            pending_repair_target: None,
-            pending_pickup_item_id: None,
-            pending_shop_name: None,
+            pending_casts: PendingCasts::default(),
             combat: CombatState::new(),
             noshift_mode: false,
             noctrl_mode: true,

@@ -592,7 +592,7 @@ impl App {
     }
 
     pub(crate) fn build_skill_overlay(&self) -> Vec<UiDrawCall> {
-        let (pending, renderer) = match (&self.game.pending_skill_target, &self.renderer) {
+        let (pending, renderer) = match (&self.game.pending_casts.pending_skill_target, &self.renderer) {
             (Some(p), Some(r)) => (p, r),
             _ => return Vec::new(),
         };

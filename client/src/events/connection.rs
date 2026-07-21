@@ -116,8 +116,8 @@ impl App {
         self.game.drop_quantity_dialog = None;
         self.game.guild_expel_dialog = None;
         self.game.card_insert_dialog = None;
-        self.game.pending_card_composition_index = None;
-        self.game.pending_pickup_item_id = None;
+        self.game.pending_casts.pending_card_composition_index = None;
+        self.game.pending_casts.pending_pickup_item_id = None;
         self.game.combat.attack_target_id = None;
         self.game.homunculus = None;
         self.game.mercenary = None;
@@ -384,9 +384,9 @@ impl App {
         self.game.pending_confirms.pending_trade_partner = None;
         self.game.map_properties = MapProperties::default();
         self.game.combat.damage_numbers.combat_hidden = false;
-        self.game.pending_skill_target = None;
-        self.game.pending_skill_id = None;
-        self.game.pending_skill_level = None;
+        self.game.pending_casts.pending_skill_target = None;
+        self.game.pending_casts.pending_skill_id = None;
+        self.game.pending_casts.pending_skill_level = None;
         self.game.combat.attack_target_id = None;
         self.game.npc_cutins = [None, None, None];
         let map_name = map_name

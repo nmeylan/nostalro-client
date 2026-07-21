@@ -118,7 +118,7 @@ impl App {
         if self.player_hidden() {
             return;
         }
-        self.game.pending_pickup_item_id = None;
+        self.game.pending_casts.pending_pickup_item_id = None;
         let locked = self.game.noctrl_mode || self.input.ctrl_pressed;
         self.game.combat.attack_is_locked = locked;
 

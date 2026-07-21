@@ -12,7 +12,7 @@ impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
         self.game.combat.attack_request_cooldown = (self.game.combat.attack_request_cooldown - delta).max(0.0);
 
-        if self.game.pending_skill_id.is_some() {
+        if self.game.pending_casts.pending_skill_id.is_some() {
             return;
         }
 
@@ -99,7 +99,7 @@ impl App {
     }
 
     pub(crate) fn check_pending_skill(&mut self) {
-        let (skill_id, level) = match (self.game.pending_skill_id, self.game.pending_skill_level) {
+        let (skill_id, level) = match (self.game.pending_casts.pending_skill_id, self.game.pending_casts.pending_skill_level) {
             (Some(sid), Some(lvl)) => (sid, lvl),
             _ => return,
         };
@@ -107,8 +107,8 @@ impl App {
         let target_id = match self.game.combat.attack_target_id {
             Some(id) => id,
             None => {
-                self.game.pending_skill_id = None;
-                self.game.pending_skill_level = None;
+                self.game.pending_casts.pending_skill_id = None;
+                self.game.pending_casts.pending_skill_level = None;
                 return;
             }
         };
@@ -119,8 +119,8 @@ impl App {
             .get(target_id)
             .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
         if !target_alive {
-            self.game.pending_skill_id = None;
-            self.game.pending_skill_level = None;
+            self.game.pending_casts.pending_skill_id = None;
+            self.game.pending_casts.pending_skill_level = None;
             self.game.combat.attack_target_id = None;
             return;
         }
@@ -178,8 +178,8 @@ impl App {
                 target_id,
                 self.config.packetver,
             ));
-            self.game.pending_skill_id = None;
-            self.game.pending_skill_level = None;
+            self.game.pending_casts.pending_skill_id = None;
+            self.game.pending_casts.pending_skill_level = None;
             self.game.combat.attack_target_id = None;
         } else {
             self.try_move_toward(
@@ -193,7 +193,7 @@ impl App {
     }
 
     pub(crate) fn check_pending_ground_skill(&mut self) {
-        let (skill_id, level, x, y) = match self.game.pending_ground_cast {
+        let (skill_id, level, x, y) = match self.game.pending_casts.pending_ground_cast {
             Some(v) => v,
             None => return,
         };
@@ -245,19 +245,19 @@ impl App {
                 y,
                 self.config.packetver,
             ));
-            self.game.pending_ground_cast = None;
+            self.game.pending_casts.pending_ground_cast = None;
         } else {
             self.try_move_toward(x as i32, y as i32, px, py, skill_range);
         }
     }
 
     pub(crate) fn check_pending_pickup(&mut self) {
-        let item_id = match self.game.pending_pickup_item_id {
+        let item_id = match self.game.pending_casts.pending_pickup_item_id {
             Some(id) => id,
             None => return,
         };
         if !self.game.floor_items.contains_key(&item_id) {
-            self.game.pending_pickup_item_id = None;
+            self.game.pending_casts.pending_pickup_item_id = None;
             return;
         }
         let (px, py) = self
@@ -276,7 +276,7 @@ impl App {
                 entity.movement.stop();
                 entity.enter_pickup(0.5);
             }
-            self.game.pending_pickup_item_id = None;
+            self.game.pending_casts.pending_pickup_item_id = None;
         }
     }
 
