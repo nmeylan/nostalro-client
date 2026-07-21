@@ -104,16 +104,7 @@ pub struct Renderer {
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
     pub effect_sprite_renderer: SpriteRenderer,
-    pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
-    pub effect_frustum_renderer: effect::FrustumRenderer,
-    pub effect_cylinder_renderer: effect::CylinderRenderer,
-    pub effect_quad_horn_renderer: effect::QuadHornRenderer,
-    pub effect_sphere_renderer: effect::SphereRenderer,
-    pub effect_world_quad_renderer: effect::WorldQuadRenderer,
-    pub effect_texture3d_renderer: effect::Texture3DRenderer,
-    pub effect_radial_ring_renderer: effect::RadialRingRenderer,
-    pub effect_line_strip_renderer: effect::LineStripRenderer,
-    pub effect_fullscreen_renderer: effect::FullscreenOverlayRenderer,
+    pub effect_primitives: effect::EffectPrimitiveRegistry,
     pub effect_dispatcher: effect::EffectDispatcher,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
@@ -140,6 +131,7 @@ fn build_effect_records<'tex>(
     white_bind_group: &'tex wgpu::BindGroup,
     logical_w: f32,
     logical_h: f32,
+    primitives: &effect::EffectPrimitiveRegistry,
 ) -> Vec<DrawRecord<'tex>> {
     let texture_lookup = |name: &str| -> Option<&'tex wgpu::BindGroup> {
         if name.is_empty() {
@@ -161,67 +153,11 @@ fn build_effect_records<'tex>(
         logical_w,
         logical_h,
         white_bind_group,
-        texture_lookup,
+        &texture_lookup,
     ));
-    records.extend(prepare_frustum_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_cylinder_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_ground_disc_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_quad_horn_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_sphere_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_world_quad_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_texture3d_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_radial_ring_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_line_strip_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_screen_quad_records(
-        effect_draws,
-        white_bind_group,
-        texture_lookup,
-    ));
+    for renderer in primitives.iter() {
+        records.extend(renderer.prepare(effect_draws, camera, white_bind_group, &texture_lookup));
+    }
     records
 }
 
@@ -284,61 +220,7 @@ impl Renderer {
             include_str!("shaders/sprite.wgsl"),
             false,
         );
-        let effect_ground_disc_renderer = effect::GroundDiscRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_frustum_renderer = effect::FrustumRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_cylinder_renderer = effect::CylinderRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_quad_horn_renderer = effect::QuadHornRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_sphere_renderer = effect::SphereRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_world_quad_renderer = effect::WorldQuadRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_texture3d_renderer = effect::Texture3DRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_radial_ring_renderer = effect::RadialRingRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_line_strip_renderer = effect::LineStripRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_fullscreen_renderer = effect::FullscreenOverlayRenderer::new(
+        let effect_primitives = effect::EffectPrimitiveRegistry::new(
             &device.device,
             device.surface_format,
             &global_uniforms.bind_group_layout,
@@ -368,16 +250,7 @@ impl Renderer {
             grid_selector: None,
             sprite_renderer,
             effect_sprite_renderer,
-            effect_ground_disc_renderer,
-            effect_frustum_renderer,
-            effect_cylinder_renderer,
-            effect_quad_horn_renderer,
-            effect_sphere_renderer,
-            effect_world_quad_renderer,
-            effect_texture3d_renderer,
-            effect_radial_ring_renderer,
-            effect_line_strip_renderer,
-            effect_fullscreen_renderer,
+            effect_primitives,
             effect_dispatcher,
             ui_renderer,
             font_atlas,
@@ -820,6 +693,7 @@ impl Renderer {
                 &self.white_bind_group,
                 logical_w,
                 logical_h,
+                &self.effect_primitives,
             );
             if !behind_records.is_empty() {
                 self.effect_dispatcher.dispatch(
@@ -832,16 +706,7 @@ impl Renderer {
                     &self.global_uniforms.bind_group,
                     &self.effect_sprite_renderer.uniform_bind_group,
                     &self.effect_sprite_renderer,
-                    &self.effect_frustum_renderer,
-                    &self.effect_cylinder_renderer,
-                    &self.effect_ground_disc_renderer,
-                    &self.effect_quad_horn_renderer,
-                    &self.effect_sphere_renderer,
-                    &self.effect_world_quad_renderer,
-                    &self.effect_texture3d_renderer,
-                    &self.effect_radial_ring_renderer,
-                    &self.effect_line_strip_renderer,
-                    &self.effect_fullscreen_renderer,
+                    &self.effect_primitives,
                 );
             }
         }
@@ -891,6 +756,7 @@ impl Renderer {
             &self.white_bind_group,
             logical_w,
             logical_h,
+            &self.effect_primitives,
         );
         records.extend(sprite_particle_records);
         if !records.is_empty() {
@@ -904,16 +770,7 @@ impl Renderer {
                 &self.global_uniforms.bind_group,
                 &self.effect_sprite_renderer.uniform_bind_group,
                 &self.effect_sprite_renderer,
-                &self.effect_frustum_renderer,
-                &self.effect_cylinder_renderer,
-                &self.effect_ground_disc_renderer,
-                &self.effect_quad_horn_renderer,
-                &self.effect_sphere_renderer,
-                &self.effect_world_quad_renderer,
-                &self.effect_texture3d_renderer,
-                &self.effect_radial_ring_renderer,
-                &self.effect_line_strip_renderer,
-                &self.effect_fullscreen_renderer,
+                &self.effect_primitives,
             );
         }
 

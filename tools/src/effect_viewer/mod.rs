@@ -41,7 +41,7 @@ use crate::stress::{StressTick, stress_label};
 use ragnarok_game::effect::EffectRenderCtx as GameEffectRenderCtx;
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
-    SpawnStatus, StrEffectCache, StrEmitterInput, build_str_effect_batches,
+    PipelineKind, SpawnStatus, StrEffectCache, StrEmitterInput, build_str_effect_batches,
 };
 use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
@@ -1274,23 +1274,20 @@ impl App {
             let texture_bgl = &renderer.texture_cache.bind_group_layout;
             match target {
                 ShaderTarget::EffectFrustum => {
-                    renderer.effect_frustum_renderer.recreate_pipelines(
-                        device,
-                        surface_format,
-                        camera_bgl,
-                        texture_bgl,
-                        &source,
-                    );
-                    renderer.effect_quad_horn_renderer.recreate_pipelines(
-                        device,
-                        surface_format,
-                        camera_bgl,
-                        texture_bgl,
-                        &source,
-                    );
+                    for kind in [PipelineKind::Frustum, PipelineKind::QuadHorn] {
+                        renderer.effect_primitives.recreate(
+                            kind,
+                            device,
+                            surface_format,
+                            camera_bgl,
+                            texture_bgl,
+                            &source,
+                        );
+                    }
                 }
                 ShaderTarget::EffectGroundDisc => {
-                    renderer.effect_ground_disc_renderer.recreate_pipelines(
+                    renderer.effect_primitives.recreate(
+                        PipelineKind::GroundDisc,
                         device,
                         surface_format,
                         camera_bgl,
