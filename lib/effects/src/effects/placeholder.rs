@@ -35,6 +35,10 @@ impl Effect for PlaceholderEffect {
             blend: BlendKind::Alpha,
         });
     }
+
+    fn is_placeholder(&self) -> bool {
+        true
+    }
 }
 
 pub struct HybridPlaceholderEffect {
@@ -62,6 +66,10 @@ impl Effect for HybridPlaceholderEffect {
 
     fn str_overlay(&self) -> Option<&'static str> {
         Some(self.str_file)
+    }
+
+    fn is_placeholder(&self) -> bool {
+        true
     }
 }
 

@@ -1905,251 +1905,14 @@ pub fn make_effect(
     })
 }
 
-pub fn is_real_impl(id: EffectId) -> bool {
-    matches!(
-        id,
-        EffectId::Warp
-            | EffectId::Bash
-            | EffectId::Hasteup
-            | EffectId::Flasher
-            | EffectId::Blessing
-            | EffectId::Endure
-            | EffectId::Enhance
-            | EffectId::Entry
-            | EffectId::Exit
-            | EffectId::Glasswall
-            | EffectId::Healsp
-            | EffectId::Portal
-            | EffectId::Portal2
-            | EffectId::Portal3
-            | EffectId::Portal4
-            | EffectId::Portal5
-            | EffectId::Stormkick
-            | EffectId::Stormkick1
-            | EffectId::Stormkick2
-            | EffectId::Stormkick3
-            | EffectId::Stormkick4
-            | EffectId::Stormkick5
-            | EffectId::Stormkick6
-            | EffectId::Stormkick7
-            | EffectId::Spraypond
-            | EffectId::Firearrow
-            | EffectId::Fireball
-            | EffectId::Napalmbeat
-            | EffectId::Sandwind
-            | EffectId::Frostdiver
-            | EffectId::Frostdiver2
-            | EffectId::Soulstrike
-            | EffectId::Soulstrike2
-            | EffectId::Yufitel
-            | EffectId::Blitzbeat
-            | EffectId::Waterball
-            | EffectId::Fireivy
-            | EffectId::Detecting
-            | EffectId::Toprank
-            | EffectId::Lockon
-            | EffectId::Party
-            | EffectId::Curseattack
-            | EffectId::Magnumbreak
-            | EffectId::Magnum2
-            | EffectId::GiExplosion
-            | EffectId::Sight
-            | EffectId::Ruwach
-            | EffectId::Sight2
-            | EffectId::Incagility
-            | EffectId::Decagility
-            | EffectId::Incagidex
-            | EffectId::Hit1
-            | EffectId::Hit2
-            | EffectId::Hit3
-            | EffectId::Hit4
-            | EffectId::Hit5
-            | EffectId::Hit6
-            | EffectId::Sonicblowhit
-            | EffectId::Cartrevolution
-            | EffectId::Glasswall2
-            | EffectId::Providence
-            | EffectId::Kouenka
-            | EffectId::Napalmvalcan
-            | EffectId::Stormgust
-            | EffectId::BottomSanc
-            | EffectId::Warpzone
-            | EffectId::Warpzone2
-            | EffectId::Landprotector
-            | EffectId::Volcano
-            | EffectId::Deluge
-            | EffectId::Violentgale
-            | EffectId::Ganbantein
-            | EffectId::Gumgang3
-            | EffectId::Gumgang2
-            | EffectId::Defender
-            | EffectId::Heal
-            | EffectId::Heal2
-            | EffectId::Heal3
-            | EffectId::Heal4
-            | EffectId::Reflectshield
-            | EffectId::Absorbspirits
-            | EffectId::Exit2
-            | EffectId::Entry2
-            | EffectId::Smdef
-            | EffectId::Teleportation2
-            | EffectId::WindBuff
-            | EffectId::Wind
-            | EffectId::Bash3d
-            | EffectId::Bash3d2
-            | EffectId::Bash3d3
-            | EffectId::Bash3d4
-            | EffectId::Bash3d5
-            | EffectId::Truesight
-            | EffectId::Level99
-            | EffectId::Level992
-            | EffectId::Level993
-            | EffectId::Level994
-            | EffectId::Level995
-            | EffectId::Level996
-            | EffectId::Beginspell
-            | EffectId::Beginspell2
-            | EffectId::Beginspell3
-            | EffectId::Beginspell4
-            | EffectId::Beginspell5
-            | EffectId::Beginspell6
-            | EffectId::Beginspell7
-            | EffectId::Beginspellred
-            | EffectId::Beginspellwhite
-            | EffectId::BeginspellN
-            | EffectId::Beginasura
-            | EffectId::Beginasura1
-            | EffectId::Beginasura2
-            | EffectId::Beginasura3
-            | EffectId::Beginasura4
-            | EffectId::Beginasura5
-            | EffectId::Beginasura6
-            | EffectId::Beginasura7
-            | EffectId::Beginasura11
-            | EffectId::TorchRed
-            | EffectId::TorchGreen
-            | EffectId::TorchPurple
-            | EffectId::Dust
-            | EffectId::Glow1
-            | EffectId::Glow2
-            | EffectId::Glow11
-            | EffectId::Glow12
-            | EffectId::BottomGospel
-            | EffectId::BottomEvilland
-            | EffectId::BottomFortunekiss
-            | EffectId::BottomLullaby
-            | EffectId::BottomRichmankim
-            | EffectId::BottomDrumbattlefield
-            | EffectId::BottomRingnibelungen
-            | EffectId::BottomIntoabyss
-            | EffectId::BottomWhistle
-            | EffectId::BottomPoembragi
-            | EffectId::BottomAppleidun
-            | EffectId::BottomHumming
-            | EffectId::BottomMag
-            | EffectId::BottomFogwall
-            | EffectId::BottomVo
-            | EffectId::BottomDe
-            | EffectId::BottomVi
-            | EffectId::BottomSuiton
-            | EffectId::BottomBasilica
-            | EffectId::BottomDissonance
-            | EffectId::BottomUglydance
-            | EffectId::BottomAssassincross
-            | EffectId::BottomDontforgetme
-            | EffectId::BottomServiceforyou
-            | EffectId::BottomEternalchaos
-            | EffectId::BottomSiegfried
-            | EffectId::BottomLa
-            | EffectId::BottomRunner
-            | EffectId::BottomTransfer
-            | EffectId::BottomSpider
-            | EffectId::BottomHermode
-            | EffectId::BottomRokisweil
-            | EffectId::Potionpillar
-            | EffectId::Revive
-            | EffectId::Pierce
-            | EffectId::PotionBerserk
-            | EffectId::PotionCon
-            | EffectId::Potion
-            | EffectId::ItemLight
-            | EffectId::Forestlight
-            | EffectId::Forestlight2
-            | EffectId::Forestlight3
-            | EffectId::Forestlight4
-            | EffectId::Wink
-            | EffectId::Fvoice
-            | EffectId::Ghost
-            | EffectId::Bat
-            | EffectId::Bat2
-            | EffectId::M02
-            | EffectId::Kaizel
-            | EffectId::TempOk
-            | EffectId::TempFail
-            | EffectId::Tarotcard1
-            | EffectId::Tarotcard2
-            | EffectId::Tarotcard3
-            | EffectId::Tarotcard4
-            | EffectId::Tarotcard5
-            | EffectId::Tarotcard6
-            | EffectId::Tarotcard7
-            | EffectId::Tarotcard8
-            | EffectId::Tarotcard9
-            | EffectId::Tarotcard10
-            | EffectId::Tarotcard11
-            | EffectId::Tarotcard12
-            | EffectId::Tarotcard13
-            | EffectId::Tarotcard14
-            | EffectId::NpcSlowcast
-            | EffectId::Hyousensou
-            | EffectId::Earthspike
-            | EffectId::Bowlingbash
-            | EffectId::Overthrust
-            | EffectId::Callzone
-            | EffectId::Groundsample
-            | EffectId::Flowercast
-            | EffectId::Yufitel2
-            | EffectId::TextureFalling
-            | EffectId::Aciddemon
-            | EffectId::Rainbow
-            | EffectId::Agiup
-            | EffectId::Lightsphere
-            | EffectId::Lightsphere2
-            | EffectId::Linelink
-            | EffectId::Linelink2
-            | EffectId::Linelink3
-            | EffectId::MapMagiczone
-            | EffectId::MapMagiczone2
-            | EffectId::Glow4
-            | EffectId::Quakebody
-            | EffectId::Quakebody2
-            | EffectId::Quakebody3
-            | EffectId::Quakebody4
-            | EffectId::Twohandquicken
-            | EffectId::Spearquicken
-            | EffectId::Lkconcentration
-            | EffectId::Mappillar
-            | EffectId::Mappillar2
-            | EffectId::Mappillar3
-            | EffectId::Mappillar4
-            | EffectId::Tanji
-            | EffectId::Tanji2
-            | EffectId::Alattack1
-            | EffectId::Alattack2
-            | EffectId::Alattack3
-            | EffectId::Alattack4
-            | EffectId::Shieldboomerang
-            | EffectId::Shieldboomerang2
-            | EffectId::Shieldboomerang3
-            | EffectId::Slim
-            | EffectId::Slim2
-            | EffectId::Slim3
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn has_real_impl(id: EffectId) -> bool {
+        make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None)
+            .is_some_and(|e| !e.is_placeholder())
+    }
 
     #[test]
     fn warp_dispatches() {
@@ -2161,7 +1924,7 @@ mod tests {
             None,
         );
         assert!(e.is_some());
-        assert!(is_real_impl(EffectId::Warp));
+        assert!(has_real_impl(EffectId::Warp));
     }
 
     #[test]
@@ -2265,7 +2028,7 @@ mod tests {
     fn unimplemented_custom_falls_back_to_placeholder() {
         assert!(
             make_effect(
-                EffectId::Spherewind,
+                EffectId::Steal,
                 EffectAnchor::Point([0.0; 3]),
                 None,
                 None,
@@ -2273,7 +2036,7 @@ mod tests {
             )
             .is_some()
         );
-        assert!(!is_real_impl(EffectId::Spherewind));
+        assert!(!has_real_impl(EffectId::Steal));
     }
 
     #[test]
@@ -2288,7 +2051,7 @@ mod tests {
             EffectId::Glow11,
             EffectId::Glow12,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2308,7 +2071,7 @@ mod tests {
             EffectId::BottomDontforgetme,
             EffectId::BottomServiceforyou,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2316,7 +2079,7 @@ mod tests {
 
     #[test]
     fn bottom_hermode_dispatches_to_world_quad_cube() {
-        assert!(is_real_impl(EffectId::BottomHermode));
+        assert!(has_real_impl(EffectId::BottomHermode));
         let e = make_effect(
             EffectId::BottomHermode,
             EffectAnchor::Point([0.0; 3]),
@@ -2330,7 +2093,7 @@ mod tests {
 
     #[test]
     fn bottom_rokisweil_dispatches_to_billboard_pulse() {
-        assert!(is_real_impl(EffectId::BottomRokisweil));
+        assert!(has_real_impl(EffectId::BottomRokisweil));
         let e = make_effect(
             EffectId::BottomRokisweil,
             EffectAnchor::Point([0.0; 3]),
@@ -2350,7 +2113,7 @@ mod tests {
             EffectId::BottomTransfer,
             EffectId::BottomSpider,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2359,7 +2122,7 @@ mod tests {
     #[test]
     fn bottom_light_variants_dispatch_to_world_quad_curtain() {
         for id in [EffectId::BottomEternalchaos, EffectId::BottomSiegfried] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2368,7 +2131,7 @@ mod tests {
     #[test]
     fn bottom_magnus_variants_dispatch_to_frustum_pillar() {
         for id in [EffectId::BottomMag, EffectId::BottomFogwall] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2390,7 +2153,7 @@ mod tests {
             EffectId::BottomAppleidun,
             EffectId::BottomHumming,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2412,7 +2175,7 @@ mod tests {
             EffectId::BottomSuiton,
             EffectId::BottomBasilica,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2438,7 +2201,7 @@ mod tests {
             EffectId::Tarotcard14,
             EffectId::NpcSlowcast,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
@@ -2460,7 +2223,7 @@ mod tests {
             EffectId::Mappillar3,
             EffectId::Mappillar4,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
@@ -2481,7 +2244,7 @@ mod tests {
             EffectId::Gumgang2,
             EffectId::Napalmvalcan,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let _ = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         }
         let cart = make_effect(
@@ -2516,7 +2279,7 @@ mod tests {
 
     #[test]
     fn soulstrike_dispatches_with_trail_and_hit_count() {
-        assert!(is_real_impl(EffectId::Soulstrike));
+        assert!(has_real_impl(EffectId::Soulstrike));
         let e = make_effect(
             EffectId::Soulstrike,
             EffectAnchor::Trail {
@@ -2549,7 +2312,7 @@ mod tests {
             EffectId::Slim2,
             EffectId::Slim3,
         ] {
-            assert!(is_real_impl(id), "{id:?} must have a real impl");
+            assert!(has_real_impl(id), "{id:?} must have a real impl");
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
                 "{id:?} spec"

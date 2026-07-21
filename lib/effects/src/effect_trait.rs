@@ -75,6 +75,10 @@ pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
 
+    fn is_placeholder(&self) -> bool {
+        false
+    }
+
     fn set_link_endpoints(&mut self, _caster: [f32; 3], _target: [f32; 3]) {}
 
     fn set_position(&mut self, _pos: [f32; 3]) {}

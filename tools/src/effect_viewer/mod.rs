@@ -1047,11 +1047,15 @@ impl App {
         } else {
             "DefaultStr"
         };
-        let impl_flag = if ragnarok_game::effect::is_real_impl(id) {
-            "yes"
-        } else {
-            "no"
-        };
+        let real_impl = ragnarok_game::effect::factory::make_effect(
+            id,
+            EffectAnchor::Point([0.0, 0.0, 0.0]),
+            None,
+            None,
+            None,
+        )
+        .is_some_and(|e| !e.is_placeholder());
+        let impl_flag = if real_impl { "yes" } else { "no" };
         let str_field = {
             let aliases = str_aliases(id);
             if aliases.is_empty() {

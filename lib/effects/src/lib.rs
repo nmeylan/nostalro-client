@@ -25,7 +25,7 @@ pub use effect_trait::{
     Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
-pub use factory::{is_real_impl, make_effect};
+pub use factory::make_effect;
 pub use skill_effects::{
     CasterSkillEffects, CastingSkill, TargetSkillEffects, begin_cast_effect, beginspell_for_element,
     caster_cast_on_use, caster_skill_effects, casting_skill, derive_hit_effect, fire_glyph_effect,

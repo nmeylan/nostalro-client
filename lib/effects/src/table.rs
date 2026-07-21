@@ -1244,8 +1244,15 @@ mod tests {
                 "{id:?} should resolve to Custom 40000, got {:?}",
                 effect_spec(id)
             );
+            let built = super::super::factory::make_effect(
+                id,
+                super::super::spec::EffectAnchor::Point([0.0; 3]),
+                None,
+                None,
+                None,
+            );
             assert!(
-                super::super::factory::is_real_impl(id),
+                built.is_some_and(|e| !e.is_placeholder()),
                 "{id:?} must have a real impl"
             );
         }
