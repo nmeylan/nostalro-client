@@ -5,7 +5,7 @@ use ragnarok_game::damage_number::DamageNumber;
 
 impl App {
     pub(super) fn handle_recovery(&mut self, var_id: u16, amount: i32) {
-        let Some(gid) = self.game.entities.player_id() else {
+        let Some(gid) = self.game.world.entities.player_id() else {
             return;
         };
         let color = match StatusTypes::try_from_value(var_id as usize) {
@@ -19,13 +19,13 @@ impl App {
 
     pub(super) fn handle_parameter_changed(&mut self, var_id: u16, value: i32) {
         if let Some(speed) = self.game.character.apply_parameter_changed(var_id, value)
-            && let Some(entity) = self.game.entities.player_mut()
+            && let Some(entity) = self.game.world.entities.player_mut()
         {
             entity.speed = speed;
             entity.movement.set_speed(speed);
         }
         if let Ok(StatusTypes::Baselevel) = StatusTypes::try_from_value(var_id as usize)
-            && let Some(gid) = self.game.entities.player_id()
+            && let Some(gid) = self.game.world.entities.player_id()
         {
             self.refresh_level_aura(gid);
         }

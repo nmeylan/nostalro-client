@@ -102,14 +102,14 @@ impl App {
         self.window_state_restored = false;
         self.char_select_window = None;
         self.game.character.clear();
-        self.game.entities.clear();
+        self.game.world.entities.clear();
         self.game.sprites.clear();
         self.game.gr2_models.clear();
         if let Some(renderer) = &mut self.renderer {
             renderer.gr2_models.clear();
         }
         self.game.sprite_cache.clear();
-        self.game.floor_items.clear();
+        self.game.world.floor_items.clear();
         self.game.floor_item_sprites.clear();
         self.game.chat_rooms.clear();
         self.game.combat.waiting_item_throw_ack = false;
@@ -235,8 +235,8 @@ impl App {
             entity.guild_id = guild.gdid;
             entity.guild_emblem_version = guild.emblem_version;
         }
-        self.game.entities.set_player_id(account_id);
-        self.game.entities.insert(entity);
+        self.game.world.entities.set_player_id(account_id);
+        self.game.world.entities.insert(entity);
 
         for &(bit, efst) in ragnarok_game::sprite_path::OPTION_STATUS_ICONS {
             if effect_state & bit != 0 {
@@ -363,7 +363,7 @@ impl App {
         self.effect_holder.clear();
         self.sound_queue.clear();
         self.sound.stop_all_sfx();
-        self.game.arrows.clear();
+        self.game.world.arrows.clear();
         self.game.combat.damage_numbers.clear();
         self.game.effect_keys.status_buff_keys.clear();
         self.game.effect_keys.next_status_buff_key = 0;
@@ -403,6 +403,7 @@ impl App {
             self.game.session.current_map = Some(map_name.clone());
             let player_sprite = self
                 .game
+                .world
                 .entities
                 .player_id()
                 .and_then(|pid| self.game.sprites.remove(&pid));
@@ -410,16 +411,16 @@ impl App {
             // Renderer-side gr2 models were already dropped by load_map.
             self.game.gr2_models.clear();
             self.game.sprite_cache.clear();
-            self.game.entities.clear_non_player();
+            self.game.world.entities.clear_non_player();
             self.game.companions.pet.clear_entity();
             self.game.quest_markers.clear();
             self.game.failed_sprite_loads.clear();
-            self.game.floor_items.clear();
+            self.game.world.floor_items.clear();
             self.game.floor_item_sprites.clear();
             if let Some(guild) = &mut self.game.guild {
                 guild.clear_live_positions();
             }
-            if let (Some(pid), Some(sprite)) = (self.game.entities.player_id(), player_sprite) {
+            if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite) {
                 self.game.sprites.insert(pid, sprite);
             }
 
@@ -434,18 +435,18 @@ impl App {
             self.game.minimap_window.on_map_changed();
         }
         if self.game.session.player_dead {
-            if let Some(entity) = self.game.entities.player_mut() {
+            if let Some(entity) = self.game.world.entities.player_mut() {
                 entity.revive();
             }
             self.game.session.player_dead = false;
             self.game.system_menu.close_dead();
         }
-        if let Some(entity) = self.game.entities.player_mut() {
+        if let Some(entity) = self.game.world.entities.player_mut() {
             entity.movement.set_position(x as f32, y as f32);
         }
         self.position_camera_at(x as f32, y as f32);
 
-        let surviving: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+        let surviving: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
         for gid in surviving {
             self.refresh_level_aura(gid);
             self.refresh_boss_aura(gid);
@@ -468,6 +469,7 @@ impl App {
         self.input.walk_server_acked = true;
         let already_moving_to_dest = self
             .game
+            .world
             .entities
             .player()
             .filter(|e| e.movement.is_moving())
@@ -482,7 +484,7 @@ impl App {
             // Start at local now, not the server tick: fast-forwarding jumps the
             // player forward by one round-trip at each segment seam.
             let now = local_ms as f32 / 1000.0;
-            if let Some(entity) = self.game.entities.player_mut() {
+            if let Some(entity) = self.game.world.entities.player_mut() {
                 entity.movement.correct_to_cell(start_x as f32, start_y as f32);
                 if !path.is_empty() {
                     entity.movement.start_move(path, now);

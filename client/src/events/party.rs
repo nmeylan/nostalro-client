@@ -154,6 +154,7 @@ impl App {
             .map(|m| m.name.clone())
             .or_else(|| {
                 self.game
+                    .world
                     .entities
                     .get(aid)
                     .and_then(|e| e.name.clone())

@@ -41,7 +41,7 @@ impl App {
     }
 
     pub(crate) fn reload_player_sprite(&mut self, gid: u32) {
-        let entity = match self.game.entities.get(gid) {
+        let entity = match self.game.world.entities.get(gid) {
             Some(e) => e,
             None => return,
         };
@@ -87,6 +87,7 @@ impl App {
     ) {
         let orc_face = self
             .game
+            .world
             .entities
             .get(gid)
             .is_some_and(|e| ragnarok_game::sprite_path::is_orcish(e.effect_state));
@@ -169,9 +170,10 @@ impl App {
                 .map(|m| {
                     let sex = self
                         .game
+                        .world
                         .entities
                         .get(m.gid)
-                        .or_else(|| self.game.entities.get(self.game.entities.resolve_key(m.aid)))
+                        .or_else(|| self.game.world.entities.get(self.game.world.entities.resolve_key(m.aid)))
                         .map(|e| e.sex)
                         .unwrap_or_else(|| m.sex.max(0) as u8);
                     (
@@ -439,10 +441,11 @@ impl App {
     pub(crate) fn load_missing_entity_sprites(&mut self) {
         let missing: Vec<_> = self
             .game
+            .world
             .entities
             .iter()
             .filter(|e| {
-                self.game.entities.player_id() != Some(e.id)
+                self.game.world.entities.player_id() != Some(e.id)
                     && !self.game.sprites.contains_key(&e.id)
                     && !self.game.gr2_models.contains_key(&e.id)
                     && !self.game.failed_sprite_loads.contains(&e.id)

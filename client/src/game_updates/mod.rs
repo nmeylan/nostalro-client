@@ -90,7 +90,7 @@ impl App {
             .ambient_effects
             .update(delta, &is_visible, &mut self.effect_queue);
 
-        let entities = &self.game.entities;
+        let entities = &self.game.world.entities;
         let resolve_caster_yaw = |id: u32| {
             entities
                 .get(id)
@@ -161,9 +161,9 @@ impl App {
         let (Some(renderer), Some(grf)) = (self.renderer.as_mut(), self.grf.as_ref()) else {
             return;
         };
-        let live: std::collections::HashSet<u32> = self.game.trap_units.keys().copied().collect();
+        let live: std::collections::HashSet<u32> = self.game.world.trap_units.keys().copied().collect();
         renderer.retain_skill_unit_models(&live);
-        if self.game.trap_units.is_empty() {
+        if self.game.world.trap_units.is_empty() {
             return;
         }
         let scale_factor = self
@@ -172,7 +172,7 @@ impl App {
             .as_ref()
             .map(|c| c.zoom() / 10.0)
             .unwrap_or(1.0);
-        for (&aid, &(unit_id, world)) in &self.game.trap_units {
+        for (&aid, &(unit_id, world)) in &self.game.world.trap_units {
             if renderer.has_skill_unit_model(aid) {
                 continue;
             }

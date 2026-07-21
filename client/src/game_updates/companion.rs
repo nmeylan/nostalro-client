@@ -19,15 +19,16 @@ impl App {
         }
         self.adopt_companion_gid(EntityType::Homunculus);
         self.adopt_companion_gid(EntityType::Mercenary);
-        let Some(owner_gid) = self.game.entities.player_id() else {
+        let Some(owner_gid) = self.game.world.entities.player_id() else {
             return;
         };
-        let owner_pos = self.game.entities.player().map(|p| {
+        let owner_pos = self.game.world.entities.player().map(|p| {
             let (x, y) = p.movement.cell_position();
             (x as i32, y as i32)
         });
         let owner_motion = self
             .game
+            .world
             .entities
             .player()
             .map(|p| motion_from_state(p.state))
@@ -41,6 +42,7 @@ impl App {
         // a borrow of `entities` across the mutable AI tick).
         let actors: Vec<ActorView> = self
             .game
+            .world
             .entities
             .iter()
             .map(|e| {
@@ -83,6 +85,7 @@ impl App {
         }
         let Some(id) = self
             .game
+            .world
             .entities
             .iter()
             .find(|e| e.entity_type == entity_type)
@@ -137,7 +140,7 @@ impl App {
             return None;
         }
         let gid = homun.gid;
-        let entity = self.game.entities.get(gid)?;
+        let entity = self.game.world.entities.get(gid)?;
         let (mx, my) = entity.movement.cell_position();
         let motion = motion_from_state(entity.state);
         let job = entity.job;
@@ -199,7 +202,7 @@ impl App {
         }
         let gid = merc.gid;
         let has_cmd = merc.ai.has_pending_command();
-        let Some(entity) = self.game.entities.get(gid) else {
+        let Some(entity) = self.game.world.entities.get(gid) else {
             if has_cmd {
                 tracing::info!("tick_mercenary: merc gid={gid} has a command but no entity in map");
             }

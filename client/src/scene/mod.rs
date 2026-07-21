@@ -22,7 +22,7 @@ impl App {
     /// Stealth-visibility relationship of the local player to `gid`: their own
     /// body, a party member's, or a stranger's.
     pub(crate) fn hidden_viewer_for(&self, gid: u32) -> HiddenViewer {
-        if self.game.entities.player_id() == Some(gid) {
+        if self.game.world.entities.player_id() == Some(gid) {
             return HiddenViewer::Own;
         }
         let is_ally = self
@@ -56,7 +56,7 @@ impl App {
         let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
         // TODO refactor
-        if !self.game.freeze_shatters.is_empty() {
+        if !self.game.world.freeze_shatters.is_empty() {
             let anim = self
                 .game
                 .status_overlay_sprites
@@ -74,13 +74,13 @@ impl App {
                 });
             match anim {
                 Some((delay_ms, motion_count)) if motion_count > 0 => {
-                    self.game.freeze_shatters.retain_mut(|s| {
+                    self.game.world.freeze_shatters.retain_mut(|s| {
                         let start = *s.started_at.get_or_insert(elapsed);
                         let frame = ((elapsed - start) * 1000.0 / delay_ms) as usize;
                         frame < motion_count
                     });
                 }
-                _ => self.game.freeze_shatters.clear(),
+                _ => self.game.world.freeze_shatters.clear(),
             }
         }
 
@@ -100,7 +100,7 @@ impl App {
                 RenderEntryKind::Entity => {
                     if let (Some(sprite), Some(entity)) = (
                         self.game.sprites.get(&entry.id),
-                        self.game.entities.get(entry.id),
+                        self.game.world.entities.get(entry.id),
                     ) {
                         let render =
                             hidden_render(entity.effect_state, self.hidden_viewer_for(entry.id));
@@ -426,7 +426,7 @@ impl App {
                         }
 
                         // TODO refactor and move this in another place
-                        for shatter in &self.game.freeze_shatters {
+                        for shatter in &self.game.world.freeze_shatters {
                             if shatter.gid != entry.id {
                                 continue;
                             }
@@ -478,7 +478,7 @@ impl App {
                     }
                 }
                 RenderEntryKind::FloorItem => {
-                    if let Some(floor_item) = self.game.floor_items.get(&entry.id)
+                    if let Some(floor_item) = self.game.world.floor_items.get(&entry.id)
                         && let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id)
                     {
                         let y_offset = if floor_item.is_falling {
@@ -543,7 +543,7 @@ impl App {
                 RenderEntryKind::Cart => {
                     if let (Some(cart), Some(entity)) = (
                         self.game.carts.get(&entry.id),
-                        self.game.entities.get(entry.id),
+                        self.game.world.entities.get(entry.id),
                     ) {
                         if is_hidden(entity.effect_state) {
                             continue;
@@ -584,7 +584,7 @@ impl App {
                 RenderEntryKind::Falcon => {
                     if let (Some(falcon), Some(entity)) = (
                         self.game.falcons.get(&entry.id),
-                        self.game.entities.get(entry.id),
+                        self.game.world.entities.get(entry.id),
                     ) {
                         if is_hidden(entity.effect_state) {
                             continue;
@@ -627,7 +627,7 @@ impl App {
         let mut inline_textures = Vec::new();
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(center) = self.game.equipment_window.character_center()
-            && let Some(player_id) = self.game.entities.player_id()
+            && let Some(player_id) = self.game.world.entities.player_id()
             && let Some(sprite) = self.game.sprites.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
@@ -652,7 +652,7 @@ impl App {
         }
 
         if let Some(center) = self.game.equipment_window.cart_slot_center()
-            && let Some(player_id) = self.game.entities.player_id()
+            && let Some(player_id) = self.game.world.entities.player_id()
             && let Some(cart) = self.game.carts.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
@@ -995,6 +995,7 @@ impl App {
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
             let arrow_draws: Vec<EffectPrimitiveDraw> = self
                 .game
+                .world
                 .arrows
                 .iter()
                 .filter(|a| a.is_visible())
@@ -1011,7 +1012,7 @@ impl App {
                 })
                 .collect();
             let zoom = self.game.session.map_coords.as_ref().map_or(10.0, |c| c.zoom());
-            let entities = &self.game.entities;
+            let entities = &self.game.world.entities;
             let gat = self.game.session.gat.as_ref();
             let map_coords = self.game.session.map_coords.as_ref();
             let resolve_entity = |id: u32| {

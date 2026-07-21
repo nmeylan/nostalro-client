@@ -57,8 +57,8 @@ impl App {
     fn listener_pos(&self) -> Option<[f32; 3]> {
         let gat = self.game.session.gat.as_ref()?;
         let coords = self.game.session.map_coords.as_ref()?;
-        let pid = self.game.entities.player_id()?;
-        let (cx, cy) = self.game.entities.get(pid)?.movement.position();
+        let pid = self.game.world.entities.player_id()?;
+        let (cx, cy) = self.game.world.entities.get(pid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
     }

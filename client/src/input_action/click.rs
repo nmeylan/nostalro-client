@@ -26,19 +26,20 @@ impl App {
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
         }
-        if autocounter::player_in_autocounter(&self.game.entities) {
+        if autocounter::player_in_autocounter(&self.game.world.entities) {
             self.dispel_autocounter();
             return;
         }
-        if let Some(entity) = self.game.entities.player()
+        if let Some(entity) = self.game.world.entities.player()
             && matches!(entity.state, EntityState::Casting | EntityState::SkillExec)
         {
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
-            && Some(entity_id) == self.game.entities.player_id()
+            && Some(entity_id) == self.game.world.entities.player_id()
             && self
                 .game
+                .world
                 .entities
                 .get(entity_id)
                 .is_some_and(|e| e.vending_board.is_some())
@@ -90,10 +91,10 @@ impl App {
                         .resolve_cast_skill(skill_id)
                         .map(|(target_type, _)| skill_target_class(target_type))
                         .unwrap_or(TargetClass::Offensive);
-                    let player_id = self.game.entities.player_id();
+                    let player_id = self.game.world.entities.player_id();
                     let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
                     let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
-                        self.game.entities.get(id).is_some_and(|e| {
+                        self.game.world.entities.get(id).is_some_and(|e| {
                             skill_target_allowed(class, e, &self.game.session.map_properties, player_id)
                                 || (potion_pitcher
                                     && matches!(
@@ -105,12 +106,14 @@ impl App {
                     if let Some(entity_id) = valid_target {
                         let target_pos = self
                             .game
+                            .world
                             .entities
                             .get(entity_id)
                             .map(|e| e.movement.cell_position())
                             .unwrap_or((0, 0));
                         let (px, py) = self
                             .game
+                            .world
                             .entities
                             .player()
                             .map(|e| e.movement.cell_position())
@@ -149,6 +152,7 @@ impl App {
                     if let Some((cx, cy)) = self.hovered_cell() {
                         let (px, py) = self
                             .game
+                            .world
                             .entities
                             .player()
                             .map(|e| e.movement.cell_position())
@@ -188,9 +192,10 @@ impl App {
             }
             self.game.combat.attack_target_id = None;
             self.game.pending_casts.pending_pickup_item_id = None;
-            if let Some(floor_item) = self.game.floor_items.get(&item_id) {
+            if let Some(floor_item) = self.game.world.floor_items.get(&item_id) {
                 let (px, py) = self
                     .game
+                    .world
                     .entities
                     .player()
                     .map(|e| e.movement.cell_position())
@@ -200,7 +205,7 @@ impl App {
                 if dx <= 1 && dy <= 1 {
                     self.channel
                         .send_packet(build_pickup_item_packet(item_id, self.config.packetver));
-                    if let Some(entity) = self.game.entities.player_mut() {
+                    if let Some(entity) = self.game.world.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
                 } else if let Some(gat) = &self.game.session.gat {
@@ -219,9 +224,10 @@ impl App {
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
-            && Some(entity_id) != self.game.entities.player_id()
+            && Some(entity_id) != self.game.world.entities.player_id()
             && self
                 .game
+                .world
                 .entities
                 .get(entity_id)
                 .is_some_and(|e| e.vending_board.is_some())
@@ -231,7 +237,7 @@ impl App {
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
-            && let Some(entity) = self.game.entities.get(entity_id)
+            && let Some(entity) = self.game.world.entities.get(entity_id)
             && entity.entity_type == EntityType::Npc
             && entity.job != 45
         {
@@ -240,9 +246,9 @@ impl App {
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
-            && let Some(entity) = self.game.entities.get(entity_id)
+            && let Some(entity) = self.game.world.entities.get(entity_id)
         {
-            let player_id = self.game.entities.player_id();
+            let player_id = self.game.world.entities.player_id();
             let should_attack = match entity.entity_type {
                 EntityType::Monster => !self.input.shift_pressed && !entity.is_pet,
                 EntityType::Player => {
@@ -266,13 +272,14 @@ impl App {
         // click-to-move (and the continuous-walk that routes through here) entirely.
         if self
             .game
+            .world
             .entities
             .player()
             .is_some_and(|e| e.is_running)
         {
             return;
         }
-        if self.game.entities.player().is_some_and(|e| e.is_move_locked()) {
+        if self.game.world.entities.player().is_some_and(|e| e.is_move_locked()) {
             return;
         }
         if self.player_hide_move_blocked() {
@@ -289,6 +296,7 @@ impl App {
 
         let (src_x, src_y) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())

@@ -62,7 +62,7 @@ impl App {
             guild.emblem_version = emblem_version;
             changed && emblem_version != 0
         };
-        if let Some(player) = self.game.entities.player_mut() {
+        if let Some(player) = self.game.world.entities.player_mut() {
             player.guild_id = gdid;
             player.guild_emblem_version = emblem_version;
         }
@@ -240,7 +240,7 @@ impl App {
         if !name.is_empty() {
             guild.name = name;
         }
-        if let Some(player) = self.game.entities.player_mut() {
+        if let Some(player) = self.game.world.entities.player_mut() {
             player.guild_id = gdid;
             player.guild_emblem_version = emblem_version;
         }

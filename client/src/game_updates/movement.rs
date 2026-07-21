@@ -30,7 +30,7 @@ impl App {
             return;
         };
         let mut prints: Vec<(EffectId, [f32; 3], [f32; 3])> = Vec::new();
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             let chasewalk = entity.effect_state & OPTION_CHASEWALK != 0;
             if !entity.is_running && !chasewalk {
                 continue;
@@ -107,13 +107,13 @@ impl App {
     }
 
     pub(crate) fn update_movement(&mut self, delta: f32, elapsed: f32) {
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             entity.movement.decay_correction(delta);
             if entity.movement.is_moving() {
                 entity.movement.update(elapsed);
             }
         }
-        if let Some(player) = self.game.entities.player() {
+        if let Some(player) = self.game.world.entities.player() {
             let (px, py) = player.movement.position();
             self.position_camera_at(px, py);
         }

@@ -203,13 +203,13 @@ impl App {
                     self.handle_entity_vanished(gid, vanish_type);
                 }
                 GameEvent::EntityStopMove { gid, x, y } => {
-                    self.game.entities.apply_entity_stop_move(gid, x, y);
+                    self.game.world.entities.apply_entity_stop_move(gid, x, y);
                 }
                 GameEvent::EntityHighJumped { gid, x, y } => {
                     // By the time this relocate arrives the leap has carried the
                     // caster off-screen (faded), so teleport to the landing cell
                     // straight away — the landing effect drops it back in.
-                    self.game.entities.apply_entity_stop_move(gid, x, y);
+                    self.game.world.entities.apply_entity_stop_move(gid, x, y);
                 }
                 GameEvent::EntityAction {
                     gid,
@@ -237,11 +237,12 @@ impl App {
                 }
                 GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
                     self.game
+                        .world
                         .entities
                         .apply_entity_direction_changed(gid, head_dir, dir);
                 }
                 GameEvent::EntityNameReceived { gid, name } => {
-                    self.game.entities.apply_entity_name_received(gid, name);
+                    self.game.world.entities.apply_entity_name_received(gid, name);
                 }
                 GameEvent::EntityNamesReceived {
                     gid,
@@ -249,7 +250,7 @@ impl App {
                     guild_name,
                     position_name,
                 } => {
-                    self.game.entities.apply_entity_names_received(
+                    self.game.world.entities.apply_entity_names_received(
                         gid,
                         name,
                         guild_name,
@@ -286,14 +287,14 @@ impl App {
                     active,
                 } => {
                     for gid in [src_gid, dest_gid] {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                        if let Some(entity) = self.game.world.entities.get_mut(gid) {
                             entity.rooted = active;
                             if active {
                                 entity.movement.stop();
                             }
                         }
                     }
-                    if let Some(caster) = self.game.entities.get_mut(src_gid) {
+                    if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
                         caster.forced_animation = active.then(|| {
                             ForcedAnimation::held(
                                 SpriteActionType::Skill as usize,
@@ -334,7 +335,7 @@ impl App {
                     self.handle_entity_sprite_changed(gid, sprite_type, value, value2);
                 }
                 GameEvent::EntityEmotion { gid, emotion_type } => {
-                    self.game.entities.apply_entity_emotion(gid, emotion_type);
+                    self.game.world.entities.apply_entity_emotion(gid, emotion_type);
                 }
 
                 GameEvent::NpcDialogText { npc_id, text } => {
@@ -544,7 +545,7 @@ impl App {
                             .filter(|id| is_mercenary_potion(*id))
                             .and(self.game.companions.mercenary.as_ref().map(|m| m.gid))
                             .filter(|gid| *gid != 0)
-                            .or_else(|| self.game.entities.player_id());
+                            .or_else(|| self.game.world.entities.player_id());
                         if let (Some(effect), Some(gid)) = (used_effect, target_gid) {
                             self.effect_queue.spawn_on(effect, gid);
                         }
@@ -774,7 +775,7 @@ impl App {
                     );
                 }
                 GameEvent::FloorItemDisappeared { id } => {
-                    self.game.floor_items.remove(&id);
+                    self.game.world.floor_items.remove(&id);
                     self.game.floor_item_sprites.remove(&id);
                 }
 
@@ -833,7 +834,7 @@ impl App {
                     skill_name,
                 } => {
                     if autocounter::is_kn_autocounter(skill_id)
-                        && self.game.entities.player_id() == Some(gid)
+                        && self.game.world.entities.player_id() == Some(gid)
                     {
                         self.start_autocounter_channel(gid);
                     } else {
@@ -841,7 +842,7 @@ impl App {
                             self.game.data_table.skill_name.as_ref().map(|table| {
                                 table.get_display_name_or_internal(&skill_name.unwrap_or_default())
                             });
-                        self.game.entities.apply_skill_casting(
+                        self.game.world.entities.apply_skill_casting(
                             gid, target_gid, skill_id, delay_ms, x, y, display_name,
                         );
                         self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
@@ -900,11 +901,11 @@ impl App {
                     level,
                 } => {
                     if autocounter::is_kn_autocounter(skill_id)
-                        && self.game.entities.player_id() == Some(src_gid)
+                        && self.game.world.entities.player_id() == Some(src_gid)
                     {
                         self.start_autocounter_channel(src_gid);
                     } else {
-                        self.game.entities.apply_skill_no_damage(
+                        self.game.world.entities.apply_skill_no_damage(
                             skill_id,
                             src_gid,
                             target_gid,
@@ -920,6 +921,7 @@ impl App {
                     y,
                 } => {
                     self.game
+                        .world
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, src_gid, level, x, y);
@@ -961,7 +963,7 @@ impl App {
                 }
                 GameEvent::SkillCastCancel { gid } => {
                     self.fire_autocounter_on_cancel(gid);
-                    self.game.entities.apply_skill_cast_cancel(gid);
+                    self.game.world.entities.apply_skill_cast_cancel(gid);
                 }
                 GameEvent::SkillFailed { skill_id, cause } => {
                     self.handle_skill_failed(skill_id, cause);
@@ -999,7 +1001,7 @@ impl App {
                 }
                 GameEvent::ActionFailure => {
                     self.game.combat.attack_target_id = None;
-                    self.game.entities.apply_action_failure();
+                    self.game.world.entities.apply_action_failure();
                 }
 
                 GameEvent::PartyMemberList { name, members } => {
@@ -1175,6 +1177,7 @@ impl App {
                     emblem_version,
                 } => {
                     self.game
+                        .world
                         .entities
                         .apply_entity_guild_changed(aid, gdid, emblem_version);
                     self.request_entity_guild_emblem(gdid, emblem_version);
@@ -1440,6 +1443,6 @@ impl App {
                 _ => {}
             }
         }
-        self.game.entities.clear_just_spawned_flags();
+        self.game.world.entities.clear_just_spawned_flags();
     }
 }

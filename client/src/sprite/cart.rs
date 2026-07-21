@@ -73,6 +73,7 @@ impl App {
         ));
         let direction = self
             .game
+            .world
             .entities
             .get(owner_gid)
             .map(|e| e.direction)
@@ -134,7 +135,7 @@ impl App {
             .unwrap_or(0);
         let owners: Vec<u32> = self.game.carts.keys().copied().collect();
         for gid in owners {
-            let Some(entity) = self.game.entities.get(gid) else {
+            let Some(entity) = self.game.world.entities.get(gid) else {
                 self.game.carts.remove(&gid);
                 continue;
             };

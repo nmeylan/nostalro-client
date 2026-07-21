@@ -176,6 +176,7 @@ impl App {
         }
         if !self
             .game
+            .world
             .entities
             .get(entity_id)
             .is_some_and(|e| e.is_pet)
@@ -213,10 +214,10 @@ impl App {
         let Some(entity_id) = entity_id else {
             return;
         };
-        if Some(entity_id) == self.game.entities.player_id() {
+        if Some(entity_id) == self.game.world.entities.player_id() {
             return;
         }
-        let Some(entity) = self.game.entities.get(entity_id) else {
+        let Some(entity) = self.game.world.entities.get(entity_id) else {
             return;
         };
         if entity.entity_type != EntityType::Player {
@@ -421,6 +422,7 @@ impl App {
             HotkeyAction::ToggleCart => {
                 let has_cart = self
                     .game
+                    .world
                     .entities
                     .player()
                     .is_some_and(|p| p.cart_type.is_some());
@@ -462,7 +464,7 @@ impl App {
                 if self.player_hidden() {
                     return;
                 }
-                if let Some(entity) = self.game.entities.player() {
+                if let Some(entity) = self.game.world.entities.player() {
                     let action = if entity.state == EntityState::Sitting {
                         3u8
                     } else {

@@ -13,7 +13,7 @@ use ragnarok_network::{build_action_request_packet, build_request_move_packet};
 
 impl App {
     pub(crate) fn is_local_player_incapacitated(&self) -> bool {
-        self.game.entities.player().is_some_and(|p| {
+        self.game.world.entities.player().is_some_and(|p| {
             ailment::movement_blocked(p.body_state, p.rooted) || p.vending_board.is_some()
         })
     }
@@ -23,6 +23,7 @@ impl App {
     pub(crate) fn player_hide_move_blocked(&self) -> bool {
         let effect_state = self
             .game
+            .world
             .entities
             .player()
             .map(|p| p.effect_state)
@@ -40,6 +41,7 @@ impl App {
     /// skills are blocked while the bit is set.
     pub(crate) fn player_hidden(&self) -> bool {
         self.game
+            .world
             .entities
             .player()
             .is_some_and(|p| p.effect_state & OPTION_HIDE != 0)
@@ -59,13 +61,13 @@ impl App {
 
     pub(crate) fn issue_owner_command(&mut self, is_mercenary: bool, hovered_target: Option<u32>) {
         let reserved = self.input.shift_pressed;
-        let player_id = self.game.entities.player_id();
+        let player_id = self.game.world.entities.player_id();
 
         // An attackable target under the cursor becomes an attack order; anything
         // else is a move order to the hovered cell. Shift queues the command
         // behind the current action instead of replacing it.
         let attack_target = hovered_target.and_then(|gid| {
-            let entity = self.game.entities.get(gid)?;
+            let entity = self.game.world.entities.get(gid)?;
             let attackable = match entity.entity_type {
                 EntityType::Monster => true,
                 EntityType::Player => can_attack(entity, &self.game.session.map_properties, player_id),
@@ -125,12 +127,13 @@ impl App {
         let locked = self.game.noctrl_mode || self.input.ctrl_pressed;
         self.game.combat.attack_is_locked = locked;
 
-        let target_pos = match self.game.entities.get(target_id) {
+        let target_pos = match self.game.world.entities.get(target_id) {
             Some(e) => e.movement.cell_position(),
             None => return,
         };
         let (px, py) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())
@@ -167,13 +170,13 @@ impl App {
         py: u16,
         range: i32,
     ) -> bool {
-        if autocounter::player_in_autocounter(&self.game.entities) {
+        if autocounter::player_in_autocounter(&self.game.world.entities) {
             self.dispel_autocounter();
             return false;
         }
         if self.is_local_player_incapacitated()
             || self.player_hide_move_blocked()
-            || self.game.entities.player().is_some_and(|p| p.is_move_locked())
+            || self.game.world.entities.player().is_some_and(|p| p.is_move_locked())
         {
             return false;
         }
@@ -184,12 +187,14 @@ impl App {
         if let Some(move_action) = try_move_to_range(gat, px, py, target_x, target_y, range) {
             let is_moving = self
                 .game
+                .world
                 .entities
                 .player()
                 .is_some_and(|p| p.movement.is_moving());
             if is_moving {
                 let dest_changed = self
                     .game
+                    .world
                     .entities
                     .player()
                     .and_then(|p| p.movement.destination())

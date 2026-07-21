@@ -285,10 +285,24 @@ impl SessionState {
     }
 }
 
+#[derive(Default)]
+pub struct World {
+    pub entities: EntityCollection,
+    pub floor_items: HashMap<u32, FloorItem>,
+    pub arrows: Vec<ArrowProjectile>,
+    /// Deployed, visible traps keyed by unit AID → (trap unit id, world
+    /// position): each shows a ground model and can fire its trigger burst.
+    pub trap_units: HashMap<u32, (u8, [f32; 3])>,
+    /// Traps placed hidden to us (cast by others); revealed to `trap_units` when
+    /// the server sends a skill-unit update (e.g. an ankle snare springs).
+    pub hidden_traps: HashMap<u32, (u8, [f32; 3])>,
+    pub freeze_shatters: Vec<FreezeShatter>,
+}
+
 pub struct GameState {
     pub session: SessionState,
     pub requested_guild_emblems: HashSet<(u32, i32)>,
-    pub entities: EntityCollection,
+    pub world: World,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     /// Animation state of GR2 model entities (emperium, guardians…) keyed by
     /// gid; the matching draw resources live in `Renderer::gr2_models`.
@@ -297,12 +311,6 @@ pub struct GameState {
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
     pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
-    /// Deployed, visible traps keyed by unit AID → (trap unit id, world
-    /// position): each shows a ground model and can fire its trigger burst.
-    pub trap_units: HashMap<u32, (u8, [f32; 3])>,
-    /// Traps placed hidden to us (cast by others); revealed to `trap_units` when
-    /// the server sends a skill-unit update (e.g. an ankle snare springs).
-    pub hidden_traps: HashMap<u32, (u8, [f32; 3])>,
     pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
     pub character: Character,
     pub data_table: DataTable,
@@ -313,7 +321,6 @@ pub struct GameState {
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
-    pub freeze_shatters: Vec<FreezeShatter>,
     pub chat_window: ChatWindow,
     pub banner: BannerState,
     pub poptip: PoptipStack,
@@ -351,9 +358,7 @@ pub struct GameState {
     pub map_missing_window: MapMissingWindow,
     pub hover: HoverState,
     pub failed_sprite_loads: HashSet<u32>,
-    pub floor_items: HashMap<u32, FloorItem>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
-    pub arrows: Vec<ArrowProjectile>,
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub guild_expel_dialog: Option<GuildExpelDialog>,
@@ -511,7 +516,7 @@ impl GameState {
                 .build(ui, &mut self.character, &self.data_table),
         );
 
-        if let Some(player) = self.entities.player() {
+        if let Some(player) = self.world.entities.player() {
             self.minimap_window.player_position = Some(player.movement.position());
             self.minimap_window.player_direction = player.direction;
         }
@@ -521,8 +526,8 @@ impl GameState {
         }
         self.minimap_window.map_name = self.session.current_map.clone();
         self.minimap_window.entity_markers.clear();
-        for entity in self.entities.iter() {
-            if Some(entity.id) == self.entities.player_id() {
+        for entity in self.world.entities.iter() {
+            if Some(entity.id) == self.world.entities.player_id() {
                 continue;
             }
             if entity.entity_type == EntityType::Npc {
@@ -1066,10 +1071,10 @@ impl GameState {
                         if m.aid == local_aid {
                             m.hp = Some(self.character.hp);
                             m.max_hp = Some(self.character.max_hp);
-                            if let Some(p) = self.entities.player() {
+                            if let Some(p) = self.world.entities.player() {
                                 (m.x, m.y) = p.movement.cell_position();
                             }
-                        } else if let Some(e) = self.entities.get(m.aid) {
+                        } else if let Some(e) = self.world.entities.get(m.aid) {
                             if let (Some(hp), Some(max_hp)) = (e.hp, e.max_hp) {
                                 m.hp = Some(hp);
                                 m.max_hp = Some(max_hp);
@@ -1246,14 +1251,12 @@ impl GameState {
         Self {
             session: SessionState::new(),
             requested_guild_emblems: HashSet::new(),
-            entities: EntityCollection::new(),
+            world: World::default(),
             sprites: HashMap::new(),
             gr2_models: HashMap::new(),
             guild_head_sprites: HashMap::new(),
             carts: HashMap::new(),
             falcons: HashMap::new(),
-            trap_units: HashMap::new(),
-            hidden_traps: HashMap::new(),
             cart_preview_sprites: HashMap::new(),
             sprite_cache: HashMap::new(),
             character: Character::new(),
@@ -1265,7 +1268,6 @@ impl GameState {
             emotion_textures: None,
             emotion_act: None,
             status_overlay_sprites: HashMap::new(),
-            freeze_shatters: Vec::new(),
             chat_window: ChatWindow::new(),
             banner: BannerState::new(),
             poptip: PoptipStack::new(),
@@ -1301,9 +1303,7 @@ impl GameState {
             map_missing_window: MapMissingWindow::new(),
             hover: HoverState::default(),
             failed_sprite_loads: HashSet::new(),
-            floor_items: HashMap::new(),
             floor_item_sprites: HashMap::new(),
-            arrows: Vec::new(),
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
             guild_expel_dialog: None,

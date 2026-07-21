@@ -8,7 +8,7 @@ pub(crate) fn cutin_texture_path(image: &str) -> String {
 
 impl App {
     pub(super) fn handle_wedding_celebration(&mut self, account_id: u32) {
-        let key = self.game.entities.resolve_key(account_id);
+        let key = self.game.world.entities.resolve_key(account_id);
         self.effect_queue.spawn_on(EffectId::Colorpaper, key);
     }
 

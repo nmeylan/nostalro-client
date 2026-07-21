@@ -17,11 +17,12 @@ impl App {
                 let accessory = data as u16;
                 let job = self
                     .game
+                    .world
                     .entities
                     .get(gid)
                     .map(|e| e.job)
                     .unwrap_or(self.game.companions.pet.job as u16);
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.pet_accessory = accessory;
                 }
                 self.load_pet_sprite(gid, job, accessory);
@@ -29,7 +30,7 @@ impl App {
             PET_STATE_PERFORMANCE => {
                 // data 1..=3 → PERF1/2/3 (rows 6/7/8), 4 → SPECIAL (row 5).
                 let action = 5 + (data.clamp(1, 4) as usize % 4);
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.forced_animation = Some(ragnarok_game::entity::ForcedAnimation::new(
                         action, 0, 800.0,
                     ));
@@ -106,6 +107,7 @@ impl App {
                 && self.game.companions.pet.gid != Some(entity_id)
                 && self
                     .game
+                    .world
                     .entities
                     .get(entity_id)
                     .is_some_and(|e| {
@@ -188,7 +190,7 @@ impl App {
     pub(super) fn handle_pet_act(&mut self, gid: u32, data: i32) {
         let Some(code) = ragnarok_game::pet::decode_pet_talk(data) else {
             // Plain emotion id.
-            self.game.entities.apply_entity_emotion(gid, data as u8);
+            self.game.world.entities.apply_entity_emotion(gid, data as u8);
             return;
         };
         // Talk line: resolve a random sentence from pettalktable.xml, keyed by the
@@ -203,6 +205,7 @@ impl App {
             .unwrap_or("normal");
         let mob_key = self
             .game
+            .world
             .entities
             .get(gid)
             .and_then(|e| e.name.clone())
@@ -220,12 +223,13 @@ impl App {
                 lines[idx].clone()
             });
         if let Some(line) = line {
-            if let Some(entity) = self.game.entities.get_mut(gid) {
+            if let Some(entity) = self.game.world.entities.get_mut(gid) {
                 entity.chat_bubble =
                     Some(ragnarok_game::entity::ChatBubbleState::new(line.clone()));
             }
             let name = self
                 .game
+                .world
                 .entities
                 .get(gid)
                 .and_then(|e| e.name.clone())

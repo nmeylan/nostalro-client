@@ -97,7 +97,7 @@ impl App {
     }
 
     pub(crate) fn handle_auto_cast_skill(&mut self, skill_id: u16, level: i16) {
-        let target_id = self.game.entities.player_id().unwrap_or(0);
+        let target_id = self.game.world.entities.player_id().unwrap_or(0);
         self.channel.send_packet(ragnarok_network::build_use_skill_packet(
             skill_id,
             level,
@@ -230,6 +230,7 @@ impl App {
         self.preload_item_icons(icon_paths);
         let title = self
             .game
+            .world
             .entities
             .get(aid)
             .and_then(|e| e.vending_board.clone())
@@ -246,14 +247,14 @@ impl App {
     }
 
     pub(crate) fn handle_vending_board_shown(&mut self, aid: u32, name: String) {
-        if let Some(entity) = self.game.entities.get_mut(aid) {
+        if let Some(entity) = self.game.world.entities.get_mut(aid) {
             entity.vending_board = Some(name);
             entity.state = EntityState::Sitting;
         }
     }
 
     pub(crate) fn handle_vending_board_hidden(&mut self, aid: u32) {
-        if let Some(entity) = self.game.entities.get_mut(aid) {
+        if let Some(entity) = self.game.world.entities.get_mut(aid) {
             entity.vending_board = None;
             if entity.state == EntityState::Sitting {
                 entity.state = EntityState::Standing;
@@ -278,8 +279,8 @@ impl App {
 
         self.game.vending_setup_window.close();
 
-        if let Some(pid) = self.game.entities.player_id()
-            && let Some(entity) = self.game.entities.get_mut(pid)
+        if let Some(pid) = self.game.world.entities.player_id()
+            && let Some(entity) = self.game.world.entities.get_mut(pid)
         {
             entity.vending_board = Some(shop_name);
             entity.state = EntityState::Sitting;
@@ -292,8 +293,8 @@ impl App {
         ));
         self.game.pending_casts.pending_shop_name = None;
         self.game.my_shop_window.close();
-        if let Some(pid) = self.game.entities.player_id()
-            && let Some(entity) = self.game.entities.get_mut(pid)
+        if let Some(pid) = self.game.world.entities.player_id()
+            && let Some(entity) = self.game.world.entities.get_mut(pid)
         {
             entity.vending_board = None;
             if entity.state == EntityState::Sitting {

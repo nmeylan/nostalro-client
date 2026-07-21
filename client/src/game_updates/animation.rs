@@ -25,7 +25,7 @@ fn emit_act_events(event_ids: &[i32], body_act: &ActFile, world_pos: Option<[f32
 
 impl App {
     pub(crate) fn update_entity_state(&mut self, delta: f32) {
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             entity.update_state(delta);
             if let Some(move_dir) = entity.movement.movement_direction() {
                 entity.direction = move_dir;
@@ -46,7 +46,7 @@ impl App {
             }
             _ => None,
         };
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
                 if entity.state == EntityState::Dead
                     && entity.animation.action() == entity.action_index()
@@ -179,7 +179,7 @@ impl App {
         };
         let queue = &renderer.device.queue;
         for (gid, instance) in self.game.gr2_models.iter_mut() {
-            let Some(entity) = self.game.entities.get_mut(*gid) else {
+            let Some(entity) = self.game.world.entities.get_mut(*gid) else {
                 continue;
             };
             instance.set_action(Gr2Action::from_state(entity.state), elapsed);
@@ -213,7 +213,7 @@ impl App {
     }
 
     pub(crate) fn update_fades(&mut self, delta: f32) {
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             if entity.state == EntityState::Dead
                 && entity.fade.is_none()
                 && entity.animation.is_finished()
@@ -233,6 +233,7 @@ impl App {
 
         let expired: Vec<u32> = self
             .game
+            .world
             .entities
             .iter()
             .filter(|e| e.should_remove())
@@ -240,7 +241,7 @@ impl App {
             .collect();
         for gid in expired {
             self.despawn_entity_effects(gid);
-            self.game.entities.remove(gid);
+            self.game.world.entities.remove(gid);
             self.game.sprites.remove(&gid);
             self.remove_gr2_model(gid);
         }

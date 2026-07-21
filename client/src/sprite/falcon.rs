@@ -123,7 +123,7 @@ pub struct FalconVisual {
 impl App {
     fn falcon_orbit_target(&self, owner_gid: u32) -> Option<[f32; 3]> {
         let coords = self.game.session.map_coords.as_ref()?;
-        let entity = self.game.entities.get(owner_gid)?;
+        let entity = self.game.world.entities.get(owner_gid)?;
         let (px, py) = entity.movement.position();
         let (ox, oy) = direction_offset(entity.direction);
         let (cx, cy) = (
@@ -146,6 +146,7 @@ impl App {
         }
         let job = self
             .game
+            .world
             .entities
             .get(owner_gid)
             .map(|e| e.job)
@@ -182,6 +183,7 @@ impl App {
         ));
         let direction = self
             .game
+            .world
             .entities
             .get(owner_gid)
             .map(|e| e.direction)
@@ -218,13 +220,14 @@ impl App {
             .unwrap_or(0);
         let owners: Vec<u32> = self.game.falcons.keys().copied().collect();
         for gid in owners {
-            if self.game.entities.get(gid).is_none() {
+            if self.game.world.entities.get(gid).is_none() {
                 self.game.falcons.remove(&gid);
                 continue;
             }
             let orbit = self.falcon_orbit_target(gid);
             let owner_moving = self
                 .game
+                .world
                 .entities
                 .get(gid)
                 .is_some_and(|e| e.state == EntityState::Moving);

@@ -100,7 +100,7 @@ impl App {
             (Some(id), Some(r)) => (id, r),
             _ => return,
         };
-        let entity = match self.game.entities.get(entity_id) {
+        let entity = match self.game.world.entities.get(entity_id) {
             Some(e) => e,
             None => return,
         };
@@ -183,7 +183,7 @@ impl App {
             return;
         };
         for entry in render_list {
-            let Some(entity) = self.game.entities.get(entry.id) else {
+            let Some(entity) = self.game.world.entities.get(entry.id) else {
                 continue;
             };
             if entity.guild_id == 0
@@ -213,16 +213,16 @@ impl App {
         render_list: &[RenderEntry],
         calls: &mut Vec<UiDrawCall>,
     ) {
-        if self.renderer.is_none() || self.game.entities.player().is_none() {
+        if self.renderer.is_none() || self.game.world.entities.player().is_none() {
             return;
         }
-        if hovered_entity_id == self.game.entities.player_id() {
+        if hovered_entity_id == self.game.world.entities.player_id() {
             return;
         }
         let ratio = self.game.character.hp_percentage();
         if let Some(entry) = render_list
             .iter()
-            .find(|e| Some(e.id) == self.game.entities.player_id())
+            .find(|e| Some(e.id) == self.game.world.entities.player_id())
         {
             let (_x, y) = render_hp_bar(entry, ratio, EntityType::Player, calls);
             render_bar(
@@ -238,7 +238,7 @@ impl App {
     /// HP ratio for an entity, sourcing companion HP from companion state (which is not
     /// mirrored onto `Entity.hp`) and party-member HP from `Entity.hp`.
     fn entity_hp_ratio(&self, entity_id: u32) -> Option<f32> {
-        if self.game.entities.is_player(entity_id) {
+        if self.game.world.entities.is_player(entity_id) {
             return Some(self.game.character.hp_percentage());
         }
         if let Some(h) = self.game.companions.homunculus.as_ref().filter(|h| h.gid == entity_id) {
@@ -247,13 +247,13 @@ impl App {
         if let Some(m) = self.game.companions.mercenary.as_ref().filter(|m| m.gid == entity_id) {
             return Some(m.hp_percentage());
         }
-        self.game.entities.get(entity_id).and_then(|e| e.hp_percentage())
+        self.game.world.entities.get(entity_id).and_then(|e| e.hp_percentage())
     }
 
     /// SP ratio for an entity that shows an SP bar below it: the player and the
     /// player's companions. Other entities (party members, monsters) return None.
     fn entity_sp_ratio(&self, entity_id: u32) -> Option<f32> {
-        if self.game.entities.is_player(entity_id) {
+        if self.game.world.entities.is_player(entity_id) {
             return Some(self.game.character.sp_percentage());
         }
         if let Some(h) = self.game.companions.homunculus.as_ref().filter(|h| h.gid == entity_id) {
@@ -277,7 +277,7 @@ impl App {
         if self.renderer.is_none() {
             return;
         }
-        let player_id = self.game.entities.player_id();
+        let player_id = self.game.world.entities.player_id();
         for entry in render_list {
             if Some(entry.id) == player_id || Some(entry.id) == hovered_entity_id {
                 continue;
@@ -297,7 +297,7 @@ impl App {
             if !is_companion && !is_party_member {
                 continue;
             }
-            let Some(entity) = self.game.entities.get(entry.id) else {
+            let Some(entity) = self.game.world.entities.get(entry.id) else {
                 continue;
             };
             if entity.effect_state & ragnarok_game::sprite_path::OPTION_HIDE != 0 {
@@ -317,8 +317,8 @@ impl App {
         use models::enums::skill_enums::SkillEnum;
         use ragnarok_game::effect::casting_skill;
         for entry in render_list {
-            if (self.config.display.show_other_cast_bars || self.game.entities.is_player(entry.id))
-                && let Some(entity) = self.game.entities.get(entry.id)
+            if (self.config.display.show_other_cast_bars || self.game.world.entities.is_player(entry.id))
+                && let Some(entity) = self.game.world.entities.get(entry.id)
                 && entity.state == EntityState::Casting
                 && entity.cast_total_duration > 0.0
                 && !entity.active_skill_id.is_some_and(|id| {
@@ -355,7 +355,7 @@ impl App {
             None => return,
         };
         for entry in render_list {
-            let entity = match self.game.entities.get(entry.id) {
+            let entity = match self.game.world.entities.get(entry.id) {
                 Some(e) => e,
                 None => continue,
             };
@@ -423,7 +423,7 @@ impl App {
             None => return,
         };
         for entry in render_list {
-            let entity = match self.game.entities.get(entry.id) {
+            let entity = match self.game.world.entities.get(entry.id) {
                 Some(e) => e,
                 None => continue,
             };
@@ -496,7 +496,7 @@ impl App {
             Some(id) => id,
             None => return,
         };
-        let floor_item = match self.game.floor_items.get(&fi_id) {
+        let floor_item = match self.game.world.floor_items.get(&fi_id) {
             Some(fi) => fi,
             None => return,
         };

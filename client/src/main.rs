@@ -490,7 +490,7 @@ impl App {
             is_falling,
             initial_y: ground_y,
         };
-        self.game.floor_items.insert(id, floor_item);
+        self.game.world.floor_items.insert(id, floor_item);
 
         if let Some(res_name) = &resource_name
             && let Some(grf) = &self.grf
@@ -984,6 +984,7 @@ impl App {
                 GameEvent::RequestExchangeItem { target_aid } => {
                     let name = self
                         .game
+                        .world
                         .entities
                         .get(target_aid)
                         .and_then(|e| e.name.clone())
@@ -1114,7 +1115,7 @@ impl App {
                 GameEvent::RequestHomunRest => {
                     let skill_id = SkillEnum::AmRest.id() as u16;
                     if !self.skill_on_cooldown(skill_id) {
-                        let target_id = self.game.entities.player_id().unwrap_or(0);
+                        let target_id = self.game.world.entities.player_id().unwrap_or(0);
                         self.channel.send_packet(build_use_skill_packet(
                             skill_id,
                             1,
@@ -1239,7 +1240,7 @@ impl App {
                     match skill_target_type {
                         SkillTargetType::MySelf => {
                             if !self.skill_on_cooldown(skill_id) {
-                                let target_id = self.game.entities.player_id().unwrap_or(0);
+                                let target_id = self.game.world.entities.player_id().unwrap_or(0);
                                 self.channel.send_packet(build_use_skill_packet(
                                     skill_id,
                                     level,
@@ -1322,7 +1323,7 @@ impl App {
                 GameEvent::RequestPickupItem { id } => {
                     self.channel
                         .send_packet(build_pickup_item_packet(id, self.config.packetver));
-                    if let Some(entity) = self.game.entities.player_mut() {
+                    if let Some(entity) = self.game.world.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
                 }
@@ -2106,7 +2107,7 @@ impl App {
         }
         self.effect_queue.set_effects_enabled(show_skill_effects);
         if aura_changed {
-            let gids: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+            let gids: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
             for gid in gids {
                 self.refresh_level_aura(gid);
             }
@@ -2169,7 +2170,7 @@ impl App {
 
     fn turn_body(&mut self, step: u8) {
         let pv = self.config.packetver;
-        if let Some(entity) = self.game.entities.player_mut() {
+        if let Some(entity) = self.game.world.entities.player_mut() {
             entity.direction = (entity.direction + step) % 8;
             entity.head_dir = 0;
             let (head_dir, dir) = (entity.head_dir, entity.direction);
@@ -2186,7 +2187,7 @@ impl App {
                 if self.player_hidden() {
                     return;
                 }
-                if let Some(entity) = self.game.entities.player() {
+                if let Some(entity) = self.game.world.entities.player() {
                     let action = if entity.state == EntityState::Sitting {
                         3u8
                     } else {
@@ -2202,6 +2203,7 @@ impl App {
                 }
                 let sitting = self
                     .game
+                    .world
                     .entities
                     .player()
                     .is_some_and(|e| e.state == EntityState::Sitting);
@@ -2211,7 +2213,7 @@ impl App {
                 }
             }
             ChatCommand::Doridori => {
-                if let Some(entity) = self.game.entities.player_mut() {
+                if let Some(entity) = self.game.world.entities.player_mut() {
                     entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
                     let (head_dir, dir) = (entity.head_dir, entity.direction);
                     self.channel
@@ -2221,7 +2223,7 @@ impl App {
             ChatCommand::BingBing => self.turn_body(1),
             ChatCommand::BangBang => self.turn_body(7),
             ChatCommand::Where => {
-                match (self.game.session.current_map.as_ref(), self.game.entities.player()) {
+                match (self.game.session.current_map.as_ref(), self.game.world.entities.player()) {
                     (Some(map_name), Some(player)) => {
                         let (x, y) = player.movement.cell_position();
                         let message = format!("{map_name}.gat ({x}, {y})");
@@ -2832,6 +2834,7 @@ impl App {
         for entry in render_list {
             let is_vendor = self
                 .game
+                .world
                 .entities
                 .get(entry.id)
                 .is_some_and(|e| e.vending_board.is_some());
@@ -2908,7 +2911,7 @@ impl App {
     fn compute_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
-            for entity in self.game.entities.iter() {
+            for entity in self.game.world.entities.iter() {
                 let projected = input::entity_screen_params(
                     entity.movement.position(),
                     self.game.session.gat.as_ref(),
@@ -2980,7 +2983,7 @@ impl App {
     fn compute_cart_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
-            for entity in self.game.entities.iter() {
+            for entity in self.game.world.entities.iter() {
                 if entity.cart_type.is_none() || !self.game.carts.contains_key(&entity.id) {
                     continue;
                 }
@@ -3040,7 +3043,7 @@ impl App {
     fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
-            for floor_item in self.game.floor_items.values() {
+            for floor_item in self.game.world.floor_items.values() {
                 let projected = input::entity_screen_params(
                     floor_item.world_position(),
                     self.game.session.gat.as_ref(),
@@ -3091,7 +3094,7 @@ impl App {
             .enumerate()
         {
             if let Some(t) = self.game.companions.companion_attack_target[idx] {
-                if !present || self.game.entities.get(t).is_none() {
+                if !present || self.game.world.entities.get(t).is_none() {
                     self.game.companions.companion_attack_target[idx] = None;
                 }
             }
@@ -3117,7 +3120,7 @@ impl App {
                     // either an enemy or an ally.
                     let hovered = hovered_entity_cursor_type(
                         self.input.mouse_position,
-                        &self.game.entities,
+                        &self.game.world.entities,
                         render_list,
                         &self.game.session.map_properties,
                         None,
@@ -3127,7 +3130,7 @@ impl App {
             } else if self.game.companions.capture_targeting {
                 let hovered = hovered_entity_cursor_type(
                     self.input.mouse_position,
-                    &self.game.entities,
+                    &self.game.world.entities,
                     render_list,
                     &self.game.session.map_properties,
                     Some(TargetClass::Offensive),
@@ -3145,7 +3148,7 @@ impl App {
                             .unwrap_or(TargetClass::Offensive);
                         let hovered = hovered_entity_cursor_type(
                             self.input.mouse_position,
-                            &self.game.entities,
+                            &self.game.world.entities,
                             render_list,
                             &self.game.session.map_properties,
                             Some(class),
@@ -3161,7 +3164,7 @@ impl App {
                 (CursorType::Click, Some(vendor_id))
             } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
                 self.input.mouse_position,
-                &self.game.entities,
+                &self.game.world.entities,
                 render_list,
                 &self.game.session.map_properties,
                 None,
@@ -3329,7 +3332,7 @@ impl ApplicationHandler for App {
                 let pick_render_list: Vec<RenderEntry> = render_list
                     .iter()
                     .filter(|entry| {
-                        self.game.entities.get(entry.id).is_none_or(|e| {
+                        self.game.world.entities.get(entry.id).is_none_or(|e| {
                             hidden_render(e.effect_state, self.hidden_viewer_for(entry.id))
                                 != HiddenRender::Skip
                         })
@@ -3345,12 +3348,12 @@ impl ApplicationHandler for App {
                 self.game.hover.hovered_entity_id = hovered_entity_id;
                 self.game.hover.hovered_player_id = ragnarok_game::cursor::hovered_player(
                     self.input.mouse_position,
-                    &self.game.entities,
+                    &self.game.world.entities,
                     &pick_render_list,
                 );
                 let hovered_named_id = hovered_entity_id.or(self.game.hover.hovered_player_id);
                 if let Some(entity_id) = hovered_named_id
-                    && let Some(entity) = self.game.entities.get_mut(entity_id)
+                    && let Some(entity) = self.game.world.entities.get_mut(entity_id)
                     && !entity.name_requested
                 {
                     entity.name_requested = true;

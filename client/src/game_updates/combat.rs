@@ -23,6 +23,7 @@ impl App {
 
         let target_alive = self
             .game
+            .world
             .entities
             .get(target_id)
             .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
@@ -31,7 +32,7 @@ impl App {
             return;
         }
 
-        if let Some(player) = self.game.entities.player()
+        if let Some(player) = self.game.world.entities.player()
             && matches!(
                 player.state,
                 EntityState::Casting
@@ -55,12 +56,14 @@ impl App {
 
         let target_pos = self
             .game
+            .world
             .entities
             .get(target_id)
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
         let (px, py) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())
@@ -74,6 +77,7 @@ impl App {
         if dist <= range {
             let player_state = self
                 .game
+                .world
                 .entities
                 .player()
                 .map(|e| e.state)
@@ -85,7 +89,7 @@ impl App {
                 self.send_attack_packet(target_id);
                 self.game.combat.attack_request_cooldown = 0.3;
             }
-        } else if let Some(player) = self.game.entities.player()
+        } else if let Some(player) = self.game.world.entities.player()
             && !matches!(
                 player.state,
                 EntityState::Casting
@@ -115,6 +119,7 @@ impl App {
 
         let target_alive = self
             .game
+            .world
             .entities
             .get(target_id)
             .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
@@ -125,7 +130,7 @@ impl App {
             return;
         }
 
-        if let Some(player) = self.game.entities.player()
+        if let Some(player) = self.game.world.entities.player()
             && matches!(
                 player.state,
                 EntityState::Casting
@@ -139,12 +144,14 @@ impl App {
 
         let target_pos = self
             .game
+            .world
             .entities
             .get(target_id)
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
         let (px, py) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())
@@ -161,12 +168,13 @@ impl App {
 
         let path_completed = self
             .game
+            .world
             .entities
             .player()
             .is_some_and(|p| !p.movement.is_moving());
 
         if dist <= skill_range || path_completed {
-            if let Some(player) = self.game.entities.player_mut() {
+            if let Some(player) = self.game.world.entities.player_mut() {
                 player.movement.stop();
             }
             if self.skill_on_cooldown(skill_id) {
@@ -198,7 +206,7 @@ impl App {
             None => return,
         };
 
-        if let Some(player) = self.game.entities.player()
+        if let Some(player) = self.game.world.entities.player()
             && matches!(
                 player.state,
                 EntityState::Casting
@@ -212,6 +220,7 @@ impl App {
 
         let (px, py) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())
@@ -227,12 +236,13 @@ impl App {
         let dy = (py as i32 - y as i32).abs();
         let path_completed = self
             .game
+            .world
             .entities
             .player()
             .is_some_and(|p| !p.movement.is_moving());
 
         if dx.max(dy) <= skill_range || path_completed {
-            if let Some(player) = self.game.entities.player_mut() {
+            if let Some(player) = self.game.world.entities.player_mut() {
                 player.movement.stop();
             }
             if self.skill_on_cooldown(skill_id) {
@@ -256,23 +266,24 @@ impl App {
             Some(id) => id,
             None => return,
         };
-        if !self.game.floor_items.contains_key(&item_id) {
+        if !self.game.world.floor_items.contains_key(&item_id) {
             self.game.pending_casts.pending_pickup_item_id = None;
             return;
         }
         let (px, py) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
-        let floor_item = &self.game.floor_items[&item_id];
+        let floor_item = &self.game.world.floor_items[&item_id];
         let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
         let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
         if dx <= 1 && dy <= 1 {
             self.channel
                 .send_packet(build_pickup_item_packet(item_id, self.config.packetver));
-            if let Some(entity) = self.game.entities.player_mut() {
+            if let Some(entity) = self.game.world.entities.player_mut() {
                 entity.movement.stop();
                 entity.enter_pickup(0.5);
             }
@@ -282,9 +293,9 @@ impl App {
 
     pub(crate) fn process_scheduled_hits(&mut self) {
         let now = self.start_time.elapsed().as_secs_f32();
-        let entity_ids: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+        let entity_ids: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
         for entity_id in entity_ids {
-            let ready = if let Some(entity) = self.game.entities.get_mut(entity_id) {
+            let ready = if let Some(entity) = self.game.world.entities.get_mut(entity_id) {
                 entity.scheduled_hits.drain_ready(now)
             } else {
                 continue;
@@ -305,10 +316,11 @@ impl App {
                         || hit.skill_id == SkillEnum::MoChaincombo.id() as u16;
                     let attacker_pos = self
                         .game
+                        .world
                         .entities
                         .get(hit.attacker_gid)
                         .map(|e| e.movement.cell_position());
-                    if let Some(entity) = self.game.entities.get_mut(entity_id) {
+                    if let Some(entity) = self.game.world.entities.get_mut(entity_id) {
                         if !is_sonic_or_chain && let Some(ap) = attacker_pos {
                             let tp = entity.movement.cell_position();
                             if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
@@ -327,15 +339,15 @@ impl App {
     }
 
     pub(crate) fn update_arrows(&mut self, delta: f32) {
-        for arrow in &mut self.game.arrows {
+        for arrow in &mut self.game.world.arrows {
             arrow.advance(delta);
         }
-        self.game.arrows.retain(|a| !a.is_done());
+        self.game.world.arrows.retain(|a| !a.is_done());
     }
 
     pub(crate) fn process_caster_replays(&mut self) {
         let now = self.start_time.elapsed().as_secs_f32();
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             let mut replay_skill_id = None;
             let before_count = entity.pending_attack_replays.len();
             entity
@@ -369,6 +381,7 @@ impl App {
         let skill = (hit.skill_id != 0).then(|| SkillEnum::from_id(hit.skill_id as u32));
         let attacker_job = self
             .game
+            .world
             .entities
             .get(hit.attacker_gid)
             .and_then(|e| JobName::try_from_value(e.job as usize).ok())
@@ -393,7 +406,7 @@ impl App {
             return;
         }
         if !self.config.display.show_other_damage {
-            let me = self.game.entities.player_id();
+            let me = self.game.world.entities.player_id();
             if me != Some(entity_id) && me != Some(hit.attacker_gid) {
                 return;
             }
@@ -414,11 +427,13 @@ impl App {
 
         let target_pos = self
             .game
+            .world
             .entities
             .get(entity_id)
             .map(|e| e.movement.cell_position());
         let attacker_pos = self
             .game
+            .world
             .entities
             .get(hit.attacker_gid)
             .map(|e| e.movement.cell_position());
@@ -426,6 +441,7 @@ impl App {
             (Some(ap), Some(tp)) => direction_from_positions(ap.0, ap.1, tp.0, tp.1).unwrap_or(0),
             _ => self
                 .game
+                .world
                 .entities
                 .get(entity_id)
                 .map(|e| e.direction)
@@ -433,6 +449,7 @@ impl App {
         };
         let is_player_target = self
             .game
+            .world
             .entities
             .get(entity_id)
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)

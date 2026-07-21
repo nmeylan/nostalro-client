@@ -105,11 +105,12 @@ impl App {
 
         let target_pos = self
             .game
+            .world
             .entities
             .get(target_gid)
             .map(|e| e.movement.cell_position());
         let mut caster_anim = None;
-        if let Some(entity) = self.game.entities.get_mut(src_gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(src_gid) {
             if let Some(dst) = target_pos {
                 let src = entity.movement.cell_position();
                 if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
@@ -133,7 +134,7 @@ impl App {
         // Arrow-consuming skills fire the same flying arrow as a normal ranged
         // attack: bow skills use the Attack motion, whip/instrument skills the
         // Attack2 motion. Multi-hit skills (e.g. Arrow Vulcan) fire one per hit.
-        if let Some(caster) = self.game.entities.get(src_gid) {
+        if let Some(caster) = self.game.world.entities.get(src_gid) {
             let weapon = caster.weapon;
             let fires_arrow = match skill_motion_type(skill_id) {
                 SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
@@ -202,7 +203,7 @@ impl App {
         let hit_delay = anim_hit.max(flight) + hit_extra_delay;
 
         let double_attack_term = 0.2;
-        if let Some(target) = self.game.entities.get_mut(target_gid) {
+        if let Some(target) = self.game.world.entities.get_mut(target_gid) {
             for i in 0..effective_count {
                 let hit_time = local_now + hit_delay + (i as f32 * double_attack_term);
                 target.scheduled_hits.push(ScheduledHit {
@@ -237,7 +238,7 @@ impl App {
             "SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}"
         );
         if replays_caster && effective_count > 1 {
-            if let Some(caster) = self.game.entities.get_mut(src_gid) {
+            if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
                 for i in 1..effective_count {
                     let hit_time = local_now + anim_hit + (i as f32 * double_attack_term);
                     caster.pending_attack_replays.push((hit_time, skill_id));
@@ -416,7 +417,7 @@ impl App {
     fn skill_trail_endpoints(&self, src_gid: u32, target_gid: u32) -> Option<([f32; 3], [f32; 3])> {
         let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
         let cell_world = |gid: u32| {
-            let (cx, cy) = self.game.entities.get(gid)?.movement.cell_position();
+            let (cx, cy) = self.game.world.entities.get(gid)?.movement.cell_position();
             let (wx, _, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
             Some([
                 wx,
@@ -573,12 +574,13 @@ impl App {
         };
         let partner = self
             .game
+            .world
             .entities
             .get(target_gid)
             .and_then(|e| e.name.clone())
             .unwrap_or_default();
         let message = format!("{partner} !!  {love_line}");
-        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+        if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
             caster.chat_bubble = Some(ChatBubbleState::new(message));
         }
     }
@@ -591,7 +593,7 @@ impl App {
             return;
         }
         let message = format!("{partner} !!  I miss you");
-        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+        if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
             caster.chat_bubble = Some(ChatBubbleState::new(message));
         }
     }
@@ -614,7 +616,7 @@ impl App {
 
     pub(crate) fn start_autocounter_channel(&mut self, gid: u32) {
         let skill_id = SkillEnum::KnAutocounter.id() as u16;
-        let is_player = self.game.entities.player_id() == Some(gid);
+        let is_player = self.game.world.entities.player_id() == Some(gid);
         let attack_target = if is_player {
             self.game.combat.attack_target_id.take()
         } else {
@@ -627,11 +629,12 @@ impl App {
             attack_target,
         );
         self.game
+            .world
             .entities
             .apply_autocounter_channel(gid, params.face, skill_id, params.duration);
         if is_player
             && params.face.is_some()
-            && let Some(dir) = self.game.entities.player().map(|e| e.direction)
+            && let Some(dir) = self.game.world.entities.player().map(|e| e.direction)
         {
             self.channel
                 .send_packet(build_change_direction_packet(0, dir, self.config.packetver));
@@ -639,18 +642,18 @@ impl App {
     }
 
     pub(crate) fn dispel_autocounter(&mut self) {
-        if autocounter::player_in_autocounter(&self.game.entities)
-            && let Some(gid) = self.game.entities.player_id()
+        if autocounter::player_in_autocounter(&self.game.world.entities)
+            && let Some(gid) = self.game.world.entities.player_id()
         {
-            self.game.entities.apply_skill_cast_cancel(gid);
+            self.game.world.entities.apply_skill_cast_cancel(gid);
         }
     }
 
     pub(crate) fn fire_autocounter_on_cancel(&mut self, cancel_gid: u32) {
-        let Some(player_gid) = self.game.entities.player_id() else {
+        let Some(player_gid) = self.game.world.entities.player_id() else {
             return;
         };
-        if !autocounter::player_in_autocounter(&self.game.entities)
+        if !autocounter::player_in_autocounter(&self.game.world.entities)
             || (cancel_gid != 0 && cancel_gid != player_gid)
         {
             return;
@@ -681,7 +684,7 @@ impl App {
         // Slim Potion Pitcher lobs the level's slim potion from the caster onto
         // the target cell before the splash lands.
         if let Some(potion) = potion_throw_index(skill, level)
-            && let Some(caster) = self.game.entities.get(src_gid)
+            && let Some(caster) = self.game.world.entities.get(src_gid)
         {
             let (ccx, ccy) = caster.movement.cell_position();
             let (fx, _, fz) = coords.cell_to_world(ccx as f32 + 0.5, ccy as f32 + 0.5);
