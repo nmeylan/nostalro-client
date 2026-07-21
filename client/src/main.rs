@@ -502,6 +502,7 @@ impl App {
                 && let Some(tex) = self.upload_sprite(&data)
             {
                 self.game
+                    .assets
                     .floor_item_sprites
                     .insert(id, (Rc::new(tex), data.act));
             }
@@ -3180,7 +3181,7 @@ impl App {
         } else {
             (CursorType::Default, None)
         };
-        self.game.cursor_animation.set_cursor_type(cursor);
+        self.game.assets.cursor_animation.set_cursor_type(cursor);
         hovered_entity_id
     }
 }
@@ -3382,7 +3383,7 @@ impl ApplicationHandler for App {
                 };
                 self.game.hover.hovered_floor_item_id = hovered_floor_item_id;
                 if hovered_floor_item_id.is_some() {
-                    self.game.cursor_animation.set_cursor_type(CursorType::Pick);
+                    self.game.assets.cursor_animation.set_cursor_type(CursorType::Pick);
                 }
 
                 let cursor_clips = self.build_cursor_sprite_clips(delta);

@@ -7,8 +7,8 @@ impl App {
         if let Some(sprite_data) = sprite_loader::load_emotion_sprite(grf)
             && let Some(textures) = self.upload_sprite(&sprite_data)
         {
-            self.game.emotion_textures = Some(textures);
-            self.game.emotion_act = Some(sprite_data.act);
+            self.game.assets.emotion_textures = Some(textures);
+            self.game.assets.emotion_act = Some(sprite_data.act);
         }
     }
 
@@ -18,6 +18,7 @@ impl App {
                 && let Some(textures) = self.upload_sprite(&sprite_data)
             {
                 self.game
+                    .assets
                     .status_overlay_sprites
                     .insert(overlay, (textures, sprite_data.act));
             }
@@ -28,14 +29,14 @@ impl App {
         if let Some(sprite_data) = sprite_loader::load_damage_number_sprite(grf)
             && let Some(textures) = self.upload_sprite(&sprite_data)
         {
-            self.game.damage_number_textures = Some(textures);
-            self.game.damage_number_act = Some(sprite_data.act);
+            self.game.assets.damage_number_textures = Some(textures);
+            self.game.assets.damage_number_act = Some(sprite_data.act);
         }
         if let Some(sprite_data) = sprite_loader::load_damage_miss_msg_sprite(grf)
             && let Some(textures) = self.upload_sprite(&sprite_data)
         {
-            self.game.damage_msg_textures = Some(textures);
-            self.game.damage_msg_act = Some(sprite_data.act);
+            self.game.assets.damage_msg_textures = Some(textures);
+            self.game.assets.damage_msg_act = Some(sprite_data.act);
         }
     }
 

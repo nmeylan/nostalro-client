@@ -776,7 +776,7 @@ impl App {
                 }
                 GameEvent::FloorItemDisappeared { id } => {
                     self.game.world.floor_items.remove(&id);
-                    self.game.floor_item_sprites.remove(&id);
+                    self.game.assets.floor_item_sprites.remove(&id);
                 }
 
                 GameEvent::ChatMessage { gid, message } => {

@@ -59,6 +59,7 @@ impl App {
         if !self.game.world.freeze_shatters.is_empty() {
             let anim = self
                 .game
+                .assets
                 .status_overlay_sprites
                 .get(&ailment::AilmentOverlay::Freeze)
                 .and_then(|(_, act)| {
@@ -277,8 +278,8 @@ impl App {
                         // TODO Move emotion in dedicated place
                         if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
                             &entity.emotion,
-                            &self.game.emotion_act,
-                            &self.game.emotion_textures,
+                            &self.game.assets.emotion_act,
+                            &self.game.assets.emotion_textures,
                         ) {
                             let action_idx =
                                 ragnarok_game::emotion::emote_sprite_action(emo.emotion_type);
@@ -326,8 +327,8 @@ impl App {
 
                         if let (Some(marker), Some(emo_act), Some(emo_tex)) = (
                             self.game.quest_markers.get(&entry.id),
-                            &self.game.emotion_act,
-                            &self.game.emotion_textures,
+                            &self.game.assets.emotion_act,
+                            &self.game.assets.emotion_textures,
                         ) {
                             let action_idx =
                                 ragnarok_game::quest::marker_sprite_action(marker.effect);
@@ -374,7 +375,7 @@ impl App {
                         for overlay in
                             ailment::ailment_overlays(entity.body_state, entity.health_state)
                         {
-                            let Some((tex, act)) = self.game.status_overlay_sprites.get(&overlay)
+                            let Some((tex, act)) = self.game.assets.status_overlay_sprites.get(&overlay)
                             else {
                                 continue;
                             };
@@ -432,6 +433,7 @@ impl App {
                             }
                             let Some((tex, act)) = self
                                 .game
+                                .assets
                                 .status_overlay_sprites
                                 .get(&ailment::AilmentOverlay::Freeze)
                             else {
@@ -479,7 +481,7 @@ impl App {
                 }
                 RenderEntryKind::FloorItem => {
                     if let Some(floor_item) = self.game.world.floor_items.get(&entry.id)
-                        && let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id)
+                        && let Some((tex, act)) = self.game.assets.floor_item_sprites.get(&entry.id)
                     {
                         let y_offset = if floor_item.is_falling {
                             let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
@@ -883,8 +885,8 @@ impl App {
                 })
                 .collect();
             if let (Some(num_tex), Some(num_act)) = (
-                &self.game.damage_number_textures,
-                &self.game.damage_number_act,
+                &self.game.assets.damage_number_textures,
+                &self.game.assets.damage_number_act,
             ) {
                 let quads = build_damage_number_quads(
                     &entries,
@@ -892,6 +894,7 @@ impl App {
                     &num_tex.sizes,
                     num_tex.indexed_count,
                     self.game
+                        .assets
                         .damage_msg_textures
                         .as_ref()
                         .map(|t| t.sizes.as_slice()),
@@ -899,14 +902,14 @@ impl App {
                 ragnarok_renderer::render_damage_number_quads(
                     &quads,
                     num_tex,
-                    self.game.damage_msg_textures.as_ref(),
+                    self.game.assets.damage_msg_textures.as_ref(),
                     &mut world_overlay_calls,
                     &mut inline_textures,
                 );
             }
         }
 
-        if let Some(cursor_tex) = &self.game.cursor_textures {
+        if let Some(cursor_tex) = &self.game.assets.cursor_textures {
             for (vertices, indices, tex_idx) in lock_cursor_clips {
                 cursor_batches.push(SpriteBatch {
                     vertices,

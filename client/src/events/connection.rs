@@ -110,7 +110,7 @@ impl App {
         }
         self.game.sprite_caches.sprite_cache.clear();
         self.game.world.floor_items.clear();
-        self.game.floor_item_sprites.clear();
+        self.game.assets.floor_item_sprites.clear();
         self.game.chat_rooms.clear();
         self.game.combat.waiting_item_throw_ack = false;
         self.game.drop_quantity_dialog = None;
@@ -416,7 +416,7 @@ impl App {
             self.game.quest_markers.clear();
             self.game.sprite_caches.failed_sprite_loads.clear();
             self.game.world.floor_items.clear();
-            self.game.floor_item_sprites.clear();
+            self.game.assets.floor_item_sprites.clear();
             if let Some(guild) = &mut self.game.guild {
                 guild.clear_live_positions();
             }
