@@ -1,0 +1,13 @@
+[package]
+name = "ragnarok-profiling"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+puffin = { workspace = true, optional = true }
+puffin_http = { workspace = true, optional = true }
+tracing = { workspace = true }
+
+[features]
+puffin = ["dep:puffin", "dep:puffin_http"]
+profiling = ["puffin"]

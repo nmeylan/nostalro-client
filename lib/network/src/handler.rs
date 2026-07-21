@@ -92,6 +92,7 @@ fn character_info_from_neo_union(info: &CharacterInfoNeoUnion, packetver: u32) -
 }
 
 pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
+    ragnarok_profiling::profile_function!();
     let any = packet.as_any();
 
     if let Some(p) = any.downcast_ref::<PacketAcAcceptLogin>() {

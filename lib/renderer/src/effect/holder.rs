@@ -557,6 +557,10 @@ impl EffectHolder {
         let mut shake_requests: Vec<CameraShake> = Vec::new();
         let mut sfx_out: Vec<(String, [f32; 3])> = Vec::new();
         self.effects.retain_mut(|e| {
+            ragnarok_profiling::profile_scope!(
+                "effect_update",
+                format!("{} {:?}", e.effect_id.value(), e.effect_id)
+            );
             e.age += dt;
             let expired = e.age >= e.duration;
             let attach = e.attach;
@@ -766,6 +770,10 @@ impl EffectHolder {
 
     pub fn collect_custom_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
         for e in &self.effects {
+            ragnarok_profiling::profile_scope!(
+                "effect_collect",
+                format!("{} {:?}", e.effect_id.value(), e.effect_id)
+            );
             match &e.payload {
                 HeldPayload::Custom(c) => c.collect_draws(out, ctx),
                 HeldPayload::CustomExternal { handle } => {

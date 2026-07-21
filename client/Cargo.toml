@@ -9,6 +9,7 @@ ragnarok-renderer = { workspace = true }
 ragnarok-game = { workspace = true }
 ragnarok-ai = { workspace = true }
 ragnarok-network = { workspace = true }
+ragnarok-profiling = { workspace = true }
 ragnarok-ui = { workspace = true }
 ragnarok-ui-component = { workspace = true }
 ragnarok-audio = { workspace = true }
@@ -20,3 +21,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 winit = { workspace = true }
 tokio = { workspace = true }
+
+[features]
+profiling = ["ragnarok-profiling/profiling", "ragnarok-profiling/puffin"]

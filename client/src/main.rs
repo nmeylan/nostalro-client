@@ -199,6 +199,7 @@ struct App {
     /// GameEvents produced by raw keyboard handling (skill-bar / emotion hotkeys),
     /// drained into `handle_ui_events` on the next redraw.
     pending_events: Vec<GameEvent>,
+    profiler: ragnarok_profiling::Profiler,
 }
 
 impl App {
@@ -257,6 +258,7 @@ impl App {
             last_frame_instant: Instant::now(),
             next_frame: Instant::now(),
             pending_events: Vec::new(),
+            profiler: ragnarok_profiling::Profiler::default(),
         }
     }
 
@@ -516,6 +518,7 @@ impl App {
     }
 
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
+        ragnarok_profiling::profile_function!();
         for event in events {
             match event {
                 GameEvent::RequestLogin { username, password } => {
@@ -2644,6 +2647,7 @@ impl App {
     }
 
     fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool, bool) {
+        ragnarok_profiling::profile_function!();
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         if let Some(ui_ctx) = &mut self.ui_context {
             ui_ctx.now_ms = now_ms;
@@ -2900,6 +2904,7 @@ impl App {
     }
 
     fn compute_render_list(&self) -> Vec<RenderEntry> {
+        ragnarok_profiling::profile_function!();
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for entity in self.game.world.entities.iter() {
@@ -3282,6 +3287,8 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_input(event),
             WindowEvent::ModifiersChanged(modifiers) => self.handle_modifiers_changed(modifiers),
             WindowEvent::RedrawRequested => {
+                self.profiler.new_frame();
+                ragnarok_profiling::profile_scope!("frame");
                 let elapsed = self.start_time.elapsed().as_secs_f32();
 
                 self.handle_game_events(event_loop);

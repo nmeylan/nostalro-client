@@ -382,6 +382,9 @@ impl App {
             KeyCode::F10 => {
                 self.game.debug_overlay = !self.game.debug_overlay;
             }
+            KeyCode::F9 => {
+                self.profiler.start();
+            }
             KeyCode::Digit1 if self.input.alt_pressed => self.trigger_shortcut(0),
             KeyCode::Digit2 if self.input.alt_pressed => self.trigger_shortcut(1),
             KeyCode::Digit3 if self.input.alt_pressed => self.trigger_shortcut(2),

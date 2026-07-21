@@ -49,6 +49,7 @@ impl App {
         skill_level_calls: Vec<UiDrawCall>,
         ui_draw_calls: Vec<UiDrawCall>,
     ) {
+        ragnarok_profiling::profile_function!();
         let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
         // Flat feet-depth body silhouettes, stamped into depth after the colour
         // pass so effects occlude against the body (gradient `[0,0]` => uniform z).

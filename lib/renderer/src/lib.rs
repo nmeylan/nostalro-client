@@ -541,6 +541,7 @@ impl Renderer {
     }
 
     pub fn render(&mut self, frame: FrameInputs) {
+        ragnarok_profiling::profile_function!();
         let output = match self.device.surface.get_current_texture() {
             Ok(tex) => tex,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -572,6 +573,7 @@ impl Renderer {
         clear_color: wgpu::Color,
         frame: FrameInputs,
     ) {
+        ragnarok_profiling::profile_function!();
         if physical_w == 0 || physical_h == 0 {
             return;
         }
@@ -610,6 +612,7 @@ impl Renderer {
             .create_command_encoder(&Default::default());
 
         {
+            ragnarok_profiling::profile_scope!("scene-opaque");
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -635,21 +638,30 @@ impl Renderer {
             match self.background_mode {
                 BackgroundMode::RswMap => {
                     if let Some(ground) = &self.ground_renderer {
+                        ragnarok_profiling::profile_scope!("ground");
                         ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if let Some(model) = &self.model_renderer {
+                        ragnarok_profiling::profile_scope!("model");
                         model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
-                    for model in self.skill_unit_models.values() {
-                        model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    if !self.skill_unit_models.is_empty() {
+                        ragnarok_profiling::profile_scope!("skill-unit-models");
+                        for model in self.skill_unit_models.values() {
+                            model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                        }
                     }
-                    for model in self.gr2_models.values() {
-                        model.render(&mut pass, &self.global_uniforms);
+                    if !self.gr2_models.is_empty() {
+                        ragnarok_profiling::profile_scope!("gr2-models");
+                        for model in self.gr2_models.values() {
+                            model.render(&mut pass, &self.global_uniforms);
+                        }
                     }
                     if let Some(grid) = &self.grid_selector {
                         grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if let Some(water) = &self.water_renderer {
+                        ragnarok_profiling::profile_scope!("water");
                         water.render(
                             &mut pass,
                             &self.global_uniforms,
@@ -668,6 +680,7 @@ impl Renderer {
         }
 
         if !effect_draws.behind.is_empty() {
+            ragnarok_profiling::profile_scope!("effect-behind");
             let behind_list = effect_draws.behind_as_list();
             let behind_records = build_effect_records(
                 &behind_list,
@@ -695,6 +708,7 @@ impl Renderer {
         }
 
         if !sprite_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("sprite");
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
@@ -710,6 +724,7 @@ impl Renderer {
         // effect passes below occlude against the body (effects above the feet
         // draw on top; ground effects at the feet are hidden).
         if !silhouette_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("silhouette");
             self.sprite_renderer.render_silhouette(
                 &mut encoder,
                 &view,
@@ -721,6 +736,7 @@ impl Renderer {
         }
 
         if !effect_sprite_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("effect-sprite");
             self.effect_sprite_renderer.render(
                 &mut encoder,
                 &view,
@@ -732,17 +748,21 @@ impl Renderer {
             );
         }
 
-        let mut records: Vec<DrawRecord<'_>> = build_effect_records(
-            effect_draws,
-            &self.camera,
-            &self.texture_cache,
-            &self.white_bind_group,
-            logical_w,
-            logical_h,
-            &self.effect_primitives,
-        );
+        let mut records: Vec<DrawRecord<'_>> = {
+            ragnarok_profiling::profile_scope!("effect-build");
+            build_effect_records(
+                effect_draws,
+                &self.camera,
+                &self.texture_cache,
+                &self.white_bind_group,
+                logical_w,
+                logical_h,
+                &self.effect_primitives,
+            )
+        };
         records.extend(sprite_particle_records);
         if !records.is_empty() {
+            ragnarok_profiling::profile_scope!("effect-dispatch");
             self.effect_dispatcher.dispatch(
                 records,
                 &mut encoder,
@@ -757,7 +777,10 @@ impl Renderer {
             );
         }
 
-        self.device.queue.submit(std::iter::once(encoder.finish()));
+        {
+            ragnarok_profiling::profile_scope!("submit-scene");
+            self.device.queue.submit(std::iter::once(encoder.finish()));
+        }
 
         let mut encoder = self
             .device
@@ -765,6 +788,7 @@ impl Renderer {
             .create_command_encoder(&Default::default());
 
         if !ui_draw_calls.is_empty() {
+            ragnarok_profiling::profile_scope!("ui");
             let resolved: Vec<UiDrawCommand> = ui_draw_calls
                 .iter()
                 .map(|call| {
@@ -795,6 +819,7 @@ impl Renderer {
         }
 
         if !cursor_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("cursor");
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
@@ -806,7 +831,10 @@ impl Renderer {
             );
         }
 
-        self.device.queue.submit(std::iter::once(encoder.finish()));
+        {
+            ragnarok_profiling::profile_scope!("submit-ui");
+            self.device.queue.submit(std::iter::once(encoder.finish()));
+        }
     }
 
     pub fn try_load_grf_font(&mut self, grf: &GrfArchive) {

@@ -49,6 +49,7 @@ impl App {
     }
 
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
+        ragnarok_profiling::profile_function!();
         self.update_account_sprites(delta, elapsed);
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         self.game.character.prune_expired(now_ms);
@@ -86,10 +87,13 @@ impl App {
         let is_visible = |pos: [f32; 3]| {
             camera.is_some_and(|c| c.is_world_pos_visible(pos[0], pos[1], pos[2], 0.25))
         };
-        self.game
-            .schedulers
-            .ambient_effects
-            .update(delta, &is_visible, &mut self.effect_queue);
+        {
+            ragnarok_profiling::profile_scope!("ambient-effects");
+            self.game
+                .schedulers
+                .ambient_effects
+                .update(delta, &is_visible, &mut self.effect_queue);
+        }
 
         let entities = &self.game.world.entities;
         let resolve_caster_yaw = |id: u32| {
@@ -121,15 +125,18 @@ impl App {
             .update(delta, &resolve_entity_pos, &mut self.sound_queue);
         self.effect_holder
             .drain_queue(&mut self.effect_queue, &resolve_entity_pos);
-        self.effect_holder.update(
-            &EffectUpdateCtx {
-                delta,
-                camera_target: None,
-                caster_yaw: None,
-            },
-            &resolve_caster_yaw,
-            &resolve_entity_pos,
-        );
+        {
+            ragnarok_profiling::profile_scope!("effects-update");
+            self.effect_holder.update(
+                &EffectUpdateCtx {
+                    delta,
+                    camera_target: None,
+                    caster_yaw: None,
+                },
+                &resolve_caster_yaw,
+                &resolve_entity_pos,
+            );
+        }
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.camera.shake_offset = self.effect_holder.camera_shake_offset().into();
         }
