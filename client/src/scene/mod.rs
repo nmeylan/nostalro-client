@@ -814,7 +814,7 @@ impl App {
 
         let mut roulette_calls: Vec<UiDrawCall> = Vec::new();
         if let (Some(roulette), Some(act), Some(tex), Some(renderer)) = (
-            &self.game.pet_roulette,
+            &self.game.companions.pet_roulette,
             &self.roulette_act,
             &self.roulette_textures,
             &self.renderer,

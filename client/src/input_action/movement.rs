@@ -47,13 +47,14 @@ impl App {
 
     pub(crate) fn has_homunculus(&self) -> bool {
         self.game
+            .companions
             .homunculus
             .as_ref()
             .is_some_and(|h| !h.vaporized && h.gid != 0)
     }
 
     pub(crate) fn has_mercenary(&self) -> bool {
-        self.game.mercenary.as_ref().is_some_and(|m| m.gid != 0)
+        self.game.companions.mercenary.as_ref().is_some_and(|m| m.gid != 0)
     }
 
     pub(crate) fn issue_owner_command(&mut self, is_mercenary: bool, hovered_target: Option<u32>) {
@@ -89,12 +90,14 @@ impl App {
     ) {
         let ai = if is_mercenary {
             self.game
+                .companions
                 .mercenary
                 .as_mut()
                 .filter(|m| m.gid != 0)
                 .map(|m| &mut m.ai)
         } else {
             self.game
+                .companions
                 .homunculus
                 .as_mut()
                 .filter(|h| !h.vaporized && h.gid != 0)

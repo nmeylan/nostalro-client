@@ -11,22 +11,22 @@ impl App {
     pub(super) fn handle_companion_state_changed(&mut self, state: i8, gid: u32, data: i32) {
         match state {
             HOM_STATE_ACK => {
-                match &mut self.game.homunculus {
+                match &mut self.game.companions.homunculus {
                     Some(h) => {
                         h.gid = gid;
                         h.vaporized = false;
                     }
-                    None => self.game.homunculus = Some(HomunculusState::new(gid)),
+                    None => self.game.companions.homunculus = Some(HomunculusState::new(gid)),
                 }
                 self.game.homunculus_window.set_visible(true);
             }
             HOM_STATE_INTIMACY => {
-                if let Some(h) = &mut self.game.homunculus {
+                if let Some(h) = &mut self.game.companions.homunculus {
                     h.intimacy = data as i16;
                 }
             }
             HOM_STATE_HUNGRY => {
-                if let Some(h) = &mut self.game.homunculus {
+                if let Some(h) = &mut self.game.companions.homunculus {
                     h.hunger = data as i16;
                 }
             }
@@ -37,6 +37,7 @@ impl App {
     pub(super) fn handle_homun_property(&mut self, p: HomunculusProperty) {
         let h = self
             .game
+            .companions
             .homunculus
             .get_or_insert_with(|| HomunculusState::new(0));
         h.name = p.name;
@@ -81,6 +82,7 @@ impl App {
         if is_init {
             let m = self
                 .game
+                .companions
                 .mercenary
                 .get_or_insert_with(|| MercenaryState::new(info.gid));
             m.gid = info.gid;
@@ -104,7 +106,7 @@ impl App {
             m.calls = info.calls;
             m.kills = info.kills;
             self.game.mercenary_window.set_visible(true);
-        } else if let Some(m) = &mut self.game.mercenary {
+        } else if let Some(m) = &mut self.game.companions.mercenary {
             // Property update (no GID / attack range): stats only.
             m.name = info.name;
             m.level = info.level;
@@ -130,7 +132,7 @@ impl App {
     pub(super) fn handle_mercenary_param_changed(&mut self, var: u16, value: i32) {
         use models::enums::status::StatusTypes;
         use models::enums::EnumWithNumberValue;
-        let Some(m) = &mut self.game.mercenary else {
+        let Some(m) = &mut self.game.companions.mercenary else {
             return;
         };
         let Ok(status) = StatusTypes::try_from_value(var as usize) else {
@@ -150,7 +152,7 @@ impl App {
     pub(super) fn handle_homun_param_changed(&mut self, var: u16, value: i32) {
         use models::enums::EnumWithNumberValue;
         use models::enums::status::StatusTypes;
-        let Some(h) = &mut self.game.homunculus else {
+        let Some(h) = &mut self.game.companions.homunculus else {
             return;
         };
         let Ok(status) = StatusTypes::try_from_value(var as usize) else {
@@ -168,7 +170,7 @@ impl App {
 
     pub(super) fn handle_homun_skill_list(&mut self, skills: Vec<SkillInfo>) {
         let icon_paths: Vec<String> = skills.iter().map(|s| s.icon_path()).collect();
-        if let Some(h) = &mut self.game.homunculus {
+        if let Some(h) = &mut self.game.companions.homunculus {
             h.skills = skills;
         }
         self.preload_item_icons(icon_paths);
@@ -182,14 +184,14 @@ impl App {
         attack_range: i16,
         upgradable: bool,
     ) {
-        if let Some(h) = &mut self.game.homunculus {
+        if let Some(h) = &mut self.game.companions.homunculus {
             update_skill(&mut h.skills, id, level, sp_cost, attack_range, upgradable);
         }
     }
 
     pub(super) fn handle_mercenary_skill_list(&mut self, skills: Vec<SkillInfo>) {
         let icon_paths: Vec<String> = skills.iter().map(|s| s.icon_path()).collect();
-        if let Some(m) = &mut self.game.mercenary {
+        if let Some(m) = &mut self.game.companions.mercenary {
             m.skills = skills;
         }
         self.preload_item_icons(icon_paths);
@@ -203,7 +205,7 @@ impl App {
         attack_range: i16,
         upgradable: bool,
     ) {
-        if let Some(m) = &mut self.game.mercenary {
+        if let Some(m) = &mut self.game.companions.mercenary {
             update_skill(&mut m.skills, id, level, sp_cost, attack_range, upgradable);
         }
     }

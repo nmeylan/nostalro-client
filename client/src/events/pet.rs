@@ -4,14 +4,14 @@ use ragnarok_ui_component::game::item_list_selection_window::{ListContext, ListR
 
 impl App {
     pub(super) fn handle_pet_property(&mut self, property: PetProperty) {
-        self.game.pet.apply_property(&property);
-        let illust = self.game.pet.illust_path().to_string();
+        self.game.companions.pet.apply_property(&property);
+        let illust = self.game.companions.pet.illust_path().to_string();
         self.preload_item_icons(vec![illust]);
     }
 
     pub(super) fn handle_pet_state_changed(&mut self, ty: i8, gid: u32, data: i32) {
         use ragnarok_game::pet::{PET_STATE_ACCESSORY, PET_STATE_PERFORMANCE};
-        self.game.pet.apply_state_changed(ty, gid, data);
+        self.game.companions.pet.apply_state_changed(ty, gid, data);
         match ty {
             PET_STATE_ACCESSORY => {
                 let accessory = data as u16;
@@ -20,7 +20,7 @@ impl App {
                     .entities
                     .get(gid)
                     .map(|e| e.job)
-                    .unwrap_or(self.game.pet.job as u16);
+                    .unwrap_or(self.game.companions.pet.job as u16);
                 if let Some(entity) = self.game.entities.get_mut(gid) {
                     entity.pet_accessory = accessory;
                 }
@@ -60,11 +60,11 @@ impl App {
     /// Owner-side chatter: rolls an emote for the given pet act (PM_*) via the
     /// hunger×intimacy×act table and broadcasts it through CZ_PET_ACT.
     pub(crate) fn emit_pet_act(&mut self, act: usize) {
-        if self.game.pet.gid.is_none() {
+        if self.game.companions.pet.gid.is_none() {
             return;
         }
-        let hunger = self.game.pet.hunger_state().index();
-        let friendly = self.game.pet.intimacy_state().index();
+        let hunger = self.game.companions.pet.hunger_state().index();
+        let friendly = self.game.companions.pet.intimacy_state().index();
         if let Some(emote) = ragnarok_game::pet_tables::pet_emotion(hunger, friendly, act) {
             self.channel.send_packet(ragnarok_network::build_pet_act_packet(
                 emote as i32,
@@ -74,20 +74,20 @@ impl App {
     }
 
     pub(super) fn handle_pet_capture_start(&mut self) {
-        self.game.pet.capture_pending = true;
-        self.game.capture_targeting = true;
+        self.game.companions.pet.capture_pending = true;
+        self.game.companions.capture_targeting = true;
     }
 
     pub(super) fn handle_pet_capture_result(&mut self, ok: bool) {
-        self.game.pet.capture_pending = false;
-        if let Some(roulette) = &mut self.game.pet_roulette {
+        self.game.companions.pet.capture_pending = false;
+        if let Some(roulette) = &mut self.game.companions.pet_roulette {
             roulette.resolve(ok);
         }
     }
 
     pub(crate) fn try_pet_modal_click(&mut self) -> bool {
         // Capture roulette is modal: a click confirms the spinning attempt.
-        if let Some(roulette) = &mut self.game.pet_roulette {
+        if let Some(roulette) = &mut self.game.companions.pet_roulette {
             if roulette.state == ragnarok_game::pet::RouletteState::Idle && !roulette.sent {
                 roulette.sent = true;
                 let gid = roulette.target_gid;
@@ -101,9 +101,9 @@ impl App {
         }
         // Capture targeting armed by ZC_START_CAPTURE: a click on a valid mob opens
         // the roulette (players and the caster's own pet are not valid targets).
-        if self.game.capture_targeting {
+        if self.game.companions.capture_targeting {
             if let Some(entity_id) = self.game.hover.hovered_entity_id
-                && self.game.pet.gid != Some(entity_id)
+                && self.game.companions.pet.gid != Some(entity_id)
                 && self
                     .game
                     .entities
@@ -121,8 +121,8 @@ impl App {
 
     /// Loads the slotmachine sprite and opens the roulette for the picked mob.
     pub(crate) fn open_capture_roulette(&mut self, target_gid: u32) {
-        self.game.capture_targeting = false;
-        self.game.pet_roulette = Some(ragnarok_game::pet::PetRoulette::new(target_gid));
+        self.game.companions.capture_targeting = false;
+        self.game.companions.pet_roulette = Some(ragnarok_game::pet::PetRoulette::new(target_gid));
         if self.roulette_act.is_some() {
             return;
         }
@@ -147,18 +147,19 @@ impl App {
         let now = self.start_time.elapsed().as_secs_f32();
         let close = self
             .game
+            .companions
             .pet_roulette
             .as_ref()
             .and_then(|r| r.close_at)
             .is_some_and(|t| now >= t);
         if close {
-            self.game.pet_roulette = None;
+            self.game.companions.pet_roulette = None;
             return;
         }
         let Some(act) = &self.roulette_act else {
             return;
         };
-        if let Some(roulette) = &mut self.game.pet_roulette {
+        if let Some(roulette) = &mut self.game.companions.pet_roulette {
             roulette.advance(act, dt * 1000.0, now);
         }
     }

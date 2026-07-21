@@ -59,8 +59,8 @@ impl App {
                         self.game.pending_casts.pending_skill_target = None;
                         self.game.pending_casts.pending_skill_id = None;
                         self.game.pending_casts.pending_skill_level = None;
-                        self.game.capture_targeting = false;
-                        self.game.pet_roulette = None;
+                        self.game.companions.capture_targeting = false;
+                        self.game.companions.pet_roulette = None;
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
@@ -114,11 +114,13 @@ impl App {
         };
         let is_homun = self
             .game
+            .companions
             .homunculus
             .as_ref()
             .is_some_and(|h| !h.vaporized && h.gid == entity_id);
         let is_merc = self
             .game
+            .companions
             .mercenary
             .as_ref()
             .is_some_and(|m| m.gid == entity_id);
@@ -169,7 +171,7 @@ impl App {
         let Some(entity_id) = entity_id else {
             return false;
         };
-        if self.game.pet.gid != Some(entity_id) {
+        if self.game.companions.pet.gid != Some(entity_id) {
             return false;
         }
         if !self
@@ -440,19 +442,19 @@ impl App {
             HotkeyAction::ToggleParty => self.game.party_friends_window.open_party_tab(),
             HotkeyAction::ToggleFriends => self.game.party_friends_window.open_friend_tab(),
             HotkeyAction::TogglePet => {
-                if self.game.pet.gid.is_some() {
+                if self.game.companions.pet.gid.is_some() {
                     self.game.pet_window.toggle();
                 }
             }
             HotkeyAction::ToggleSoundOptions => self.open_sound_options(),
             HotkeyAction::ToggleGraphicOptions => self.open_graphic_options(),
             HotkeyAction::ToggleHomunculus => {
-                if self.game.homunculus.is_some() {
+                if self.game.companions.homunculus.is_some() {
                     self.game.homunculus_window.toggle();
                 }
             }
             HotkeyAction::ToggleMercenary => {
-                if self.game.mercenary.is_some() {
+                if self.game.companions.mercenary.is_some() {
                     self.game.mercenary_window.toggle();
                 }
             }

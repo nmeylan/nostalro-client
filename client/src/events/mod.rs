@@ -542,7 +542,7 @@ impl App {
                         let used_effect = item_id.and_then(consumable_use_effect);
                         let target_gid = item_id
                             .filter(|id| is_mercenary_potion(*id))
-                            .and(self.game.mercenary.as_ref().map(|m| m.gid))
+                            .and(self.game.companions.mercenary.as_ref().map(|m| m.gid))
                             .filter(|gid| *gid != 0)
                             .or_else(|| self.game.entities.player_id());
                         if let (Some(effect), Some(gid)) = (used_effect, target_gid) {

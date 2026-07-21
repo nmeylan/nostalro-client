@@ -228,6 +228,19 @@ pub struct PendingCasts {
     pub pending_shop_name: Option<String>,
 }
 
+pub struct Companions {
+    pub homunculus: Option<HomunculusState>,
+    pub mercenary: Option<MercenaryState>,
+    pub pet: PetState,
+    pub companion_ai: ragnarok_ai::config::CompanionAiConfig,
+    /// Target armed by the first click of the two-click owner attack, confirmed by
+    /// the second. Index 0 = homunculus (Alt+right-click), 1 = mercenary (Alt+left-click).
+    pub companion_attack_target: [Option<u32>; 2],
+    /// Armed by ZC_START_CAPTURE: the next click on a valid mob opens the roulette.
+    pub capture_targeting: bool,
+    pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -344,20 +357,11 @@ pub struct GameState {
     pub friends: ragnarok_game::friends::FriendList,
     pub party_friends_window: PartyFriendsWindow,
     pub party_helper_window: PartyHelperWindow,
-    pub homunculus: Option<HomunculusState>,
-    pub mercenary: Option<MercenaryState>,
-    pub pet: PetState,
-    pub companion_ai: ragnarok_ai::config::CompanionAiConfig,
+    pub companions: Companions,
     pub companion_ai_config_window: CompanionAiConfigWindow,
-    /// Target armed by the first click of the two-click owner attack, confirmed by
-    /// the second. Index 0 = homunculus (Alt+right-click), 1 = mercenary (Alt+left-click).
-    pub companion_attack_target: [Option<u32>; 2],
     pub homunculus_window: HomunWindow,
     pub mercenary_window: MercenaryWindow,
     pub pet_window: PetWindow,
-    /// Armed by ZC_START_CAPTURE: the next click on a valid mob opens the roulette.
-    pub capture_targeting: bool,
-    pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
     pub quest_log: QuestLog,
     /// Over-NPC quest markers keyed by NPC block id (account-id space). Cleared
     /// on map change; the server re-sends on load.
@@ -466,10 +470,10 @@ impl GameState {
 
         self.hotkey_bar.chat_is_active = self.chat_window.is_active();
         self.hotkey_bar.companion_skills.clear();
-        if let Some(m) = &self.mercenary {
+        if let Some(m) = &self.companions.mercenary {
             self.hotkey_bar.companion_skills.extend(m.skills.iter().cloned());
         }
-        if let Some(h) = &self.homunculus {
+        if let Some(h) = &self.companions.homunculus {
             self.hotkey_bar.companion_skills.extend(h.skills.iter().cloned());
         }
         events.extend(
@@ -586,9 +590,9 @@ impl GameState {
             self.pending_casts.pending_skill_target = None;
             allow_escape = false;
         }
-        if allow_escape && ui.ctx.key_escape && (self.capture_targeting || self.pet_roulette.is_some()) {
-            self.capture_targeting = false;
-            self.pet_roulette = None;
+        if allow_escape && ui.ctx.key_escape && (self.companions.capture_targeting || self.companions.pet_roulette.is_some()) {
+            self.companions.capture_targeting = false;
+            self.companions.pet_roulette = None;
             allow_escape = false;
         }
         self.system_menu.allow_escape_toggle = allow_escape;
@@ -1083,29 +1087,29 @@ impl GameState {
             COMPANION_AI_CONFIG_WINDOW_ID => {
                 events.extend(
                     self.companion_ai_config_window
-                        .build(ui, &mut self.companion_ai),
+                        .build(ui, &mut self.companions.companion_ai),
                 );
             }
             HOMUN_WINDOW_ID => {
-                events.extend(self.homunculus_window.build(ui, self.homunculus.as_ref()));
+                events.extend(self.homunculus_window.build(ui, self.companions.homunculus.as_ref()));
             }
             MERCENARY_WINDOW_ID => {
-                events.extend(self.mercenary_window.build(ui, self.mercenary.as_ref()));
+                events.extend(self.mercenary_window.build(ui, self.companions.mercenary.as_ref()));
             }
             PET_WINDOW_ID => {
-                events.extend(self.pet_window.build(ui, &self.pet));
+                events.extend(self.pet_window.build(ui, &self.companions.pet));
             }
             MERCENARY_SKILL_WINDOW_ID => {
                 events.extend(self.mercenary_skill_window.build(
                     ui,
-                    self.mercenary.as_ref(),
+                    self.companions.mercenary.as_ref(),
                     &self.data_table,
                 ));
             }
             HOMUN_SKILL_WINDOW_ID => {
                 events.extend(self.homun_skill_window.build(
                     ui,
-                    self.homunculus.as_ref(),
+                    self.companions.homunculus.as_ref(),
                     &self.data_table,
                 ));
             }
@@ -1195,12 +1199,12 @@ impl GameState {
         if let Some(s) = self.character.skills.get_skill(skill_id) {
             return Some((s.skill_target_type, s.attack_range));
         }
-        if let Some(m) = &self.mercenary
+        if let Some(m) = &self.companions.mercenary
             && let Some(s) = m.skills.iter().find(|s| s.id == skill_id)
         {
             return Some((s.skill_target_type, s.attack_range));
         }
-        if let Some(h) = &self.homunculus
+        if let Some(h) = &self.companions.homunculus
             && let Some(s) = h.skills.iter().find(|s| s.id == skill_id)
         {
             return Some((s.skill_target_type, s.attack_range));
@@ -1315,20 +1319,22 @@ impl GameState {
             friends: ragnarok_game::friends::FriendList::default(),
             party_friends_window: PartyFriendsWindow::new(),
             party_helper_window: PartyHelperWindow::new(),
-            homunculus: None,
-            mercenary: None,
-            pet: PetState::default(),
-            companion_attack_target: [None; 2],
+            companions: Companions {
+                homunculus: None,
+                mercenary: None,
+                pet: PetState::default(),
+                companion_ai: ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                    COMPANION_AI_CONFIG_PATH,
+                ),
+                companion_attack_target: [None; 2],
+                capture_targeting: false,
+                pet_roulette: None,
+            },
             homunculus_window: HomunWindow::new(),
             mercenary_window: MercenaryWindow::new(),
             pet_window: PetWindow::new(),
-            capture_targeting: false,
-            pet_roulette: None,
             quest_log: QuestLog::default(),
             quest_markers: std::collections::HashMap::new(),
-            companion_ai: ragnarok_ai::config::CompanionAiConfig::load_or_default(
-                COMPANION_AI_CONFIG_PATH,
-            ),
             companion_ai_config_window: CompanionAiConfigWindow::new(),
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
@@ -1442,7 +1448,7 @@ mod skill_resolve_tests {
             upgradable: false,
             skill_target_type: SkillTargetType::Target,
         }];
-        game.mercenary = Some(merc);
+        game.companions.mercenary = Some(merc);
 
         assert_eq!(
             game.resolve_cast_skill(8201),

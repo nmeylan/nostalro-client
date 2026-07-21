@@ -241,15 +241,15 @@ impl App {
         if self.game.combat.attack_target_id == Some(gid) {
             self.game.combat.attack_target_id = None;
         }
-        if self.game.pet.gid == Some(gid) {
-            self.game.pet.clear_entity();
+        if self.game.companions.pet.gid == Some(gid) {
+            self.game.companions.pet.clear_entity();
         }
-        if let Some(h) = self.game.homunculus.as_mut().filter(|h| h.gid == gid) {
+        if let Some(h) = self.game.companions.homunculus.as_mut().filter(|h| h.gid == gid) {
             if matches!(vanish_type, VanishType::Die) {
                 h.hp = 0;
             }
         }
-        if let Some(m) = self.game.mercenary.as_mut().filter(|m| m.gid == gid) {
+        if let Some(m) = self.game.companions.mercenary.as_mut().filter(|m| m.gid == gid) {
             if matches!(vanish_type, VanishType::Die) {
                 m.hp = 0;
             }

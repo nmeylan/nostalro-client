@@ -1125,6 +1125,7 @@ impl App {
                 GameEvent::RequestHomunDelete => {
                     let name = self
                         .game
+                        .companions
                         .homunculus
                         .as_ref()
                         .map(|h| h.name.clone())
@@ -1170,6 +1171,7 @@ impl App {
                 GameEvent::SaveCompanionAiConfig => {
                     if let Err(e) = self
                         .game
+                        .companions
                         .companion_ai
                         .save(crate::game_state::COMPANION_AI_CONFIG_PATH)
                     {
@@ -1177,12 +1179,12 @@ impl App {
                     }
                 }
                 GameEvent::RevertCompanionAiConfig => {
-                    self.game.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
                         crate::game_state::COMPANION_AI_CONFIG_PATH,
                     );
                 }
                 GameEvent::ResetCompanionAiConfig => {
-                    self.game.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
+                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
                 }
                 GameEvent::ToggleCompanionStandby { is_mercenary } => {
                     self.push_owner_command_to(
@@ -1272,9 +1274,9 @@ impl App {
                     // list (with the target type) is available here even though the
                     // hotkey that triggered this carried only the id.
                     let companion = if is_mercenary {
-                        self.game.mercenary.as_ref().map(|m| (m.gid, &m.skills))
+                        self.game.companions.mercenary.as_ref().map(|m| (m.gid, &m.skills))
                     } else {
-                        self.game.homunculus.as_ref().map(|h| (h.gid, &h.skills))
+                        self.game.companions.homunculus.as_ref().map(|h| (h.gid, &h.skills))
                     };
                     let Some((gid, skills)) = companion else {
                         tracing::info!("RequestCompanionUseSkill: no companion present — dropped");
@@ -1868,7 +1870,7 @@ impl App {
                     }
                     // Return-to-egg: the pet vanishes and the egg becomes usable again.
                     if csub == 3
-                        && let Some(index) = self.game.pet.egg_index.take()
+                        && let Some(index) = self.game.companions.pet.egg_index.take()
                     {
                         self.game.character.inventory.set_item_damaged(index, false);
                     }
@@ -1884,7 +1886,7 @@ impl App {
                 GameEvent::RequestSelectPetEgg { index } => {
                     self.channel
                         .send_packet(build_select_petegg_packet(index, self.config.packetver));
-                    self.game.pet.egg_index = Some(index);
+                    self.game.companions.pet.egg_index = Some(index);
                     self.game.character.inventory.set_item_damaged(index, true);
                 }
                 GameEvent::RequestPetAct { data } => {
@@ -3087,14 +3089,14 @@ impl App {
             .into_iter()
             .enumerate()
         {
-            if let Some(t) = self.game.companion_attack_target[idx] {
+            if let Some(t) = self.game.companions.companion_attack_target[idx] {
                 if !present || self.game.entities.get(t).is_none() {
-                    self.game.companion_attack_target[idx] = None;
+                    self.game.companions.companion_attack_target[idx] = None;
                 }
             }
         }
         let companion_target_armed =
-            self.game.companion_attack_target.iter().any(Option::is_some);
+            self.game.companions.companion_attack_target.iter().any(Option::is_some);
         self.game.hover.hovered_chat_room = None;
         let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
             if self.input.right_mouse_down {
@@ -3121,7 +3123,7 @@ impl App {
                     );
                     (CursorType::Lock, hovered.map(|(_, id)| id))
                 }
-            } else if self.game.capture_targeting {
+            } else if self.game.companions.capture_targeting {
                 let hovered = hovered_entity_cursor_type(
                     self.input.mouse_position,
                     &self.game.entities,

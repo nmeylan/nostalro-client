@@ -241,10 +241,10 @@ impl App {
         if self.game.entities.is_player(entity_id) {
             return Some(self.game.character.hp_percentage());
         }
-        if let Some(h) = self.game.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+        if let Some(h) = self.game.companions.homunculus.as_ref().filter(|h| h.gid == entity_id) {
             return Some(h.hp_percentage());
         }
-        if let Some(m) = self.game.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+        if let Some(m) = self.game.companions.mercenary.as_ref().filter(|m| m.gid == entity_id) {
             return Some(m.hp_percentage());
         }
         self.game.entities.get(entity_id).and_then(|e| e.hp_percentage())
@@ -256,10 +256,10 @@ impl App {
         if self.game.entities.is_player(entity_id) {
             return Some(self.game.character.sp_percentage());
         }
-        if let Some(h) = self.game.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+        if let Some(h) = self.game.companions.homunculus.as_ref().filter(|h| h.gid == entity_id) {
             return Some(h.sp_percentage());
         }
-        if let Some(m) = self.game.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+        if let Some(m) = self.game.companions.mercenary.as_ref().filter(|m| m.gid == entity_id) {
             return Some(m.sp_percentage());
         }
         None
@@ -284,10 +284,11 @@ impl App {
             }
             let is_companion = self
                 .game
+                .companions
                 .homunculus
                 .as_ref()
                 .is_some_and(|h| h.gid == entry.id)
-                || self.game.mercenary.as_ref().is_some_and(|m| m.gid == entry.id);
+                || self.game.companions.mercenary.as_ref().is_some_and(|m| m.gid == entry.id);
             let is_party_member = self
                 .game
                 .party
