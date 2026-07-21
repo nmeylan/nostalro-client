@@ -35,7 +35,7 @@ impl App {
         {
             return;
         }
-        if let Some(entity_id) = self.game.hover.hovered_entity_id
+        if let Some(entity_id) = self.game.hover.target_id()
             && Some(entity_id) == self.game.world.entities.player_id()
             && self
                 .game
@@ -223,7 +223,7 @@ impl App {
             }
             return;
         }
-        if let Some(entity_id) = self.game.hover.hovered_entity_id
+        if let Some(entity_id) = self.game.hover.target_id()
             && Some(entity_id) != self.game.world.entities.player_id()
             && self
                 .game

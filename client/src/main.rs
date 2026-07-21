@@ -10,14 +10,16 @@ mod sound;
 mod sprite;
 
 use config::Config;
-use game_state::{GameState, PendingGuildConfirm};
+use game_state::{
+    CursorInput, CursorPending, GameState, HoverState, PendingGuildConfirm, cursor_type_from_hover,
+};
 use input::InputState;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    CursorType, PendingCompanionSkill, PendingSkillTarget, RenderEntry, RenderEntryKind,
-    cursor_type_for_cell, hovered_entity_cursor_type,
+    PendingCompanionSkill, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell,
+    hovered_entity_cursor_type,
 };
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
@@ -3083,13 +3085,7 @@ impl App {
         render_list
     }
 
-    fn update_cursor_type(
-        &mut self,
-        hovered: Option<(i32, i32)>,
-        ui_any_hovered: bool,
-        ui_any_interactive_hovered: bool,
-        render_list: &[RenderEntry],
-    ) -> Option<u32> {
+    fn prune_companion_targets(&mut self) {
         for (idx, present) in [self.has_homunculus(), self.has_mercenary()]
             .into_iter()
             .enumerate()
@@ -3100,89 +3096,91 @@ impl App {
                 }
             }
         }
+    }
+
+    fn resolve_hover(
+        &self,
+        hovered_cell: Option<(i32, i32)>,
+        render_list: &[RenderEntry],
+        floor_item_render_list: &[RenderEntry],
+        ui_any_hovered: bool,
+        ui_any_interactive_hovered: bool,
+    ) -> HoverState {
+        let mut hover = HoverState::default();
+        let mouse = self.input.mouse_position;
+        let entities = &self.game.world.entities;
+        let map = &self.game.session.map_properties;
+
+        hover.hovered_player_id = ragnarok_game::cursor::hovered_player(mouse, entities, render_list);
+
+        if let Some(gat) = &self.game.session.gat {
+            hover.cell_cursor = cursor_type_for_cell(gat, hovered_cell);
+        }
+
         let companion_target_armed =
             self.game.companions.companion_attack_target.iter().any(Option::is_some);
-        self.game.hover.hovered_chat_room = None;
-        let (cursor, hovered_entity_id) = if self.game.session.app_state == AppState::InGame {
-            if self.input.right_mouse_down {
-                (CursorType::Rotate, None)
-            } else if ui_any_interactive_hovered {
-                (CursorType::Click, None)
-            } else if ui_any_hovered {
-                (CursorType::Default, None)
-            } else if companion_target_armed {
-                (CursorType::Lock, None)
-            } else if let Some(pending) = &self.game.pending_casts.pending_companion_skill {
-                if pending.is_ground {
-                    (CursorType::Lock, None)
-                } else {
-                    // Resolve the entity under the cursor so the target click can
-                    // find it; no class filter, since a companion skill may target
-                    // either an enemy or an ally.
-                    let hovered = hovered_entity_cursor_type(
-                        self.input.mouse_position,
-                        &self.game.world.entities,
-                        render_list,
-                        &self.game.session.map_properties,
-                        None,
-                    );
-                    (CursorType::Lock, hovered.map(|(_, id)| id))
+        let suppressed = self.input.right_mouse_down
+            || ui_any_interactive_hovered
+            || ui_any_hovered
+            || companion_target_armed;
+
+        if !suppressed {
+            if let Some(pending) = &self.game.pending_casts.pending_companion_skill {
+                if !pending.is_ground {
+                    hover.hovered_entity_id =
+                        hovered_entity_cursor_type(mouse, entities, render_list, map, None)
+                            .map(|(_, id)| id);
                 }
             } else if self.game.companions.capture_targeting {
-                let hovered = hovered_entity_cursor_type(
-                    self.input.mouse_position,
-                    &self.game.world.entities,
+                hover.hovered_entity_id = hovered_entity_cursor_type(
+                    mouse,
+                    entities,
                     render_list,
-                    &self.game.session.map_properties,
+                    map,
                     Some(TargetClass::Offensive),
-                );
-                (CursorType::Lock, hovered.map(|(_, id)| id))
-            } else if let Some(pending) = &self.game.pending_casts.pending_skill_target {
-                match pending {
-                    PendingSkillTarget::Entity { skill_id, .. } => {
-                        let class = self
-                            .game
-                            .character
-                            .skills
-                            .get_skill(*skill_id)
-                            .map(|s| skill_target_class(s.skill_target_type))
-                            .unwrap_or(TargetClass::Offensive);
-                        let hovered = hovered_entity_cursor_type(
-                            self.input.mouse_position,
-                            &self.game.world.entities,
-                            render_list,
-                            &self.game.session.map_properties,
-                            Some(class),
-                        );
-                        (CursorType::Lock, hovered.map(|(_, id)| id))
-                    }
-                    PendingSkillTarget::Ground { .. } => (CursorType::Lock, None),
+                )
+                .map(|(_, id)| id);
+            } else if let Some(PendingSkillTarget::Entity { skill_id, .. }) =
+                &self.game.pending_casts.pending_skill_target
+            {
+                let class = self
+                    .game
+                    .character
+                    .skills
+                    .get_skill(*skill_id)
+                    .map(|s| skill_target_class(s.skill_target_type))
+                    .unwrap_or(TargetClass::Offensive);
+                hover.hovered_entity_id =
+                    hovered_entity_cursor_type(mouse, entities, render_list, map, Some(class))
+                        .map(|(_, id)| id);
+            } else if self.game.pending_casts.pending_skill_target.is_none() {
+                if let Some(room_id) = self.hovered_chat_room(render_list) {
+                    hover.hovered_chat_room = Some(room_id);
+                } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
+                    hover.hovered_vending = Some(vendor_id);
+                } else if let Some((cursor, id)) =
+                    hovered_entity_cursor_type(mouse, entities, render_list, map, None)
+                {
+                    hover.hovered_entity_id = Some(id);
+                    hover.hovered_entity_cursor = Some(cursor);
                 }
-            } else if let Some(room_id) = self.hovered_chat_room(render_list) {
-                self.game.hover.hovered_chat_room = Some(room_id);
-                (CursorType::Click, None)
-            } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
-                (CursorType::Click, Some(vendor_id))
-            } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
-                self.input.mouse_position,
-                &self.game.world.entities,
-                render_list,
-                &self.game.session.map_properties,
-                None,
-            ) {
-                (entity_cursor, Some(entity_id))
-            } else if let Some(gat) = &self.game.session.gat {
-                (cursor_type_for_cell(gat, hovered), None)
-            } else {
-                (CursorType::Default, None)
             }
-        } else if ui_any_interactive_hovered {
-            (CursorType::Click, None)
-        } else {
-            (CursorType::Default, None)
-        };
-        self.game.assets.cursor_animation.set_cursor_type(cursor);
-        hovered_entity_id
+        }
+
+        if hover.target_id().is_none() && !ui_any_hovered && !self.input.right_mouse_down {
+            let (mx, my) = (mouse.0 as f32, mouse.1 as f32);
+            hover.hovered_floor_item_id = floor_item_render_list
+                .iter()
+                .find(|entry| {
+                    mx >= entry.pick_bounds[0]
+                        && mx <= entry.pick_bounds[2]
+                        && my >= entry.pick_bounds[1]
+                        && my <= entry.pick_bounds[3]
+                })
+                .map(|entry| entry.id);
+        }
+
+        hover
     }
 }
 
@@ -3340,19 +3338,43 @@ impl ApplicationHandler for App {
                     })
                     .copied()
                     .collect();
-                let hovered_entity_id = self.update_cursor_type(
+                self.prune_companion_targets();
+                let hover = self.resolve_hover(
                     hovered,
+                    &pick_render_list,
+                    &floor_item_render_list,
                     ui_any_hovered,
                     ui_any_interactive,
-                    &pick_render_list,
                 );
-                self.game.hover.hovered_entity_id = hovered_entity_id;
-                self.game.hover.hovered_player_id = ragnarok_game::cursor::hovered_player(
-                    self.input.mouse_position,
-                    &self.game.world.entities,
-                    &pick_render_list,
+                let cursor = cursor_type_from_hover(
+                    &hover,
+                    CursorInput {
+                        in_game: self.game.session.app_state == AppState::InGame,
+                        right_mouse_down: self.input.right_mouse_down,
+                        ui_any_hovered,
+                        ui_any_interactive_hovered: ui_any_interactive,
+                    },
+                    CursorPending {
+                        companion_target_armed: self
+                            .game
+                            .companions
+                            .companion_attack_target
+                            .iter()
+                            .any(Option::is_some),
+                        pending_companion_skill: self
+                            .game
+                            .pending_casts
+                            .pending_companion_skill
+                            .is_some(),
+                        capture_targeting: self.game.companions.capture_targeting,
+                        pending_skill: self.game.pending_casts.pending_skill_target.is_some(),
+                    },
                 );
-                let hovered_named_id = hovered_entity_id.or(self.game.hover.hovered_player_id);
+                self.game.assets.cursor_animation.set_cursor_type(cursor);
+                self.game.hover = hover;
+
+                let hovered_named_id = self.game.hover.target_id().or(self.game.hover.hovered_player_id);
+                let hovered_floor_item_id = self.game.hover.hovered_floor_item_id;
                 if let Some(entity_id) = hovered_named_id
                     && let Some(entity) = self.game.world.entities.get_mut(entity_id)
                     && !entity.name_requested
@@ -3360,30 +3382,6 @@ impl ApplicationHandler for App {
                     entity.name_requested = true;
                     self.channel
                         .send_packet(build_reqname_packet(entity_id, self.config.packetver));
-                }
-
-                let hovered_floor_item_id = if hovered_entity_id.is_none()
-                    && !ui_any_hovered
-                    && !self.input.right_mouse_down
-                {
-                    let (mx, my) = self.input.mouse_position;
-                    let mx = mx as f32;
-                    let my = my as f32;
-                    floor_item_render_list
-                        .iter()
-                        .find(|entry| {
-                            mx >= entry.pick_bounds[0]
-                                && mx <= entry.pick_bounds[2]
-                                && my >= entry.pick_bounds[1]
-                                && my <= entry.pick_bounds[3]
-                        })
-                        .map(|entry| entry.id)
-                } else {
-                    None
-                };
-                self.game.hover.hovered_floor_item_id = hovered_floor_item_id;
-                if hovered_floor_item_id.is_some() {
-                    self.game.assets.cursor_animation.set_cursor_type(CursorType::Pick);
                 }
 
                 let cursor_clips = self.build_cursor_sprite_clips(delta);

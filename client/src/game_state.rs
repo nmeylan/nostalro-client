@@ -12,7 +12,7 @@ use ragnarok_game::poptip::PoptipStack;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::cursor::{
-    CursorAnimationState, PendingCompanionSkill, PendingSkillTarget, RenderEntry,
+    CursorAnimationState, CursorType, PendingCompanionSkill, PendingSkillTarget, RenderEntry,
 };
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::day_night::DayNightState;
@@ -220,6 +220,71 @@ pub struct HoverState {
     pub hovered_player_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
     pub hovered_chat_room: Option<u32>,
+    pub hovered_vending: Option<u32>,
+    pub hovered_entity_cursor: Option<CursorType>,
+    pub cell_cursor: CursorType,
+}
+
+impl HoverState {
+    /// The id to target for a click: the hovered entity, or the owner of a
+    /// hovered vending board (both share the same id).
+    pub fn target_id(&self) -> Option<u32> {
+        self.hovered_entity_id.or(self.hovered_vending)
+    }
+}
+
+pub struct CursorInput {
+    pub in_game: bool,
+    pub right_mouse_down: bool,
+    pub ui_any_hovered: bool,
+    pub ui_any_interactive_hovered: bool,
+}
+
+pub struct CursorPending {
+    pub companion_target_armed: bool,
+    pub pending_companion_skill: bool,
+    pub capture_targeting: bool,
+    pub pending_skill: bool,
+}
+
+pub fn cursor_type_from_hover(
+    hover: &HoverState,
+    input: CursorInput,
+    pending: CursorPending,
+) -> CursorType {
+    if !input.in_game {
+        return if input.ui_any_interactive_hovered {
+            CursorType::Click
+        } else {
+            CursorType::Default
+        };
+    }
+    let base = if input.right_mouse_down {
+        CursorType::Rotate
+    } else if input.ui_any_interactive_hovered {
+        CursorType::Click
+    } else if input.ui_any_hovered {
+        CursorType::Default
+    } else if pending.companion_target_armed
+        || pending.pending_companion_skill
+        || pending.capture_targeting
+        || pending.pending_skill
+    {
+        CursorType::Lock
+    } else if hover.hovered_chat_room.is_some() {
+        CursorType::Click
+    } else if hover.hovered_vending.is_some() {
+        CursorType::Click
+    } else if let Some(cursor) = hover.hovered_entity_cursor {
+        cursor
+    } else {
+        hover.cell_cursor
+    };
+    if hover.hovered_floor_item_id.is_some() {
+        CursorType::Pick
+    } else {
+        base
+    }
 }
 
 #[derive(Default)]
@@ -1596,6 +1661,92 @@ mod window_state_persistence_tests {
         let mut next_login = GameState::new();
         next_login.apply_window_state(&window_state);
         assert!(!next_login.character.skills.is_open());
+    }
+}
+
+#[cfg(test)]
+mod cursor_from_hover_tests {
+    use super::*;
+
+    fn in_game() -> CursorInput {
+        CursorInput {
+            in_game: true,
+            right_mouse_down: false,
+            ui_any_hovered: false,
+            ui_any_interactive_hovered: false,
+        }
+    }
+
+    fn no_pending() -> CursorPending {
+        CursorPending {
+            companion_target_armed: false,
+            pending_companion_skill: false,
+            capture_targeting: false,
+            pending_skill: false,
+        }
+    }
+
+    #[test]
+    fn cursor_follows_hover_priority_chain() {
+        let mut hover = HoverState::default();
+
+        hover.cell_cursor = CursorType::NoWalk;
+        assert_eq!(
+            cursor_type_from_hover(&hover, in_game(), no_pending()),
+            CursorType::NoWalk
+        );
+
+        hover.hovered_entity_cursor = Some(CursorType::Attack);
+        assert_eq!(
+            cursor_type_from_hover(&hover, in_game(), no_pending()),
+            CursorType::Attack
+        );
+
+        hover.hovered_vending = Some(7);
+        assert_eq!(
+            cursor_type_from_hover(&hover, in_game(), no_pending()),
+            CursorType::Click
+        );
+
+        hover.hovered_chat_room = Some(3);
+        assert_eq!(
+            cursor_type_from_hover(&hover, in_game(), no_pending()),
+            CursorType::Click
+        );
+
+        let pending = CursorPending {
+            pending_skill: true,
+            ..no_pending()
+        };
+        assert_eq!(
+            cursor_type_from_hover(&hover, in_game(), pending),
+            CursorType::Lock
+        );
+
+        hover.hovered_floor_item_id = Some(1);
+        assert_eq!(
+            cursor_type_from_hover(&hover, in_game(), no_pending()),
+            CursorType::Pick
+        );
+
+        let dragging = CursorInput {
+            right_mouse_down: true,
+            ..in_game()
+        };
+        assert_eq!(
+            cursor_type_from_hover(&HoverState::default(), dragging, no_pending()),
+            CursorType::Rotate
+        );
+
+        let out_of_game = CursorInput {
+            in_game: false,
+            ui_any_interactive_hovered: true,
+            ..in_game()
+        };
+        assert_eq!(
+            cursor_type_from_hover(&hover, out_of_game, no_pending()),
+            CursorType::Click
+        );
     }
 }
 
