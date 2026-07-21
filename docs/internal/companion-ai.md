@@ -1,5 +1,7 @@
 # Companion AI
 
+This implementation is a portage of https://github.com/SpenceKonde/AzzyAI
+
 A configurable AI for the Homunculus and Mercenary systems. It decides how the
 companion targets, chases, attacks, casts skills, buffs, heals, and moves
 relative to its owner. This document describes what the code actually does. Where
