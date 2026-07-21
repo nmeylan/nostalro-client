@@ -47,7 +47,7 @@ use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::{Camera, Renderer, UiDrawCall, UiTextureRef, block_on};
+use ragnarok_renderer::{Camera, FrameInputs, Renderer, UiDrawCall, UiTextureRef, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -1567,17 +1567,17 @@ impl App {
             });
         }
 
-        renderer.render(
-            &ui_calls,
-            &effect_batches,
-            &effect_draws,
+        renderer.render(FrameInputs {
+            ui_draw_calls: &ui_calls,
+            effect_sprite_batches: &effect_batches,
+            effect_draws: &effect_draws,
             sprite_particle_records,
-            &[],
-            &[],
-            &[],
-            &[],
-            0.0,
-        );
+            sprite_batches: &[],
+            silhouette_batches: &[],
+            cursor_batches: &[],
+            inline_textures: &[],
+            elapsed: 0.0,
+        });
 
         // GIF capture path: after the surface frame is presented, render the
         // same simulation state into the offscreen capture target at 256x256
@@ -1621,15 +1621,17 @@ impl App {
                     gif_export::GIF_W,
                     gif_export::GIF_H,
                     wgpu::Color::BLACK,
-                    &[],
-                    &capture_batches,
-                    &effect_draws,
-                    sprite_particle_capture,
-                    &[],
-                    &[],
-                    &[],
-                    &[],
-                    0.0,
+                    FrameInputs {
+                        ui_draw_calls: &[],
+                        effect_sprite_batches: &capture_batches,
+                        effect_draws: &effect_draws,
+                        sprite_particle_records: sprite_particle_capture,
+                        sprite_batches: &[],
+                        silhouette_batches: &[],
+                        cursor_batches: &[],
+                        inline_textures: &[],
+                        elapsed: 0.0,
+                    },
                 );
                 session.write_current_frame(&renderer.device.device, &renderer.device.queue);
             }

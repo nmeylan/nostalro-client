@@ -89,6 +89,18 @@ pub struct UiDrawCall {
     pub texture: UiTextureRef,
 }
 
+pub struct FrameInputs<'a> {
+    pub ui_draw_calls: &'a [UiDrawCall],
+    pub effect_sprite_batches: &'a [SpriteBatch<'a>],
+    pub effect_draws: &'a effect::EffectDrawList,
+    pub sprite_particle_records: Vec<DrawRecord<'a>>,
+    pub sprite_batches: &'a [SpriteBatch<'a>],
+    pub silhouette_batches: &'a [SpriteBatch<'a>],
+    pub cursor_batches: &'a [SpriteBatch<'a>],
+    pub inline_textures: &'a [&'a wgpu::BindGroup],
+    pub elapsed: f32,
+}
+
 pub struct Renderer {
     pub device: RenderDevice,
     pub camera: Camera,
@@ -534,18 +546,7 @@ impl Renderer {
         self.ground_proxy = Some(proxy);
     }
 
-    pub fn render(
-        &mut self,
-        ui_draw_calls: &[UiDrawCall],
-        effect_sprite_batches: &[SpriteBatch],
-        effect_draws: &effect::EffectDrawList,
-        sprite_particle_records: Vec<DrawRecord>,
-        sprite_batches: &[SpriteBatch],
-        silhouette_batches: &[SpriteBatch],
-        cursor_batches: &[SpriteBatch],
-        inline_textures: &[&wgpu::BindGroup],
-        elapsed: f32,
-    ) {
+    pub fn render(&mut self, frame: FrameInputs) {
         let output = match self.device.surface.get_current_texture() {
             Ok(tex) => tex,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -564,22 +565,7 @@ impl Renderer {
         let phys_w = self.device.surface_config.width;
         let phys_h = self.device.surface_config.height;
         let clear = self.clear_color;
-        self.render_into(
-            &view,
-            &depth_view,
-            phys_w,
-            phys_h,
-            clear,
-            ui_draw_calls,
-            effect_sprite_batches,
-            effect_draws,
-            sprite_particle_records,
-            sprite_batches,
-            silhouette_batches,
-            cursor_batches,
-            inline_textures,
-            elapsed,
-        );
+        self.render_into(&view, &depth_view, phys_w, phys_h, clear, frame);
         output.present();
     }
 
@@ -590,19 +576,22 @@ impl Renderer {
         physical_w: u32,
         physical_h: u32,
         clear_color: wgpu::Color,
-        ui_draw_calls: &[UiDrawCall],
-        effect_sprite_batches: &[SpriteBatch],
-        effect_draws: &effect::EffectDrawList,
-        sprite_particle_records: Vec<DrawRecord>,
-        sprite_batches: &[SpriteBatch],
-        silhouette_batches: &[SpriteBatch],
-        cursor_batches: &[SpriteBatch],
-        inline_textures: &[&wgpu::BindGroup],
-        elapsed: f32,
+        frame: FrameInputs,
     ) {
         if physical_w == 0 || physical_h == 0 {
             return;
         }
+        let FrameInputs {
+            ui_draw_calls,
+            effect_sprite_batches,
+            effect_draws,
+            sprite_particle_records,
+            sprite_batches,
+            silhouette_batches,
+            cursor_batches,
+            inline_textures,
+            elapsed,
+        } = frame;
         let logical_w = physical_w as f32 / self.dpi_scale;
         let logical_h = physical_h as f32 / self.dpi_scale;
         self.camera.aspect = physical_w as f32 / physical_h as f32;

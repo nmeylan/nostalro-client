@@ -30,7 +30,7 @@ use ragnarok_renderer::effect::{
 };
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
 use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
-use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
+use ragnarok_renderer::{BackgroundMode, FrameInputs, Renderer, UiDrawCall, block_on};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -1181,17 +1181,17 @@ impl App {
             );
         }
 
-        renderer.render(
-            &ui_calls,
-            &effect_batches,
-            &effect_draws,
+        renderer.render(FrameInputs {
+            ui_draw_calls: &ui_calls,
+            effect_sprite_batches: &effect_batches,
+            effect_draws: &effect_draws,
             sprite_particle_records,
-            &sprite_batches,
-            &silhouette_batches,
-            &[],
-            &number_inline_textures,
-            dt,
-        );
+            sprite_batches: &sprite_batches,
+            silhouette_batches: &silhouette_batches,
+            cursor_batches: &[],
+            inline_textures: &number_inline_textures,
+            elapsed: dt,
+        });
     }
 }
 

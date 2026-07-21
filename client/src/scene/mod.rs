@@ -11,7 +11,7 @@ use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{EffectFrameInputs, compose_effect_frame};
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_clip_quad_scaled,
+    FrameInputs, SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_clip_quad_scaled,
     scale_clip_vertices,
 };
 
@@ -1053,17 +1053,17 @@ impl App {
                     .count();
             }
 
-            renderer.render(
-                &all_ui_calls,
-                &frame.effect_batches,
-                &frame.effect_draws,
-                frame.sprite_particle_records,
-                &sprite_batches,
-                &silhouette_batches,
-                &cursor_batches,
-                &inline_textures,
+            renderer.render(FrameInputs {
+                ui_draw_calls: &all_ui_calls,
+                effect_sprite_batches: &frame.effect_batches,
+                effect_draws: &frame.effect_draws,
+                sprite_particle_records: frame.sprite_particle_records,
+                sprite_batches: &sprite_batches,
+                silhouette_batches: &silhouette_batches,
+                cursor_batches: &cursor_batches,
+                inline_textures: &inline_textures,
                 elapsed,
-            );
+            });
         }
     }
 }

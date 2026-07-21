@@ -14,7 +14,7 @@ use ragnarok_renderer::effect::{
 };
 use ragnarok_renderer::effect_sprite::EffectSpriteCache;
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::{UiDrawCall, block_on};
+use ragnarok_renderer::{FrameInputs, UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -858,17 +858,17 @@ impl App {
             hot.build_overlay(&renderer.font_atlas, width, height, &mut draw_calls);
         }
 
-        renderer.render(
-            &draw_calls,
-            &frame.effect_batches,
-            &frame.effect_draws,
-            frame.sprite_particle_records,
-            &[],
-            &[],
-            &[],
-            &[],
+        renderer.render(FrameInputs {
+            ui_draw_calls: &draw_calls,
+            effect_sprite_batches: &frame.effect_batches,
+            effect_draws: &frame.effect_draws,
+            sprite_particle_records: frame.sprite_particle_records,
+            sprite_batches: &[],
+            silhouette_batches: &[],
+            cursor_batches: &[],
+            inline_textures: &[],
             elapsed,
-        );
+        });
     }
 }
 
