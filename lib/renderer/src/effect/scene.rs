@@ -1,4 +1,4 @@
-use ragnarok_game::effect::CameraView;
+use ragnarok_effects::CameraView;
 
 use crate::camera::Camera;
 use crate::effect::holder::EffectHolder;
@@ -9,7 +9,7 @@ use crate::effect_sprite::{
     prepare_sprite_particle_records,
 };
 use crate::sprite::SpriteBatch;
-use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx};
+use ragnarok_effects::{EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx};
 
 pub struct EffectFrameInputs<'cache, 'tmp> {
     pub effect_holder: &'tmp EffectHolder,
@@ -138,7 +138,7 @@ pub fn compose_effect_frame<'cache, 'tmp>(
 mod tests {
     use super::*;
     use models::enums::effect_id::EffectId;
-    use ragnarok_game::effect::{Attach, EffectUpdateCtx};
+    use ragnarok_effects::{Attach, EffectUpdateCtx};
 
     #[test]
     fn compose_effect_frame_collects_custom_primitive_draws() {

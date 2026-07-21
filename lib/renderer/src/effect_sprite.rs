@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::SprFile;
-use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw};
+use ragnarok_effects::{EffectDrawList, EffectPrimitiveDraw};
 
 use crate::camera::Camera;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};

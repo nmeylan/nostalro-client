@@ -106,7 +106,7 @@ fn try_load(
         let mut paths = Vec::with_capacity(layer.textures.len());
         let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
         for tex_name in &layer.textures {
-            let tex_path = format!("data/texture/effect/{tex_name}");
+            let tex_path = super::effect_texture_path(tex_name);
             let bg = load_str_texture(&tex_path, grf, device, queue, layout);
             bgs.push(bg);
             paths.push(tex_path);

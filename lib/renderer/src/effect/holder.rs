@@ -3,8 +3,8 @@ use std::sync::Arc;
 use models::enums::EnumWithNumberValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::SpriteAnimationState;
-use ragnarok_game::effect::spec::EffectAnchor;
-use ragnarok_game::effect::{
+use ragnarok_effects::spec::EffectAnchor;
+use ragnarok_effects::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
     EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
     NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, custom_duration_ms, effect_spec,
@@ -1246,7 +1246,7 @@ fn rand_u32() -> u32 {
 mod tests {
     use super::*;
     use models::enums::effect_id::EffectId;
-    use ragnarok_game::effect::Attach;
+    use ragnarok_effects::Attach;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
         EffectUpdateCtx {

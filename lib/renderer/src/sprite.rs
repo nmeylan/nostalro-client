@@ -1578,7 +1578,7 @@ pub struct BodyChannels {
     pub angle: f32,
     pub squeeze: f32,
     pub additive: bool,
-    pub copies: Vec<ragnarok_game::effect::BodyCopy>,
+    pub copies: Vec<ragnarok_effects::BodyCopy>,
 }
 
 impl Default for BodyChannels {
@@ -1715,7 +1715,7 @@ pub fn compose_actor_batches<'a>(
         })
         .unwrap_or((anchor, 1.0, 1.0));
 
-    let build_copy = |copy: &ragnarok_game::effect::BodyCopy| {
+    let build_copy = |copy: &ragnarok_effects::BodyCopy| {
         let mut batches = sprite.build_batches(
             animation,
             Some(dir),

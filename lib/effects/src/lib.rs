@@ -47,6 +47,14 @@ pub const ARROW_SPRITE: &str = "data/sprite/몬스터/skel_archer_arrow";
 
 pub const SPRITES: &[&str] = &[ARROW_SPRITE];
 
+pub fn effect_texture_path(name: &str) -> String {
+    if name.contains('/') {
+        format!("data/texture/{name}")
+    } else {
+        format!("data/texture/effect/{name}")
+    }
+}
+
 pub fn effect_texture_paths() -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
     let texture_lists: &[&[&str]] = &[
@@ -188,11 +196,7 @@ pub fn effect_texture_paths() -> Vec<String> {
     for list in texture_lists {
         for name in *list {
             for candidate in name.split('|') {
-                if candidate.contains('/') {
-                    seen.insert(format!("data/texture/{candidate}"));
-                } else {
-                    seen.insert(format!("data/texture/effect/{candidate}"));
-                }
+                seen.insert(effect_texture_path(candidate));
             }
         }
     }

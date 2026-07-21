@@ -149,14 +149,8 @@ fn build_effect_records<'tex>(
         if name.is_empty() {
             return None;
         }
-        name.split('|').find_map(|candidate| {
-            let full = if candidate.contains('/') {
-                format!("data/texture/{candidate}")
-            } else {
-                format!("data/texture/effect/{candidate}")
-            };
-            texture_cache.get(&full)
-        })
+        name.split('|')
+            .find_map(|candidate| texture_cache.get(&effect::effect_texture_path(candidate)))
     };
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     records.extend(prepare_billboard_records(

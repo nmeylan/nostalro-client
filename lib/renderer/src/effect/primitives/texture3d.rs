@@ -4,7 +4,7 @@ use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layo
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::effect::{EffectDrawList, EffectPrimitiveDraw};
 use crate::sprite::SpriteVertex;
-use ragnarok_game::effect::draw::QuadPlane;
+use ragnarok_effects::draw::QuadPlane;
 
 pub struct Texture3DRenderer {
     pub pipeline_alpha: wgpu::RenderPipeline,

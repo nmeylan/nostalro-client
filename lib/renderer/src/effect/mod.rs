@@ -21,8 +21,9 @@ pub use primitives::{
 };
 pub use queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
 pub use registry::{EffectPrimitiveRegistry, EffectPrimitiveRenderer};
-pub use ragnarok_game::effect::{
+pub use ragnarok_effects::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx, EffectStatus, EffectUpdateCtx,
+    effect_texture_path,
 };
 pub use scene::{EffectFrameInputs, EffectFrameOutputs, compose_effect_frame};
 pub use str_pipeline::{StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches};

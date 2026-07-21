@@ -205,7 +205,7 @@ pub fn prepare_radial_ring_records<'tex>(
 mod tests {
     use std::f32::consts::FRAC_PI_2;
 
-    use ragnarok_game::effect::radial_emitter::RADIAL_EMITTER_DIVISION;
+    use ragnarok_effects::radial_emitter::RADIAL_EMITTER_DIVISION;
 
     use super::*;
     use crate::camera::Camera;
