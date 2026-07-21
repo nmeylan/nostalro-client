@@ -10,6 +10,5 @@ glam = { workspace = true }
 ragnarok-effects = { workspace = true }
 models = { workspace = true }
 movement = { workspace = true }
-packets = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

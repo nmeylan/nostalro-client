@@ -22,11 +22,80 @@ use tracing::debug;
 
 use crate::helpers::{decode_pos, decode_pos2};
 
+fn server_info_from_addr(addr: &ServerAddr) -> ServerInfo {
+    ServerInfo {
+        ip: addr.ip,
+        port: addr.port,
+        name: addr.name.iter().take_while(|c| **c != '\0').collect(),
+        user_count: addr.user_count,
+    }
+}
+
+fn character_info_from_neo_union(info: &CharacterInfoNeoUnion, packetver: u32) -> CharacterInfo {
+    tracing::debug!(
+        "CharInfo raw: gid={} class={} level={} joblevel={} name_raw={:?} slot={} hp={}/{} sp={}/{} speed={}",
+        info.gid,
+        info.class,
+        info.level,
+        info.joblevel,
+        &info.name_raw[..16],
+        info.char_num,
+        info.hp,
+        info.maxhp,
+        info.sp,
+        info.maxsp,
+        info.speed,
+    );
+    let name: String = info.name.iter().take_while(|c| **c != '\0').collect();
+    let map: String = if packetver >= 20100720 {
+        info.last_map.iter().take_while(|c| **c != '\0').collect()
+    } else {
+        String::new()
+    };
+    let (hp, max_hp) = if packetver > 20081217 {
+        (info.hp, info.maxhp)
+    } else {
+        (info.hp_16 as u32, info.maxhp_16 as u32)
+    };
+    let sex = if packetver >= 20141016 { info.sex } else { 0 };
+
+    CharacterInfo {
+        gid: info.gid,
+        name,
+        class: info.class,
+        base_level: info.level,
+        base_exp: info.exp,
+        job_level: info.joblevel,
+        map,
+        slot: info.char_num,
+        head: info.head,
+        hair_color: info.hair_color,
+        weapon: info.weapon,
+        head_top: info.head_top,
+        head_mid: info.head_mid,
+        head_bottom: info.head_bottom,
+        shield: info.shield,
+        sex,
+        hp,
+        max_hp,
+        sp: info.sp,
+        max_sp: info.maxsp,
+        str: info.str,
+        agi: info.agi,
+        vit: info.vit,
+        int: info.int,
+        dex: info.dex,
+        luk: info.luk,
+        effect_state: info.effectstate,
+        zeny: info.money as i32,
+    }
+}
+
 pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     let any = packet.as_any();
 
     if let Some(p) = any.downcast_ref::<PacketAcAcceptLogin>() {
-        let servers = p.server_list.iter().map(ServerInfo::from).collect();
+        let servers = p.server_list.iter().map(server_info_from_addr).collect();
         return vec![GameEvent::LoginAccepted {
             account_id: p.aid,
             login_id1: p.auth_code,
@@ -49,7 +118,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let characters = p
             .char_info
             .iter()
-            .map(|c| CharacterInfo::from_neo_union(c, packetver))
+            .map(|c| character_info_from_neo_union(c, packetver))
             .collect();
         return vec![GameEvent::CharacterListReceived { characters }];
     }
@@ -58,7 +127,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .char_info
             .char_info
             .iter()
-            .map(|c| CharacterInfo::from_neo_union(c, packetver))
+            .map(|c| character_info_from_neo_union(c, packetver))
             .collect();
         return vec![GameEvent::CharacterListReceived { characters }];
     }
@@ -72,7 +141,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketHcAcceptMakecharNeoUnion>() {
-        let character = CharacterInfo::from_neo_union(&p.charinfo, packetver);
+        let character = character_info_from_neo_union(&p.charinfo, packetver);
         return vec![GameEvent::CharacterCreated { character }];
     }
     if let Some(p) = any.downcast_ref::<PacketHcRefuseMakechar>() {
