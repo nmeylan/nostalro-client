@@ -168,7 +168,7 @@ fn filter_matches(f: Filter, id: EffectId) -> bool {
         (f, spec),
         (Filter::Str, EffectSpec::Str { .. })
             | (Filter::Spr, EffectSpec::Spr { .. })
-            | (Filter::Custom, EffectSpec::Custom { .. })
+            | (Filter::Custom, EffectSpec::Custom)
     )
 }
 

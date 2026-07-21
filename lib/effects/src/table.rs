@@ -27,149 +27,69 @@ use super::str_aliases::str_aliases;
 
 pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
     Some(match id {
-        EffectId::Warp => EffectSpec::Custom {
-            duration_ms: warp::TOTAL_DURATION_MS,
-        },
+        EffectId::Warp => EffectSpec::Custom,
 
         EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13 => {
-            EffectSpec::Custom { duration_ms: 500 }
+            EffectSpec::Custom
         }
 
-        EffectId::Magnumbreak => EffectSpec::Custom {
-            duration_ms: magnum_break::TOTAL_DURATION_MS,
-        },
-        EffectId::Magnum2 => EffectSpec::Custom {
-            duration_ms: dome_ring::MAGNUM2_TOTAL_DURATION_MS,
-        },
-        EffectId::GiExplosion => EffectSpec::Custom {
-            duration_ms: dome_ring::GI_EXPLOSION_TOTAL_DURATION_MS,
-        },
+        EffectId::Magnumbreak => EffectSpec::Custom,
+        EffectId::Magnum2 => EffectSpec::Custom,
+        EffectId::GiExplosion => EffectSpec::Custom,
 
-        EffectId::Thunderstorm2 => EffectSpec::Custom {
-            duration_ms: thunderstorm2::TOTAL_DURATION_MS,
-        },
+        EffectId::Thunderstorm2 => EffectSpec::Custom,
 
-        EffectId::M02 => EffectSpec::Custom {
-            duration_ms: m_ef02::TOTAL_DURATION_MS,
-        },
+        EffectId::M02 => EffectSpec::Custom,
 
-        EffectId::Kaizel => EffectSpec::Custom {
-            duration_ms: slash::TOTAL_DURATION_MS,
-        },
+        EffectId::Kaizel => EffectSpec::Custom,
 
-        EffectId::Stopeffect => EffectSpec::Custom {
-            duration_ms: slash::STOPEFFECT_DURATION_MS,
-        },
+        EffectId::Stopeffect => EffectSpec::Custom,
 
-        EffectId::Angel2 | EffectId::Angel3 => EffectSpec::Custom {
-            duration_ms: super_angel::TOTAL_DURATION_MS,
-        },
+        EffectId::Angel2 | EffectId::Angel3 => EffectSpec::Custom,
 
-        EffectId::Guard | EffectId::Guard2 | EffectId::Guard3 => EffectSpec::Custom {
-            duration_ms: guard::TOTAL_DURATION_MS,
-        },
+        EffectId::Guard | EffectId::Guard2 | EffectId::Guard3 => EffectSpec::Custom,
 
         EffectId::Stormkick
         | EffectId::Stormkick1
         | EffectId::Stormkick2
         | EffectId::Stormkick3
         | EffectId::Stormkick6
-        | EffectId::Stormkick7 => EffectSpec::Custom {
-            duration_ms: storm_kick::TOTAL_DURATION_MS,
-        },
+        | EffectId::Stormkick7 => EffectSpec::Custom,
 
-        EffectId::Peong => EffectSpec::Custom {
-            duration_ms: peong::TOTAL_DURATION_MS,
-        },
+        EffectId::Peong => EffectSpec::Custom,
 
-        EffectId::Stormkick4 | EffectId::Stormkick5 => EffectSpec::Custom {
-            duration_ms: peong_up::TOTAL_DURATION_MS,
-        },
+        EffectId::Stormkick4 | EffectId::Stormkick5 => EffectSpec::Custom,
 
-        EffectId::Chemicalprotection => EffectSpec::Custom {
-            duration_ms: chemical::CHEMICALPROTECTION.total_duration_ms(),
-        },
-        EffectId::Mgattack2 => EffectSpec::Custom {
-            duration_ms: chemical::MGATTACK2.total_duration_ms(),
-        },
-        EffectId::Chemical2 => EffectSpec::Custom {
-            duration_ms: chemical::CHEMICAL2.total_duration_ms(),
-        },
-        EffectId::Chemical2dash => EffectSpec::Custom {
-            duration_ms: chemical::CHEMICAL2DASH.total_duration_ms(),
-        },
-        EffectId::Chemical3 => EffectSpec::Custom {
-            duration_ms: chemical::CHEMICAL3.total_duration_ms(),
-        },
-        EffectId::Chemical4 => EffectSpec::Custom {
-            duration_ms: chemical::CHEMICAL4.total_duration_ms(),
-        },
-        EffectId::Smatk1 => EffectSpec::Custom {
-            duration_ms: chemical::SMATK1.total_duration_ms(),
-        },
-        EffectId::Smatk2 => EffectSpec::Custom {
-            duration_ms: chemical::SMATK2.total_duration_ms(),
-        },
-        EffectId::Smatk3 => EffectSpec::Custom {
-            duration_ms: chemical::SMATK3.total_duration_ms(),
-        },
-        EffectId::Smatk4 => EffectSpec::Custom {
-            duration_ms: chemical::SMATK4.total_duration_ms(),
-        },
+        EffectId::Chemicalprotection => EffectSpec::Custom,
+        EffectId::Mgattack2 => EffectSpec::Custom,
+        EffectId::Chemical2 => EffectSpec::Custom,
+        EffectId::Chemical2dash => EffectSpec::Custom,
+        EffectId::Chemical3 => EffectSpec::Custom,
+        EffectId::Chemical4 => EffectSpec::Custom,
+        EffectId::Smatk1 => EffectSpec::Custom,
+        EffectId::Smatk2 => EffectSpec::Custom,
+        EffectId::Smatk3 => EffectSpec::Custom,
+        EffectId::Smatk4 => EffectSpec::Custom,
 
-        EffectId::Stin => EffectSpec::Custom {
-            duration_ms: stin::STIN.total_duration_ms(),
-        },
-        EffectId::Soulbreaker | EffectId::Soulbreaker2 => EffectSpec::Custom {
-            duration_ms: soul_breaker::TOTAL_DURATION_MS,
-        },
-        EffectId::Teihit2 | EffectId::Backstap => EffectSpec::Custom {
-            duration_ms: teihit::TOTAL_DURATION_MS,
-        },
+        EffectId::Stin => EffectSpec::Custom,
+        EffectId::Soulbreaker | EffectId::Soulbreaker2 => EffectSpec::Custom,
+        EffectId::Teihit2 | EffectId::Backstap => EffectSpec::Custom,
 
-        EffectId::Tripleattack => EffectSpec::Custom {
-            duration_ms: tripleattack::TRIPLEATTACK.total_duration_ms(),
-        },
-        EffectId::Tripleattack2 => EffectSpec::Custom {
-            duration_ms: tripleattack::TRIPLEATTACK2.total_duration_ms(),
-        },
-        EffectId::Tripleattack3 => EffectSpec::Custom {
-            duration_ms: tripleattack::TRIPLEATTACK3.total_duration_ms(),
-        },
+        EffectId::Tripleattack => EffectSpec::Custom,
+        EffectId::Tripleattack2 => EffectSpec::Custom,
+        EffectId::Tripleattack3 => EffectSpec::Custom,
 
-        EffectId::Spherewind => EffectSpec::Custom {
-            duration_ms: spherewind::SPHEREWIND.total_duration_ms(),
-        },
-        EffectId::Spherewind2 => EffectSpec::Custom {
-            duration_ms: spherewind::SPHEREWIND2.total_duration_ms(),
-        },
-        EffectId::Spherewind3 => EffectSpec::Custom {
-            duration_ms: spherewind::SPHEREWIND3.total_duration_ms(),
-        },
-        EffectId::Baby => EffectSpec::Custom {
-            duration_ms: spherewind::BABY.total_duration_ms(),
-        },
-        EffectId::Stin2 => EffectSpec::Custom {
-            duration_ms: stin::STIN2.total_duration_ms(),
-        },
-        EffectId::Stin4 => EffectSpec::Custom {
-            duration_ms: stin::STIN4.total_duration_ms(),
-        },
-        EffectId::Stin5 => EffectSpec::Custom {
-            duration_ms: stin::STIN5.total_duration_ms(),
-        },
-        EffectId::Stin3 => EffectSpec::Custom {
-            duration_ms: sma::STIN3_TOTAL_DURATION_MS,
-        },
-        EffectId::Sma => EffectSpec::Custom {
-            duration_ms: sma::SMA_TOTAL_DURATION_MS,
-        },
-        EffectId::Sma2 => EffectSpec::Custom {
-            duration_ms: sma::SMA2_TOTAL_DURATION_MS,
-        },
-        EffectId::Sma3 => EffectSpec::Custom {
-            duration_ms: particle_up::SMA3_TOTAL_DURATION_MS,
-        },
+        EffectId::Spherewind => EffectSpec::Custom,
+        EffectId::Spherewind2 => EffectSpec::Custom,
+        EffectId::Spherewind3 => EffectSpec::Custom,
+        EffectId::Baby => EffectSpec::Custom,
+        EffectId::Stin2 => EffectSpec::Custom,
+        EffectId::Stin4 => EffectSpec::Custom,
+        EffectId::Stin5 => EffectSpec::Custom,
+        EffectId::Stin3 => EffectSpec::Custom,
+        EffectId::Sma => EffectSpec::Custom,
+        EffectId::Sma2 => EffectSpec::Custom,
+        EffectId::Sma3 => EffectSpec::Custom,
 
         EffectId::Throwitem
         | EffectId::Throwitem2
@@ -180,36 +100,18 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Throwitem7
         | EffectId::Throwitem8
         | EffectId::Throwitem9
-        | EffectId::Throwitem10 => EffectSpec::Custom {
-            duration_ms: throw_item::TOTAL_DURATION_MS,
-        },
+        | EffectId::Throwitem10 => EffectSpec::Custom,
 
-        EffectId::RgCoin => EffectSpec::Custom {
-            duration_ms: rg_coin::RG_COIN.total_duration_ms(),
-        },
-        EffectId::RgCoin2 => EffectSpec::Custom {
-            duration_ms: rg_coin::RG_COIN2.total_duration_ms(),
-        },
-        EffectId::RgCoin3 => EffectSpec::Custom {
-            duration_ms: rg_coin::RG_COIN3.total_duration_ms(),
-        },
+        EffectId::RgCoin => EffectSpec::Custom,
+        EffectId::RgCoin2 => EffectSpec::Custom,
+        EffectId::RgCoin3 => EffectSpec::Custom,
 
-        EffectId::Intimidate => EffectSpec::Custom {
-            duration_ms: rg_coin::INTIMIDATE.total_duration_ms(),
-        },
+        EffectId::Intimidate => EffectSpec::Custom,
 
-        EffectId::Summonslave => EffectSpec::Custom {
-            duration_ms: summon_slave::TOTAL_DURATION_MS,
-        },
-        EffectId::BubbleDrop => EffectSpec::Custom {
-            duration_ms: bubble_drop::TOTAL_DURATION_MS,
-        },
-        EffectId::Cartter => EffectSpec::Custom {
-            duration_ms: cartter::TOTAL_DURATION_MS,
-        },
-        EffectId::Icearrow => EffectSpec::Custom {
-            duration_ms: magic_bolt::ICE_TOTAL_DURATION_MS,
-        },
+        EffectId::Summonslave => EffectSpec::Custom,
+        EffectId::BubbleDrop => EffectSpec::Custom,
+        EffectId::Cartter => EffectSpec::Custom,
+        EffectId::Icearrow => EffectSpec::Custom,
 
         EffectId::Tanji
         | EffectId::Tanji2
@@ -219,196 +121,90 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Alattack4
         | EffectId::Shieldboomerang
         | EffectId::Shieldboomerang2
-        | EffectId::Shieldboomerang3 => EffectSpec::Custom {
-            duration_ms: cloud_projectile::TOTAL_DURATION_MS,
-        },
+        | EffectId::Shieldboomerang3 => EffectSpec::Custom,
 
-        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => EffectSpec::Custom {
-            duration_ms: twilight::TOTAL_DURATION_MS,
-        },
+        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => EffectSpec::Custom,
 
         EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => {
-            EffectSpec::Custom {
-                duration_ms: pressure::PRESSURE_TOTAL_DURATION_MS,
-            }
+            EffectSpec::Custom
         }
 
-        EffectId::Hit1 => EffectSpec::Custom {
-            duration_ms: hit::HIT1_TOTAL_DURATION_MS,
-        },
-        EffectId::Hit2 => EffectSpec::Custom {
-            duration_ms: hit2::TOTAL_DURATION_MS,
-        },
-        EffectId::Hit3 => EffectSpec::Custom {
-            duration_ms: hit::HIT3_TOTAL_DURATION_MS,
-        },
-        EffectId::Hit4 => EffectSpec::Custom {
-            duration_ms: hit::HIT4_TOTAL_DURATION_MS,
-        },
-        EffectId::Hit5 => EffectSpec::Custom {
-            duration_ms: hit5_6::HIT5_TOTAL_DURATION_MS,
-        },
-        EffectId::Hit6 => EffectSpec::Custom {
-            duration_ms: hit5_6::HIT6_TOTAL_DURATION_MS,
-        },
+        EffectId::Hit1 => EffectSpec::Custom,
+        EffectId::Hit2 => EffectSpec::Custom,
+        EffectId::Hit3 => EffectSpec::Custom,
+        EffectId::Hit4 => EffectSpec::Custom,
+        EffectId::Hit5 => EffectSpec::Custom,
+        EffectId::Hit6 => EffectSpec::Custom,
 
-        EffectId::Sonicblowhit => EffectSpec::Custom {
-            duration_ms: sonicblowhit::TOTAL_DURATION_MS,
-        },
-        EffectId::Cartrevolution => EffectSpec::Custom {
-            duration_ms: cartrevolution::TOTAL_DURATION_MS,
-        },
-        EffectId::Napalmvalcan => EffectSpec::Custom {
-            duration_ms: napalmvalcan::TOTAL_DURATION_MS,
-        },
+        EffectId::Sonicblowhit => EffectSpec::Custom,
+        EffectId::Cartrevolution => EffectSpec::Custom,
+        EffectId::Napalmvalcan => EffectSpec::Custom,
 
-        EffectId::Stormgust => EffectSpec::Custom {
-            duration_ms: stormgust::TOTAL_DURATION_MS,
-        },
+        EffectId::Stormgust => EffectSpec::Custom,
 
-        EffectId::BottomSanc => EffectSpec::Custom {
-            duration_ms: bottom_sanctuary_pillar::TOTAL_DURATION_MS,
-        },
+        EffectId::BottomSanc => EffectSpec::Custom,
 
-        EffectId::Bash => EffectSpec::Custom {
-            duration_ms: bash::TOTAL_DURATION_MS,
-        },
+        EffectId::Bash => EffectSpec::Custom,
 
-        EffectId::Hasteup => EffectSpec::Custom {
-            duration_ms: hasteup::TOTAL_DURATION_MS,
-        },
-        EffectId::Flasher => EffectSpec::Custom {
-            duration_ms: flasher::TOTAL_DURATION_MS,
-        },
+        EffectId::Hasteup => EffectSpec::Custom,
+        EffectId::Flasher => EffectSpec::Custom,
 
-        EffectId::Blessing => EffectSpec::Custom {
-            duration_ms: blessing::TOTAL_DURATION_MS,
-        },
+        EffectId::Blessing => EffectSpec::Custom,
 
-        EffectId::Healsp => EffectSpec::Custom {
-            duration_ms: healsp::TOTAL_DURATION_MS,
-        },
+        EffectId::Healsp => EffectSpec::Custom,
 
-        EffectId::Portal => EffectSpec::Custom {
-            duration_ms: portal::TOTAL_DURATION_MS,
-        },
+        EffectId::Portal => EffectSpec::Custom,
 
-        EffectId::Portal2 | EffectId::Portal3 => EffectSpec::Custom {
-            duration_ms: portal2::TOTAL_DURATION_MS,
-        },
+        EffectId::Portal2 | EffectId::Portal3 => EffectSpec::Custom,
 
-        EffectId::Portal4 | EffectId::Portal5 => EffectSpec::Custom {
-            duration_ms: portal_wind::TOTAL_DURATION_MS,
-        },
+        EffectId::Portal4 | EffectId::Portal5 => EffectSpec::Custom,
 
         EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => {
-            EffectSpec::Custom {
-                duration_ms: portal_wind::TOTAL_DURATION_MS,
-            }
+            EffectSpec::Custom
         }
 
-        EffectId::Halfsphere => EffectSpec::Custom {
-            duration_ms: attack_energy::HALFSPHERE_DURATION_MS,
-        },
-        EffectId::Attackenergy => EffectSpec::Custom {
-            duration_ms: attack_energy::ATTACKENERGY_DURATION_MS,
-        },
-        EffectId::Attackenergy2 => EffectSpec::Custom {
-            duration_ms: attack_energy::ATTACKENERGY2_DURATION_MS,
-        },
+        EffectId::Halfsphere => EffectSpec::Custom,
+        EffectId::Attackenergy => EffectSpec::Custom,
+        EffectId::Attackenergy2 => EffectSpec::Custom,
 
-        EffectId::BigPortal => EffectSpec::Custom {
-            duration_ms: big_portal::TOTAL_DURATION_MS,
-        },
-        EffectId::BigPortal2 => EffectSpec::Custom {
-            duration_ms: big_portal::TOTAL_DURATION_MS_PERSISTENT,
-        },
+        EffectId::BigPortal => EffectSpec::Custom,
+        EffectId::BigPortal2 => EffectSpec::Custom,
 
-        EffectId::Readyportal => EffectSpec::Custom {
-            duration_ms: ready_portal::TOTAL_DURATION_MS,
-        },
+        EffectId::Readyportal => EffectSpec::Custom,
 
-        EffectId::Teleportation => EffectSpec::Custom {
-            duration_ms: teleportation::TOTAL_DURATION_MS,
-        },
+        EffectId::Teleportation => EffectSpec::Custom,
 
-        EffectId::Spraypond => EffectSpec::Custom {
-            duration_ms: spraypond::TOTAL_DURATION_MS,
-        },
+        EffectId::Spraypond => EffectSpec::Custom,
 
-        EffectId::Glasswall => EffectSpec::Custom {
-            duration_ms: glasswall::TOTAL_DURATION_MS,
-        },
+        EffectId::Glasswall => EffectSpec::Custom,
 
-        EffectId::Endure => EffectSpec::Custom {
-            duration_ms: endure::TOTAL_DURATION_MS,
-        },
+        EffectId::Endure => EffectSpec::Custom,
 
-        EffectId::Enhance => EffectSpec::Custom {
-            duration_ms: enhance::TOTAL_DURATION_MS,
-        },
+        EffectId::Enhance => EffectSpec::Custom,
 
-        EffectId::Entry => EffectSpec::Custom {
-            duration_ms: entry::TOTAL_DURATION_MS,
-        },
+        EffectId::Entry => EffectSpec::Custom,
 
-        EffectId::Exit => EffectSpec::Custom {
-            duration_ms: exit_effect::TOTAL_DURATION_MS,
-        },
+        EffectId::Exit => EffectSpec::Custom,
 
-        EffectId::Firearrow => EffectSpec::Custom {
-            duration_ms: magic_bolt::FIRE_TOTAL_DURATION_MS,
-        },
-        EffectId::Fireball => EffectSpec::Custom {
-            duration_ms: fireball::TOTAL_DURATION_MS,
-        },
-        EffectId::Soulstrike => EffectSpec::Custom {
-            duration_ms: soul_strike::TOTAL_DURATION_MS,
-        },
-        EffectId::Soulstrike2 => EffectSpec::Custom {
-            duration_ms: soul_strike::TOTAL_DURATION_MS,
-        },
-        EffectId::Blooddrain => EffectSpec::Custom {
-            duration_ms: energy_drain::BLOOD_DRAIN.total_duration_ms(),
-        },
-        EffectId::Energydrain => EffectSpec::Custom {
-            duration_ms: energy_drain::ENERGY_DRAIN.total_duration_ms(),
-        },
-        EffectId::Energydrain2 => EffectSpec::Custom {
-            duration_ms: energy_drain::ENERGY_DRAIN2.total_duration_ms(),
-        },
-        EffectId::Energydrain3 => EffectSpec::Custom {
-            duration_ms: energy_drain::ENERGY_DRAIN3.total_duration_ms(),
-        },
-        EffectId::Yufitel => EffectSpec::Custom {
-            duration_ms: yupitel::TOTAL_DURATION_MS,
-        },
+        EffectId::Firearrow => EffectSpec::Custom,
+        EffectId::Fireball => EffectSpec::Custom,
+        EffectId::Soulstrike => EffectSpec::Custom,
+        EffectId::Soulstrike2 => EffectSpec::Custom,
+        EffectId::Blooddrain => EffectSpec::Custom,
+        EffectId::Energydrain => EffectSpec::Custom,
+        EffectId::Energydrain2 => EffectSpec::Custom,
+        EffectId::Energydrain3 => EffectSpec::Custom,
+        EffectId::Yufitel => EffectSpec::Custom,
 
-        EffectId::Blitzbeat => EffectSpec::Custom {
-            duration_ms: blitzbeat::TOTAL_DURATION_MS,
-        },
-        EffectId::Waterball => EffectSpec::Custom {
-            duration_ms: waterball::TOTAL_DURATION_MS,
-        },
-        EffectId::Fireivy => EffectSpec::Custom {
-            duration_ms: fireivy::TOTAL_DURATION_MS,
-        },
-        EffectId::Detecting => EffectSpec::Custom {
-            duration_ms: detecting::TOTAL_DURATION_MS,
-        },
-        EffectId::Toprank => EffectSpec::Custom {
-            duration_ms: default_duration_ms(EffectId::Toprank),
-        },
-        EffectId::Party => EffectSpec::Custom {
-            duration_ms: default_duration_ms(EffectId::Party),
-        },
-        EffectId::Curseattack => EffectSpec::Custom {
-            duration_ms: curseattack::TOTAL_DURATION_MS,
-        },
+        EffectId::Blitzbeat => EffectSpec::Custom,
+        EffectId::Waterball => EffectSpec::Custom,
+        EffectId::Fireivy => EffectSpec::Custom,
+        EffectId::Detecting => EffectSpec::Custom,
+        EffectId::Toprank => EffectSpec::Custom,
+        EffectId::Party => EffectSpec::Custom,
+        EffectId::Curseattack => EffectSpec::Custom,
 
-        EffectId::MapMagiczone | EffectId::MapMagiczone2 | EffectId::Glow4 => EffectSpec::Custom {
-            duration_ms: mapzone::TOTAL_DURATION_MS,
-        },
+        EffectId::MapMagiczone | EffectId::MapMagiczone2 | EffectId::Glow4 => EffectSpec::Custom,
 
         EffectId::Waterfall
         | EffectId::Waterfall90
@@ -421,9 +217,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Bluefall
         | EffectId::Bluefall90
         | EffectId::Fastbluefall
-        | EffectId::Fastbluefall90 => EffectSpec::Custom {
-            duration_ms: default_duration_ms(id),
-        },
+        | EffectId::Fastbluefall90 => EffectSpec::Custom,
 
         EffectId::Cloud
         | EffectId::Cloud2
@@ -432,298 +226,120 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Cloud5
         | EffectId::Cloud6
         | EffectId::Cloud7
-        | EffectId::Cloud8 => EffectSpec::Custom {
-            duration_ms: default_duration_ms(id),
-        },
-        EffectId::Napalmbeat => EffectSpec::Custom {
-            duration_ms: napalmbeat::TOTAL_DURATION_MS,
-        },
-        EffectId::Sandwind => EffectSpec::Custom {
-            duration_ms: sandwind::TOTAL_DURATION_MS,
-        },
+        | EffectId::Cloud8 => EffectSpec::Custom,
+        EffectId::Napalmbeat => EffectSpec::Custom,
+        EffectId::Sandwind => EffectSpec::Custom,
 
-        EffectId::Heavensdrive => EffectSpec::Custom {
-            duration_ms: heavensdrive::TOTAL_DURATION_MS,
-        },
-        EffectId::Bottom | EffectId::Bottom2 => EffectSpec::Custom {
-            duration_ms: bottom_box::TOTAL_DURATION_MS,
-        },
-        EffectId::Cone => EffectSpec::Custom {
-            duration_ms: cone::TOTAL_DURATION_MS,
-        },
-        EffectId::Flowercast => EffectSpec::Custom {
-            duration_ms: flowercast::TOTAL_DURATION_MS,
-        },
+        EffectId::Heavensdrive => EffectSpec::Custom,
+        EffectId::Bottom | EffectId::Bottom2 => EffectSpec::Custom,
+        EffectId::Cone => EffectSpec::Custom,
+        EffectId::Flowercast => EffectSpec::Custom,
 
-        EffectId::Yufitel2 => EffectSpec::Custom {
-            duration_ms: yufitel2::TOTAL_DURATION_MS,
-        },
-        EffectId::TextureFalling => EffectSpec::Custom {
-            duration_ms: texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING),
-        },
+        EffectId::Yufitel2 => EffectSpec::Custom,
+        EffectId::TextureFalling => EffectSpec::Custom,
 
         EffectId::Twohandquicken | EffectId::Spearquicken | EffectId::Lkconcentration => {
-            EffectSpec::Custom {
-                duration_ms: body_buff::TOTAL_DURATION_MS,
-            }
+            EffectSpec::Custom
         }
-        EffectId::Bunsinjyutsu => EffectSpec::Custom {
-            duration_ms: body_buff::TOTAL_DURATION_MS,
-        },
+        EffectId::Bunsinjyutsu => EffectSpec::Custom,
 
-        EffectId::Quakebody => EffectSpec::Custom {
-            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY),
-        },
-        EffectId::Quakebody2 => EffectSpec::Custom {
-            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY2),
-        },
-        EffectId::Quakebody3 => EffectSpec::Custom {
-            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY3),
-        },
-        EffectId::Quakebody4 => EffectSpec::Custom {
-            duration_ms: quakebody::total_duration_ms(&quakebody::QUAKEBODY4),
-        },
+        EffectId::Quakebody => EffectSpec::Custom,
+        EffectId::Quakebody2 => EffectSpec::Custom,
+        EffectId::Quakebody3 => EffectSpec::Custom,
+        EffectId::Quakebody4 => EffectSpec::Custom,
 
-        EffectId::Redbody => EffectSpec::Custom {
-            duration_ms: body_tint::REDBODY.total_duration_ms(),
-        },
-        EffectId::Transbluebody => EffectSpec::Custom {
-            duration_ms: body_tint::TRANSBLUEBODY.total_duration_ms(),
-        },
-        EffectId::Pinkbody => EffectSpec::Custom {
-            duration_ms: body_tint::PINKBODY.total_duration_ms(),
-        },
-        EffectId::Linklight => EffectSpec::Custom {
-            duration_ms: body_tint::LINKLIGHT.total_duration_ms(),
-        },
-        EffectId::Magiccrasher => EffectSpec::Custom {
-            duration_ms: body_tint::MAGICCRASHER.total_duration_ms(),
-        },
-        EffectId::Magiccrasher2 => EffectSpec::Custom {
-            duration_ms: body_tint::MAGICCRASHER2.total_duration_ms(),
-        },
-        EffectId::Hitbody => EffectSpec::Custom {
-            duration_ms: body_tint::HITBODY.total_duration_ms(),
-        },
-        EffectId::Falconassault => EffectSpec::Custom {
-            duration_ms: body_tint::FALCONASSAULT.total_duration_ms(),
-        },
+        EffectId::Redbody => EffectSpec::Custom,
+        EffectId::Transbluebody => EffectSpec::Custom,
+        EffectId::Pinkbody => EffectSpec::Custom,
+        EffectId::Linklight => EffectSpec::Custom,
+        EffectId::Magiccrasher => EffectSpec::Custom,
+        EffectId::Magiccrasher2 => EffectSpec::Custom,
+        EffectId::Hitbody => EffectSpec::Custom,
+        EffectId::Falconassault => EffectSpec::Custom,
 
         // Tint-flicker family (colour ↔ white per frame) — Custom; aliases removed.
-        EffectId::Chemicalbody => EffectSpec::Custom {
-            duration_ms: body_tint::CHEMICALBODY.total_duration_ms(),
-        },
-        EffectId::Piercebody => EffectSpec::Custom {
-            duration_ms: body_tint::PIERCEBODY.total_duration_ms(),
-        },
-        EffectId::Memorize => EffectSpec::Custom {
-            duration_ms: body_tint::MEMORIZE.total_duration_ms(),
-        },
-        EffectId::Doublecastbody => EffectSpec::Custom {
-            duration_ms: body_tint::DOUBLECASTBODY.total_duration_ms(),
-        },
-        EffectId::Greenbody => EffectSpec::Custom {
-            duration_ms: body_tint::GREENBODY.total_duration_ms(),
-        },
-        EffectId::Shrink => EffectSpec::Custom {
-            duration_ms: body_tint::SHRINK.total_duration_ms(),
-        },
-        EffectId::Rejectsword => EffectSpec::Custom {
-            duration_ms: body_tint::REJECTSWORD.total_duration_ms(),
-        },
+        EffectId::Chemicalbody => EffectSpec::Custom,
+        EffectId::Piercebody => EffectSpec::Custom,
+        EffectId::Memorize => EffectSpec::Custom,
+        EffectId::Doublecastbody => EffectSpec::Custom,
+        EffectId::Greenbody => EffectSpec::Custom,
+        EffectId::Shrink => EffectSpec::Custom,
+        EffectId::Rejectsword => EffectSpec::Custom,
 
-        EffectId::Bluebody => EffectSpec::Custom {
-            duration_ms: body_tint::BLUEBODY.total_duration_ms(),
-        },
-        EffectId::Redlightbody => EffectSpec::Custom {
-            duration_ms: body_tint::REDLIGHTBODY.total_duration_ms(),
-        },
-        EffectId::RedHit => EffectSpec::Custom {
-            duration_ms: body_tint::REDHIT.total_duration_ms(),
-        },
-        EffectId::BlueHit => EffectSpec::Custom {
-            duration_ms: body_tint::BLUEHIT.total_duration_ms(),
-        },
+        EffectId::Bluebody => EffectSpec::Custom,
+        EffectId::Redlightbody => EffectSpec::Custom,
+        EffectId::RedHit => EffectSpec::Custom,
+        EffectId::BlueHit => EffectSpec::Custom,
 
-        EffectId::MadnessBlue => EffectSpec::Custom {
-            duration_ms: body_tint::MADNESSBLUE.total_duration_ms(),
-        },
-        EffectId::MadnessRed => EffectSpec::Custom {
-            duration_ms: body_tint::MADNESSRED.total_duration_ms(),
-        },
+        EffectId::MadnessBlue => EffectSpec::Custom,
+        EffectId::MadnessRed => EffectSpec::Custom,
 
-        EffectId::Pressedbody => EffectSpec::Custom {
-            duration_ms: squarebody::pressed_total_duration_ms(),
-        },
-        EffectId::Kickedbody => EffectSpec::Custom {
-            duration_ms: squarebody::kicked_total_duration_ms(),
-        },
+        EffectId::Pressedbody => EffectSpec::Custom,
+        EffectId::Kickedbody => EffectSpec::Custom,
 
-        EffectId::Reflectbody => EffectSpec::Custom {
-            duration_ms: multibody::REFLECTBODY.total_duration_ms(),
-        },
-        EffectId::Assumptio => EffectSpec::Custom {
-            duration_ms: multibody::ASSUMPTIO.total_duration_ms(),
-        },
-        EffectId::Lightblade => EffectSpec::Custom {
-            duration_ms: multibody::LIGHTBLADE.total_duration_ms(),
-        },
-        EffectId::Undeadbody => EffectSpec::Custom {
-            duration_ms: multibody::UNDEADBODY.total_duration_ms(),
-        },
+        EffectId::Reflectbody => EffectSpec::Custom,
+        EffectId::Assumptio => EffectSpec::Custom,
+        EffectId::Lightblade => EffectSpec::Custom,
+        EffectId::Undeadbody => EffectSpec::Custom,
 
-        EffectId::Aciddemon => EffectSpec::Custom {
-            duration_ms: aciddemon::TOTAL_DURATION_MS,
-        },
-        EffectId::Rainbow => EffectSpec::Custom {
-            duration_ms: rainbow::TOTAL_DURATION_MS,
-        },
-        EffectId::Agiup => EffectSpec::Custom {
-            duration_ms: agiup::TOTAL_DURATION_MS,
-        },
-        EffectId::Lightsphere => EffectSpec::Custom {
-            duration_ms: light_sphere::lightsphere_duration_ms(),
-        },
-        EffectId::Lightsphere2 => EffectSpec::Custom {
-            duration_ms: light_sphere::LIGHTSPHERE2_DURATION_MS,
-        },
+        EffectId::Aciddemon => EffectSpec::Custom,
+        EffectId::Rainbow => EffectSpec::Custom,
+        EffectId::Agiup => EffectSpec::Custom,
+        EffectId::Lightsphere => EffectSpec::Custom,
+        EffectId::Lightsphere2 => EffectSpec::Custom,
 
-        EffectId::Frostdiver => EffectSpec::Custom {
-            duration_ms: frost_diver::total_duration_ms(&frost_diver::FROSTDIVER),
-        },
-        EffectId::Frostdiver2 => EffectSpec::Custom {
-            duration_ms: frost_diver::total_duration_ms(&frost_diver::FROSTDIVER2),
-        },
+        EffectId::Frostdiver => EffectSpec::Custom,
+        EffectId::Frostdiver2 => EffectSpec::Custom,
 
-        EffectId::Sight => EffectSpec::Custom {
-            duration_ms: sight::total_duration_ms(&sight::SIGHT),
-        },
-        EffectId::Ruwach => EffectSpec::Custom {
-            duration_ms: sight::total_duration_ms(&sight::RUWACH),
-        },
-        EffectId::Sight2 => EffectSpec::Custom {
-            duration_ms: default_duration_ms(EffectId::Sight2),
-        },
+        EffectId::Sight => EffectSpec::Custom,
+        EffectId::Ruwach => EffectSpec::Custom,
+        EffectId::Sight2 => EffectSpec::Custom,
 
-        EffectId::Incagility | EffectId::Decagility | EffectId::Incagidex => EffectSpec::Custom {
-            duration_ms: status_up::TOTAL_DURATION_MS,
-        },
+        EffectId::Incagility | EffectId::Decagility | EffectId::Incagidex => EffectSpec::Custom,
 
-        EffectId::Landprotector => EffectSpec::Custom {
-            duration_ms: volcano::LANDPROTECTOR.total_duration_ms(),
-        },
-        EffectId::Volcano => EffectSpec::Custom {
-            duration_ms: volcano::VOLCANO.total_duration_ms(),
-        },
-        EffectId::Deluge => EffectSpec::Custom {
-            duration_ms: volcano::DELUGE.total_duration_ms(),
-        },
-        EffectId::Violentgale => EffectSpec::Custom {
-            duration_ms: volcano::VIOLENTGALE.total_duration_ms(),
-        },
-        EffectId::Ganbantein => EffectSpec::Custom {
-            duration_ms: volcano::GANBANTEIN.total_duration_ms(),
-        },
-        EffectId::Gumgang3 => EffectSpec::Custom {
-            duration_ms: volcano::GUMGANG3.total_duration_ms(),
-        },
-        EffectId::Gumgang2 => EffectSpec::Custom {
-            duration_ms: gumgang2::TOTAL_DURATION_MS,
-        },
-        EffectId::Gumgang => EffectSpec::Custom {
-            duration_ms: gumgang::GUMGANG.total_duration_ms(),
-        },
-        EffectId::Steelbody => EffectSpec::Custom {
-            duration_ms: gumgang::STEELBODY.total_duration_ms(),
-        },
-        EffectId::Gumgangnpc => EffectSpec::Custom {
-            duration_ms: gumgang::GUMGANGNPC.total_duration_ms(),
-        },
-        EffectId::Doublegumgang => EffectSpec::Custom {
-            duration_ms: gumgang::DOUBLE_RED.total_duration_ms(),
-        },
-        EffectId::Doublegumgang2 => EffectSpec::Custom {
-            duration_ms: gumgang::DOUBLE_WHITE.total_duration_ms(),
-        },
-        EffectId::Doublegumgang3 => EffectSpec::Custom {
-            duration_ms: gumgang::DOUBLE_BLUE.total_duration_ms(),
-        },
-        EffectId::Defender => EffectSpec::Custom {
-            duration_ms: defender::TOTAL_DURATION_MS,
-        },
-        EffectId::Reflectshield => EffectSpec::Custom {
-            duration_ms: defender::TOTAL_DURATION_MS,
-        },
+        EffectId::Landprotector => EffectSpec::Custom,
+        EffectId::Volcano => EffectSpec::Custom,
+        EffectId::Deluge => EffectSpec::Custom,
+        EffectId::Violentgale => EffectSpec::Custom,
+        EffectId::Ganbantein => EffectSpec::Custom,
+        EffectId::Gumgang3 => EffectSpec::Custom,
+        EffectId::Gumgang2 => EffectSpec::Custom,
+        EffectId::Gumgang => EffectSpec::Custom,
+        EffectId::Steelbody => EffectSpec::Custom,
+        EffectId::Gumgangnpc => EffectSpec::Custom,
+        EffectId::Doublegumgang => EffectSpec::Custom,
+        EffectId::Doublegumgang2 => EffectSpec::Custom,
+        EffectId::Doublegumgang3 => EffectSpec::Custom,
+        EffectId::Defender => EffectSpec::Custom,
+        EffectId::Reflectshield => EffectSpec::Custom,
 
-        EffectId::Heal => EffectSpec::Custom {
-            duration_ms: heal::HEAL.total_duration_ms(),
-        },
-        EffectId::Heal2 => EffectSpec::Custom {
-            duration_ms: heal::HEAL2.total_duration_ms(),
-        },
-        EffectId::Heal3 => EffectSpec::Custom {
-            duration_ms: heal::SMDEF.total_duration_ms(),
-        },
-        EffectId::Heal4 => EffectSpec::Custom {
-            duration_ms: heal::HEAL4.total_duration_ms(),
-        },
+        EffectId::Heal => EffectSpec::Custom,
+        EffectId::Heal2 => EffectSpec::Custom,
+        EffectId::Heal3 => EffectSpec::Custom,
+        EffectId::Heal4 => EffectSpec::Custom,
 
-        EffectId::Absorbspirits => EffectSpec::Custom {
-            duration_ms: heal::ABSORBSPIRITS.total_duration_ms(),
-        },
-        EffectId::Exit2 => EffectSpec::Custom {
-            duration_ms: heal::EXIT2.total_duration_ms(),
-        },
-        EffectId::Entry2 => EffectSpec::Custom {
-            duration_ms: heal::ENTRY2.total_duration_ms(),
-        },
-        EffectId::Smdef => EffectSpec::Custom {
-            duration_ms: heal::SMDEF.total_duration_ms(),
-        },
-        EffectId::Teleportation2 => EffectSpec::Custom {
-            duration_ms: heal::TELEPORTATION2.total_duration_ms(),
-        },
-        EffectId::Heartcasting => EffectSpec::Custom {
-            duration_ms: heartcasting::TOTAL_DURATION_MS,
-        },
-        EffectId::Colorpaper => EffectSpec::Custom {
-            duration_ms: colorpaper::TOTAL_DURATION_MS,
-        },
-        EffectId::Readyportal2 => EffectSpec::Custom {
-            duration_ms: portal2::READYPORTAL2_DURATION_MS,
-        },
-        EffectId::Couplecasting => EffectSpec::Custom {
-            duration_ms: couple_casting::TOTAL_DURATION_MS,
-        },
-        EffectId::Gravitation => EffectSpec::Custom {
-            duration_ms: gravitation::TOTAL_DURATION_MS,
-        },
-        EffectId::WindBuff => EffectSpec::Custom {
-            duration_ms: default_duration_ms(id),
-        },
-        EffectId::Wind => EffectSpec::Custom {
-            duration_ms: wind::TOTAL_DURATION_MS,
-        },
+        EffectId::Absorbspirits => EffectSpec::Custom,
+        EffectId::Exit2 => EffectSpec::Custom,
+        EffectId::Entry2 => EffectSpec::Custom,
+        EffectId::Smdef => EffectSpec::Custom,
+        EffectId::Teleportation2 => EffectSpec::Custom,
+        EffectId::Heartcasting => EffectSpec::Custom,
+        EffectId::Colorpaper => EffectSpec::Custom,
+        EffectId::Readyportal2 => EffectSpec::Custom,
+        EffectId::Couplecasting => EffectSpec::Custom,
+        EffectId::Gravitation => EffectSpec::Custom,
+        EffectId::WindBuff => EffectSpec::Custom,
+        EffectId::Wind => EffectSpec::Custom,
         EffectId::Bash3d
         | EffectId::Bash3d2
         | EffectId::Bash3d3
         | EffectId::Bash3d4
-        | EffectId::Bash3d5 => EffectSpec::Custom {
-            duration_ms: bash3d::TOTAL_DURATION_MS,
-        },
-        EffectId::Truesight => EffectSpec::Custom {
-            duration_ms: bash3d::TOTAL_DURATION_MS,
-        },
+        | EffectId::Bash3d5 => EffectSpec::Custom,
+        EffectId::Truesight => EffectSpec::Custom,
 
-        EffectId::Beginspell => EffectSpec::Custom {
-            duration_ms: begin_spell::TOTAL_DURATION_MS,
-        },
-        EffectId::Aurablade => EffectSpec::Custom {
-            duration_ms: aura_blade::TOTAL_DURATION_MS,
-        },
-        EffectId::Beginspell8 => EffectSpec::Custom {
-            duration_ms: begin_spell_8::TOTAL_DURATION_MS,
-        },
+        EffectId::Beginspell => EffectSpec::Custom,
+        EffectId::Aurablade => EffectSpec::Custom,
+        EffectId::Beginspell8 => EffectSpec::Custom,
         EffectId::Beginspell2
         | EffectId::Beginspell3
         | EffectId::Beginspell4
@@ -732,9 +348,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Beginspell7
         | EffectId::Beginspellred
         | EffectId::Beginspellwhite
-        | EffectId::BeginspellN => EffectSpec::Custom {
-            duration_ms: cast_circle::TOTAL_DURATION_MS,
-        },
+        | EffectId::BeginspellN => EffectSpec::Custom,
 
         EffectId::Beginasura
         | EffectId::Beginasura1
@@ -744,40 +358,22 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Beginasura5
         | EffectId::Beginasura6
         | EffectId::Beginasura7
-        | EffectId::Beginasura11 => EffectSpec::Custom {
-            duration_ms: begin_asura::TOTAL_DURATION_MS,
-        },
+        | EffectId::Beginasura11 => EffectSpec::Custom,
 
-        EffectId::Soullink => EffectSpec::Custom {
-            duration_ms: soullink::TOTAL_DURATION_MS,
-        },
+        EffectId::Soullink => EffectSpec::Custom,
 
-        EffectId::Grandcross | EffectId::Grandcross2 => EffectSpec::Custom {
-            duration_ms: grandcross::TOTAL_DURATION_MS,
-        },
+        EffectId::Grandcross | EffectId::Grandcross2 => EffectSpec::Custom,
 
-        EffectId::Saintwing => EffectSpec::Custom {
-            duration_ms: saintwing::TOTAL_DURATION_MS,
-        },
+        EffectId::Saintwing => EffectSpec::Custom,
 
-        EffectId::Chookgi | EffectId::Chookgi2 | EffectId::Chookgi3 => EffectSpec::Custom {
-            duration_ms: chookgi::TOTAL_DURATION_MS,
-        },
+        EffectId::Chookgi | EffectId::Chookgi2 | EffectId::Chookgi3 => EffectSpec::Custom,
 
-        EffectId::Sakura | EffectId::Maple => EffectSpec::Custom {
-            duration_ms: sakura::TOTAL_DURATION_MS,
-        },
+        EffectId::Sakura | EffectId::Maple => EffectSpec::Custom,
 
-        EffectId::Pokjuk => EffectSpec::Custom {
-            duration_ms: pokjuk::TOTAL_DURATION_MS,
-        },
-        EffectId::PokjukSound => EffectSpec::Custom {
-            duration_ms: u32::MAX,
-        },
+        EffectId::Pokjuk => EffectSpec::Custom,
+        EffectId::PokjukSound => EffectSpec::Custom,
 
-        EffectId::Firstaid => EffectSpec::Custom {
-            duration_ms: firstaid::TOTAL_DURATION_MS,
-        },
+        EffectId::Firstaid => EffectSpec::Custom,
 
         EffectId::Warpzone
         | EffectId::Warpzone2
@@ -796,37 +392,17 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Mappillar
         | EffectId::Mappillar2
         | EffectId::Mappillar3
-        | EffectId::Mappillar4 => EffectSpec::Custom {
-            duration_ms: default_duration_ms(id),
-        },
+        | EffectId::Mappillar4 => EffectSpec::Custom,
 
-        EffectId::Barrier => EffectSpec::Custom {
-            duration_ms: barrier::TOTAL_DURATION_MS,
-        },
-        EffectId::Banjjakii => EffectSpec::Custom {
-            duration_ms: banjjakii::TOTAL_DURATION_MS,
-        },
-        EffectId::Sphere => EffectSpec::Custom {
-            duration_ms: orbit_burst::SPHERE_TOTAL_DURATION_MS,
-        },
-        EffectId::Removetrap => EffectSpec::Custom {
-            duration_ms: orbit_burst::REMOVETRAP_TOTAL_DURATION_MS,
-        },
-        EffectId::Turnundead => EffectSpec::Custom {
-            duration_ms: turnundead::TOTAL_DURATION_MS,
-        },
-        EffectId::Firepillaron => EffectSpec::Custom {
-            duration_ms: firepillaron::TOTAL_DURATION_MS,
-        },
-        EffectId::Hitdark | EffectId::Darkattack => EffectSpec::Custom {
-            duration_ms: hitdark::TOTAL_DURATION_MS,
-        },
-        EffectId::Spearbmr => EffectSpec::Custom {
-            duration_ms: spearbmr::TOTAL_DURATION_MS,
-        },
-        EffectId::Waterball2 => EffectSpec::Custom {
-            duration_ms: waterball2::TOTAL_DURATION_MS,
-        },
+        EffectId::Barrier => EffectSpec::Custom,
+        EffectId::Banjjakii => EffectSpec::Custom,
+        EffectId::Sphere => EffectSpec::Custom,
+        EffectId::Removetrap => EffectSpec::Custom,
+        EffectId::Turnundead => EffectSpec::Custom,
+        EffectId::Firepillaron => EffectSpec::Custom,
+        EffectId::Hitdark | EffectId::Darkattack => EffectSpec::Custom,
+        EffectId::Spearbmr => EffectSpec::Custom,
+        EffectId::Waterball2 => EffectSpec::Custom,
 
         EffectId::Springtrap => EffectSpec::Str {
             file: "spring",
@@ -840,54 +416,24 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
             repeat: true,
         },
 
-        EffectId::Bowlingbash => EffectSpec::Custom {
-            duration_ms: bowling_bash::TOTAL_DURATION_MS,
-        },
+        EffectId::Bowlingbash => EffectSpec::Custom,
 
-        EffectId::Dragonsmoke => EffectSpec::Custom {
-            duration_ms: dragonsmoke::TOTAL_DURATION_MS,
-        },
-        EffectId::Overthrust => EffectSpec::Custom {
-            duration_ms: body_buff::TOTAL_DURATION_MS,
-        },
-        EffectId::Energycoat => EffectSpec::Custom {
-            duration_ms: body_buff::TOTAL_DURATION_MS,
-        },
-        EffectId::Callzone => EffectSpec::Custom {
-            duration_ms: callzone::TOTAL_DURATION_MS,
-        },
-        EffectId::Groundsample => EffectSpec::Custom {
-            duration_ms: ground_sample::TOTAL_DURATION_MS,
-        },
+        EffectId::Dragonsmoke => EffectSpec::Custom,
+        EffectId::Overthrust => EffectSpec::Custom,
+        EffectId::Energycoat => EffectSpec::Custom,
+        EffectId::Callzone => EffectSpec::Custom,
+        EffectId::Groundsample => EffectSpec::Custom,
 
-        EffectId::Potionpillar => EffectSpec::Custom {
-            duration_ms: potion_pillar::TOTAL_DURATION_MS,
-        },
-        EffectId::Revive => EffectSpec::Custom {
-            duration_ms: revive::TOTAL_DURATION_MS,
-        },
-        EffectId::Pierce => EffectSpec::Custom {
-            duration_ms: pierce::TOTAL_DURATION_MS,
-        },
-        EffectId::PotionBerserk => EffectSpec::Custom {
-            duration_ms: potion_berserk::TOTAL_DURATION_MS,
-        },
-        EffectId::PotionCon => EffectSpec::Custom {
-            duration_ms: potion_con::CONCENTRATION_DURATION_MS,
-        },
-        EffectId::Potion => EffectSpec::Custom {
-            duration_ms: potion_con::AWAKENING_DURATION_MS,
-        },
+        EffectId::Potionpillar => EffectSpec::Custom,
+        EffectId::Revive => EffectSpec::Custom,
+        EffectId::Pierce => EffectSpec::Custom,
+        EffectId::PotionBerserk => EffectSpec::Custom,
+        EffectId::PotionCon => EffectSpec::Custom,
+        EffectId::Potion => EffectSpec::Custom,
 
-        EffectId::Glasswall2 => EffectSpec::Custom {
-            duration_ms: glasswall2::TOTAL_DURATION_MS,
-        },
-        EffectId::Providence => EffectSpec::Custom {
-            duration_ms: providence::TOTAL_DURATION_MS,
-        },
-        EffectId::Kouenka => EffectSpec::Custom {
-            duration_ms: kouenka::TOTAL_DURATION_MS,
-        },
+        EffectId::Glasswall2 => EffectSpec::Custom,
+        EffectId::Providence => EffectSpec::Custom,
+        EffectId::Kouenka => EffectSpec::Custom,
 
         EffectId::Blind
         | EffectId::Devil1
@@ -902,25 +448,340 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         | EffectId::Devil10
         | EffectId::DevilRed
         | EffectId::Poison
-        | EffectId::CrystalBlue => EffectSpec::Custom {
-            duration_ms: fullscreen_overlay::PERSISTENT_DURATION_MS,
-        },
-        EffectId::Bleeding => EffectSpec::Custom {
-            duration_ms: fullscreen_overlay::PULSE_DURATION_MS,
-        },
+        | EffectId::CrystalBlue => EffectSpec::Custom,
+        EffectId::Bleeding => EffectSpec::Custom,
 
-        EffectId::Linelink => EffectSpec::Custom {
-            duration_ms: linelink::LINELINK_DURATION_MS,
-        },
-        EffectId::Linelink2 => EffectSpec::Custom {
-            duration_ms: linelink::LINELINK2_DURATION_MS,
-        },
-        EffectId::Linelink3 => EffectSpec::Custom {
-            duration_ms: linelink::LINELINK3_DURATION_MS,
-        },
+        EffectId::Linelink => EffectSpec::Custom,
+        EffectId::Linelink2 => EffectSpec::Custom,
+        EffectId::Linelink3 => EffectSpec::Custom,
 
         _ => bucket_default(id),
     })
+}
+
+pub fn custom_duration_ms(id: EffectId) -> u32 {
+    match id {
+        EffectId::Warp => warp::TOTAL_DURATION_MS,
+        EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13 => 500,
+        EffectId::Magnumbreak => magnum_break::TOTAL_DURATION_MS,
+        EffectId::Magnum2 => dome_ring::MAGNUM2_TOTAL_DURATION_MS,
+        EffectId::GiExplosion => dome_ring::GI_EXPLOSION_TOTAL_DURATION_MS,
+        EffectId::Thunderstorm2 => thunderstorm2::TOTAL_DURATION_MS,
+        EffectId::M02 => m_ef02::TOTAL_DURATION_MS,
+        EffectId::Kaizel => slash::TOTAL_DURATION_MS,
+        EffectId::Stopeffect => slash::STOPEFFECT_DURATION_MS,
+        EffectId::Angel2 | EffectId::Angel3 => super_angel::TOTAL_DURATION_MS,
+        EffectId::Guard | EffectId::Guard2 | EffectId::Guard3 => guard::TOTAL_DURATION_MS,
+        EffectId::Stormkick
+        | EffectId::Stormkick1
+        | EffectId::Stormkick2
+        | EffectId::Stormkick3
+        | EffectId::Stormkick6
+        | EffectId::Stormkick7 => storm_kick::TOTAL_DURATION_MS,
+        EffectId::Peong => peong::TOTAL_DURATION_MS,
+        EffectId::Stormkick4 | EffectId::Stormkick5 => peong_up::TOTAL_DURATION_MS,
+        EffectId::Chemicalprotection => chemical::CHEMICALPROTECTION.total_duration_ms(),
+        EffectId::Mgattack2 => chemical::MGATTACK2.total_duration_ms(),
+        EffectId::Chemical2 => chemical::CHEMICAL2.total_duration_ms(),
+        EffectId::Chemical2dash => chemical::CHEMICAL2DASH.total_duration_ms(),
+        EffectId::Chemical3 => chemical::CHEMICAL3.total_duration_ms(),
+        EffectId::Chemical4 => chemical::CHEMICAL4.total_duration_ms(),
+        EffectId::Smatk1 => chemical::SMATK1.total_duration_ms(),
+        EffectId::Smatk2 => chemical::SMATK2.total_duration_ms(),
+        EffectId::Smatk3 => chemical::SMATK3.total_duration_ms(),
+        EffectId::Smatk4 => chemical::SMATK4.total_duration_ms(),
+        EffectId::Stin => stin::STIN.total_duration_ms(),
+        EffectId::Soulbreaker | EffectId::Soulbreaker2 => soul_breaker::TOTAL_DURATION_MS,
+        EffectId::Teihit2 | EffectId::Backstap => teihit::TOTAL_DURATION_MS,
+        EffectId::Tripleattack => tripleattack::TRIPLEATTACK.total_duration_ms(),
+        EffectId::Tripleattack2 => tripleattack::TRIPLEATTACK2.total_duration_ms(),
+        EffectId::Tripleattack3 => tripleattack::TRIPLEATTACK3.total_duration_ms(),
+        EffectId::Spherewind => spherewind::SPHEREWIND.total_duration_ms(),
+        EffectId::Spherewind2 => spherewind::SPHEREWIND2.total_duration_ms(),
+        EffectId::Spherewind3 => spherewind::SPHEREWIND3.total_duration_ms(),
+        EffectId::Baby => spherewind::BABY.total_duration_ms(),
+        EffectId::Stin2 => stin::STIN2.total_duration_ms(),
+        EffectId::Stin4 => stin::STIN4.total_duration_ms(),
+        EffectId::Stin5 => stin::STIN5.total_duration_ms(),
+        EffectId::Stin3 => sma::STIN3_TOTAL_DURATION_MS,
+        EffectId::Sma => sma::SMA_TOTAL_DURATION_MS,
+        EffectId::Sma2 => sma::SMA2_TOTAL_DURATION_MS,
+        EffectId::Sma3 => particle_up::SMA3_TOTAL_DURATION_MS,
+        EffectId::Throwitem
+        | EffectId::Throwitem2
+        | EffectId::Throwitem3
+        | EffectId::Throwitem4
+        | EffectId::Throwitem5
+        | EffectId::Throwitem6
+        | EffectId::Throwitem7
+        | EffectId::Throwitem8
+        | EffectId::Throwitem9
+        | EffectId::Throwitem10 => throw_item::TOTAL_DURATION_MS,
+        EffectId::RgCoin => rg_coin::RG_COIN.total_duration_ms(),
+        EffectId::RgCoin2 => rg_coin::RG_COIN2.total_duration_ms(),
+        EffectId::RgCoin3 => rg_coin::RG_COIN3.total_duration_ms(),
+        EffectId::Intimidate => rg_coin::INTIMIDATE.total_duration_ms(),
+        EffectId::Summonslave => summon_slave::TOTAL_DURATION_MS,
+        EffectId::BubbleDrop => bubble_drop::TOTAL_DURATION_MS,
+        EffectId::Cartter => cartter::TOTAL_DURATION_MS,
+        EffectId::Icearrow => magic_bolt::ICE_TOTAL_DURATION_MS,
+        EffectId::Tanji
+        | EffectId::Tanji2
+        | EffectId::Alattack1
+        | EffectId::Alattack2
+        | EffectId::Alattack3
+        | EffectId::Alattack4
+        | EffectId::Shieldboomerang
+        | EffectId::Shieldboomerang2
+        | EffectId::Shieldboomerang3 => cloud_projectile::TOTAL_DURATION_MS,
+        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => twilight::TOTAL_DURATION_MS,
+        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => pressure::PRESSURE_TOTAL_DURATION_MS,
+        EffectId::Hit1 => hit::HIT1_TOTAL_DURATION_MS,
+        EffectId::Hit2 => hit2::TOTAL_DURATION_MS,
+        EffectId::Hit3 => hit::HIT3_TOTAL_DURATION_MS,
+        EffectId::Hit4 => hit::HIT4_TOTAL_DURATION_MS,
+        EffectId::Hit5 => hit5_6::HIT5_TOTAL_DURATION_MS,
+        EffectId::Hit6 => hit5_6::HIT6_TOTAL_DURATION_MS,
+        EffectId::Sonicblowhit => sonicblowhit::TOTAL_DURATION_MS,
+        EffectId::Cartrevolution => cartrevolution::TOTAL_DURATION_MS,
+        EffectId::Napalmvalcan => napalmvalcan::TOTAL_DURATION_MS,
+        EffectId::Stormgust => stormgust::TOTAL_DURATION_MS,
+        EffectId::BottomSanc => bottom_sanctuary_pillar::TOTAL_DURATION_MS,
+        EffectId::Bash => bash::TOTAL_DURATION_MS,
+        EffectId::Hasteup => hasteup::TOTAL_DURATION_MS,
+        EffectId::Flasher => flasher::TOTAL_DURATION_MS,
+        EffectId::Blessing => blessing::TOTAL_DURATION_MS,
+        EffectId::Healsp => healsp::TOTAL_DURATION_MS,
+        EffectId::Portal => portal::TOTAL_DURATION_MS,
+        EffectId::Portal2 | EffectId::Portal3 => portal2::TOTAL_DURATION_MS,
+        EffectId::Portal4 | EffectId::Portal5 => portal_wind::TOTAL_DURATION_MS,
+        EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => portal_wind::TOTAL_DURATION_MS,
+        EffectId::Halfsphere => attack_energy::HALFSPHERE_DURATION_MS,
+        EffectId::Attackenergy => attack_energy::ATTACKENERGY_DURATION_MS,
+        EffectId::Attackenergy2 => attack_energy::ATTACKENERGY2_DURATION_MS,
+        EffectId::BigPortal => big_portal::TOTAL_DURATION_MS,
+        EffectId::BigPortal2 => big_portal::TOTAL_DURATION_MS_PERSISTENT,
+        EffectId::Readyportal => ready_portal::TOTAL_DURATION_MS,
+        EffectId::Teleportation => teleportation::TOTAL_DURATION_MS,
+        EffectId::Spraypond => spraypond::TOTAL_DURATION_MS,
+        EffectId::Glasswall => glasswall::TOTAL_DURATION_MS,
+        EffectId::Endure => endure::TOTAL_DURATION_MS,
+        EffectId::Enhance => enhance::TOTAL_DURATION_MS,
+        EffectId::Entry => entry::TOTAL_DURATION_MS,
+        EffectId::Exit => exit_effect::TOTAL_DURATION_MS,
+        EffectId::Firearrow => magic_bolt::FIRE_TOTAL_DURATION_MS,
+        EffectId::Fireball => fireball::TOTAL_DURATION_MS,
+        EffectId::Soulstrike => soul_strike::TOTAL_DURATION_MS,
+        EffectId::Soulstrike2 => soul_strike::TOTAL_DURATION_MS,
+        EffectId::Blooddrain => energy_drain::BLOOD_DRAIN.total_duration_ms(),
+        EffectId::Energydrain => energy_drain::ENERGY_DRAIN.total_duration_ms(),
+        EffectId::Energydrain2 => energy_drain::ENERGY_DRAIN2.total_duration_ms(),
+        EffectId::Energydrain3 => energy_drain::ENERGY_DRAIN3.total_duration_ms(),
+        EffectId::Yufitel => yupitel::TOTAL_DURATION_MS,
+        EffectId::Blitzbeat => blitzbeat::TOTAL_DURATION_MS,
+        EffectId::Waterball => waterball::TOTAL_DURATION_MS,
+        EffectId::Fireivy => fireivy::TOTAL_DURATION_MS,
+        EffectId::Detecting => detecting::TOTAL_DURATION_MS,
+        EffectId::Toprank => 99990,
+        EffectId::Party => 99990,
+        EffectId::Curseattack => curseattack::TOTAL_DURATION_MS,
+        EffectId::MapMagiczone | EffectId::MapMagiczone2 | EffectId::Glow4 => mapzone::TOTAL_DURATION_MS,
+        EffectId::Waterfall | EffectId::Waterfall90 | EffectId::WaterfallSmall | EffectId::WaterfallSmall90 | EffectId::WaterfallT2 | EffectId::WaterfallT290 | EffectId::WaterfallSmallT2 | EffectId::WaterfallSmallT290 | EffectId::Bluefall | EffectId::Bluefall90 | EffectId::Fastbluefall | EffectId::Fastbluefall90 => 4294967295,
+        EffectId::Cloud | EffectId::Cloud2 | EffectId::Cloud3 | EffectId::Cloud4 | EffectId::Cloud5 | EffectId::Cloud6 | EffectId::Cloud7 | EffectId::Cloud8 => 4294967295,
+        EffectId::Napalmbeat => napalmbeat::TOTAL_DURATION_MS,
+        EffectId::Sandwind => sandwind::TOTAL_DURATION_MS,
+        EffectId::Heavensdrive => heavensdrive::TOTAL_DURATION_MS,
+        EffectId::Bottom | EffectId::Bottom2 => bottom_box::TOTAL_DURATION_MS,
+        EffectId::Cone => cone::TOTAL_DURATION_MS,
+        EffectId::Flowercast => flowercast::TOTAL_DURATION_MS,
+        EffectId::Yufitel2 => yufitel2::TOTAL_DURATION_MS,
+        EffectId::TextureFalling => texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING),
+        EffectId::Twohandquicken | EffectId::Spearquicken | EffectId::Lkconcentration => body_buff::TOTAL_DURATION_MS,
+        EffectId::Bunsinjyutsu => body_buff::TOTAL_DURATION_MS,
+        EffectId::Quakebody => quakebody::total_duration_ms(&quakebody::QUAKEBODY),
+        EffectId::Quakebody2 => quakebody::total_duration_ms(&quakebody::QUAKEBODY2),
+        EffectId::Quakebody3 => quakebody::total_duration_ms(&quakebody::QUAKEBODY3),
+        EffectId::Quakebody4 => quakebody::total_duration_ms(&quakebody::QUAKEBODY4),
+        EffectId::Redbody => body_tint::REDBODY.total_duration_ms(),
+        EffectId::Transbluebody => body_tint::TRANSBLUEBODY.total_duration_ms(),
+        EffectId::Pinkbody => body_tint::PINKBODY.total_duration_ms(),
+        EffectId::Linklight => body_tint::LINKLIGHT.total_duration_ms(),
+        EffectId::Magiccrasher => body_tint::MAGICCRASHER.total_duration_ms(),
+        EffectId::Magiccrasher2 => body_tint::MAGICCRASHER2.total_duration_ms(),
+        EffectId::Hitbody => body_tint::HITBODY.total_duration_ms(),
+        EffectId::Falconassault => body_tint::FALCONASSAULT.total_duration_ms(),
+        // Tint-flicker family (colour ↔ white per frame) — Custom; aliases removed.
+        EffectId::Chemicalbody => body_tint::CHEMICALBODY.total_duration_ms(),
+        EffectId::Piercebody => body_tint::PIERCEBODY.total_duration_ms(),
+        EffectId::Memorize => body_tint::MEMORIZE.total_duration_ms(),
+        EffectId::Doublecastbody => body_tint::DOUBLECASTBODY.total_duration_ms(),
+        EffectId::Greenbody => body_tint::GREENBODY.total_duration_ms(),
+        EffectId::Shrink => body_tint::SHRINK.total_duration_ms(),
+        EffectId::Rejectsword => body_tint::REJECTSWORD.total_duration_ms(),
+        EffectId::Bluebody => body_tint::BLUEBODY.total_duration_ms(),
+        EffectId::Redlightbody => body_tint::REDLIGHTBODY.total_duration_ms(),
+        EffectId::RedHit => body_tint::REDHIT.total_duration_ms(),
+        EffectId::BlueHit => body_tint::BLUEHIT.total_duration_ms(),
+        EffectId::MadnessBlue => body_tint::MADNESSBLUE.total_duration_ms(),
+        EffectId::MadnessRed => body_tint::MADNESSRED.total_duration_ms(),
+        EffectId::Pressedbody => squarebody::pressed_total_duration_ms(),
+        EffectId::Kickedbody => squarebody::kicked_total_duration_ms(),
+        EffectId::Reflectbody => multibody::REFLECTBODY.total_duration_ms(),
+        EffectId::Assumptio => multibody::ASSUMPTIO.total_duration_ms(),
+        EffectId::Lightblade => multibody::LIGHTBLADE.total_duration_ms(),
+        EffectId::Undeadbody => multibody::UNDEADBODY.total_duration_ms(),
+        EffectId::Aciddemon => aciddemon::TOTAL_DURATION_MS,
+        EffectId::Rainbow => rainbow::TOTAL_DURATION_MS,
+        EffectId::Agiup => agiup::TOTAL_DURATION_MS,
+        EffectId::Lightsphere => light_sphere::lightsphere_duration_ms(),
+        EffectId::Lightsphere2 => light_sphere::LIGHTSPHERE2_DURATION_MS,
+        EffectId::Frostdiver => frost_diver::total_duration_ms(&frost_diver::FROSTDIVER),
+        EffectId::Frostdiver2 => frost_diver::total_duration_ms(&frost_diver::FROSTDIVER2),
+        EffectId::Sight => sight::total_duration_ms(&sight::SIGHT),
+        EffectId::Ruwach => sight::total_duration_ms(&sight::RUWACH),
+        EffectId::Sight2 => 9999990,
+        EffectId::Incagility | EffectId::Decagility | EffectId::Incagidex => status_up::TOTAL_DURATION_MS,
+        EffectId::Landprotector => volcano::LANDPROTECTOR.total_duration_ms(),
+        EffectId::Volcano => volcano::VOLCANO.total_duration_ms(),
+        EffectId::Deluge => volcano::DELUGE.total_duration_ms(),
+        EffectId::Violentgale => volcano::VIOLENTGALE.total_duration_ms(),
+        EffectId::Ganbantein => volcano::GANBANTEIN.total_duration_ms(),
+        EffectId::Gumgang3 => volcano::GUMGANG3.total_duration_ms(),
+        EffectId::Gumgang2 => gumgang2::TOTAL_DURATION_MS,
+        EffectId::Gumgang => gumgang::GUMGANG.total_duration_ms(),
+        EffectId::Steelbody => gumgang::STEELBODY.total_duration_ms(),
+        EffectId::Gumgangnpc => gumgang::GUMGANGNPC.total_duration_ms(),
+        EffectId::Doublegumgang => gumgang::DOUBLE_RED.total_duration_ms(),
+        EffectId::Doublegumgang2 => gumgang::DOUBLE_WHITE.total_duration_ms(),
+        EffectId::Doublegumgang3 => gumgang::DOUBLE_BLUE.total_duration_ms(),
+        EffectId::Defender => defender::TOTAL_DURATION_MS,
+        EffectId::Reflectshield => defender::TOTAL_DURATION_MS,
+        EffectId::Heal => heal::HEAL.total_duration_ms(),
+        EffectId::Heal2 => heal::HEAL2.total_duration_ms(),
+        EffectId::Heal3 => heal::SMDEF.total_duration_ms(),
+        EffectId::Heal4 => heal::HEAL4.total_duration_ms(),
+        EffectId::Absorbspirits => heal::ABSORBSPIRITS.total_duration_ms(),
+        EffectId::Exit2 => heal::EXIT2.total_duration_ms(),
+        EffectId::Entry2 => heal::ENTRY2.total_duration_ms(),
+        EffectId::Smdef => heal::SMDEF.total_duration_ms(),
+        EffectId::Teleportation2 => heal::TELEPORTATION2.total_duration_ms(),
+        EffectId::Heartcasting => heartcasting::TOTAL_DURATION_MS,
+        EffectId::Colorpaper => colorpaper::TOTAL_DURATION_MS,
+        EffectId::Readyportal2 => portal2::READYPORTAL2_DURATION_MS,
+        EffectId::Couplecasting => couple_casting::TOTAL_DURATION_MS,
+        EffectId::Gravitation => gravitation::TOTAL_DURATION_MS,
+        EffectId::WindBuff => 4294967295,
+        EffectId::Wind => wind::TOTAL_DURATION_MS,
+        EffectId::Bash3d
+        | EffectId::Bash3d2
+        | EffectId::Bash3d3
+        | EffectId::Bash3d4
+        | EffectId::Bash3d5 => bash3d::TOTAL_DURATION_MS,
+        EffectId::Truesight => bash3d::TOTAL_DURATION_MS,
+        EffectId::Beginspell => begin_spell::TOTAL_DURATION_MS,
+        EffectId::Aurablade => aura_blade::TOTAL_DURATION_MS,
+        EffectId::Beginspell8 => begin_spell_8::TOTAL_DURATION_MS,
+        EffectId::Beginspell2
+        | EffectId::Beginspell3
+        | EffectId::Beginspell4
+        | EffectId::Beginspell5
+        | EffectId::Beginspell6
+        | EffectId::Beginspell7
+        | EffectId::Beginspellred
+        | EffectId::Beginspellwhite
+        | EffectId::BeginspellN => cast_circle::TOTAL_DURATION_MS,
+        EffectId::Beginasura
+        | EffectId::Beginasura1
+        | EffectId::Beginasura2
+        | EffectId::Beginasura3
+        | EffectId::Beginasura4
+        | EffectId::Beginasura5
+        | EffectId::Beginasura6
+        | EffectId::Beginasura7
+        | EffectId::Beginasura11 => begin_asura::TOTAL_DURATION_MS,
+        EffectId::Soullink => soullink::TOTAL_DURATION_MS,
+        EffectId::Grandcross | EffectId::Grandcross2 => grandcross::TOTAL_DURATION_MS,
+        EffectId::Saintwing => saintwing::TOTAL_DURATION_MS,
+        EffectId::Chookgi | EffectId::Chookgi2 | EffectId::Chookgi3 => chookgi::TOTAL_DURATION_MS,
+        EffectId::Sakura | EffectId::Maple => sakura::TOTAL_DURATION_MS,
+        EffectId::Pokjuk => pokjuk::TOTAL_DURATION_MS,
+        EffectId::PokjukSound => u32::MAX,
+        EffectId::Firstaid => firstaid::TOTAL_DURATION_MS,
+        EffectId::Earthspike | EffectId::Hyousensou => 2000,
+        EffectId::Warpzone | EffectId::Grimtooth | EffectId::Grimtoothatk => 2500,
+        EffectId::Mappillar | EffectId::Mappillar2 | EffectId::Mappillar3 | EffectId::Mappillar4 => 9990,
+        EffectId::Icewall => 99990,
+        EffectId::Warpzone2 | EffectId::Level99 | EffectId::Level992 | EffectId::Level993 | EffectId::Level994 | EffectId::Level995 | EffectId::Level996 | EffectId::MapGhost => 4294967295,
+        EffectId::Barrier => barrier::TOTAL_DURATION_MS,
+        EffectId::Banjjakii => banjjakii::TOTAL_DURATION_MS,
+        EffectId::Sphere => orbit_burst::SPHERE_TOTAL_DURATION_MS,
+        EffectId::Removetrap => orbit_burst::REMOVETRAP_TOTAL_DURATION_MS,
+        EffectId::Turnundead => turnundead::TOTAL_DURATION_MS,
+        EffectId::Firepillaron => firepillaron::TOTAL_DURATION_MS,
+        EffectId::Hitdark | EffectId::Darkattack => hitdark::TOTAL_DURATION_MS,
+        EffectId::Spearbmr => spearbmr::TOTAL_DURATION_MS,
+        EffectId::Waterball2 => waterball2::TOTAL_DURATION_MS,
+        EffectId::Bowlingbash => bowling_bash::TOTAL_DURATION_MS,
+        EffectId::Dragonsmoke => dragonsmoke::TOTAL_DURATION_MS,
+        EffectId::Overthrust => body_buff::TOTAL_DURATION_MS,
+        EffectId::Energycoat => body_buff::TOTAL_DURATION_MS,
+        EffectId::Callzone => callzone::TOTAL_DURATION_MS,
+        EffectId::Groundsample => ground_sample::TOTAL_DURATION_MS,
+        EffectId::Potionpillar => potion_pillar::TOTAL_DURATION_MS,
+        EffectId::Revive => revive::TOTAL_DURATION_MS,
+        EffectId::Pierce => pierce::TOTAL_DURATION_MS,
+        EffectId::PotionBerserk => potion_berserk::TOTAL_DURATION_MS,
+        EffectId::PotionCon => potion_con::CONCENTRATION_DURATION_MS,
+        EffectId::Potion => potion_con::AWAKENING_DURATION_MS,
+        EffectId::Glasswall2 => glasswall2::TOTAL_DURATION_MS,
+        EffectId::Providence => providence::TOTAL_DURATION_MS,
+        EffectId::Kouenka => kouenka::TOTAL_DURATION_MS,
+        EffectId::Blind
+        | EffectId::Devil1
+        | EffectId::Devil2
+        | EffectId::Devil3
+        | EffectId::Devil4
+        | EffectId::Devil5
+        | EffectId::Devil6
+        | EffectId::Devil7
+        | EffectId::Devil8
+        | EffectId::Devil9
+        | EffectId::Devil10
+        | EffectId::DevilRed
+        | EffectId::Poison
+        | EffectId::CrystalBlue => fullscreen_overlay::PERSISTENT_DURATION_MS,
+        EffectId::Bleeding => fullscreen_overlay::PULSE_DURATION_MS,
+        EffectId::Linelink => linelink::LINELINK_DURATION_MS,
+        EffectId::Linelink2 => linelink::LINELINK2_DURATION_MS,
+        EffectId::Linelink3 => linelink::LINELINK3_DURATION_MS,
+
+        EffectId::Sonicblow => 400,
+        EffectId::BabybodyBack | EffectId::BlackNumber | EffectId::BlueNumber | EffectId::Firesplashhit | EffectId::GreenNumber | EffectId::PinkNumber | EffectId::PurpleNumber | EffectId::RedNumber | EffectId::Spinedbody | EffectId::WhiteNumber | EffectId::YellowNumber => 500,
+        EffectId::Coldhit => 550,
+        EffectId::Bluecasting | EffectId::Darkcasting | EffectId::Landbody => 600,
+        EffectId::TaeReady => 850,
+        EffectId::Spinedbody2 => 900,
+        EffectId::Chaingeholy | EffectId::Changecold | EffectId::Changedark | EffectId::Changeearth | EffectId::Changefire | EffectId::Changeflame | EffectId::Changepoison | EffectId::Changewind | EffectId::Ef4waybody | EffectId::Jumpkick => 1000,
+        EffectId::Electric2 | EffectId::Hitline7 => 1500,
+        EffectId::Fvoice | EffectId::TempFail | EffectId::TempOk | EffectId::Wink => 1667,
+        EffectId::Blackdevil | EffectId::Hitline | EffectId::Hitline2 | EffectId::Hitline3 | EffectId::Hittexture | EffectId::SmaReady => 2000,
+        EffectId::Hitline4 | EffectId::Hitline5 | EffectId::Sightrasher => 2500,
+        EffectId::Electric | EffectId::Hated2 | EffectId::Hitline6 | EffectId::Hptime | EffectId::ItemLight | EffectId::Sprinklesand | EffectId::Sptime | EffectId::Teihit1 | EffectId::Teihit1x | EffectId::Teihit3 => 3000,
+        EffectId::NpcSlowcast => 3100,
+        EffectId::Lockon => 3333,
+        EffectId::Foot | EffectId::Foot2 | EffectId::Foot3 | EffectId::Foot4 | EffectId::Foot5 | EffectId::Foot6 => 3400,
+        EffectId::Tarotcard1 | EffectId::Tarotcard10 | EffectId::Tarotcard11 | EffectId::Tarotcard12 | EffectId::Tarotcard13 | EffectId::Tarotcard14 | EffectId::Tarotcard2 | EffectId::Tarotcard3 | EffectId::Tarotcard4 | EffectId::Tarotcard5 | EffectId::Tarotcard6 | EffectId::Tarotcard7 | EffectId::Tarotcard8 | EffectId::Tarotcard9 => 4067,
+        EffectId::Hated | EffectId::Jumpbody => 5000,
+        EffectId::Bat | EffectId::Bat2 | EffectId::Ghost => 40000,
+        EffectId::BottomMag | EffectId::Venomdust2 => 99990,
+        EffectId::BottomGospel => 199990,
+        EffectId::BottomAppleidun | EffectId::BottomAssassincross | EffectId::BottomBasilica | EffectId::BottomDe | EffectId::BottomDissonance | EffectId::BottomDontforgetme | EffectId::BottomDrumbattlefield | EffectId::BottomEternalchaos | EffectId::BottomEvilland | EffectId::BottomFogwall | EffectId::BottomFortunekiss | EffectId::BottomHermode | EffectId::BottomHumming | EffectId::BottomIntoabyss | EffectId::BottomLa | EffectId::BottomLullaby | EffectId::BottomPoembragi | EffectId::BottomRichmankim | EffectId::BottomRingnibelungen | EffectId::BottomRokisweil | EffectId::BottomRunner | EffectId::BottomServiceforyou | EffectId::BottomSiegfried | EffectId::BottomSpider | EffectId::BottomSuiton | EffectId::BottomTransfer | EffectId::BottomUglydance | EffectId::BottomVi | EffectId::BottomVo | EffectId::BottomWhistle => 299990,
+        EffectId::Forestlight | EffectId::Forestlight2 | EffectId::Forestlight3 | EffectId::Forestlight4 => 600000,
+        EffectId::Asurabody | EffectId::Babybody | EffectId::Babybody2 | EffectId::Giantbody | EffectId::Giantbody2 => 999990,
+        EffectId::Dust | EffectId::Glow1 | EffectId::Glow11 | EffectId::Glow12 | EffectId::Glow2 | EffectId::Green995 | EffectId::Green996 | EffectId::TorchGreen | EffectId::TorchPurple | EffectId::TorchRed => 4294967295,
+
+        _ => 0,
+    }
 }
 
 pub fn spawn_camera_shake(id: EffectId) -> Option<CameraShake> {
@@ -979,9 +840,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
         return EffectSpec::Noop;
     }
     if is_custom_bucket(id) {
-        EffectSpec::Custom {
-            duration_ms: default_duration_ms(id),
-        }
+        EffectSpec::Custom
     } else {
         default_str_spec(id)
     }
@@ -1007,20 +866,20 @@ mod tests {
     fn lv99_resolves_to_custom_factory_path() {
         assert!(matches!(
             effect_spec(EffectId::Level99),
-            Some(EffectSpec::Custom { .. })
+            Some(EffectSpec::Custom)
         ));
     }
 
     #[test]
     fn weather_effects_route_to_their_procedural_impls() {
         assert!(
-            matches!(effect_spec(EffectId::Maple), Some(EffectSpec::Custom { .. })),
+            matches!(effect_spec(EffectId::Maple), Some(EffectSpec::Custom)),
             "Maple must reach the sakura machinery, not a frozen spr"
         );
         assert!(
             matches!(
                 effect_spec(EffectId::PokjukSound),
-                Some(EffectSpec::Custom { .. })
+                Some(EffectSpec::Custom)
             ),
             "PokjukSound must hold a silent entry so its SFX schedule fires"
         );
@@ -1170,11 +1029,11 @@ mod tests {
         ));
         assert!(matches!(
             effect_spec(EffectId::M02),
-            Some(EffectSpec::Custom { .. })
+            Some(EffectSpec::Custom)
         ));
         assert!(matches!(
             effect_spec(EffectId::Kaizel),
-            Some(EffectSpec::Custom { .. })
+            Some(EffectSpec::Custom)
         ));
         assert!(matches!(
             effect_spec(EffectId::Kaahi),
@@ -1225,25 +1084,25 @@ mod tests {
     fn wink_resolves_to_custom_factory_path() {
         assert!(matches!(
             effect_spec(EffectId::Wink),
-            Some(EffectSpec::Custom { duration_ms: 1667 })
+            Some(EffectSpec::Custom)
         ));
+        assert_eq!(custom_duration_ms(EffectId::Wink), 1667);
         assert!(matches!(
             effect_spec(EffectId::Fvoice),
-            Some(EffectSpec::Custom { duration_ms: 1667 })
+            Some(EffectSpec::Custom)
         ));
+        assert_eq!(custom_duration_ms(EffectId::Fvoice), 1667);
     }
 
     #[test]
     fn ghost_family_resolves_to_custom_factory_path() {
         for id in [EffectId::Ghost, EffectId::Bat, EffectId::Bat2] {
             assert!(
-                matches!(
-                    effect_spec(id),
-                    Some(EffectSpec::Custom { duration_ms: 40000 })
-                ),
-                "{id:?} should resolve to Custom 40000, got {:?}",
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
+                "{id:?} should resolve to Custom, got {:?}",
                 effect_spec(id)
             );
+            assert_eq!(custom_duration_ms(id), 40000, "{id:?} duration");
             let built = super::super::factory::make_effect(
                 id,
                 super::super::spec::EffectAnchor::Point([0.0; 3]),
@@ -1331,7 +1190,7 @@ mod tests {
             EffectId::Glow12,
         ] {
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} must resolve to Custom, got {:?}",
                 effect_spec(id)
             );
@@ -1368,7 +1227,7 @@ mod tests {
             EffectId::Ef4waybody,
         ] {
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} must resolve to Custom, got {:?}",
                 effect_spec(id)
             );
@@ -1395,9 +1254,10 @@ mod tests {
 
     #[test]
     fn dragonsmoke_resolves_to_custom_trail_effect() {
-        let Some(EffectSpec::Custom { duration_ms }) = effect_spec(EffectId::Dragonsmoke) else {
+        let Some(EffectSpec::Custom) = effect_spec(EffectId::Dragonsmoke) else {
             panic!("Dragonsmoke should resolve to EffectSpec::Custom");
         };
+        let duration_ms = custom_duration_ms(EffectId::Dragonsmoke);
         assert_eq!(
             duration_ms,
             u32::MAX,
@@ -1407,10 +1267,13 @@ mod tests {
 
     #[test]
     fn batch2_billboards_route_to_spr_burst_variants() {
-        let Some(EffectSpec::Custom { duration_ms }) = effect_spec(EffectId::Thunderstorm2) else {
+        let Some(EffectSpec::Custom) = effect_spec(EffectId::Thunderstorm2) else {
             panic!("Thunderstorm2 should resolve to EffectSpec::Custom");
         };
-        assert_eq!(duration_ms, thunderstorm2::TOTAL_DURATION_MS);
+        assert_eq!(
+            custom_duration_ms(EffectId::Thunderstorm2),
+            thunderstorm2::TOTAL_DURATION_MS
+        );
 
         let Some(EffectSpec::SprBurst { sprite, burst, .. }) = effect_spec(EffectId::Slowpoison)
         else {
@@ -1455,7 +1318,7 @@ mod tests {
     fn stormgust_resolves_to_factory_custom_with_str_overlay() {
         assert!(matches!(
             effect_spec(EffectId::Stormgust),
-            Some(EffectSpec::Custom { .. })
+            Some(EffectSpec::Custom)
         ));
     }
 
@@ -1463,7 +1326,7 @@ mod tests {
     fn warp_routes_to_factory_via_custom() {
         assert!(matches!(
             effect_spec(EffectId::Warp),
-            Some(EffectSpec::Custom { .. })
+            Some(EffectSpec::Custom)
         ));
     }
 
@@ -1471,7 +1334,7 @@ mod tests {
     fn ez2str_family_specs() {
         assert!(matches!(
             effect_spec(EffectId::Aurablade),
-            Some(EffectSpec::Custom { .. })
+            Some(EffectSpec::Custom)
         ));
         for id in [EffectId::Soulburn, EffectId::Soulchange] {
             assert!(
@@ -1491,7 +1354,7 @@ mod tests {
             EffectId::Flowercast,
         ] {
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} should be Custom",
             );
         }
@@ -1522,70 +1385,23 @@ mod tests {
 
 fn default_duration_ms(id: EffectId) -> u32 {
     match id {
-        EffectId::Hit1 => 500,
-        EffectId::Hit2 => 500,
-        EffectId::Hit3 => 500,
-        EffectId::Hit4 => 500,
-        EffectId::Hit5 => 500,
-        EffectId::Hit6 => 500,
-        EffectId::Entry => 1000,
-        EffectId::Exit => 500,
-        EffectId::Warp => 800,
-        EffectId::Enhance => 800,
         EffectId::Coin => 1000,
-        EffectId::Endure => 800,
-        EffectId::Beginspell => 400,
-        EffectId::Glasswall => 99990,
-        EffectId::Healsp => 500,
-        EffectId::Soulstrike => 1000,
-        EffectId::Bash => 400,
-        EffectId::Magnumbreak => 300,
         EffectId::Steal => 500,
-        EffectId::Hiding => 500,
         EffectId::Pattack => 1000,
         EffectId::Detoxication => 1000,
-        EffectId::Sight => 2700,
         EffectId::Stonecurse => 9990,
-        EffectId::Fireball => 1000,
         EffectId::Firewall => 400,
-        EffectId::Icearrow => 1600,
-        EffectId::Frostdiver => 1500,
-        EffectId::Frostdiver2 => 1000,
         EffectId::Lightbolt => 2000,
         EffectId::Thunderstorm => 1040,
-        EffectId::Firearrow => 1600,
-        EffectId::Napalmbeat => 1000,
-        EffectId::Ruwach => 9999990,
-        EffectId::Teleportation => 1000,
-        EffectId::Readyportal => 1000,
-        EffectId::Portal => 1000,
-        EffectId::Incagility => 1000,
-        EffectId::Decagility => 1000,
         EffectId::Aqua => 1667,
         EffectId::Signum => 9990,
         EffectId::Angelus => 9990,
-        EffectId::Blessing => 1500,
-        EffectId::Incagidex => 1000,
         EffectId::Smoke => 500,
         EffectId::Firefly => 2333,
-        EffectId::Sandwind => 1800,
         EffectId::Torch => u32::MAX,
-        EffectId::Spraypond => 1300,
         EffectId::Firehit => 500,
-        EffectId::Firesplashhit => 500,
-        EffectId::Coldhit => 550,
         EffectId::Windhit => 400,
         EffectId::Poisonhit => 500,
-        EffectId::Beginspell2 => 400,
-        EffectId::Beginspell3 => 400,
-        EffectId::Beginspell4 => 400,
-        EffectId::Beginspell5 => 400,
-        EffectId::Beginspell6 => 1100,
-        EffectId::Beginspell7 => 400,
-        EffectId::Lockon => 3333,
-        EffectId::Warpzone => 2500,
-        EffectId::Sightrasher => 2500,
-        EffectId::Barrier => 2500,
         EffectId::Arrowshot => 9990,
         EffectId::Invenom => 9990,
         EffectId::Cure => 9990,
@@ -1593,36 +1409,23 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Mvp => 9990,
         EffectId::Skidtrap => 99990,
         EffectId::Brandishspear => 9990,
-        EffectId::Cone => 2500,
-        EffectId::Sphere => 5000,
-        EffectId::Bowlingbash => 2500,
-        EffectId::Icewall => 99990,
         EffectId::Gloria => 9990,
         EffectId::Magnificat => 9990,
         EffectId::Resurrection => 9990,
         EffectId::Recovery => 9990,
-        EffectId::Earthspike => 2000,
-        EffectId::Spearbmr => 2500,
-        EffectId::Pierce => 2500,
-        EffectId::Turnundead => 2500,
         EffectId::Sanctuary => 9990,
         EffectId::Impositio => 9990,
         EffectId::Lexaeterna => 9990,
         EffectId::Aspersio => 9990,
         EffectId::Lexdivina => 9990,
         EffectId::Suffragium => 9990,
-        EffectId::Stormgust => 99990,
         EffectId::Lord => 99990,
         EffectId::Benedictio => 99990,
         EffectId::Meteorstorm => 99990,
-        EffectId::Yufitel => 2500,
         EffectId::Yufitelhit => 2500,
         EffectId::Quagmire => 1500,
         EffectId::Firepillar => 99990,
         EffectId::Firepillarbomb => 99990,
-        EffectId::Hasteup => 2500,
-        EffectId::Flasher => 2500,
-        EffectId::Removetrap => 700,
         EffectId::Repairweapon => 99990,
         EffectId::Crashearth => 99990,
         EffectId::Perfection => 9990,
@@ -1636,35 +1439,19 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Springtrap => 99990,
         EffectId::Kyrie => 9990,
         EffectId::Magnus => 99990,
-        EffectId::Bottom => 3500,
-        EffectId::Blitzbeat => 2500,
-        EffectId::Waterball => 2500,
-        EffectId::Waterball2 => 1000,
-        EffectId::Fireivy => 2500,
-        EffectId::Detecting => 2500,
         EffectId::Cloaking => 2500,
-        EffectId::Sonicblow => 400,
-        EffectId::Sonicblowhit => 2500,
-        EffectId::Grimtooth => 2500,
         EffectId::Venomdust => 99990,
         EffectId::Enchantpoison => 2500,
         EffectId::Poisonreact => 99990,
         EffectId::Poisonreact2 => 99990,
-        EffectId::Overthrust => 2500,
         EffectId::Splasher => 99990,
-        EffectId::Twohandquicken => 99990,
         EffectId::Autocounter => 1000,
-        EffectId::Grimtoothatk => 2500,
         EffectId::Freeze => 99990,
         EffectId::Freezed => 99990,
         EffectId::Icecrash => 99990,
         EffectId::Slowpoison => 1333,
-        EffectId::Bottom2 => 3500,
-        EffectId::Firepillaron => 80000,
         EffectId::Sandman => 99990,
-        EffectId::Revive => 2500,
         EffectId::Pneuma => 99990,
-        EffectId::Heavensdrive => 2500,
         EffectId::Sonicblow2 => 9990,
         EffectId::Brandish2 => 9990,
         EffectId::Shockwave => 327970,
@@ -1681,30 +1468,12 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Jobchange => 9990,
         EffectId::Lvup => 9990,
         EffectId::Joblvup => 9990,
-        EffectId::Toprank => 99990,
-        EffectId::Party => 99990,
-        EffectId::Rain => 0,
         EffectId::Snow => 4294967295,
-        EffectId::Sakura => 4294967295,
-        EffectId::StatusState => 99990,
-        EffectId::Banjjakii => 10000,
-        EffectId::Makeblur => 99990,
         EffectId::Tamingsuccess => 9990,
         EffectId::Tamingfailed => 9990,
-        EffectId::Cartrevolution => 9990,
-        EffectId::Changedark => 1000,
-        EffectId::Changefire => 1000,
-        EffectId::Changecold => 1000,
-        EffectId::Changewind => 1000,
-        EffectId::Changeflame => 1000,
-        EffectId::Changeearth => 1000,
-        EffectId::Chaingeholy => 1000,
-        EffectId::Changepoison => 1000,
-        EffectId::Hitdark => 500,
         EffectId::Mentalbreak => 99990,
         EffectId::Magicalatthit => 99990,
         EffectId::SuiExplosion => 99990,
-        EffectId::Darkattack => 0,
         EffectId::Suicide => 99990,
         EffectId::Comboattack1 => 99990,
         EffectId::Comboattack2 => 99990,
@@ -1716,14 +1485,8 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Silenceattack => 99990,
         EffectId::Stunattack => 99990,
         EffectId::Petrifyattack => 99990,
-        EffectId::Curseattack => 1500,
         EffectId::Sleepattack => 99990,
-        EffectId::Telekhit => 0,
         EffectId::Pong => 99990,
-        EffectId::Level99 => 4294967295,
-        EffectId::Level992 => 4294967295,
-        EffectId::Level993 => 4294967295,
-        EffectId::Gumgang => 999990,
         EffectId::Potion1 => 1000,
         EffectId::Potion2 => 1000,
         EffectId::Potion3 => 1000,
@@ -1735,58 +1498,16 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Darkbreath => 1083,
         EffectId::Deffender => 99990,
         EffectId::Keeping => 99990,
-        EffectId::Summonslave => 5000,
-        EffectId::Blooddrain => 2000,
-        EffectId::Energydrain => 2000,
-        EffectId::PotionCon => 1990,
-        EffectId::Potion => 1990,
-        EffectId::PotionBerserk => 1990,
-        EffectId::Potionpillar => 1500,
-        EffectId::Defender => 2000,
-        EffectId::Ganbantein => 3000,
-        EffectId::Wind => 3000,
-        EffectId::Volcano => 3000,
-        EffectId::Grandcross => 9990,
-        EffectId::Intimidate => 9990,
-        EffectId::Chookgi => 9999990,
-        EffectId::Cloud => 4294967295,
-        EffectId::Cloud2 => 4294967295,
-        EffectId::Mappillar => 9990,
-        EffectId::Linelink => 999990,
-        EffectId::Cloud3 => 4294967295,
         EffectId::Spellbreaker => 9990,
         EffectId::Dispell => 9990,
-        EffectId::Deluge => 9990,
-        EffectId::Violentgale => 9990,
-        EffectId::Landprotector => 9990,
-        EffectId::BottomVo => 299990,
-        EffectId::BottomDe => 299990,
-        EffectId::BottomVi => 299990,
-        EffectId::BottomLa => 299990,
-        EffectId::Fastmove => 99990,
         EffectId::Magicrod => 4990,
         EffectId::Holycross => 4990,
         EffectId::Shieldcharge => 4990,
-        EffectId::Mappillar2 => 9990,
-        EffectId::Providence => 2000,
-        EffectId::Shieldboomerang => 4990,
-        EffectId::Spearquicken => 99990,
         EffectId::Devotion => 1500,
-        EffectId::Reflectshield => 2000,
-        EffectId::Absorbspirits => 1000,
-        EffectId::Steelbody => 4294967295,
         EffectId::Flamelauncher => 9990,
         EffectId::Frostweapon => 9990,
         EffectId::Lightningloader => 9990,
         EffectId::Seismicweapon => 9990,
-        EffectId::Mappillar3 => 9990,
-        EffectId::Mappillar4 => 9990,
-        EffectId::Gumgang2 => 3000,
-        EffectId::Teihit1 => 3000,
-        EffectId::Gumgang3 => 3000,
-        EffectId::Teihit2 => 3000,
-        EffectId::Tanji => 3000,
-        EffectId::Teihit1x => 3000,
         EffectId::Chimto => 160,
         EffectId::Stealcoin => 3000,
         EffectId::Stripweapon => 3000,
@@ -1794,297 +1515,31 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Striparmor => 3000,
         EffectId::Striphelm => 3000,
         EffectId::Chaincombo => 3000,
-        EffectId::RgCoin => 3000,
-        EffectId::Backstap => 3000,
-        EffectId::Teihit3 => 3000,
-        EffectId::BottomDissonance => 299990,
-        EffectId::BottomLullaby => 299990,
-        EffectId::BottomRichmankim => 299990,
-        EffectId::BottomEternalchaos => 299990,
-        EffectId::BottomDrumbattlefield => 299990,
-        EffectId::BottomRingnibelungen => 299990,
-        EffectId::BottomRokisweil => 299990,
-        EffectId::BottomIntoabyss => 299990,
-        EffectId::BottomSiegfried => 299990,
-        EffectId::BottomWhistle => 299990,
-        EffectId::BottomAssassincross => 299990,
-        EffectId::BottomPoembragi => 299990,
-        EffectId::BottomAppleidun => 299990,
-        EffectId::BottomUglydance => 299990,
-        EffectId::BottomHumming => 299990,
-        EffectId::BottomDontforgetme => 299990,
-        EffectId::BottomFortunekiss => 299990,
-        EffectId::BottomServiceforyou => 299990,
-        EffectId::TalkFrostjoke => 9990,
-        EffectId::TalkScream => 9990,
-        EffectId::Pokjuk => 4294967295,
-        EffectId::Throwitem => 3000,
-        EffectId::Throwitem2 => 3000,
-        EffectId::Chemicalprotection => 3000,
-        EffectId::PokjukSound => 4294967295,
         EffectId::Demonstration => 999990,
-        EffectId::Chemical2 => 3000,
-        EffectId::Teleportation2 => 2000,
         EffectId::PharmacyOk => 900,
         EffectId::PharmacyFail => 900,
-        EffectId::Forestlight => 600000,
-        EffectId::Throwitem3 => 2000,
-        EffectId::Firstaid => 2990,
-        EffectId::Sprinklesand => 3000,
         EffectId::Loud => 3000,
-        EffectId::Heal => 1000,
-        EffectId::Heal2 => 1000,
-        EffectId::Exit2 => 2000,
-        EffectId::Glasswall2 => 99990,
-        EffectId::Readyportal2 => 2000,
-        EffectId::Portal2 => 99990,
-        EffectId::BottomMag => 99990,
-        EffectId::BottomSanc => 99990,
-        EffectId::Heal3 => 1000,
-        EffectId::Warpzone2 => 4294967295,
-        EffectId::Forestlight2 => 600000,
-        EffectId::Forestlight3 => 600000,
-        EffectId::Forestlight4 => 600000,
-        EffectId::Heal4 => 1000,
-        EffectId::Foot => 3400,
-        EffectId::Foot2 => 3400,
-        EffectId::Beginasura => 10000,
-        EffectId::Tripleattack => 1000,
-        EffectId::Hitline => 2000,
-        EffectId::Hptime => 3000,
-        EffectId::Sptime => 3000,
-        EffectId::Maple => 4294967295,
-        EffectId::Blind => 4294967295,
-        EffectId::Poison => 4294967295,
-        EffectId::Guard => 2000,
         EffectId::Joblvup50 => 2000,
-        EffectId::Angel2 => 2000,
-        EffectId::Magnum2 => 1000,
-        EffectId::Callzone => 30000,
-        EffectId::Portal3 => 99990,
-        EffectId::Couplecasting => 10000,
-        EffectId::Heartcasting => 10000,
-        EffectId::Entry2 => 1000,
-        EffectId::Saintwing => 4294967295,
-        EffectId::Spherewind => 4294967295,
-        EffectId::Colorpaper => 99990,
-        EffectId::Lightsphere => 10000,
-        EffectId::Waterfall => 4294967295,
-        EffectId::Waterfall90 => 4294967295,
-        EffectId::WaterfallSmall => 4294967295,
-        EffectId::WaterfallSmall90 => 4294967295,
-        EffectId::WaterfallT2 => 4294967295,
-        EffectId::WaterfallT290 => 4294967295,
-        EffectId::WaterfallSmallT2 => 4294967295,
-        EffectId::WaterfallSmallT290 => 4294967295,
-        EffectId::MiniTetris => 4294967295,
-        EffectId::Ghost => 40000,
-        EffectId::Bat => 40000,
-        EffectId::Bat2 => 40000,
-        EffectId::Soulbreaker => 3000,
-        EffectId::Level994 => 4294967295,
         EffectId::Vallentine => 1000,
         EffectId::Vallentine2 => 1000,
-        EffectId::Pressure => 3000,
-        EffectId::Bash3d => 2000,
-        EffectId::Aurablade => 1000,
-        EffectId::Redbody => 999990,
-        EffectId::Lkconcentration => 999990,
-        EffectId::BottomGospel => 199990,
         EffectId::Angel => 2000,
         EffectId::Devil => 2000,
-        EffectId::Dragonsmoke => 500,
-        EffectId::BottomBasilica => 299990,
-        EffectId::Assumptio => 999990,
-        EffectId::Hitline2 => 2000,
-        EffectId::Bash3d2 => 2000,
-        EffectId::Energydrain2 => 2000,
-        EffectId::Transbluebody => 2000,
-        EffectId::Magiccrasher => 1000,
-        EffectId::Lightsphere2 => 4294967295,
-        EffectId::Lightblade => 4294967295,
-        EffectId::Energydrain3 => 2000,
-        EffectId::Linelink2 => 2000,
-        EffectId::Linklight => 2000,
-        EffectId::Truesight => 2500,
-        EffectId::Falconassault => 2000,
-        EffectId::Tripleattack2 => 2000,
-        EffectId::Portal4 => 2000,
         EffectId::Meltdown => 2500,
         EffectId::Cartboost => 1500,
-        EffectId::Rejectsword => 2000,
-        EffectId::Tripleattack3 => 2000,
-        EffectId::Spherewind2 => 999990,
-        EffectId::Linelink3 => 4294967295,
-        EffectId::Pinkbody => 4294967295,
-        EffectId::Level995 => 4294967295,
-        EffectId::Level996 => 4294967295,
-        EffectId::Bash3d3 => 2000,
-        EffectId::Bash3d4 => 2000,
-        EffectId::Napalmvalcan => 2000,
-        EffectId::Portal5 => 2000,
-        EffectId::Magiccrasher2 => 1000,
-        EffectId::BottomSpider => 299990,
-        EffectId::BottomFogwall => 299990,
         EffectId::Soulburn => 3333,
         EffectId::Soulchange => 3333,
-        EffectId::Baby => 2000,
-        EffectId::Soulbreaker2 => 3000,
-        EffectId::Rainbow => 3000,
-        EffectId::Peong => 5500,
-        EffectId::Tanji2 => 3000,
-        EffectId::Pressedbody => 500,
-        EffectId::Spinedbody => 500,
-        EffectId::Kickedbody => 1000,
         EffectId::Airtexture => 1000,
-        EffectId::Hitbody => 1000,
-        EffectId::Doublegumgang => 4294967295,
-        EffectId::Reflectbody => 4294967295,
-        EffectId::Babybody => 999990,
-        EffectId::Babybody2 => 999990,
-        EffectId::Giantbody => 999990,
-        EffectId::Giantbody2 => 999990,
-        EffectId::Asurabody => 999990,
-        EffectId::Ef4waybody => 1000,
-        EffectId::Quakebody => 140,
-        EffectId::AsurabodyMonster => 999990,
-        EffectId::Hitline3 => 2000,
-        EffectId::Hitline4 => 2500,
-        EffectId::Hitline5 => 2500,
-        EffectId::Hitline6 => 3000,
-        EffectId::Electric => 3000,
-        EffectId::Electric2 => 1500,
-        EffectId::Hitline7 => 1500,
-        EffectId::Stormkick => 1000,
-        EffectId::Halfsphere => 2000,
-        EffectId::Attackenergy => 30000,
-        EffectId::Attackenergy2 => 1000,
-        EffectId::Chemical3 => 3000,
         EffectId::Assumptio2 => 3000,
-        EffectId::Bluecasting => 600,
-        EffectId::Run => 99990,
-        EffectId::Stoprun => 300,
-        EffectId::Stopeffect => 1000,
-        EffectId::Jumpbody => 5000,
-        EffectId::Landbody => 600,
-        EffectId::Foot3 => 3400,
-        EffectId::Foot4 => 3400,
-        EffectId::TaeReady => 850,
-        EffectId::Grandcross2 => 9990,
-        EffectId::Soulstrike2 => 1000,
-        EffectId::Yufitel2 => 2500,
         EffectId::NpcStop => 999990,
-        EffectId::Darkcasting => 600,
-        EffectId::Gumgangnpc => 15000,
-        EffectId::Agiup => 1000,
-        EffectId::Jumpkick => 1000,
-        EffectId::Quakebody2 => 350,
-        EffectId::Stormkick1 => 1000,
-        EffectId::Stormkick2 => 1000,
-        EffectId::Stormkick3 => 1000,
-        EffectId::Stormkick4 => 2000,
-        EffectId::Stormkick5 => 3000,
-        EffectId::Stormkick6 => 1000,
-        EffectId::Stormkick7 => 1000,
-        EffectId::Spinedbody2 => 900,
-        EffectId::Beginasura1 => 3000,
-        EffectId::Beginasura2 => 3000,
-        EffectId::Beginasura3 => 3000,
-        EffectId::Beginasura4 => 3000,
-        EffectId::Beginasura5 => 3000,
-        EffectId::Beginasura6 => 3000,
-        EffectId::Beginasura7 => 3000,
-        EffectId::Aurablade2 => aura_blade::TOTAL_DURATION_MS,
-        EffectId::Devil1 => 4294967295,
-        EffectId::Devil2 => 4294967295,
-        EffectId::Devil3 => 4294967295,
-        EffectId::Devil4 => 4294967295,
-        EffectId::Devil5 => 4294967295,
-        EffectId::Devil6 => 4294967295,
-        EffectId::Devil7 => 4294967295,
-        EffectId::Devil8 => 4294967295,
-        EffectId::Devil9 => 4294967295,
-        EffectId::Devil10 => 4294967295,
-        EffectId::Doublegumgang2 => 999990,
-        EffectId::Doublegumgang3 => 999990,
-        EffectId::Blackdevil => 2000,
-        EffectId::Flowercast => 4000,
-        EffectId::Flowercast2 => 4000,
         EffectId::Flowercast3 => 4000,
         EffectId::Mochi => 1000,
         EffectId::Lamadan => 1000,
         EffectId::Edp => 2000,
-        EffectId::Shieldboomerang2 => 4990,
-        EffectId::RgCoin2 => 3000,
-        EffectId::Guard2 => 2000,
-        EffectId::Slim => 2500,
-        EffectId::Slim2 => 2500,
-        EffectId::Slim3 => 2500,
-        EffectId::Chemicalbody => 1200,
-        EffectId::Castspin => 1000,
-        EffectId::Piercebody => 2000,
-        EffectId::Soullink => 5000,
-        EffectId::Chookgi2 => 9999990,
-        EffectId::Memorize => 2000,
-        EffectId::Soullight => 1000,
         EffectId::Mapae => 1000,
         EffectId::Itempokjuk => 1000,
         EffectId::Ef05val => 1000,
-        EffectId::Beginasura11 => 10000,
-        EffectId::Night => 100,
-        EffectId::Chemical2dash => 3000,
-        EffectId::Groundsample => 30000,
-        EffectId::GiExplosion => 3000,
-        EffectId::Cloud4 => 4294967295,
-        EffectId::Cloud5 => 4294967295,
-        EffectId::BottomHermode => 299990,
-        EffectId::Cartter => 2000,
         EffectId::Itemfast => 1000,
-        EffectId::Shieldboomerang3 => 4990,
-        EffectId::Doublecastbody => 1200,
-        EffectId::Gravitation => 20000,
-        EffectId::Tarotcard1 => 4067,
-        EffectId::Tarotcard2 => 4067,
-        EffectId::Tarotcard3 => 4067,
-        EffectId::Tarotcard4 => 4067,
-        EffectId::Tarotcard5 => 4067,
-        EffectId::Tarotcard6 => 4067,
-        EffectId::Tarotcard7 => 4067,
-        EffectId::Tarotcard8 => 4067,
-        EffectId::Tarotcard9 => 4067,
-        EffectId::Tarotcard10 => 4067,
-        EffectId::Tarotcard11 => 4067,
-        EffectId::Tarotcard12 => 4067,
-        EffectId::Tarotcard13 => 4067,
-        EffectId::Tarotcard14 => 4067,
-        EffectId::Aciddemon => 2000,
-        EffectId::Greenbody => 1200,
-        EffectId::Throwitem4 => 3000,
-        EffectId::BabybodyBack => 500,
-        EffectId::Throwitem5 => 3000,
-        EffectId::Bluebody => 2000,
-        EffectId::Hated => 5000,
-        EffectId::Redlightbody => 4294967295,
         EffectId::Ro2year => 2000,
-        EffectId::SmaReady => 2000,
-        EffectId::Stin => 2000,
-        EffectId::RedHit => 600,
-        EffectId::BlueHit => 600,
-        EffectId::Quakebody3 => 600,
-        EffectId::Sma => 1000,
-        EffectId::Sma2 => 1000,
-        EffectId::Stin2 => 2000,
-        EffectId::Hittexture => 2000,
-        EffectId::Stin3 => 2000,
-        EffectId::Sma3 => 500,
-        EffectId::Bluefall => 4294967295,
-        EffectId::Bluefall90 => 4294967295,
-        EffectId::Fastbluefall => 4294967295,
-        EffectId::Fastbluefall90 => 4294967295,
-        EffectId::BigPortal => 20000,
-        EffectId::BigPortal2 => 4294967295,
-        EffectId::ScreenQuake => 2000,
-        EffectId::Homuncasting => 600,
         EffectId::Hflimoon1 => 1000,
         EffectId::Hflimoon2 => 1000,
         EffectId::Hflimoon3 => 1000,
@@ -2092,64 +1547,28 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Hamidefence => 600,
         EffectId::Hamicastle => 1000,
         EffectId::Hamiblood => 1000,
-        EffectId::Hated2 => 3000,
-        EffectId::Twilight1 => 3000,
-        EffectId::Twilight2 => 3000,
-        EffectId::Twilight3 => 3000,
         EffectId::ItemThunder => 1667,
         EffectId::ItemCloud => 1667,
         EffectId::ItemCurse => 1667,
         EffectId::ItemZzz => 1667,
         EffectId::ItemRain => 1667,
-        EffectId::ItemLight => 3000,
-        EffectId::Angel3 => 2000,
         EffectId::M01 => 833,
-        EffectId::M02 => 1667,
         EffectId::M03 => 1667,
         EffectId::M04 => 4294967295,
         EffectId::M05 => 1667,
         EffectId::M06 => 1667,
         EffectId::M07 => 1667,
-        EffectId::Kaizel => 2000,
-        EffectId::Kaahi => 2000,
-        EffectId::Cloud6 => 4294967295,
         EffectId::Food01 => 1000,
         EffectId::Food02 => 1000,
         EffectId::Food03 => 1000,
         EffectId::Food04 => 1000,
         EffectId::Food05 => 1000,
         EffectId::Food06 => 1000,
-        EffectId::Shrink => 2000,
-        EffectId::Throwitem6 => 2000,
-        EffectId::Sight2 => 9999990,
-        EffectId::Quakebody4 => 600,
         EffectId::Firehit2 => 500,
         EffectId::NpcStop2 => 999990,
-        EffectId::NpcStop2Del => 20,
-        EffectId::Fvoice => 1667,
-        EffectId::Wink => 1667,
         EffectId::CookingOk => 1000,
         EffectId::CookingFail => 1000,
-        EffectId::TempOk => 1667,
-        EffectId::TempFail => 1667,
         EffectId::Hapgyeok => 1000,
-        EffectId::Throwitem7 => 2000,
-        EffectId::Throwitem8 => 2000,
-        EffectId::Throwitem9 => 2000,
-        EffectId::Throwitem10 => 2000,
-        EffectId::Bunsinjyutsu => 99990,
-        EffectId::Kouenka => 3000,
-        EffectId::Hyousensou => 2000,
-        EffectId::BottomSuiton => 299990,
-        EffectId::Stin4 => 2000,
-        EffectId::Thunderstorm2 => 3333,
-        EffectId::Chemical4 => 3000,
-        EffectId::Stin5 => 2000,
-        EffectId::MadnessBlue => 600,
-        EffectId::MadnessRed => 600,
-        EffectId::RgCoin3 => 3000,
-        EffectId::Bash3d5 => 2000,
-        EffectId::Chookgi3 => 9999990,
         EffectId::Kirikage => 1000,
         EffectId::Tatami => 1000,
         EffectId::Kasumikiri => 1000,
@@ -2170,37 +1589,10 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Tracking => 1000,
         EffectId::Tripleaction => 1000,
         EffectId::Bullseye => 1000,
-        EffectId::MapMagiczone => 4294967295,
-        EffectId::MapMagiczone2 => 4294967295,
-        EffectId::Damage1 => 500,
-        EffectId::Damage12 => 500,
-        EffectId::Damage13 => 500,
-        EffectId::Undeadbody => 4294967295,
-        EffectId::UndeadbodyDel => 400,
-        EffectId::GreenNumber => 500,
-        EffectId::BlueNumber => 500,
-        EffectId::RedNumber => 500,
-        EffectId::PurpleNumber => 500,
-        EffectId::BlackNumber => 500,
-        EffectId::WhiteNumber => 500,
-        EffectId::YellowNumber => 500,
-        EffectId::PinkNumber => 500,
-        EffectId::BubbleDrop => 2000,
         EffectId::NpcEarthquake => 1000,
-        EffectId::DaSpace => 4294967295,
         EffectId::Dragonfear => 280,
-        EffectId::Bleeding => 700,
         EffectId::Wideconfuse => 280,
-        EffectId::BottomRunner => 299990,
-        EffectId::BottomTransfer => 299990,
-        EffectId::CrystalBlue => 4294967295,
-        EffectId::BottomEvilland => 299990,
-        EffectId::Guard3 => 2000,
-        EffectId::NpcSlowcast => 3100,
         EffectId::Criticalwound => 800,
-        EffectId::Green993 => 4294967295,
-        EffectId::Green995 => 4294967295,
-        EffectId::Green996 => 4294967295,
         EffectId::Mapsphere => 360000,
         EffectId::PokLove => 1000,
         EffectId::PokWhite => 1000,
@@ -2209,56 +1601,13 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::PokChristmas => 1000,
         EffectId::MapMagiczone3 => 4294967295,
         EffectId::MapMagiczone4 => 4294967295,
-        EffectId::Dust => 4294967295,
-        EffectId::TorchRed => 4294967295,
-        EffectId::TorchGreen => 4294967295,
-        EffectId::MapGhost => 4294967295,
-        EffectId::Glow1 => 4294967295,
-        EffectId::Glow2 => 4294967295,
-        EffectId::Glow4 => 4294967295,
-        EffectId::TorchPurple => 4294967295,
-        EffectId::Cloud7 => 4294967295,
-        EffectId::Cloud8 => 4294967295,
         EffectId::Flowerleaf => 1000,
         EffectId::Mapsphere2 => 0,
-        EffectId::Glow11 => 4294967295,
-        EffectId::Glow12 => 4294967295,
-        EffectId::Foot5 => 3400,
-        EffectId::Foot6 => 3400,
         EffectId::Airtexture2 => 1000,
         EffectId::Airtexture3 => 1000,
         EffectId::Airtexture4 => 1000,
-        EffectId::CodeEffectBegin => 0,
-        EffectId::Makeblur3 => 99990,
-        EffectId::Makeblur4 => 99990,
-        EffectId::BloodFly => 500,
-        EffectId::Hit7 => 500,
-        EffectId::Teihit1reverse => 350,
-        EffectId::Teihit2reverse => 350,
-        EffectId::Makeblur5 => 4294967295,
         EffectId::EnchantpoisonFlow => 2500,
-        EffectId::ArrowYellow => 4294967295,
-        EffectId::ArrowRed => 4294967295,
-        EffectId::Sight3 => 4294967295,
-        EffectId::Teihit3reverse => 350,
-        EffectId::Beginspellwhite => 4294967295,
-        EffectId::Beginspell8 => 400,
-        EffectId::EndureZhan => 800,
-        EffectId::EndureSou => 800,
-        EffectId::EndureShan => 800,
-        EffectId::EndureJing => 800,
-        EffectId::WindBuff => 4294967295,
-        EffectId::Beginspellred => 400,
         EffectId::GreenPop => 4294967295,
-        EffectId::BeginspellN => 4294967295,
-        EffectId::ArrowDown => 4294967295,
-        EffectId::CodeEffectEnd => 0,
-        EffectId::Process2Begin => 0,
-        EffectId::TextureFalling => 3000,
-        EffectId::Spherewind3 => 4294967295,
-        EffectId::Process2End => 0,
-        EffectId::FileEffectBegin => 0,
-        EffectId::Shake => 0,
         EffectId::Levelup => 600,
         EffectId::Joblevelup => 600,
         EffectId::Npcdead => 1000,
@@ -2266,84 +1615,14 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::SwordLight => 600,
         EffectId::Ring4 => 4294967295,
         EffectId::Hit8 => 600,
-        EffectId::CastMagicRed => 4294967295,
-        EffectId::CastMagicRed2 => 4294967295,
-        EffectId::CastMagicBlue => 4294967295,
-        EffectId::CastMagicBlue2 => 4294967295,
-        EffectId::CastMagicWhite => 4294967295,
-        EffectId::CastMagicWhite2 => 4294967295,
-        EffectId::CastMagicYellow => 4294967295,
-        EffectId::CastMagicYellow2 => 4294967295,
-        EffectId::Flammule => 4294967295,
         EffectId::Blingline => 400,
         EffectId::Blingline2 => 400,
-        EffectId::Groundimage => 4294967295,
-        EffectId::Groundimage3 => 4294967295,
-        EffectId::Groundimage5 => 4294967295,
-        EffectId::Groundimage7 => 4294967295,
-        EffectId::Groundimage9 => 4294967295,
-        EffectId::Code2EffectBegin => 0,
-        EffectId::Castflower => 4200,
-        EffectId::Rotateflower => 3000,
-        EffectId::Flyup => 4294967295,
-        EffectId::ActorColor => 4294967295,
-        EffectId::LightSword => 4294967295,
-        EffectId::LightBody => 4294967295,
-        EffectId::LightRide => 4294967295,
-        EffectId::PrintFoot => 4294967295,
-        EffectId::ColorSword => 4294967295,
-        EffectId::ColorBody => 4294967295,
-        EffectId::ColorRide => 4294967295,
-        EffectId::MoveToSprite => 4294967295,
-        EffectId::GetItem => 1800,
-        EffectId::LightRoleshield => 4294967295,
-        EffectId::LightHead1 => 4294967295,
-        EffectId::LightHead2 => 4294967295,
-        EffectId::LightHead3 => 4294967295,
-        EffectId::ColorHead1 => 4294967295,
-        EffectId::ColorHead2 => 4294967295,
-        EffectId::ColorHead3 => 4294967295,
-        EffectId::CodeEffectBegin2 => 0,
-        EffectId::RippleYellow => 4294967295,
-        EffectId::RippleBlackk => 4294967295,
-        EffectId::RippleWhite => 4294967295,
-        EffectId::RippleRed => 4294967295,
-        EffectId::RipplePurple => 4294967295,
-        EffectId::AggregationYellow => 4294967295,
-        EffectId::AggregationBlackk => 4294967295,
-        EffectId::AggregationWhite => 4294967295,
-        EffectId::AggregationRed => 4294967295,
-        EffectId::AggregationPurple => 4294967295,
-        EffectId::CodeEffectEnd2 => 0,
-        EffectId::TestEffectBegin => 0,
         EffectId::Selectring => 4294967295,
         EffectId::Testeffect => 400,
-        EffectId::Testbodylight => 4294967295,
-        EffectId::ZoomIn => 4294967295,
-        EffectId::ZoomOut => 4294967295,
         EffectId::BlowLine => 4294967295,
-        EffectId::LightShield => 4294967295,
         EffectId::Typing => 4294967295,
-        EffectId::Smatk1 => 1000,
-        EffectId::Smatk2 => 1000,
-        EffectId::Smatk3 => 1000,
-        EffectId::Smatk4 => 1000,
-        EffectId::Smdef => 1000,
-        EffectId::Mgattack1 => 200,
-        EffectId::Mgattack2 => 200,
-        EffectId::Alattack1 => 3000,
-        EffectId::Alattack2 => 3000,
-        EffectId::Alattack3 => 3000,
-        EffectId::Alattack4 => 3000,
         EffectId::Aldef2 => 9990,
         EffectId::Aldef3 => 9990,
-        EffectId::Mgdef1 => 2000,
-        EffectId::Mgdef2 => 2000,
-        EffectId::Mgdef3 => 2000,
-        EffectId::Mgdef4 => 2000,
-        EffectId::DevilRed => 750,
-        EffectId::Decagilitybuf => 4294967295,
-        EffectId::Energycoat => 3000,
-        EffectId::Venomdust2 => 99990,
+        _ => 0,
     }
 }

@@ -1855,7 +1855,7 @@ mod tests {
             assert!(
                 matches!(
                     effect_spec(id),
-                    Some(crate::spec::EffectSpec::Custom { .. })
+                    Some(crate::spec::EffectSpec::Custom)
                 ),
                 "{id:?} must resolve to Custom, not a shadowing str alias",
             );
@@ -2091,7 +2091,7 @@ mod tests {
                 id
             );
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{:?} spec must be Custom, got {:?}",
                 id,
                 effect_spec(id),
@@ -2112,7 +2112,7 @@ mod tests {
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{:?} spec must be Custom, got {:?}",
                 id,
                 effect_spec(id),
@@ -2134,7 +2134,7 @@ mod tests {
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{:?} spec must be Custom, got {:?}",
                 id,
                 effect_spec(id),
@@ -2221,7 +2221,7 @@ mod tests {
         ] {
             assert!(has_real_impl(id), "{id:?} must have a real impl");
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} spec"
             );
             let e = make_effect(

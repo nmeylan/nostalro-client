@@ -31,8 +31,8 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_count_point_effect,
-    is_link_effect, is_trail_effect, str_aliases,
+    EffectQueue, EffectSpec, custom_duration_ms, effect_spec, effect_texture_paths,
+    is_count_point_effect, is_link_effect, is_trail_effect, str_aliases,
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
@@ -598,7 +598,7 @@ fn demo_trail_endpoints(world: [f32; 3]) -> ([f32; 3], [f32; 3]) {
 
 fn effect_duration_ms(id: EffectId) -> Option<u32> {
     match effect_spec(id) {
-        Some(EffectSpec::Custom { duration_ms }) => Some(duration_ms),
+        Some(EffectSpec::Custom) => Some(custom_duration_ms(id)),
         Some(EffectSpec::Str { duration_ms, .. }) => Some(duration_ms),
         Some(EffectSpec::Spr { duration_ms, .. }) => Some(duration_ms),
         Some(EffectSpec::SprBurst { duration_ms, .. }) => Some(duration_ms),
@@ -1065,7 +1065,7 @@ impl App {
             }
         };
         let dur_ms = match effect_spec(id) {
-            Some(EffectSpec::Custom { duration_ms }) => duration_ms.to_string(),
+            Some(EffectSpec::Custom) => custom_duration_ms(id).to_string(),
             Some(EffectSpec::Str { duration_ms, .. }) => duration_ms.to_string(),
             Some(EffectSpec::Spr { duration_ms, .. }) => duration_ms.to_string(),
             Some(EffectSpec::SprBurst { duration_ms, .. }) => duration_ms.to_string(),
@@ -1096,7 +1096,7 @@ impl App {
         match effect_spec(id) {
             Some(EffectSpec::Spr { sprite, .. }) => sprites.push(sprite),
             Some(EffectSpec::SprBurst { sprite, .. }) => sprites.push(sprite),
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 // Custom effects can also drive sprite billboards via
                 // SpriteParticle. Preload the aggregated paths so the
                 // first frame after spawn isn't silently empty.
@@ -1125,7 +1125,7 @@ impl App {
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
         let file: &'static str = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),

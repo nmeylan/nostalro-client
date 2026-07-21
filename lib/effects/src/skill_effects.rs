@@ -1049,7 +1049,7 @@ mod tests {
             Some(Str { duration_ms, repeat, .. } | Spr { duration_ms, repeat, .. }) => {
                 !repeat && duration_ms < u32::MAX
             }
-            Some(Custom { duration_ms }) => duration_ms < u32::MAX,
+            Some(Custom) => crate::table::custom_duration_ms(id) < u32::MAX,
             Some(SprBurst { duration_ms, .. }) => duration_ms < u32::MAX,
             Some(Noop) | None => true,
         }

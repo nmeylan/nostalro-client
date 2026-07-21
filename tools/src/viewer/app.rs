@@ -589,7 +589,7 @@ impl App {
         match effect_spec(id) {
             Some(EffectSpec::Spr { sprite, .. }) => sprites.push(sprite),
             Some(EffectSpec::SprBurst { sprite, .. }) => sprites.push(sprite),
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 sprites.extend(ragnarok_game::effect::custom_effect_sprite_paths());
             }
             _ => return,
@@ -615,7 +615,7 @@ impl App {
     fn ensure_str_loaded(&mut self, id: EffectId) {
         let file: &'static str = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),

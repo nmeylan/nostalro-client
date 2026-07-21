@@ -7,8 +7,8 @@ use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
     EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
-    NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, effect_spec, make_effect,
-    spawn_camera_shake,
+    NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, custom_duration_ms, effect_spec,
+    make_effect, spawn_camera_shake,
 };
 
 use ragnarok_game::sound::tables::{SfxSchedule, SfxTiming, WaveChoice, effect_sound};
@@ -430,7 +430,7 @@ impl EffectHolder {
                 })
             }
             EffectSpec::Noop => unreachable!("Noop handled above"),
-            EffectSpec::Custom { .. } => {
+            EffectSpec::Custom => {
                 if let Some(backend) = &self.external_backend {
                     let (from, to) = match attach {
                         Attach::WorldPos(p) => (p, p),
@@ -487,8 +487,8 @@ impl EffectHolder {
         let duration_ms = override_duration_ms.unwrap_or_else(|| match spec {
             EffectSpec::Str { duration_ms, .. }
             | EffectSpec::Spr { duration_ms, .. }
-            | EffectSpec::SprBurst { duration_ms, .. }
-            | EffectSpec::Custom { duration_ms, .. } => duration_ms,
+            | EffectSpec::SprBurst { duration_ms, .. } => duration_ms,
+            EffectSpec::Custom => custom_duration_ms(effect_id),
             EffectSpec::Noop => unreachable!("Noop handled above"),
         });
         let duration = if duration_ms == u32::MAX {

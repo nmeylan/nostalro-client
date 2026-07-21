@@ -2,7 +2,7 @@ use models::enums::EnumWithNumberValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_effects::effect_queue::EffectQueue;
 use ragnarok_effects::spec::EffectSpec;
-use ragnarok_effects::table::effect_spec;
+use ragnarok_effects::table::{custom_duration_ms, effect_spec};
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::rsw::{RswFile, RswObject};
 
@@ -79,9 +79,8 @@ impl AmbientEffectScheduler {
                     };
                     (*duration_ms, false, sz)
                 }
-                EffectSpec::Str { duration_ms, .. } | EffectSpec::Custom { duration_ms, .. } => {
-                    (*duration_ms, false, 1.0)
-                }
+                EffectSpec::Str { duration_ms, .. } => (*duration_ms, false, 1.0),
+                EffectSpec::Custom => (custom_duration_ms(effect_id), false, 1.0),
                 EffectSpec::Noop => {
                     skipped += 1;
                     continue;
