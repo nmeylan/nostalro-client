@@ -239,7 +239,7 @@ decode_symbol(window, dec, read_raw):
 ## Bink texture decoding
 
 Textures with `Encoding == 3` store their pixels in the Bink texture codec: a
-wavelet transform coded with the range coder above. This is the [RAD Bink texture](https://en.wikipedia.org/wiki/Bink_Video)
+wavelet transform coded with the range coder above. This is the [RAD Bink texture](https://web.archive.org/web/20000824152455/http://www.radgametools.com/binkhCWB.htm)
 format (wavelet plus range coder); it is unrelated to the Bink video format (DCT
 plus Huffman) that shares the name.
 
