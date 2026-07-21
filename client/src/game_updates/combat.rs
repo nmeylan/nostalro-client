@@ -10,13 +10,13 @@ use ragnarok_network::{build_pickup_item_packet, build_use_skill_packet, build_u
 
 impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
-        self.game.attack_request_cooldown = (self.game.attack_request_cooldown - delta).max(0.0);
+        self.game.combat.attack_request_cooldown = (self.game.combat.attack_request_cooldown - delta).max(0.0);
 
         if self.game.pending_skill_id.is_some() {
             return;
         }
 
-        let target_id = match self.game.attack_target_id {
+        let target_id = match self.game.combat.attack_target_id {
             Some(id) => id,
             None => return,
         };
@@ -27,7 +27,7 @@ impl App {
             .get(target_id)
             .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
         if !target_alive {
-            self.game.attack_target_id = None;
+            self.game.combat.attack_target_id = None;
             return;
         }
 
@@ -40,16 +40,16 @@ impl App {
                     | EntityState::Sitting
             )
         {
-            self.game.attack_target_id = None;
+            self.game.combat.attack_target_id = None;
             return;
         }
 
-        if !self.game.attack_is_locked && !self.input.left_mouse_down {
-            self.game.attack_target_id = None;
+        if !self.game.combat.attack_is_locked && !self.input.left_mouse_down {
+            self.game.combat.attack_target_id = None;
             return;
         }
 
-        if self.game.attack_request_cooldown > 0.0 {
+        if self.game.combat.attack_request_cooldown > 0.0 {
             return;
         }
 
@@ -66,7 +66,7 @@ impl App {
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
-        let range = self.game.attack_range as i32;
+        let range = self.game.combat.attack_range as i32;
         let dx = (px as i32 - target_pos.0 as i32).abs();
         let dy = (py as i32 - target_pos.1 as i32).abs();
         let dist = dx.max(dy);
@@ -83,7 +83,7 @@ impl App {
                 EntityState::Standing | EntityState::ReadyFight
             ) {
                 self.send_attack_packet(target_id);
-                self.game.attack_request_cooldown = 0.3;
+                self.game.combat.attack_request_cooldown = 0.3;
             }
         } else if let Some(player) = self.game.entities.player()
             && !matches!(
@@ -104,7 +104,7 @@ impl App {
             _ => return,
         };
 
-        let target_id = match self.game.attack_target_id {
+        let target_id = match self.game.combat.attack_target_id {
             Some(id) => id,
             None => {
                 self.game.pending_skill_id = None;
@@ -121,7 +121,7 @@ impl App {
         if !target_alive {
             self.game.pending_skill_id = None;
             self.game.pending_skill_level = None;
-            self.game.attack_target_id = None;
+            self.game.combat.attack_target_id = None;
             return;
         }
 
@@ -180,7 +180,7 @@ impl App {
             ));
             self.game.pending_skill_id = None;
             self.game.pending_skill_level = None;
-            self.game.attack_target_id = None;
+            self.game.combat.attack_target_id = None;
         } else {
             self.try_move_toward(
                 target_pos.0 as i32,
@@ -438,7 +438,7 @@ impl App {
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)
             .unwrap_or(false);
         self.game
-            .damage_numbers
+            .combat.damage_numbers
             .emit(display_entity, dir, hit, is_player_target);
     }
 }

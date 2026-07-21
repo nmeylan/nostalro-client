@@ -140,7 +140,7 @@ impl App {
                             if self.try_move_toward(dest_x, dest_y, px, py, skill_range) {
                                 self.game.pending_skill_id = Some(skill_id);
                                 self.game.pending_skill_level = Some(level);
-                                self.game.attack_target_id = Some(entity_id);
+                                self.game.combat.attack_target_id = Some(entity_id);
                             }
                         }
                     }
@@ -178,7 +178,7 @@ impl App {
                 }
             }
             if skill_cast {
-                self.game.attack_target_id = None;
+                self.game.combat.attack_target_id = None;
             }
             return;
         }
@@ -186,7 +186,7 @@ impl App {
             if self.player_hidden() {
                 return;
             }
-            self.game.attack_target_id = None;
+            self.game.combat.attack_target_id = None;
             self.game.pending_pickup_item_id = None;
             if let Some(floor_item) = self.game.floor_items.get(&item_id) {
                 let (px, py) = self
@@ -258,7 +258,7 @@ impl App {
                 return;
             }
         }
-        self.game.attack_target_id = None;
+        self.game.combat.attack_target_id = None;
         self.game.pending_pickup_item_id = None;
         self.game.pending_ground_cast = None;
         // While running, the server auto-moves the character in a straight line and

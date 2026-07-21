@@ -60,7 +60,7 @@ impl App {
         dt: f32,
         render_list: &[RenderEntry],
     ) -> Vec<ClipData> {
-        let target_id = match self.game.attack_target_id {
+        let target_id = match self.game.combat.attack_target_id {
             Some(id) => id,
             None => return Vec::new(),
         };

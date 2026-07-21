@@ -238,8 +238,8 @@ impl App {
     }
 
     pub(super) fn handle_entity_vanished(&mut self, gid: u32, vanish_type: VanishType) {
-        if self.game.attack_target_id == Some(gid) {
-            self.game.attack_target_id = None;
+        if self.game.combat.attack_target_id == Some(gid) {
+            self.game.combat.attack_target_id = None;
         }
         if self.game.pet.gid == Some(gid) {
             self.game.pet.clear_entity();
@@ -419,7 +419,7 @@ impl App {
                     .get(target_gid)
                     .map(|e| e.direction)
                     .unwrap_or(0);
-                self.game.damage_numbers.add(DamageNumber::new(
+                self.game.combat.damage_numbers.add(DamageNumber::new(
                     target_gid,
                     0,
                     DamageNumberType::Lucky,

@@ -537,7 +537,7 @@ impl App {
             }
         }
         if is_heal_tier && level > 0 {
-            self.game.damage_numbers.add(DamageNumber::new(
+            self.game.combat.damage_numbers.add(DamageNumber::new(
                 target_gid,
                 level as i32,
                 DamageNumberType::Heal,
@@ -547,7 +547,7 @@ impl App {
         // WE_FEMALE ("I Look up to You") restores partner SP: a light-blue rising
         // recovery number.
         if skill == SkillEnum::WeFemale && level > 0 {
-            self.game.damage_numbers.add(DamageNumber::effect_number(
+            self.game.combat.damage_numbers.add(DamageNumber::effect_number(
                 target_gid,
                 level as i32,
                 [85.0 / 255.0, 177.0 / 255.0, 255.0 / 255.0],
@@ -616,14 +616,14 @@ impl App {
         let skill_id = SkillEnum::KnAutocounter.id() as u16;
         let is_player = self.game.entities.player_id() == Some(gid);
         let attack_target = if is_player {
-            self.game.attack_target_id.take()
+            self.game.combat.attack_target_id.take()
         } else {
             None
         };
         let params = autocounter::channel_params(
             &self.game.character,
             is_player,
-            self.game.last_attacked_enemy,
+            self.game.combat.last_attacked_enemy,
             attack_target,
         );
         self.game

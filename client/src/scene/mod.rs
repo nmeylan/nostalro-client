@@ -856,7 +856,7 @@ impl App {
             };
             let entries: Vec<DamageNumberRenderEntry> = self
                 .game
-                .damage_numbers
+                .combat.damage_numbers
                 .numbers
                 .iter_mut()
                 .filter_map(|dmg| {

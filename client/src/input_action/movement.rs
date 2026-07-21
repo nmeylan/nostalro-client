@@ -120,7 +120,7 @@ impl App {
         }
         self.game.pending_pickup_item_id = None;
         let locked = self.game.noctrl_mode || self.input.ctrl_pressed;
-        self.game.attack_is_locked = locked;
+        self.game.combat.attack_is_locked = locked;
 
         let target_pos = match self.game.entities.get(target_id) {
             Some(e) => e.movement.cell_position(),
@@ -133,22 +133,22 @@ impl App {
             .map(|e| e.movement.cell_position())
             .unwrap_or((0, 0));
 
-        let range = self.game.attack_range as i32;
+        let range = self.game.combat.attack_range as i32;
         let dx = (px as i32 - target_pos.0 as i32).abs();
         let dy = (py as i32 - target_pos.1 as i32).abs();
         let dist = dx.max(dy);
 
         if dist <= range {
             self.send_attack_packet(target_id);
-            self.game.attack_target_id = Some(target_id);
-            self.game.attack_request_cooldown = 0.3;
+            self.game.combat.attack_target_id = Some(target_id);
+            self.game.combat.attack_request_cooldown = 0.3;
         } else if self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range) {
-            self.game.attack_target_id = Some(target_id);
+            self.game.combat.attack_target_id = Some(target_id);
         }
     }
 
     pub(crate) fn send_attack_packet(&mut self, target_id: u32) {
-        self.game.last_attacked_enemy = Some(target_id);
+        self.game.combat.last_attacked_enemy = Some(target_id);
         self.channel.send_packet(build_action_request_packet(
             target_id,
             ActionType::AttackRepeat.value() as u8,

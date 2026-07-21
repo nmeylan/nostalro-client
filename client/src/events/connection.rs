@@ -112,13 +112,13 @@ impl App {
         self.game.floor_items.clear();
         self.game.floor_item_sprites.clear();
         self.game.chat_rooms.clear();
-        self.game.waiting_item_throw_ack = false;
+        self.game.combat.waiting_item_throw_ack = false;
         self.game.drop_quantity_dialog = None;
         self.game.guild_expel_dialog = None;
         self.game.card_insert_dialog = None;
         self.game.pending_card_composition_index = None;
         self.game.pending_pickup_item_id = None;
-        self.game.attack_target_id = None;
+        self.game.combat.attack_target_id = None;
         self.game.homunculus = None;
         self.game.mercenary = None;
         self.game.pet = ragnarok_game::pet::PetState::default();
@@ -364,7 +364,7 @@ impl App {
         self.sound_queue.clear();
         self.sound.stop_all_sfx();
         self.game.arrows.clear();
-        self.game.damage_numbers.clear();
+        self.game.combat.damage_numbers.clear();
         self.game.status_buff_keys.clear();
         self.game.next_status_buff_key = 0;
         self.game.level_aura_keys.clear();
@@ -383,11 +383,11 @@ impl App {
         self.game.trade_window.reset_input();
         self.game.pending_confirms.pending_trade_partner = None;
         self.game.map_properties = MapProperties::default();
-        self.game.damage_numbers.combat_hidden = false;
+        self.game.combat.damage_numbers.combat_hidden = false;
         self.game.pending_skill_target = None;
         self.game.pending_skill_id = None;
         self.game.pending_skill_level = None;
-        self.game.attack_target_id = None;
+        self.game.combat.attack_target_id = None;
         self.game.npc_cutins = [None, None, None];
         let map_name = map_name
             .strip_suffix(".gat")

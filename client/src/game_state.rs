@@ -156,6 +156,36 @@ pub struct PendingConfirms {
     pub pending_invite_aid: Option<u32>,
 }
 
+pub struct CombatState {
+    pub attack_target_id: Option<u32>,
+    pub last_attacked_enemy: Option<u32>,
+    pub attack_request_cooldown: f32,
+    pub attack_range: i16,
+    pub attack_is_locked: bool,
+    pub waiting_item_throw_ack: bool,
+    pub damage_numbers: DamageNumberManager,
+}
+
+impl Default for CombatState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CombatState {
+    pub fn new() -> Self {
+        Self {
+            attack_target_id: None,
+            last_attacked_enemy: None,
+            attack_request_cooldown: 0.0,
+            attack_range: 1,
+            attack_is_locked: false,
+            waiting_item_throw_ack: false,
+            damage_numbers: DamageNumberManager::new(),
+        }
+    }
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -237,11 +267,9 @@ pub struct GameState {
     pub hovered_floor_item_id: Option<u32>,
     pub failed_sprite_loads: HashSet<u32>,
     pub server_time: ServerTimeClock,
-    pub attack_range: i16,
     pub floor_items: HashMap<u32, FloorItem>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
     pub arrows: Vec<ArrowProjectile>,
-    pub waiting_item_throw_ack: bool,
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub guild_expel_dialog: Option<GuildExpelDialog>,
@@ -264,9 +292,7 @@ pub struct GameState {
     /// Shop title submitted with CZ_REQ_OPENSTORE2; applied to our own entity on
     /// open since the server sends ZC_STORE_ENTRY to everyone but us.
     pub pending_shop_name: Option<String>,
-    pub attack_target_id: Option<u32>,
-    pub last_attacked_enemy: Option<u32>,
-    pub attack_request_cooldown: f32,
+    pub combat: CombatState,
     pub noshift_mode: bool,
     pub noctrl_mode: bool,
     pub show_exp: bool,
@@ -274,7 +300,6 @@ pub struct GameState {
     pub show_miss: bool,
     pub equip_open: bool,
     pub blocked_whispers: Vec<String>,
-    pub attack_is_locked: bool,
     pub item_info_window: ItemInfoWindow,
     pub book_window: BookWindow,
     pub sound_options: SoundOptionsWindow,
@@ -317,7 +342,6 @@ pub struct GameState {
     pub mercenary_skill_window: MercenarySkillWindow,
     pub homun_skill_window: HomunSkillWindow,
     pub context_menu: ContextMenu,
-    pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
     pub damage_msg_textures: Option<SpriteTextures>,
@@ -697,7 +721,7 @@ impl GameState {
                     });
                 }
             } else if cancelled.source_id == INV_WINDOW_ID && ui.hovered_window().is_none() {
-                if self.waiting_item_throw_ack {
+                if self.combat.waiting_item_throw_ack {
                 } else if self.equipment_window.is_visible() {
                     self.chat_window
                         .add_system("Please close the Equipment window.".to_string());
@@ -718,7 +742,7 @@ impl GameState {
                             index: item.index,
                             count: 1,
                         });
-                        self.waiting_item_throw_ack = true;
+                        self.combat.waiting_item_throw_ack = true;
                     }
                 }
             }
@@ -738,7 +762,7 @@ impl GameState {
                     .iter()
                     .any(|e| matches!(e, GameEvent::RequestDropItem { .. }))
                 {
-                    self.waiting_item_throw_ack = true;
+                    self.combat.waiting_item_throw_ack = true;
                 }
                 self.drop_quantity_dialog = None;
             }
@@ -1241,11 +1265,9 @@ impl GameState {
             hovered_floor_item_id: None,
             failed_sprite_loads: HashSet::new(),
             server_time: ServerTimeClock::new(),
-            attack_range: 1,
             floor_items: HashMap::new(),
             floor_item_sprites: HashMap::new(),
             arrows: Vec::new(),
-            waiting_item_throw_ack: false,
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
             guild_expel_dialog: None,
@@ -1261,9 +1283,7 @@ impl GameState {
             pending_repair_target: None,
             pending_pickup_item_id: None,
             pending_shop_name: None,
-            attack_target_id: None,
-            last_attacked_enemy: None,
-            attack_request_cooldown: 0.0,
+            combat: CombatState::new(),
             noshift_mode: false,
             noctrl_mode: true,
             show_exp: true,
@@ -1271,7 +1291,6 @@ impl GameState {
             show_miss: true,
             equip_open: false,
             blocked_whispers: Vec::new(),
-            attack_is_locked: false,
             basic_info_window: BasicInfoWindow::new(),
             status_window: StatusWindow::new(),
             item_info_window: ItemInfoWindow::new(),
@@ -1314,7 +1333,6 @@ impl GameState {
             disconnect_dialog_shown: false,
             pending_disconnect_exit: false,
             self_config: SelfConfig::default(),
-            damage_numbers: DamageNumberManager::new(),
             damage_number_textures: None,
             damage_number_act: None,
             damage_msg_textures: None,

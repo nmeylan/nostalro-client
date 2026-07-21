@@ -123,7 +123,7 @@ impl App {
                     self.handle_map_changed(map_name, x, y);
                 }
                 GameEvent::MapPropertyChanged(properties) => {
-                    self.game.damage_numbers.combat_hidden = properties.is_siege();
+                    self.game.combat.damage_numbers.combat_hidden = properties.is_siege();
                     self.game.map_properties = properties;
                 }
                 GameEvent::PlayerMoved {
@@ -582,7 +582,7 @@ impl App {
                         .character
                         .inventory
                         .subtract_item_count(index, count);
-                    self.game.waiting_item_throw_ack = false;
+                    self.game.combat.waiting_item_throw_ack = false;
                 }
                 GameEvent::CartNormalItems { items } => {
                     self.handle_cart_normal_items(items);
@@ -819,7 +819,7 @@ impl App {
                         .apply_status_changed(status_type, base, bonus);
                 }
                 GameEvent::AttackRangeChanged { range } => {
-                    self.game.attack_range = range;
+                    self.game.combat.attack_range = range;
                 }
 
                 GameEvent::SkillCasting {
@@ -998,7 +998,7 @@ impl App {
                     self.handle_disconnected(reason, event_loop);
                 }
                 GameEvent::ActionFailure => {
-                    self.game.attack_target_id = None;
+                    self.game.combat.attack_target_id = None;
                     self.game.entities.apply_action_failure();
                 }
 

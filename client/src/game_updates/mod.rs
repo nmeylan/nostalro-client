@@ -56,7 +56,7 @@ impl App {
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);
         self.update_companion_ai(delta);
-        self.game.damage_numbers.update(delta);
+        self.game.combat.damage_numbers.update(delta);
         self.process_scheduled_hits();
         self.process_caster_replays();
         self.update_floor_items(elapsed);
@@ -148,7 +148,7 @@ impl App {
         }
 
         for (entity_id, req) in self.effect_holder.drain_number_requests() {
-            self.game.damage_numbers.add(DamageNumber::effect_number(
+            self.game.combat.damage_numbers.add(DamageNumber::effect_number(
                 entity_id, req.value, req.color, 0,
             ));
         }
