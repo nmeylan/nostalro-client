@@ -353,6 +353,28 @@ impl Schedulers {
     }
 }
 
+pub struct Broadcast {
+    pub banner: BannerState,
+    pub poptip: PoptipStack,
+    pub broadcast_last_elapsed: Option<f32>,
+}
+
+impl Default for Broadcast {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Broadcast {
+    pub fn new() -> Self {
+        Self {
+            banner: BannerState::new(),
+            poptip: PoptipStack::new(),
+            broadcast_last_elapsed: None,
+        }
+    }
+}
+
 pub struct GameState {
     pub session: SessionState,
     pub requested_guild_emblems: HashSet<(u32, i32)>,
@@ -362,9 +384,7 @@ pub struct GameState {
     pub data_table: DataTable,
     pub assets: AssetHandles,
     pub chat_window: ChatWindow,
-    pub banner: BannerState,
-    pub poptip: PoptipStack,
-    pub broadcast_last_elapsed: Option<f32>,
+    pub broadcast: Broadcast,
     pub equipment_window: EquipmentWindow,
     pub inventory_window: InventoryWindow,
     pub cart_window: CartWindow,
@@ -907,24 +927,25 @@ impl GameState {
     fn update_broadcast_overlays(&mut self, ui: &mut UiFrame) {
         let now = ui.elapsed_secs;
         let dt = self
+            .broadcast
             .broadcast_last_elapsed
             .map_or(0.0, |last| (now - last).clamp(0.0, 0.1));
-        self.broadcast_last_elapsed = Some(now);
+        self.broadcast.broadcast_last_elapsed = Some(now);
 
-        self.poptip.tick(dt);
+        self.broadcast.poptip.tick(dt);
         self.draw_broadcast_poptip(ui);
         self.update_broadcast_banner(ui, dt);
     }
 
     fn draw_broadcast_poptip(&mut self, ui: &mut UiFrame) {
         const BASE_Y: f32 = 90.0;
-        if self.poptip.is_empty() {
+        if self.broadcast.poptip.is_empty() {
             return;
         }
         let center_x = ui.ctx.screen_width * 0.5;
         let line_h = ui.atlas.line_height + 4.0;
         const PAD: f32 = 4.0;
-        for (index, (text, alpha)) in self.poptip.iter().enumerate() {
+        for (index, (text, alpha)) in self.broadcast.poptip.iter().enumerate() {
             let width = ui.atlas.measure_text(text);
             let x = center_x - width * 0.5;
             let y = BASE_Y - index as f32 * line_h;
@@ -951,17 +972,17 @@ impl GameState {
         const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.7];
         const TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
-        if !self.banner.visible() {
+        if !self.broadcast.banner.visible() {
             return;
         }
-        self.banner.tick(dt);
+        self.broadcast.banner.tick(dt);
 
-        let Some(render) = self.banner.render() else {
+        let Some(render) = self.broadcast.banner.render() else {
             return;
         };
         let text_width = ui.atlas.measure_text(render.text);
-        if self.banner.current_scrolled_off(text_width) {
-            self.banner.advance();
+        if self.broadcast.banner.current_scrolled_off(text_width) {
+            self.broadcast.banner.advance();
             return;
         }
 
@@ -1288,9 +1309,7 @@ impl GameState {
             data_table: DataTable::new(),
             assets: AssetHandles::default(),
             chat_window: ChatWindow::new(),
-            banner: BannerState::new(),
-            poptip: PoptipStack::new(),
-            broadcast_last_elapsed: None,
+            broadcast: Broadcast::new(),
             equipment_window: EquipmentWindow::new(),
             inventory_window: InventoryWindow::new(),
             cart_window: CartWindow::new(),

@@ -13,16 +13,16 @@ impl App {
     ) {
         match banner {
             BannerKind::Once => {
-                self.game.banner.enqueue(message, 1);
+                self.game.broadcast.banner.enqueue(message, 1);
             }
             BannerKind::Repeat(times) => {
-                self.game.banner.enqueue(message.clone(), times);
+                self.game.broadcast.banner.enqueue(message.clone(), times);
                 self.game
                     .chat_window
                     .add_message(message, color, ChatChannel::System);
             }
             BannerKind::None => {
-                self.game.poptip.push(message.clone());
+                self.game.broadcast.poptip.push(message.clone());
                 self.game
                     .chat_window
                     .add_message(message, color, ChatChannel::System);
