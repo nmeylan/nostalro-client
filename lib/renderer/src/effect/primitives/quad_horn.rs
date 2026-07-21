@@ -1,3 +1,17 @@
+//! Four-bladed spike: the `QuadHorn` draw variant, `PipelineKind::QuadHorn`.
+//!
+//! We emit four triangles that rise from the edges of a `size`-square base to a
+//! common apex offset `height` along local Z. Positions are world space: each
+//! triangle is transformed by a tilt about local X (`tilt_x_deg`) then a yaw
+//! about local Y (`rotation_y_deg`) and translated to `base`. Vertex colour is
+//! flat; U steps 0.2 per face across the four blades. The record sorts at
+//! `base`.
+//!
+//! Blend is per-record alpha or additive, no depth write, compare `LessEqual`.
+//! `QuadHornRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as Frost Diver,
+//! Earth Spike and Gravitation.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

@@ -1,3 +1,20 @@
+//! Truncated-cone band: the `Cylinder` draw variant, `PipelineKind::Cylinder`.
+//!
+//! We emit one open (un-capped) tube as a triangle strip of `sides` quads
+//! joining a bottom ring of radius `bottom_size` to a top ring of radius
+//! `top_size`. Positions are world space; the ring plane is local XZ and the
+//! height runs along negative local Y, matching the convention that up is
+//! negative Y. The local frame is tilted about X (`tilt_x_rad`) then yawed about
+//! Y (`rotation_y_rad`) and translated to `base`. U advances a quarter per side
+//! plus `uv_scroll.x`, V spans bottom-to-top plus `uv_scroll.y`; the bottom ring
+//! takes `alpha_bottom`. The record sorts at the mid-height point.
+//!
+//! Blend is per-record alpha or additive; both pipelines disable depth writes
+//! and compare `LessEqual`. `CylinderRenderer` implements
+//! `EffectPrimitiveRenderer` and lives in the registry under this kind. Emitted
+//! by `EffectSpec::Custom` effects such as Magnus Exorcismus and Sanctuary
+//! pillars.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

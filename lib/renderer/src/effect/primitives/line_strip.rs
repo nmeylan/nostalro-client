@@ -1,3 +1,21 @@
+//! Camera-facing ribbon along a path: the `LineStrip` and `Spline` draw
+//! variants, `PipelineKind::LineStrip`.
+//!
+//! For each point on the path we build a cross-section offset by plus and minus
+//! `half_width` along `tangent x view_dir`, so the ribbon turns to face the
+//! camera; consecutive cross-sections are stitched into a triangle strip.
+//! Positions are world space. `Spline` first tessellates its control points
+//! with a Catmull-Rom curve into `segments + 1` cross-sections, then builds the
+//! same ribbon. UVs run along the accumulated path length (`uv_along` per world
+//! unit), oriented by `u_along`; `LineStrip` may pass per-point `colors`. The
+//! record sorts at the path midpoint so the whole ribbon orders as one. Uses
+//! `effect_frustum.wgsl`.
+//!
+//! Blend is per-record alpha or additive, no depth write, compare `LessEqual`.
+//! `LineStripRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as Triple
+//! Attack streaks and hit lines.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

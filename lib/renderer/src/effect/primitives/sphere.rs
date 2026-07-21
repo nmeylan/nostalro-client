@@ -1,3 +1,17 @@
+//! UV sphere: the `Sphere` draw variant, `PipelineKind::Sphere`.
+//!
+//! We emit a latitude-by-longitude grid of quads at `center` with the given
+//! `radius`. Latitude sweeps -PI/2 to PI/2 and the vertical term is subtracted
+//! from Y (up is negative Y); longitude can cover a partial wedge via
+//! `longitude_offset` and `longitude_arc` rather than a full turn. Positions are
+//! world space; UVs are scaled by `uv_repeat`. Sorts at `center`.
+//!
+//! Blend is per-record alpha or additive; `no_depth` promotes the bucket to the
+//! `*NoDepth` variant (an `Always`-compare pipeline). No pipeline writes depth.
+//! `SphereRenderer` implements `EffectPrimitiveRenderer` and is registered under
+//! this kind. Emitted by `EffectSpec::Custom` effects such as Barrier and the
+//! Magnum Break dome.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

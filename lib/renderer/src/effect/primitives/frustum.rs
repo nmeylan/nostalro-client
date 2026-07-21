@@ -1,3 +1,21 @@
+//! Truncated-cone band with modulation: the `Frustum` draw variant,
+//! `PipelineKind::Frustum`.
+//!
+//! Same base geometry as `cylinder` (a triangle-strip band between a bottom and
+//! top ring, world space, up along negative local Y, tilt-about-X then
+//! yaw-about-Y into `base`), plus three extras: the ring can cover a partial
+//! `arc_angle_deg` instead of a full turn; each top-ring vertex is displaced by
+//! a `wave` term along the cone slant (`FrustumWaveMode::Sine` around the ring
+//! or `SaintBell`, a single lobe); and when `cull_back` is set, segments whose
+//! outward normal faces away from the camera fade out (a view-dependent alpha
+//! computed from the eye position). The record sorts at mid-height. Uses
+//! `effect_frustum.wgsl`.
+//!
+//! Blend is per-record alpha or additive, no depth write, compare `LessEqual`.
+//! `FrustumRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as Asura Strike
+//! and Acid Demonstration.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

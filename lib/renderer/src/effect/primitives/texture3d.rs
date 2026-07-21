@@ -1,3 +1,19 @@
+//! Oriented world quad from center and plane: the `Texture3D` draw variant,
+//! `PipelineKind::Texture3D`.
+//!
+//! We emit one textured quad whose four world-space corners are derived from
+//! `center`, `size` and a `QuadPlane`: `Horizontal` lies flat on the XZ plane at
+//! `center.y`, `HorizontalYaw` is the same rotated about the vertical axis, and
+//! `VerticalYaw` stands the quad upright (its top edge is at `center.y - hy`,
+//! since up is negative Y) facing a yaw direction. UVs come from the draw. Sorts
+//! at `center`. Uses `effect_ground_disc.wgsl`.
+//!
+//! Blend is per-record alpha or additive, no depth write, compare `LessEqual`.
+//! `Texture3DRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. It differs from `world_quad` only in that the corners are
+//! computed from a plane rather than supplied directly. Emitted by
+//! `EffectSpec::Custom` effects such as Agility Up and Blitz Beat.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

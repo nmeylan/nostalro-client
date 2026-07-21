@@ -1,3 +1,21 @@
+//! Flat ring on the ground: the `GroundDisc` draw variant,
+//! `PipelineKind::GroundDisc`.
+//!
+//! We emit an annulus (outer `radius`, inner `radius - thickness`) as a
+//! triangle strip, optionally covering a partial `arc_angle_deg`; segment count
+//! scales with the arc. Positions are world space: the ring is built in the
+//! local XZ plane at `center`, then `tilt_rad` rotates that plane about local X
+//! (PI/2 stands it upright) and `spin_rad` rotates it about the vertical axis. U
+//! wraps around the ring scaled by `uv_repeat` and offset by `rotation`, V spans
+//! inner-to-outer. Sorts at `center`.
+//!
+//! Blend is per-record alpha or additive; when the draw sets `no_depth` the
+//! bucket is promoted to the `*NoDepth` variant, which selects a pipeline that
+//! compares `Always` instead of `LessEqual`. No pipeline writes depth.
+//! `GroundDiscRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as Blessing and
+//! Cart Revolution.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};

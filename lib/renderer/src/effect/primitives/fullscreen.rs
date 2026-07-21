@@ -1,3 +1,20 @@
+//! Screen-space overlays: the `ScreenQuad` and `ScreenMesh` draw variants,
+//! `PipelineKind::FullscreenOverlay`.
+//!
+//! Positions are taken verbatim from the draw (2D coordinates with Z pinned to
+//! 0); the shader treats them as screen coordinates, not world space, so there
+//! is no projection here. `ScreenQuad` is one quad from four `corners` and
+//! their UVs; `ScreenMesh` is an arbitrary indexed, vertex-coloured mesh whose
+//! UVs are pinned to the texture centre. Every record's depth is forced to
+//! `f32::MAX` so overlays sort after all world geometry, and the pipeline
+//! compares `Always` (it ignores the depth buffer entirely) and writes no
+//! depth.
+//!
+//! Blend is per-record alpha or additive. `FullscreenOverlayRenderer` implements
+//! `EffectPrimitiveRenderer` and ignores the camera in `prepare`. The only
+//! emitter is the full-screen overlay `EffectSpec::Custom` effect (for example
+//! the Blind blackout and the bleeding-claw lens).
+
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind};

@@ -1,3 +1,20 @@
+//! Ring of standing blades: the `RadialRing` draw variant,
+//! `PipelineKind::RadialRing`.
+//!
+//! We place `segments` positions on a circle of radius `distance` around
+//! `center`. Each has a bottom point on the circle and a top point pushed out
+//! by `heights[i] * height_scale` in a direction split between radial-outward
+//! and upward by `rise_angle_rad` (PI/2 gives purely upright walls; upward is
+//! negative Y). Adjacent bottom/top pairs form quads stitched into a strip;
+//! zero-height segments are skipped, and `full_arc_rad == 0` is the sentinel for
+//! a closed loop. Positions are world space; U runs around the ring, V spans
+//! bottom-to-top. Sorts at `center`. Uses `effect_ground_disc.wgsl`.
+//!
+//! Blend is per-record alpha or additive, no depth write, compare `LessEqual`.
+//! `RadialRingRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as warp portal
+//! walls and Defender.
+
 use std::f32::consts::TAU;
 
 use crate::camera::Camera;

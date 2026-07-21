@@ -1,3 +1,17 @@
+//! Free world quad: the `WorldQuad` draw variant, `PipelineKind::WorldQuad`.
+//!
+//! We emit one textured quad from four world-space `corners` and their UVs
+//! supplied directly by the effect, which has already positioned and oriented
+//! them. This is the most general and most-used quad primitive; the effect owns
+//! the geometry, the renderer only assembles vertices. The record sorts at the
+//! corner centroid.
+//!
+//! Blend is per-record alpha or additive; `no_depth` promotes the bucket to the
+//! `*NoDepth` variant (an `Always`-compare pipeline). No pipeline writes depth.
+//! `WorldQuadRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as Basilica and
+//! Bash.
+
 use crate::camera::Camera;
 use crate::effect::blend::ADDITIVE_BLEND;
 use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};
