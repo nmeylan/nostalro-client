@@ -1,5 +1,6 @@
 use crate::camera::Camera;
-use crate::device::DEPTH_FORMAT;
+use crate::effect::blend::ADDITIVE_BLEND;
+use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::effect::{EffectDrawList, EffectPrimitiveDraw};
 use crate::sprite::SpriteVertex;
@@ -60,76 +61,30 @@ impl FrustumRenderer {
             label: Some("effect_frustum"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("effect_frustum"),
-            bind_group_layouts: &[camera_bind_group_layout, texture_bind_group_layout],
-            immediate_size: 0,
-        });
-
-        let alpha = wgpu::BlendState::ALPHA_BLENDING;
-        let additive = wgpu::BlendState {
-            color: wgpu::BlendComponent {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::One,
-                operation: wgpu::BlendOperation::Add,
-            },
-            alpha: wgpu::BlendComponent {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::One,
-                operation: wgpu::BlendOperation::Add,
-            },
+        let layout = effect_pipeline_layout(
+            device,
+            "effect_frustum",
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+        );
+        let opts = |blend| PipelineOpts {
+            label: "effect_frustum",
+            blend,
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            cull_mode: None,
+            depth_write: false,
+            depth_compare: wgpu::CompareFunction::LessEqual,
         };
-
-        let pipeline_alpha =
-            Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, alpha);
+        let pipeline_alpha = build_pipeline(
+            device,
+            surface_format,
+            &layout,
+            &shader,
+            &opts(wgpu::BlendState::ALPHA_BLENDING),
+        );
         let pipeline_additive =
-            Self::create_pipeline(device, surface_format, &pipeline_layout, &shader, additive);
+            build_pipeline(device, surface_format, &layout, &shader, &opts(ADDITIVE_BLEND));
         (pipeline_alpha, pipeline_additive)
-    }
-
-    fn create_pipeline(
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        pipeline_layout: &wgpu::PipelineLayout,
-        shader: &wgpu::ShaderModule,
-        blend: wgpu::BlendState,
-    ) -> wgpu::RenderPipeline {
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("effect_frustum"),
-            layout: Some(pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[SpriteVertex::LAYOUT],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(blend),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::LessEqual,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: Default::default(),
-            multiview_mask: None,
-            cache: None,
-        })
     }
 }
 

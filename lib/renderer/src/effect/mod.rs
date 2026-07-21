@@ -1,6 +1,7 @@
 pub mod blend;
 pub mod dispatch;
 pub mod holder;
+pub mod pipeline;
 pub mod primitives;
 pub mod queue;
 pub mod registry;

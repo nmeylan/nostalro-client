@@ -11,6 +11,19 @@ pub enum BlendKind {
     Raw { src: i32, dst: i32 },
 }
 
+pub const ADDITIVE_BLEND: wgpu::BlendState = wgpu::BlendState {
+    color: wgpu::BlendComponent {
+        src_factor: wgpu::BlendFactor::SrcAlpha,
+        dst_factor: wgpu::BlendFactor::One,
+        operation: wgpu::BlendOperation::Add,
+    },
+    alpha: wgpu::BlendComponent {
+        src_factor: wgpu::BlendFactor::SrcAlpha,
+        dst_factor: wgpu::BlendFactor::One,
+        operation: wgpu::BlendOperation::Add,
+    },
+};
+
 /// Unknown / unsupported values fall back to `One`.
 pub fn d3d_blend_to_wgpu(d3d_blend: i32) -> wgpu::BlendFactor {
     match d3d_blend {
