@@ -19,7 +19,7 @@ impl App {
         const SOUND_ACT_REPEAT: u8 = 1;
         const SOUND_ACT_STOP: u8 = 2;
         if act == SOUND_ACT_STOP {
-            self.game.repeat_sounds.stop(&name);
+            self.game.schedulers.repeat_sounds.stop(&name);
             return;
         }
         match self.entity_world_pos(gid) {
@@ -27,7 +27,7 @@ impl App {
             None => self.sound_queue.ui(name.clone()),
         }
         if act == SOUND_ACT_REPEAT && term_ms > 0 {
-            self.game.repeat_sounds.start(name, gid, term_ms);
+            self.game.schedulers.repeat_sounds.start(name, gid, term_ms);
         }
     }
 
@@ -72,7 +72,7 @@ impl App {
         }
 
         let listener = self.listener_pos();
-        self.game.ambient_sounds.update(
+        self.game.schedulers.ambient_sounds.update(
             delta,
             listener.map(|l| [l[0], l[2]]),
             &mut self.sound_queue,

@@ -73,13 +73,13 @@ impl App {
         self.update_falcon_visuals(delta);
         self.update_pet_roulette(delta);
         self.update_fades(delta);
-        self.game.day_night.tick(delta);
-        if self.game.day_night.take_dirty()
+        self.game.schedulers.day_night.tick(delta);
+        if self.game.schedulers.day_night.take_dirty()
             && let Some(renderer) = &mut self.renderer
         {
             renderer.set_day_night(
-                self.game.day_night.world_diffuse(),
-                self.game.day_night.sprite_light(),
+                self.game.schedulers.day_night.world_diffuse(),
+                self.game.schedulers.day_night.sprite_light(),
             );
         }
         let camera = self.renderer.as_ref().map(|r| &r.camera);
@@ -87,6 +87,7 @@ impl App {
             camera.is_some_and(|c| c.is_world_pos_visible(pos[0], pos[1], pos[2], 0.25))
         };
         self.game
+            .schedulers
             .ambient_effects
             .update(delta, &is_visible, &mut self.effect_queue);
 
@@ -115,6 +116,7 @@ impl App {
             }
         }
         self.game
+            .schedulers
             .repeat_sounds
             .update(delta, &resolve_entity_pos, &mut self.sound_queue);
         self.effect_holder

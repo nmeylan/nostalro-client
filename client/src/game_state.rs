@@ -329,6 +329,30 @@ pub struct AssetHandles {
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
 }
 
+pub struct Schedulers {
+    pub ambient_effects: AmbientEffectScheduler,
+    pub ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler,
+    pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
+    pub day_night: DayNightState,
+}
+
+impl Default for Schedulers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Schedulers {
+    pub fn new() -> Self {
+        Self {
+            ambient_effects: AmbientEffectScheduler::empty(),
+            ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler::empty(),
+            repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler::new(),
+            day_night: DayNightState::default(),
+        }
+    }
+}
+
 pub struct GameState {
     pub session: SessionState,
     pub requested_guild_emblems: HashSet<(u32, i32)>,
@@ -422,11 +446,8 @@ pub struct GameState {
     pub context_menu: ContextMenu,
     pub debug_show_pick_bounds: bool,
     pub debug_overlay: bool,
-    pub ambient_effects: AmbientEffectScheduler,
-    pub ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler,
-    pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
+    pub schedulers: Schedulers,
     pub effect_keys: EffectKeys,
-    pub day_night: DayNightState,
     pub self_config: SelfConfig,
 }
 
@@ -1358,11 +1379,8 @@ impl GameState {
             self_config: SelfConfig::default(),
             debug_show_pick_bounds: false,
             debug_overlay: false,
-            ambient_effects: AmbientEffectScheduler::empty(),
-            ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler::empty(),
-            repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler::new(),
+            schedulers: Schedulers::new(),
             effect_keys: EffectKeys::default(),
-            day_night: DayNightState::default(),
         }
     }
 

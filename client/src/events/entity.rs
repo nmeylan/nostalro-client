@@ -717,7 +717,7 @@ impl App {
     ) {
         if efst == EFST_SKE {
             if self.game.world.entities.player_id() == Some(gid) {
-                self.game.day_night.set_night(active);
+                self.game.schedulers.day_night.set_night(active);
             }
             return;
         }

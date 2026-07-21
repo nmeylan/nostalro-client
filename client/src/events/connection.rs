@@ -138,10 +138,10 @@ impl App {
         self.game.session.gat = None;
         self.effect_holder.clear();
         self.effect_queue = EffectQueue::new();
-        self.game.ambient_effects = ragnarok_game::effects::AmbientEffectScheduler::empty();
-        self.game.ambient_sounds =
+        self.game.schedulers.ambient_effects = ragnarok_game::effects::AmbientEffectScheduler::empty();
+        self.game.schedulers.ambient_sounds =
             ragnarok_game::sound::ambient::AmbientSoundScheduler::empty();
-        self.game.repeat_sounds.clear();
+        self.game.schedulers.repeat_sounds.clear();
         self.game.effect_keys.status_buff_keys.clear();
         self.game.effect_keys.next_status_buff_key = 0;
         self.game.effect_keys.level_aura_keys.clear();
@@ -149,7 +149,7 @@ impl App {
         self.game.effect_keys.warp_portal_keys.clear();
         self.game.effect_keys.sight_aura_keys.clear();
         self.game.effect_keys.ruwach_aura_keys.clear();
-        self.game.day_night.reset();
+        self.game.schedulers.day_night.reset();
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
             renderer.model_renderer = None;

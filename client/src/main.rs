@@ -284,14 +284,14 @@ impl App {
             }
         }
 
-        self.game.ambient_effects.clear(&mut self.effect_queue);
-        self.game.ambient_effects =
+        self.game.schedulers.ambient_effects.clear(&mut self.effect_queue);
+        self.game.schedulers.ambient_effects =
             ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
-        self.game.ambient_sounds =
+        self.game.schedulers.ambient_sounds =
             ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
-        self.game.repeat_sounds.clear();
+        self.game.schedulers.repeat_sounds.clear();
 
-        self.game.day_night.on_map_loaded(
+        self.game.schedulers.day_night.on_map_loaded(
             map_data.rsw.light.diffuse.unwrap_or([1.0, 1.0, 1.0]),
             map_data.rsw.light.ambient.unwrap_or([0.3, 0.3, 0.3]),
         );
