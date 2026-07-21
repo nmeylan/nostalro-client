@@ -15,7 +15,7 @@ members = [
     "tools/effect-viewer-hot",
     "tools/rendering-viewer-hot",
     "tools/rsw-viewer-hot",
-    "lib/ui-component-hot",
+    "tools/ui-component-hot",
 ]
 resolver = "2"
 

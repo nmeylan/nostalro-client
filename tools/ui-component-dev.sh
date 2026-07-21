@@ -2,12 +2,12 @@
 # Hot-reload development script for UI component examples.
 #
 # Usage:
-#   ./dev.sh <example_name> [--grf <path>]
+#   ./ui-component-dev.sh <example_name> [--grf <path>]
 #
 # Examples:
-#   ./dev.sh inventory
-#   ./dev.sh npc_shop --grf data/data.grf
-#   ./dev.sh chat
+#   ./ui-component-dev.sh inventory
+#   ./ui-component-dev.sh npc_shop --grf data/data.grf
+#   ./ui-component-dev.sh chat
 #
 # Available examples:
 #   inventory, npc_shop, login, chat, npc_dialog, confirm_dialog,
@@ -24,10 +24,10 @@
 
 set -e
 
-EXAMPLE="${1:?Usage: ./dev.sh <example_name> [--grf path]}"
+EXAMPLE="${1:?Usage: ./ui-component-dev.sh <example_name> [--grf path]}"
 shift
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 
 echo "Building hot dylib..."
 cargo build -p ragnarok-ui-component-hot
@@ -40,7 +40,7 @@ echo ""
 cargo watch \
 	--no-vcs-ignores \
 	-w lib/ui-component/src \
-	-w lib/ui-component-hot/src \
+	-w tools/ui-component-hot/src \
 	-w lib/ui-core/src \
 	-s "cargo build -p ragnarok-ui-component-hot" &
 WATCH_PID=$!

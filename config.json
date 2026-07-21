@@ -23,74 +23,10 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "10": {
+    "210": {
       "position": [
-        402.6667,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "3400": {
-      "position": [
-        80.0,
-        50.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1300": {
-      "position": [
-        313.3333,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "110": {
-      "position": [
-        490.0,
-        284.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "3200": {
-      "position": [
-        160.0,
-        90.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1400": {
-      "position": [
-        0.0,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "712": {
-      "position": [
-        520.0,
-        307.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "2900": {
-      "position": [
-        197.44531,
-        170.94922
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1200": {
-      "position": [
-        422.73438,
-        68.14844
+        342.0,
+        173.0
       ],
       "open": false,
       "collapsed": false
@@ -103,18 +39,26 @@
       "open": false,
       "collapsed": false
     },
-    "701": {
+    "10": {
       "position": [
-        100.0,
-        100.0
+        402.6667,
+        344.66666
       ],
       "open": false,
       "collapsed": false
     },
-    "210": {
+    "424": {
       "position": [
-        342.0,
-        173.0
+        520.0,
+        316.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "701": {
+      "position": [
+        100.0,
+        100.0
       ],
       "open": false,
       "collapsed": false
@@ -125,6 +69,46 @@
         128.09766
       ],
       "open": true,
+      "collapsed": false
+    },
+    "1400": {
+      "position": [
+        0.0,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        313.3333,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "2900": {
+      "position": [
+        197.44531,
+        170.94922
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "712": {
+      "position": [
+        520.0,
+        307.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "110": {
+      "position": [
+        490.0,
+        284.0
+      ],
+      "open": false,
       "collapsed": false
     }
   },
@@ -158,16 +142,28 @@
     "/..."
   ],
   "keybindings": {
-    "ToggleParty": {
-      "key": "KeyZ",
+    "ToggleCart": {
+      "key": "KeyW",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "CycleMinimap": {
-      "key": "Tab",
+    "ToggleMercenary": {
+      "key": "KeyR",
       "alt": false,
       "ctrl": true,
+      "shift": false
+    },
+    "ToggleEmotion": {
+      "key": "KeyL",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleGuild": {
+      "key": "KeyG",
+      "alt": true,
+      "ctrl": false,
       "shift": false
     },
     "MercenaryFollow": {
@@ -176,20 +172,32 @@
       "ctrl": true,
       "shift": false
     },
+    "ToggleParty": {
+      "key": "KeyZ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleBasicInfo": {
+      "key": "KeyV",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleStatus": {
+      "key": "KeyA",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
     "ToggleSkillTree": {
       "key": "KeyS",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleQuest": {
-      "key": "KeyU",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleEquipment": {
-      "key": "KeyQ",
+    "ToggleHomunculus": {
+      "key": "KeyR",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -200,14 +208,26 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleEmotion": {
-      "key": "KeyL",
+    "ToggleQuest": {
+      "key": "KeyU",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
     "ToggleShortcutList": {
       "key": "KeyM",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "CycleMinimap": {
+      "key": "Tab",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
+    "ToggleEquipment": {
+      "key": "KeyQ",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -224,44 +244,14 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleGraphicOptions": {
-      "key": "KeyD",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleMercenary": {
-      "key": "KeyR",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleStatus": {
-      "key": "KeyA",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleBasicInfo": {
-      "key": "KeyV",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleHomunculus": {
-      "key": "KeyR",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleInventory": {
-      "key": "KeyE",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
     "TogglePet": {
       "key": "KeyJ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleGraphicOptions": {
+      "key": "KeyD",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -272,14 +262,8 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleCart": {
-      "key": "KeyW",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleGuild": {
-      "key": "KeyG",
+    "ToggleInventory": {
+      "key": "KeyE",
       "alt": true,
       "ctrl": false,
       "shift": false
