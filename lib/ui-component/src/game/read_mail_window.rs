@@ -1,7 +1,5 @@
 use crate::helper::window_chrome::text_color;
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -125,9 +123,10 @@ impl InGameWindow for ReadMailWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         if !character.mail.read_open || character.mail.opened.is_none() {
             return Vec::new();
         }

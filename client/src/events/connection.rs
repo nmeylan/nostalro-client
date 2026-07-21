@@ -211,57 +211,57 @@ impl App {
         self.char_select_window = None;
 
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-            preload_window(&mut self.game.chat_window, renderer, grf);
-            preload_window(&mut self.game.system_menu, renderer, grf);
-            preload_window(&mut self.game.inventory_window, renderer, grf);
-            preload_window(&mut self.game.cart_window, renderer, grf);
-            preload_window(&mut self.game.storage_window, renderer, grf);
-            preload_window(&mut self.game.trade_window, renderer, grf);
-            preload_window(&mut self.game.mailbox_window, renderer, grf);
-            preload_window(&mut self.game.read_mail_window, renderer, grf);
-            preload_window(&mut self.game.cart_select_window, renderer, grf);
-            preload_window(&mut self.game.equipment_window, renderer, grf);
-            preload_window(&mut self.game.npc_dialog, renderer, grf);
-            preload_window(&mut self.game.warp_list_window, renderer, grf);
-            preload_window(&mut self.game.item_list_selection_window, renderer, grf);
-            preload_window(&mut self.game.make_item_window, renderer, grf);
-            preload_window(&mut self.game.vending_shop_window, renderer, grf);
-            preload_window(&mut self.game.vending_setup_window, renderer, grf);
-            preload_window(&mut self.game.my_shop_window, renderer, grf);
-            preload_window(&mut self.game.npc_shop, renderer, grf);
+            preload_window(&mut self.windows.chat_window, renderer, grf);
+            preload_window(&mut self.windows.system_menu, renderer, grf);
+            preload_window(&mut self.windows.inventory_window, renderer, grf);
+            preload_window(&mut self.windows.cart_window, renderer, grf);
+            preload_window(&mut self.windows.storage_window, renderer, grf);
+            preload_window(&mut self.windows.trade_window, renderer, grf);
+            preload_window(&mut self.windows.mailbox_window, renderer, grf);
+            preload_window(&mut self.windows.read_mail_window, renderer, grf);
+            preload_window(&mut self.windows.cart_select_window, renderer, grf);
+            preload_window(&mut self.windows.equipment_window, renderer, grf);
+            preload_window(&mut self.windows.npc_dialog, renderer, grf);
+            preload_window(&mut self.windows.warp_list_window, renderer, grf);
+            preload_window(&mut self.windows.item_list_selection_window, renderer, grf);
+            preload_window(&mut self.windows.make_item_window, renderer, grf);
+            preload_window(&mut self.windows.vending_shop_window, renderer, grf);
+            preload_window(&mut self.windows.vending_setup_window, renderer, grf);
+            preload_window(&mut self.windows.my_shop_window, renderer, grf);
+            preload_window(&mut self.windows.npc_shop, renderer, grf);
             renderer.preload_textures(&chat_room_board::grf_texture_paths(), grf);
-            preload_window(&mut self.game.chat_room_create_window, renderer, grf);
-            preload_window(&mut self.game.chat_room_member_window, renderer, grf);
-            preload_window(&mut self.game.emotion_window, renderer, grf);
-            preload_window(&mut self.game.shortcut_list_window, renderer, grf);
-            preload_window(&mut self.game.quest_window, renderer, grf);
-            preload_window(&mut self.game.quest_detail_window, renderer, grf);
-            preload_window(&mut self.game.item_info_window, renderer, grf);
-            preload_window(&mut self.game.book_window, renderer, grf);
-            preload_window(&mut self.game.sound_options, renderer, grf);
-            preload_window(&mut self.game.graphic_options, renderer, grf);
-            preload_window(&mut self.game.hotkey_config_window, renderer, grf);
-            preload_window(&mut self.game.item_pickup_notification, renderer, grf);
-            preload_window(&mut self.game.skill_tree_window, renderer, grf);
-            preload_window(&mut self.game.hotkey_bar, renderer, grf);
-            preload_window(&mut self.game.basic_info_window, renderer, grf);
-            preload_window(&mut self.game.minimap_window, renderer, grf);
-            preload_window(&mut self.game.status_window, renderer, grf);
-            preload_window(&mut self.game.levelup_notification, renderer, grf);
-            preload_window(&mut self.game.party_friends_window, renderer, grf);
-            preload_window(&mut self.game.party_helper_window, renderer, grf);
-            preload_window(&mut self.game.guild_window, renderer, grf);
-            preload_window(&mut self.game.emblem_picker_window, renderer, grf);
-            preload_window(&mut self.game.homunculus_window, renderer, grf);
-            preload_window(&mut self.game.mercenary_window, renderer, grf);
-            preload_window(&mut self.game.pet_window, renderer, grf);
-            preload_window(&mut self.game.mercenary_skill_window, renderer, grf);
-            preload_window(&mut self.game.homun_skill_window, renderer, grf);
-            preload_window(&mut self.game.companion_ai_config_window, renderer, grf);
-            preload_window(&mut self.game.confirm_dialog, renderer, grf);
-            self.game.drop_dialog_has_grf_textures =
+            preload_window(&mut self.windows.chat_room_create_window, renderer, grf);
+            preload_window(&mut self.windows.chat_room_member_window, renderer, grf);
+            preload_window(&mut self.windows.emotion_window, renderer, grf);
+            preload_window(&mut self.windows.shortcut_list_window, renderer, grf);
+            preload_window(&mut self.windows.quest_window, renderer, grf);
+            preload_window(&mut self.windows.quest_detail_window, renderer, grf);
+            preload_window(&mut self.windows.item_info_window, renderer, grf);
+            preload_window(&mut self.windows.book_window, renderer, grf);
+            preload_window(&mut self.windows.sound_options, renderer, grf);
+            preload_window(&mut self.windows.graphic_options, renderer, grf);
+            preload_window(&mut self.windows.hotkey_config_window, renderer, grf);
+            preload_window(&mut self.windows.item_pickup_notification, renderer, grf);
+            preload_window(&mut self.windows.skill_tree_window, renderer, grf);
+            preload_window(&mut self.windows.hotkey_bar, renderer, grf);
+            preload_window(&mut self.windows.basic_info_window, renderer, grf);
+            preload_window(&mut self.windows.minimap_window, renderer, grf);
+            preload_window(&mut self.windows.status_window, renderer, grf);
+            preload_window(&mut self.windows.levelup_notification, renderer, grf);
+            preload_window(&mut self.windows.party_friends_window, renderer, grf);
+            preload_window(&mut self.windows.party_helper_window, renderer, grf);
+            preload_window(&mut self.windows.guild_window, renderer, grf);
+            preload_window(&mut self.windows.emblem_picker_window, renderer, grf);
+            preload_window(&mut self.windows.homunculus_window, renderer, grf);
+            preload_window(&mut self.windows.mercenary_window, renderer, grf);
+            preload_window(&mut self.windows.pet_window, renderer, grf);
+            preload_window(&mut self.windows.mercenary_skill_window, renderer, grf);
+            preload_window(&mut self.windows.homun_skill_window, renderer, grf);
+            preload_window(&mut self.windows.companion_ai_config_window, renderer, grf);
+            preload_window(&mut self.windows.confirm_dialog, renderer, grf);
+            self.windows.drop_dialog_has_grf_textures =
                 renderer.preload_textures(&DropQuantityDialog::grf_texture_paths(), grf);
-            self.game.card_insert_dialog_has_grf_textures =
+            self.windows.card_insert_dialog_has_grf_textures =
                 renderer.preload_textures(&CardInsertDialog::grf_texture_paths(), grf);
 
             renderer.preload_textures(&vending_board::grf_texture_paths(), grf);
@@ -269,10 +269,10 @@ impl App {
             if let Some(current_map) = &self.game.session.current_map {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
-                    self.game.minimap_window.set_map_texture(Some(minimap_path));
+                    self.windows.minimap_window.set_map_texture(Some(minimap_path));
                 } else {
                     tracing::warn!("Minimap texture not found: {minimap_path}");
-                    self.game.minimap_window.set_map_texture(None);
+                    self.windows.minimap_window.set_map_texture(None);
                 }
             }
         }
@@ -284,7 +284,7 @@ impl App {
 
         self.game.session.app_state = AppState::InGame;
         if !self.window_state_restored {
-            self.game.apply_window_state(&self.config.window_state);
+            self.game.apply_window_state(&mut self.windows, &self.config.window_state);
             self.window_state_restored = true;
         }
         self.game
@@ -341,12 +341,12 @@ impl App {
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
-                    self.game.minimap_window.set_map_texture(Some(minimap_path));
+                    self.windows.minimap_window.set_map_texture(Some(minimap_path));
                 } else {
-                    self.game.minimap_window.set_map_texture(None);
+                    self.windows.minimap_window.set_map_texture(None);
                 }
             }
-            self.game.minimap_window.on_map_changed();
+            self.windows.minimap_window.on_map_changed();
         }
         if self.game.session.player_dead {
             if let Some(entity) = self.game.world.entities.player_mut() {
@@ -428,7 +428,7 @@ impl App {
             self.channel.send_cmd(NetworkCommand::Disconnect);
             event_loop.exit();
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_system("You cannot exit now.".to_string());
         }
@@ -440,7 +440,7 @@ impl App {
         } else if self.game.session.app_state == AppState::InGame {
             let reason_clone = reason.clone();
             self.game.session.disconnect_dialog_shown = true;
-            self.game.confirm_dialog.show(
+            self.windows.confirm_dialog.show(
                 &format!("Disconnected from server: {reason_clone}"),
                 false,
                 |_| {},

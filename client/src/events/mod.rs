@@ -340,38 +340,38 @@ impl App {
                 }
 
                 GameEvent::NpcDialogText { npc_id, text } => {
-                    self.game.npc_dialog.dialog.open_text(npc_id, &text);
+                    self.windows.npc_dialog.dialog.open_text(npc_id, &text);
                 }
                 GameEvent::NpcDialogNext { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_next(npc_id);
+                    self.windows.npc_dialog.dialog.wait_for_next(npc_id);
                 }
                 GameEvent::NpcDialogClose { npc_id } => {
-                    if self.game.npc_dialog.dialog.has_text() {
-                        self.game.npc_dialog.dialog.wait_for_close(npc_id);
+                    if self.windows.npc_dialog.dialog.has_text() {
+                        self.windows.npc_dialog.dialog.wait_for_close(npc_id);
                     } else {
-                        self.game.npc_dialog.dialog.close();
+                        self.windows.npc_dialog.dialog.close();
                         self.game.npc_cutins = [None, None, None];
                         self.channel
                             .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
                     }
                 }
                 GameEvent::NpcDialogMenu { npc_id, items } => {
-                    self.game.npc_dialog.dialog.show_menu(npc_id, items);
+                    self.windows.npc_dialog.dialog.show_menu(npc_id, items);
                 }
                 GameEvent::WarpList {
                     skill_id,
                     destinations,
                 } => {
-                    self.game.warp_list_window.open(skill_id, destinations);
+                    self.windows.warp_list_window.open(skill_id, destinations);
                 }
                 GameEvent::NpcInputNumber { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
+                    self.windows.npc_dialog.dialog.wait_for_number_input(npc_id);
                 }
                 GameEvent::NpcInputString { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
+                    self.windows.npc_dialog.dialog.wait_for_string_input(npc_id);
                 }
                 GameEvent::NpcDealTypeSelect { npc_id } => {
-                    self.game.npc_dialog.dialog.show_deal_type(npc_id);
+                    self.windows.npc_dialog.dialog.show_deal_type(npc_id);
                 }
 
                 GameEvent::NpcShopBuyList { npc_id, items } => {
@@ -406,8 +406,8 @@ impl App {
                 }
                 GameEvent::ChatRoomDestroy { room_id } => {
                     self.game.chat_rooms.remove(room_id);
-                    if self.game.chat_room_member_window.room_id() == room_id {
-                        self.game.chat_room_member_window.close();
+                    if self.windows.chat_room_member_window.room_id() == room_id {
+                        self.windows.chat_room_member_window.close();
                     }
                 }
                 GameEvent::ChatRoomEntered { room_id, members } => {
@@ -418,7 +418,7 @@ impl App {
                         .map(|r| (r.title.clone(), r.max_count, r.atype != 0))
                         .unwrap_or_default();
                     let local_name = self.game.character.name.clone();
-                    self.game.chat_room_member_window.open_joined(
+                    self.windows.chat_room_member_window.open_joined(
                         room_id,
                         &title,
                         max_count,
@@ -426,11 +426,11 @@ impl App {
                         members,
                         &local_name,
                     );
-                    self.game.chat_room_member_window.push_message(
+                    self.windows.chat_room_member_window.push_message(
                         "You entered the room.".to_string(),
                         chat_room_member_window::JOIN_MSG_COLOR,
                     );
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You entered the room.".to_string());
                 }
@@ -438,49 +438,49 @@ impl App {
                     if flag == 0 {
                         if let Some((title, limit, public)) = self.game.pending_chat_room.take() {
                             let local_name = self.game.character.name.clone();
-                            self.game.chat_room_member_window.open_created(
+                            self.windows.chat_room_member_window.open_created(
                                 0, &title, limit, public, &local_name,
                             );
                         }
-                        self.game.chat_room_create_window.close();
+                        self.windows.chat_room_create_window.close();
                     } else {
                         let reason = match flag {
                             1 => "Room limit exceeded.",
                             2 => "A room with that name already exists.",
                             _ => "Could not create the room.",
                         };
-                        self.game.chat_window.add_system(reason.to_string());
+                        self.windows.chat_window.add_system(reason.to_string());
                     }
                 }
                 GameEvent::ChatRoomMemberJoined { name, .. } => {
-                    self.game.chat_room_member_window.add_member(&name);
+                    self.windows.chat_room_member_window.add_member(&name);
                     let msg = format!("{name} has joined the room.");
-                    self.game
+                    self.windows
                         .chat_room_member_window
                         .push_message(msg.clone(), chat_room_member_window::JOIN_MSG_COLOR);
-                    self.game.chat_window.add_system(msg);
+                    self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomMemberLeft { name, kicked, .. } => {
                     let verb = if kicked { "was kicked from" } else { "has left" };
                     let msg = format!("{name} {verb} the room.");
-                    if self.game.chat_room_member_window.is_local(&name) {
-                        self.game.chat_room_member_window.close();
+                    if self.windows.chat_room_member_window.is_local(&name) {
+                        self.windows.chat_room_member_window.close();
                     } else {
-                        self.game.chat_room_member_window.remove_member(&name);
-                        self.game.chat_room_member_window.push_message(
+                        self.windows.chat_room_member_window.remove_member(&name);
+                        self.windows.chat_room_member_window.push_message(
                             msg.clone(),
                             chat_room_member_window::LEAVE_MSG_COLOR,
                         );
                     }
-                    self.game.chat_window.add_system(msg);
+                    self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomOwnerChanged { name } => {
-                    self.game.chat_room_member_window.set_owner(&name);
+                    self.windows.chat_room_member_window.set_owner(&name);
                     let msg = format!("{name} is now the room owner.");
-                    self.game
+                    self.windows
                         .chat_room_member_window
                         .push_message(msg.clone(), chat_room_member_window::SYSTEM_MSG_COLOR);
-                    self.game.chat_window.add_system(msg);
+                    self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomJoinRefused { result } => {
                     let reason = match result {
@@ -492,7 +492,7 @@ impl App {
                         6 => "Your level is too high to enter.",
                         _ => "Cannot enter the room.",
                     };
-                    self.game.chat_window.add_system(reason.to_string());
+                    self.windows.chat_window.add_system(reason.to_string());
                 }
 
                 GameEvent::InventoryNormalItems { items } => {
@@ -738,7 +738,7 @@ impl App {
                     self.handle_mail_return_ack(mail_id, ok);
                 }
                 GameEvent::ShowSystemMessage { message } => {
-                    self.game.chat_window.add_system(message);
+                    self.windows.chat_window.add_system(message);
                 }
 
                 GameEvent::CardInsertItemList { equip_indices, .. } => {

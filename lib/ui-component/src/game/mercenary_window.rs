@@ -1,4 +1,4 @@
-use crate::Window;
+use crate::{BuildCtx, InGameWindow, Window};
 use crate::game::homun_window::{GaugeKind, bar};
 use crate::helper::window_chrome::{
     GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_hline, draw_sys_button, draw_titlebar,
@@ -74,7 +74,7 @@ impl MercenaryWindow {
         self.visible = value;
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame, merc: Option<&MercenaryState>) -> Vec<GameEvent> {
+    fn build_body(&mut self, ui: &mut UiFrame, merc: Option<&MercenaryState>) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -208,6 +208,12 @@ impl MercenaryWindow {
 
         ui.has_grf_textures = prev_grf;
         events
+    }
+}
+
+impl InGameWindow for MercenaryWindow {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.build_body(ui, ctx.mercenary)
     }
 }
 

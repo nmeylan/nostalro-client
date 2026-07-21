@@ -1,7 +1,5 @@
 use crate::helper::dialog_container::DialogContainer;
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::UiFrame;
@@ -58,9 +56,10 @@ impl InGameWindow for ItemPickupNotification {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         let Some(entry) = &mut self.entry else {
             return vec![];
         };
@@ -140,6 +139,8 @@ impl Window for ItemPickupNotification {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::frame::TextInputBg::Default;
@@ -164,7 +165,7 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
         let mut character = Character::new();
-        notif.build(&mut ui, &mut character, &DataTable::default());
+        notif.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::default()));
         assert!(ui.draw_calls.is_empty());
     }
 
@@ -176,7 +177,7 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 1.0);
         let mut character = Character::new();
-        notif.build(&mut ui, &mut character, &DataTable::default());
+        notif.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::default()));
         assert!(!ui.draw_calls.is_empty());
         assert!(!notif.is_empty());
     }
@@ -191,12 +192,12 @@ mod tests {
 
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
         let mut character = Character::new();
-        notif.build(&mut ui, &mut character, &DataTable::default());
+        notif.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::default()));
         assert!(!notif.is_empty());
 
         let mut ui = make_frame_with_elapsed(&ctx, &mut state, 5.0);
         let mut character = Character::new();
-        notif.build(&mut ui, &mut character, &DataTable::default());
+        notif.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::default()));
         assert!(notif.is_empty());
     }
 }

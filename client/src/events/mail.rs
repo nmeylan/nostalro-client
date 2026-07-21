@@ -46,7 +46,7 @@ impl App {
                 mail.read_open = false;
             }
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_error("Cannot delete a mail that still has attachments.".to_string());
         }
@@ -61,11 +61,11 @@ impl App {
                 }
             }
             1 => self
-                .game
+                .windows
                 .chat_window
                 .add_error("Cannot receive zeny: it would exceed the limit.".to_string()),
             _ => self
-                .game
+                .windows
                 .chat_window
                 .add_error("Cannot receive item: not enough space or weight.".to_string()),
         }
@@ -79,7 +79,7 @@ impl App {
             }
         } else {
             mail.compose.pending_item = None;
-            self.game
+            self.windows
                 .chat_window
                 .add_error("This item cannot be attached.".to_string());
         }
@@ -90,11 +90,11 @@ impl App {
         mail.send_pending = false;
         if ok {
             mail.switch_to_inbox();
-            self.game.chat_window.add_system("Mail sent.".to_string());
+            self.windows.chat_window.add_system("Mail sent.".to_string());
             self.channel
                 .send_packet(build_mail_get_list_packet(self.config.packetver));
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_error("The recipient does not exist.".to_string());
         }
@@ -104,7 +104,7 @@ impl App {
         if mail_id == 0 {
             return;
         }
-        self.game.chat_window.add_system("You've got mail.".to_string());
+        self.windows.chat_window.add_system("You've got mail.".to_string());
         let mail = &self.game.character.mail;
         if mail.window_open && mail.mode == MailboxMode::Inbox {
             self.channel
@@ -124,7 +124,7 @@ impl App {
             self.channel
                 .send_packet(build_mail_get_list_packet(self.config.packetver));
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_error("Failed to return the mail.".to_string());
         }

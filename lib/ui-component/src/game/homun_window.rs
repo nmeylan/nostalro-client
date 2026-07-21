@@ -1,4 +1,4 @@
-use crate::Window;
+use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::window_chrome::{
     GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_exp_bar, draw_gauge, draw_hline,
     draw_sys_button, draw_titlebar, gauge_texture_paths, label_color, text_color,
@@ -97,7 +97,7 @@ impl HomunWindow {
         self.visible = value;
     }
 
-    pub fn build(
+    fn build_body(
         &mut self,
         ui: &mut UiFrame,
         homun: Option<&HomunculusState>,
@@ -259,6 +259,12 @@ impl HomunWindow {
     }
 }
 
+impl InGameWindow for HomunWindow {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.build_body(ui, ctx.homunculus)
+    }
+}
+
 impl Window for HomunWindow {
     fn has_grf_textures(&self) -> bool {
         self.has_grf_textures
@@ -339,7 +345,7 @@ pub(crate) fn bar(
     kind: GaugeKind,
     cap_w: f32,
     tc: [f32; 4],
-    label_c: [f32; 4],
+    _label_c: [f32; 4],
     has_grf: bool,
 ) -> f32 {
     let ratio = if max > 0 {

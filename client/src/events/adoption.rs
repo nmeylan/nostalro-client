@@ -11,7 +11,7 @@ impl App {
         self.game.pending_confirms.pending_adopt_request = Some((father_aid, mother_aid));
         let msg = format!("{name} wishes to adopt you. Do you accept?");
         self.game
-            .arm_confirm(&msg, |accept| Some(GameEvent::RespondAdoptionRequest { accept }));
+            .arm_confirm(&mut self.windows, &msg, |accept| Some(GameEvent::RespondAdoptionRequest { accept }));
     }
 
     pub(super) fn handle_adoption_message(&mut self, msg_no: i32) {
@@ -21,6 +21,6 @@ impl App {
             2 => "You cannot adopt a married person.",
             _ => "Adoption failed.",
         };
-        self.game.chat_window.add_system(text.to_string());
+        self.windows.chat_window.add_system(text.to_string());
     }
 }

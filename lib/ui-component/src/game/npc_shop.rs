@@ -1,15 +1,12 @@
 use super::item_info_window::ITEM_INFO_WINDOW_ID;
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
-use crate::helper::colors::draw_price_right;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
 use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
     draw_footer, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -150,9 +147,10 @@ impl InGameWindow for NpcShop {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.shop.is_open() {
             return Vec::new();
         }
@@ -811,7 +809,7 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui, &mut character, &data);
+        let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::RequestNpcShopClose));
         assert!(shop_ui.shop.is_open());
@@ -850,7 +848,7 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui, &mut character, &data);
+        let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert!(shop_ui.qty_popup.is_none());
         assert!(shop_ui.shop.is_open());
@@ -865,7 +863,7 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui, &mut character, &data);
+        let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
     }
 
@@ -903,7 +901,7 @@ mod tests {
         ctx.mouse_right_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = shop_ui.build(&mut ui, &mut character, &data);
+        let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(
             e,
             GameEvent::ShowItemInfoDirect { item } if item.item_id == 501

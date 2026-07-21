@@ -8,7 +8,7 @@ impl App {
     pub(super) fn handle_exchange_requested(&mut self, name: String, gid: u32, _level: i16) {
         if self
             .game
-            .begin_trade_request(name, gid, self.config.refuse_trade)
+            .begin_trade_request(&mut self.windows, name, gid, self.config.refuse_trade)
         {
             self.respond_exchange_request(false);
         }
@@ -36,19 +36,19 @@ impl App {
                 self.game.character.inventory.open();
             }
             0 => self
-                .game
+                .windows
                 .chat_window
                 .add_error("The character is too far away to trade.".to_string()),
             1 => self
-                .game
+                .windows
                 .chat_window
                 .add_error("The character does not exist.".to_string()),
-            4 => self.game.chat_window.add_error("The deal was rejected.".to_string()),
+            4 => self.windows.chat_window.add_error("The deal was rejected.".to_string()),
             5 => self
-                .game
+                .windows
                 .chat_window
                 .add_error("The other player is busy dealing.".to_string()),
-            _ => self.game.chat_window.add_error("Trade has failed.".to_string()),
+            _ => self.windows.chat_window.add_error("Trade has failed.".to_string()),
         }
     }
 
@@ -91,15 +91,15 @@ impl App {
                 }
             }
             1 => self
-                .game
+                .windows
                 .chat_window
                 .add_error("You are over your weight limit.".to_string()),
             4 => self
-                .game
+                .windows
                 .chat_window
                 .add_error("That amount cannot be traded.".to_string()),
             _ => self
-                .game
+                .windows
                 .chat_window
                 .add_error("The item cannot be added to the deal.".to_string()),
         }
@@ -111,21 +111,21 @@ impl App {
 
     pub(super) fn handle_exchange_canceled(&mut self) {
         self.game.character.trade.reset();
-        self.game.trade_window.reset_input();
+        self.windows.trade_window.reset_input();
         self.game.pending_confirms.pending_trade_partner = None;
-        self.game
+        self.windows
             .chat_window
             .add_system("The deal has been canceled.".to_string());
     }
 
     pub(super) fn handle_exchange_completed(&mut self, result: u8) {
         if result == 0 {
-            self.game.chat_window.add_system("Deal successful.".to_string());
+            self.windows.chat_window.add_system("Deal successful.".to_string());
         } else {
-            self.game.chat_window.add_error("The deal has failed.".to_string());
+            self.windows.chat_window.add_error("The deal has failed.".to_string());
         }
         self.game.character.trade.reset();
-        self.game.trade_window.reset_input();
+        self.windows.trade_window.reset_input();
         self.game.pending_confirms.pending_trade_partner = None;
     }
 

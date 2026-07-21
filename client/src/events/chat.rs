@@ -17,13 +17,13 @@ impl App {
             }
             BannerKind::Repeat(times) => {
                 self.game.broadcast.banner.enqueue(message.clone(), times);
-                self.game
+                self.windows
                     .chat_window
                     .add_message(message, color, ChatChannel::System);
             }
             BannerKind::None => {
                 self.game.broadcast.poptip.push(message.clone());
-                self.game
+                self.windows
                     .chat_window
                     .add_message(message, color, ChatChannel::System);
             }
@@ -36,11 +36,11 @@ impl App {
         {
             entity.chat_bubble = Some(ChatBubbleState::new(bubble_text.to_string()));
         }
-        if self.game.chat_room_member_window.is_open()
+        if self.windows.chat_room_member_window.is_open()
             && let Some((sender, _)) = message.split_once(" : ")
-            && self.game.chat_room_member_window.has_member(sender)
+            && self.windows.chat_room_member_window.has_member(sender)
         {
-            self.game
+            self.windows
                 .chat_room_member_window
                 .push_message(message.clone(), OTHER_MSG_COLOR);
         }
@@ -51,17 +51,17 @@ impl App {
             .zip(message.split_once(" : "))
             .is_some_and(|(c, (sender, _))| sender == c.name);
         if is_own || !self.game.prefs.hide_public_chat {
-            self.game.chat_window.add_chat(message);
+            self.windows.chat_window.add_chat(message);
         }
     }
 
     pub(super) fn handle_ranking_received(&mut self, title: &str, entries: Vec<(String, i32)>) {
-        self.game.chat_window.add_system(format!("== {title} =="));
+        self.windows.chat_window.add_system(format!("== {title} =="));
         if entries.is_empty() {
-            self.game.chat_window.add_system("  (no entries)".to_string());
+            self.windows.chat_window.add_system("  (no entries)".to_string());
         }
         for (i, (name, point)) in entries.iter().enumerate() {
-            self.game
+            self.windows
                 .chat_window
                 .add_system(format!("  {}. {name} - {point}", i + 1));
         }
@@ -74,21 +74,21 @@ impl App {
         {
             entity.chat_bubble = Some(ChatBubbleState::new(bubble_text.to_string()));
         }
-        if self.game.chat_room_member_window.is_open() {
-            self.game
+        if self.windows.chat_room_member_window.is_open() {
+            self.windows
                 .chat_room_member_window
                 .push_message(message.clone(), OWN_MSG_COLOR);
         }
-        self.game.chat_window.add_own_chat(message);
+        self.windows.chat_window.add_own_chat(message);
     }
 
     pub(super) fn handle_guild_chat_message(&mut self, message: String) {
-        self.game.chat_window.add_guild(message);
+        self.windows.chat_window.add_guild(message);
     }
 
     pub(super) fn handle_whisper_received(&mut self, sender: String, message: String) {
-        self.game.chat_window.remember_whisper(sender.clone());
-        self.game.chat_window.add_whisper_in(sender, message);
+        self.windows.chat_window.remember_whisper(sender.clone());
+        self.windows.chat_window.add_whisper_in(sender, message);
     }
 
     pub(super) fn handle_whisper_ack(&mut self, result: u8) {
@@ -99,7 +99,7 @@ impl App {
             3 => "The target character is ignoring everyone.",
             _ => "Failed to send whisper.",
         };
-        self.game.chat_window.add_error(text.to_string());
+        self.windows.chat_window.add_error(text.to_string());
     }
 
     pub(super) fn handle_exp_gained(
@@ -118,6 +118,6 @@ impl App {
         } else {
             format!("Gained {amount} job experience")
         };
-        self.game.chat_window.add_system(message);
+        self.windows.chat_window.add_system(message);
     }
 }

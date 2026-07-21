@@ -3,8 +3,6 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
     draw_footer, draw_sys_button, draw_titlebar, text_color,
 };
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::{InventoryTab, Item};
@@ -30,7 +28,7 @@ const ICON_PAD: f32 = 4.0;
 const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 19.0;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 const PAD_X: f32 = 12.0;
 const PAD_Y: f32 = 4.0;
 const RESIZE_SIZE: f32 = 13.0;
@@ -147,9 +145,10 @@ impl InGameWindow for InventoryWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         if !character.inventory.is_open() {
             return Vec::new();
         }

@@ -4,9 +4,8 @@ use super::mercenary_skill_window::MERCENARY_SKILL_WINDOW_ID;
 use super::skill_tree_window::SKILL_WINDOW_ID;
 use crate::game::equipment_window::EQ_WINDOW_ID;
 use crate::helper::window_chrome::{draw_sys_button, text_color};
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
@@ -271,9 +270,10 @@ impl InGameWindow for HotkeyBarWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         let mut events = Vec::new();
 
         if ui.ctx.key_f12 {
@@ -609,6 +609,7 @@ fn companion_skill_icon_path(skill: &SkillInfo) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
     use ragnarok_game::skill::SkillTargetType;
 
     fn merc_skill(id: u16, name: &str, level: i16) -> SkillInfo {

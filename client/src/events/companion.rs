@@ -18,7 +18,7 @@ impl App {
                     }
                     None => self.game.companions.homunculus = Some(HomunculusState::new(gid)),
                 }
-                self.game.homunculus_window.set_visible(true);
+                self.windows.homunculus_window.set_visible(true);
             }
             HOM_STATE_INTIMACY => {
                 if let Some(h) = &mut self.game.companions.homunculus {
@@ -64,8 +64,8 @@ impl App {
         h.atk_range = p.atk_range;
         h.vaporized = p.vaporized;
         if p.vaporized {
-            self.game.homunculus_window.set_visible(false);
-            self.game.homun_skill_window.set_visible(false);
+            self.windows.homunculus_window.set_visible(false);
+            self.windows.homun_skill_window.set_visible(false);
         }
     }
 
@@ -75,7 +75,7 @@ impl App {
         } else {
             format!("Failed to feed homunculus (item {item_id}).")
         };
-        self.game.chat_window.add_system(msg);
+        self.windows.chat_window.add_system(msg);
     }
 
     pub(super) fn handle_mercenary_info(&mut self, info: MercenaryInfo, is_init: bool) {
@@ -105,7 +105,7 @@ impl App {
             m.faith = info.faith;
             m.calls = info.calls;
             m.kills = info.kills;
-            self.game.mercenary_window.set_visible(true);
+            self.windows.mercenary_window.set_visible(true);
         } else if let Some(m) = &mut self.game.companions.mercenary {
             // Property update (no GID / attack range): stats only.
             m.name = info.name;

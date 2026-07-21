@@ -2,8 +2,7 @@ use super::inventory_window::INV_WINDOW_ID;
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{draw_container, draw_titlebar, text_color};
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
@@ -225,9 +224,10 @@ impl InGameWindow for TradeWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         if !character.trade.is_active() {
             self.reset_input();
             return Vec::new();
@@ -404,6 +404,8 @@ impl InGameWindow for TradeWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -437,7 +439,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
             events.iter().any(|e| matches!(e, GameEvent::RequestConcludeExchange)),
@@ -451,7 +453,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
             events.iter().any(|e| matches!(e, GameEvent::RequestCancelExchange)),

@@ -8,6 +8,7 @@ mod overlay;
 mod scene;
 mod sound;
 mod sprite;
+mod ui;
 
 use config::Config;
 use game_state::{
@@ -187,6 +188,7 @@ struct App {
     roulette_textures: Option<ragnarok_renderer::SpriteTextures>,
     channel: GameChannel,
     game: GameState,
+    windows: ui::Windows,
     sound: SoundManager,
     sound_queue: SoundQueue,
     bgm_table: HashMap<String, String>,
@@ -207,8 +209,9 @@ impl App {
             .map(|(&id, entry)| (id, entry.position))
             .collect();
         let mut game = GameState::new();
+        let mut windows = ui::Windows::new();
         game.debug_overlay = config.debug_overlay;
-        game.sound_options.set_values(
+        windows.sound_options.set_values(
             config.bgm_volume,
             config.sfx_volume,
             config.bgm_enabled,
@@ -245,6 +248,7 @@ impl App {
             roulette_textures: None,
             channel: GameChannel::new(),
             game,
+            windows,
             sound,
             sound_queue: SoundQueue::new(),
             bgm_table: HashMap::new(),
@@ -265,12 +269,12 @@ impl App {
         let map_data = match map_loader::load_map_data(grf, map_name) {
             Some(d) => d,
             None => {
-                self.game.map_missing_window.show(map_name.to_string());
+                self.windows.map_missing_window.show(map_name.to_string());
                 return;
             }
         };
 
-        self.game.map_missing_window.hide();
+        self.windows.map_missing_window.hide();
         self.game.session.map_coords = map_data.coordinates;
         self.game.session.gat = map_data.gat;
         let was_locked = self.game.session.camera_locked;
@@ -641,7 +645,7 @@ impl App {
                     self.char_select_window = None;
                     self.char_create_window = None;
                     self.account_anims.clear();
-                    self.game.system_menu.open = false;
+                    self.windows.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToLogin => {
@@ -651,12 +655,12 @@ impl App {
                     self.char_create_window = None;
                     self.account_anims.clear();
                     self.game.session.login_session = None;
-                    self.game.system_menu.open = false;
+                    self.windows.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToCharacterSelect => {
-                    self.game.system_menu.open = false;
-                    self.game.map_missing_window.hide();
+                    self.windows.system_menu.open = false;
+                    self.windows.map_missing_window.hide();
                     self.clear_companions();
                     self.channel
                         .send_packet(build_restart_packet(self.config.packetver));
@@ -681,7 +685,7 @@ impl App {
                         .send_packet(build_chat_packet(&full_msg, self.config.packetver));
                 }
                 GameEvent::QuitGame => {
-                    self.game.system_menu.open = false;
+                    self.windows.system_menu.open = false;
                     self.channel
                         .send_packet(build_req_disconnect_packet(self.config.packetver));
                 }
@@ -709,7 +713,7 @@ impl App {
                         .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
                 }
                 GameEvent::ToggleChatRoomCreate => {
-                    self.game.chat_room_create_window.toggle();
+                    self.windows.chat_room_create_window.toggle();
                 }
                 GameEvent::RequestCreateChatRoom {
                     title,
@@ -743,13 +747,13 @@ impl App {
                 GameEvent::RequestLeaveChatRoom => {
                     self.channel
                         .send_packet(build_exit_room_packet(self.config.packetver));
-                    self.game.chat_room_member_window.close();
+                    self.windows.chat_room_member_window.close();
                 }
                 GameEvent::RequestEditChatRoomSettings => {
-                    let w = &self.game.chat_room_member_window;
+                    let w = &self.windows.chat_room_member_window;
                     let (room_id, title, limit, public) =
                         (w.room_id(), w.title().to_string(), w.max_count(), w.public());
-                    self.game
+                    self.windows
                         .chat_room_create_window
                         .open_change(room_id, &title, limit, public);
                 }
@@ -777,7 +781,7 @@ impl App {
                             action: ContextMenuAction::KickFromChatRoom { name },
                         },
                     ];
-                    self.game.context_menu.open_at(x, y, items);
+                    self.windows.context_menu.open_at(x, y, items);
                 }
                 GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
                     self.channel.send_packet(build_select_warppoint_packet(
@@ -818,7 +822,7 @@ impl App {
                         .send_packet(build_sell_item_list_packet(&items, self.config.packetver));
                 }
                 GameEvent::RequestNpcShopClose => {
-                    match self.game.npc_shop.shop.mode {
+                    match self.windows.npc_shop.shop.mode {
                         Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
                             self.channel.send_packet(build_purchase_item_list_packet(
                                 &[],
@@ -833,31 +837,31 @@ impl App {
                         }
                         None => {}
                     }
-                    self.game.npc_shop.close();
+                    self.windows.npc_shop.close();
                 }
                 GameEvent::ShowItemInfo { index } => {
                     if let Some(item) = self.game.character.inventory.get_item(index) {
                         let is_book = self.item_is_book(item.item_id);
-                        self.game
+                        self.windows
                             .item_info_window
                             .show(item, &self.game.data_table, is_book);
-                        let tex_paths = self.game.item_info_window.pending_texture_paths();
+                        let tex_paths = self.windows.item_info_window.pending_texture_paths();
                         self.preload_item_icons(tex_paths);
                     }
                 }
                 GameEvent::ShowItemInfoDirect { item } => {
                     let is_book = self.item_is_book(item.item_id);
-                    self.game
+                    self.windows
                         .item_info_window
                         .show(&item, &self.game.data_table, is_book);
-                    let tex_paths = self.game.item_info_window.pending_texture_paths();
+                    let tex_paths = self.windows.item_info_window.pending_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }
                 GameEvent::ShowCardInfo { item_id } => {
-                    self.game
+                    self.windows
                         .item_info_window
                         .show_card(item_id, &self.game.data_table);
-                    let tex_paths = self.game.item_info_window.pending_card_texture_paths();
+                    let tex_paths = self.windows.item_info_window.pending_card_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }
                 GameEvent::ShowCardIllustration { item_id } => {
@@ -875,11 +879,11 @@ impl App {
                         .as_ref()
                         .and_then(|t| t.illustration_path(item_id));
                     if let Some(path) = illust_path {
-                        self.game
+                        self.windows
                             .item_info_window
                             .show_illustration(item_id, name, path);
                         let tex_paths = self
-                            .game
+                            .windows
                             .item_info_window
                             .pending_illustration_texture_paths();
                         self.preload_item_icons(tex_paths);
@@ -890,8 +894,8 @@ impl App {
                         && let Ok(data) = grf.read_file(&format!("data/book/{item_id}.txt"))
                     {
                         let content = ragnarok_game::book::BookContent::parse(&data);
-                        self.game.book_window.show(content);
-                        self.game.item_info_window.close();
+                        self.windows.book_window.show(content);
+                        self.windows.item_info_window.close();
                     }
                 }
                 GameEvent::RequestUseItem { index } => {
@@ -1136,7 +1140,7 @@ impl App {
                         .map(|h| h.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "your homunculus".to_string());
-                    self.game.arm_confirm(
+                    self.game.arm_confirm(&mut self.windows,
                         &format!("Delete {name} permanently?"),
                         |accept| accept.then_some(GameEvent::RequestHomunMenu { command: 2 }),
                     );
@@ -1155,19 +1159,19 @@ impl App {
                         .send_packet(build_rename_homun_packet(&name, self.config.packetver));
                 }
                 GameEvent::ToggleHomunculusWindow => {
-                    self.game.homunculus_window.toggle();
+                    self.windows.homunculus_window.toggle();
                 }
                 GameEvent::ToggleMercenaryWindow => {
-                    self.game.mercenary_window.toggle();
+                    self.windows.mercenary_window.toggle();
                 }
                 GameEvent::ToggleMercenarySkillWindow => {
-                    self.game.mercenary_skill_window.toggle();
+                    self.windows.mercenary_skill_window.toggle();
                 }
                 GameEvent::ToggleHomunSkillWindow => {
-                    self.game.homun_skill_window.toggle();
+                    self.windows.homun_skill_window.toggle();
                 }
                 GameEvent::ToggleCompanionAiConfig => {
-                    self.game.companion_ai_config_window.toggle();
+                    self.windows.companion_ai_config_window.toggle();
                 }
                 GameEvent::SaveCompanionAiConfig => {
                     if let Err(e) = self
@@ -1222,7 +1226,7 @@ impl App {
                     if skill_id == SkillEnum::McChangecart.id() as u16 {
                         if self.game.character.cart_design.is_some() {
                             self.preload_cart_previews(&[1, 2, 3, 4, 5]);
-                            self.game.cart_select_window.open();
+                            self.windows.cart_select_window.open();
                         }
                         continue;
                     }
@@ -1418,24 +1422,24 @@ impl App {
                 GameEvent::RequestSendWhisper { name, message } => {
                     self.channel
                         .send_packet(build_whisper_packet(&name, &message, self.config.packetver));
-                    self.game.chat_window.add_whisper_out(name, message);
+                    self.windows.chat_window.add_whisper_out(name, message);
                 }
                 GameEvent::ToggleShortcutList => {
-                    if !self.game.shortcut_list_window.is_open() {
-                        self.game
+                    if !self.windows.shortcut_list_window.is_open() {
+                        self.windows
                             .shortcut_list_window
                             .set_bindings(&self.config.shortcut_commands);
                     }
-                    self.game.shortcut_list_window.toggle();
+                    self.windows.shortcut_list_window.toggle();
                 }
                 GameEvent::ShortcutBindingsChanged(commands) => {
                     self.config.shortcut_commands = commands;
                 }
                 GameEvent::ToggleQuestWindow => {
-                    self.game.quest_window.toggle();
+                    self.windows.quest_window.toggle();
                 }
                 GameEvent::OpenQuestDetail { quest_id } => {
-                    self.game.quest_detail_window.open(quest_id);
+                    self.windows.quest_detail_window.open(quest_id);
                 }
                 GameEvent::RequestToggleQuestActive { quest_id, active } => {
                     self.channel.send_packet(ragnarok_network::build_active_quest_packet(
@@ -1452,23 +1456,23 @@ impl App {
                     self.game.character.inventory.toggle();
                 }
                 GameEvent::ToggleEquipment => {
-                    self.game.equipment_window.toggle();
+                    self.windows.equipment_window.toggle();
                 }
                 GameEvent::ToggleSkills => {
                     self.game.character.skills.toggle();
                 }
                 GameEvent::ToggleEmotionWindow => {
-                    self.game.emotion_window.toggle();
+                    self.windows.emotion_window.toggle();
                 }
                 GameEvent::RequestEmotion { emote_type } => {
                     self.channel
                         .send_packet(build_emotion_packet(emote_type, self.config.packetver));
                 }
                 GameEvent::ToggleStatusWindow => {
-                    self.game.status_window.toggle();
+                    self.windows.status_window.toggle();
                 }
                 GameEvent::ToggleMinimap => {
-                    self.game.minimap_window.cycle_visibility();
+                    self.windows.minimap_window.cycle_visibility();
                 }
                 GameEvent::ToggleSoundOptions => {
                     self.open_sound_options();
@@ -1517,18 +1521,18 @@ impl App {
                     );
                 }
                 GameEvent::ToggleHotkeyConfig => {
-                    if !self.game.hotkey_config_window.is_open() {
-                        self.game
+                    if !self.windows.hotkey_config_window.is_open() {
+                        self.windows
                             .hotkey_config_window
                             .set_bindings(&self.config.keybindings, &self.config.emotion_keys);
                     }
-                    self.game.hotkey_config_window.toggle();
+                    self.windows.hotkey_config_window.toggle();
                 }
                 GameEvent::TogglePartyWindow => {
-                    self.game.party_friends_window.open_party_tab();
+                    self.windows.party_friends_window.open_party_tab();
                 }
                 GameEvent::ToggleFriendWindow => {
-                    self.game.party_friends_window.open_friend_tab();
+                    self.windows.party_friends_window.open_friend_tab();
                 }
                 GameEvent::RequestPartyInvite { target_aid } => {
                     let pv = self.config.packetver;
@@ -1621,7 +1625,7 @@ impl App {
                         .map(|p| (p.exp_share, p.item_pickup_rule, p.item_division_rule))
                         .unwrap_or((false, 0, 0));
                     let editable = mode == MODE_CREATE || is_leader;
-                    self.game
+                    self.windows
                         .party_helper_window
                         .open(mode, exp, pickup, division, editable);
                 }
@@ -1704,7 +1708,7 @@ impl App {
                             });
                         }
                     }
-                    self.game.context_menu.open_at(x, y, items);
+                    self.windows.context_menu.open_at(x, y, items);
                 }
                 GameEvent::RequestSetGuildNotice { subject, body } => {
                     if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
@@ -1724,13 +1728,13 @@ impl App {
                         .map(|g| g.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "the guild".to_string());
-                    self.game.arm_confirm(
+                    self.game.arm_confirm(&mut self.windows,
                         &format!("Leave {name}?"),
                         |accept| accept.then_some(GameEvent::ConfirmedGuildLeave),
                     );
                 }
                 GameEvent::RequestGuildExpel { aid, gid, name } => {
-                    self.game.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
+                    self.windows.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
                 }
                 GameEvent::ConfirmedGuildLeave => {
                     if let Some(g) = &self.game.guild {
@@ -1806,7 +1810,7 @@ impl App {
                     } else {
                         "Cancel this antagonist declaration?"
                     };
-                    self.game.arm_confirm(msg, move |accept| {
+                    self.game.arm_confirm(&mut self.windows, msg, move |accept| {
                         accept.then_some(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation })
                     });
                 }
@@ -1844,7 +1848,7 @@ impl App {
                     ));
                 }
                 GameEvent::RequestWhisper { name } => {
-                    self.game.chat_window.start_whisper(name);
+                    self.windows.chat_window.start_whisper(name);
                 }
 
                 GameEvent::RequestTryCapture { gid } => {
@@ -1857,7 +1861,7 @@ impl App {
                     // The window opens on this explicit request, not on the
                     // incoming property packet (which also arrives unsolicited).
                     if csub == 0 {
-                        self.game.pet_window.set_visible(true);
+                        self.windows.pet_window.set_visible(true);
                     }
                     // Return-to-egg: the pet vanishes and the egg becomes usable again.
                     if csub == 3
@@ -1885,13 +1889,13 @@ impl App {
                         .send_packet(build_pet_act_packet(data, self.config.packetver));
                 }
                 GameEvent::RequestPetFeed => {
-                    self.game.arm_confirm(
+                    self.game.arm_confirm(&mut self.windows,
                         "Are you sure you want to feed your pet?",
                         |accept| accept.then_some(GameEvent::RequestPetCommand { csub: 1 }),
                     );
                 }
                 GameEvent::TogglePetWindow => {
-                    self.game.pet_window.toggle();
+                    self.windows.pet_window.toggle();
                 }
                 _ => {}
             }
@@ -1987,23 +1991,23 @@ impl App {
             });
         }
         if entries.is_empty() {
-            self.game.chat_window.add_system(format!(
+            self.windows.chat_window.add_system(format!(
                 "No emblem .bmp found in '{}'.",
                 dir.display()
             ));
         }
-        self.game.emblem_picker_window.open(entries);
+        self.windows.emblem_picker_window.open(entries);
     }
 
     fn upload_emblem_file(&mut self, path: &str) {
         let Ok(bmp) = std::fs::read(path) else {
-            self.game
+            self.windows
                 .chat_window
                 .add_system(format!("Failed to read emblem '{path}'."));
             return;
         };
         if let Err(e) = ragnarok_game::guild::validate_emblem_bmp(&bmp) {
-            self.game.chat_window.add_system(e);
+            self.windows.chat_window.add_system(e);
             return;
         }
         let compressed = ragnarok_formats::zlib_compress(&bmp);
@@ -2018,18 +2022,18 @@ impl App {
     }
 
     fn open_sound_options(&mut self) {
-        self.game.sound_options.set_values(
+        self.windows.sound_options.set_values(
             self.config.bgm_volume,
             self.config.sfx_volume,
             self.config.bgm_enabled,
             self.config.sfx_enabled,
         );
-        self.game.sound_options.toggle();
+        self.windows.sound_options.toggle();
     }
 
     fn open_graphic_options(&mut self) {
-        if !self.game.graphic_options.open {
-            self.game.graphic_options.set_values(
+        if !self.windows.graphic_options.open {
+            self.windows.graphic_options.set_values(
                 self.config.dpi_scale,
                 self.config.fullscreen,
                 self.config.fog,
@@ -2039,7 +2043,7 @@ impl App {
                 self.config.refuse_party_invite,
             );
         }
-        self.game.graphic_options.toggle();
+        self.windows.graphic_options.toggle();
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2110,7 +2114,7 @@ impl App {
             self.handle_slash_command(message);
         } else if let Some(party_msg) = message.strip_prefix('%') {
             if self.game.party.is_none() {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("You are not in a party.".to_string());
             } else {
@@ -2126,7 +2130,7 @@ impl App {
             }
         } else if let Some(guild_msg) = message.strip_prefix('$') {
             if self.game.guild.is_none() {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("You are not in a guild.".to_string());
             } else {
@@ -2212,10 +2216,10 @@ impl App {
                     (Some(map_name), Some(player)) => {
                         let (x, y) = player.movement.cell_position();
                         let message = format!("{map_name}.gat ({x}, {y})");
-                        self.game.chat_window.add_system(message);
+                        self.windows.chat_window.add_system(message);
                     }
                     _ => {
-                        self.game
+                        self.windows
                             .chat_window
                             .add_system("You are not in a map yet.".to_string());
                     }
@@ -2231,18 +2235,18 @@ impl App {
                 if self.game.party.is_some() {
                     self.channel.send_packet(build_leave_party_packet(pv));
                 } else {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a party.".to_string());
                 }
             }
             ChatCommand::MakeParty(name) => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /organize <party name>".to_string());
                 } else if self.game.party.is_some() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are already in a party.".to_string());
                 } else {
@@ -2252,7 +2256,7 @@ impl App {
             }
             ChatCommand::InviteParty(name) => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /invite <character name>".to_string());
                 } else {
@@ -2276,15 +2280,15 @@ impl App {
                     .map(|s| s.account_id)
                     .unwrap_or(0);
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /guild <guild name>".to_string());
                 } else if self.game.guild.is_some() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are already in a guild.".to_string());
                 } else if !has_emperium {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You need an Emperium to create a guild.".to_string());
                 } else {
@@ -2293,11 +2297,11 @@ impl App {
             }
             ChatCommand::BreakGuild(name) => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /breakguild <guild name>".to_string());
                 } else if self.game.guild.is_none() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a guild.".to_string());
                 } else {
@@ -2326,7 +2330,7 @@ impl App {
                 );
                 self.channel.send_packet(build_lesseffect_packet(!show, pv));
                 let status = if show { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Skill effects: {status}"));
             }
@@ -2343,7 +2347,7 @@ impl App {
                     true,
                 );
                 let status = if fog { "ON" } else { "OFF" };
-                self.game.chat_window.add_system(format!("Fog: {status}"));
+                self.windows.chat_window.add_system(format!("Fog: {status}"));
             }
             ChatCommand::ToggleAura => {
                 let mut display = self.config.display.clone();
@@ -2359,7 +2363,7 @@ impl App {
                     self.config.refuse_party_invite,
                     true,
                 );
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Level aura: {status}"));
             }
@@ -2376,7 +2380,7 @@ impl App {
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Refuse trade requests: {status}"));
             }
@@ -2392,21 +2396,21 @@ impl App {
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Refuse party invites: {status}"));
             }
             ChatCommand::ToggleNoShift => {
                 self.game.prefs.noshift_mode = !self.game.prefs.noshift_mode;
                 let status = if self.game.prefs.noshift_mode { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("No-shift mode: {status}"));
             }
             ChatCommand::ToggleNoCtrl => {
                 self.game.prefs.noctrl_mode = !self.game.prefs.noctrl_mode;
                 let status = if self.game.prefs.noctrl_mode { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("No-ctrl mode: {status}"));
             }
@@ -2418,7 +2422,7 @@ impl App {
                 );
                 self.config.save("config.json");
                 let status = if self.config.bgm_enabled { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Background music: {status}"));
             }
@@ -2430,7 +2434,7 @@ impl App {
                 );
                 self.config.save("config.json");
                 let status = if self.config.sfx_enabled { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Sound effects: {status}"));
             }
@@ -2441,7 +2445,7 @@ impl App {
                     self.config.effective_sfx_volume(),
                 );
                 self.config.save("config.json");
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("BGM volume: {vol}"));
             }
@@ -2452,21 +2456,21 @@ impl App {
                     self.config.effective_sfx_volume(),
                 );
                 self.config.save("config.json");
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Sound volume: {vol}"));
             }
             ChatCommand::ToggleShowExp => {
                 self.game.prefs.show_exp = !self.game.prefs.show_exp;
                 let status = if self.game.prefs.show_exp { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Experience messages: {status}"));
             }
             ChatCommand::ToggleHidePublicChat => {
                 self.game.prefs.hide_public_chat = !self.game.prefs.hide_public_chat;
                 let status = if self.game.prefs.hide_public_chat { "OFF" } else { "ON" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Public chat: {status}"));
             }
@@ -2477,7 +2481,7 @@ impl App {
                 } else {
                     "OFF"
                 };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Battle Mode {status}"));
             }
@@ -2493,7 +2497,7 @@ impl App {
             ChatCommand::ToggleMiss => {
                 self.game.prefs.show_miss = !self.game.prefs.show_miss;
                 let status = if self.game.prefs.show_miss { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Miss text: {status}"));
             }
@@ -2506,17 +2510,17 @@ impl App {
                     pv,
                 ));
                 let status = if self.game.prefs.equip_open { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Equipment visible to others: {status}"));
             }
             ChatCommand::GuildChat(msg) => {
                 if msg.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /gc <message>".to_string());
                 } else if self.game.guild.is_none() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a guild.".to_string());
                 } else {
@@ -2533,7 +2537,7 @@ impl App {
             }
             ChatCommand::WhisperFriends(text) => {
                 if text.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /hi <message>".to_string());
                 } else {
@@ -2546,7 +2550,7 @@ impl App {
                         .map(|f| f.name.clone())
                         .collect();
                     if targets.is_empty() {
-                        self.game
+                        self.windows
                             .chat_window
                             .add_system("No friends are online.".to_string());
                     } else {
@@ -2559,7 +2563,7 @@ impl App {
             }
             ChatCommand::WhisperBlock { name, block } => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /ex <character name>".to_string());
                 } else {
@@ -2570,7 +2574,7 @@ impl App {
                         self.game.prefs.blocked_whispers.push(name.clone());
                     }
                     let verb = if block { "Blocked" } else { "Unblocked" };
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system(format!("{verb} whispers from {name}."));
                 }
@@ -2583,33 +2587,33 @@ impl App {
                 } else {
                     "Accepting all whispers."
                 };
-                self.game.chat_window.add_system(msg.to_string());
+                self.windows.chat_window.add_system(msg.to_string());
             }
             ChatCommand::WhisperListBlocked => {
                 if self.game.prefs.blocked_whispers.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("No blocked players.".to_string());
                 } else {
                     let list = self.game.prefs.blocked_whispers.join(", ");
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system(format!("Blocked: {list}"));
                 }
             }
             ChatCommand::OpenChatCreate => {
-                self.game.chat_room_create_window.toggle();
+                self.windows.chat_room_create_window.toggle();
             }
             ChatCommand::OpenEmotionList => {
-                self.game.emotion_window.toggle();
+                self.windows.emotion_window.toggle();
             }
             ChatCommand::OpenCompanionAi { mercenary } => {
-                self.game
+                self.windows
                     .companion_ai_config_window
                     .open_at_tab(if mercenary { 1 } else { 0 });
             }
             ChatCommand::Unsupported => {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("This command is not supported yet.".to_string());
             }
@@ -2618,21 +2622,21 @@ impl App {
                     .send_packet(build_emotion_packet(emote_type, pv));
             }
             ChatCommand::Help => {
-                self.game.chat_window.add_system("Commands:".to_string());
+                self.windows.chat_window.add_system("Commands:".to_string());
                 for (cmd, desc) in ragnarok_game::chat_command::COMMAND_HELP {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system(format!("{cmd} - {desc}"));
                 }
             }
             ChatCommand::Outdated => {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("This command is no longer available.".to_string());
             }
             ChatCommand::Unknown => {
                 let cmd = command.split_whitespace().next().unwrap_or("");
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Unknown command: {cmd}"));
             }
@@ -2749,11 +2753,13 @@ impl App {
                         &renderer.font_atlas,
                         &mut self.ui_state_cache,
                         elapsed,
-                        self.game.system_menu.has_grf_textures,
+                        self.windows.system_menu.has_grf_textures,
                         None,
                         &self.saved_window_positions,
                     );
-                    let events = self.game.build_in_game_ui(
+                    let events = crate::ui::build_in_game_ui(
+                        &mut self.game,
+                        &mut self.windows,
                         &mut ui,
                         &|name| renderer.texture_cache.texture_size(name),
                         &render_list,
@@ -3283,7 +3289,7 @@ impl ApplicationHandler for App {
                 let (ui_draw_calls, ui_events, ui_any_hovered, ui_any_interactive) =
                     self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
-                if let Some(dirty) = self.game.hotkey_config_window.take_dirty_bindings() {
+                if let Some(dirty) = self.windows.hotkey_config_window.take_dirty_bindings() {
                     self.config.keybindings = dirty.interface;
                     self.config.emotion_keys = dirty.emotion;
                     self.config.save("config.json");

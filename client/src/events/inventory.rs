@@ -206,13 +206,13 @@ impl App {
                 )
             })
             .unwrap_or(name);
-        self.game
+        self.windows
             .chat_window
             .add_system(format!("Picked up {formatted_name} x{count}"));
         if let Some(path) = &icon_path {
             self.preload_item_icons(vec![path.clone()]);
         }
-        self.game
+        self.windows
             .item_pickup_notification
             .show(formatted_name, count, icon_path);
     }
@@ -318,14 +318,14 @@ impl App {
             .unwrap_or_default();
         let mut dialog = CardInsertDialog::new();
         dialog.open(card_index, card_name, eligible);
-        dialog.has_grf_textures = self.game.card_insert_dialog_has_grf_textures;
+        dialog.has_grf_textures = self.windows.card_insert_dialog_has_grf_textures;
         if dialog.has_grf_textures
             && let Some(renderer) = &self.renderer
         {
             dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
         }
         let tex_paths = dialog.pending_texture_paths();
-        self.game.card_insert_dialog = Some(dialog);
+        self.windows.card_insert_dialog = Some(dialog);
         self.preload_item_icons(tex_paths);
     }
 
@@ -335,7 +335,7 @@ impl App {
         card_index: u16,
         result: u8,
     ) {
-        self.game.card_insert_dialog = None;
+        self.windows.card_insert_dialog = None;
         self.game.pending_casts.pending_card_composition_index = None;
         if result == 0 {
             let card_item_id = self
@@ -356,7 +356,7 @@ impl App {
                     .insert_card(equip_index, card_item_id);
             }
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_system("Card insertion failed.".to_string());
         }

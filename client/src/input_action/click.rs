@@ -23,7 +23,7 @@ impl App {
             self.game.pending_casts.pending_companion_skill.is_some(),
             self.game.hover.hovered_entity_id
         );
-        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
+        if self.windows.npc_dialog.dialog.is_open() || self.windows.npc_shop.shop.is_open() {
             return;
         }
         if autocounter::player_in_autocounter(&self.game.world.entities) {

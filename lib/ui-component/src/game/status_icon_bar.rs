@@ -1,6 +1,4 @@
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::status_icon::{StatusCategory, status_icon_info};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -56,9 +54,10 @@ impl InGameWindow for StatusIconBarWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let _data = ctx.data;
         let now = ui.ctx.now_ms;
         let mut x = ui.ctx.screen_width - RIGHT_MARGIN - ICON;
         let mut y = TOP_Y;

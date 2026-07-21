@@ -2,9 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use super::confirm_dialog::{ConfirmDialog, ConfirmResult};
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -176,9 +174,10 @@ impl InGameWindow for SystemMenu {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         let mut events = Vec::new();
 
         if self.allow_escape_toggle
@@ -463,6 +462,8 @@ impl SystemMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use crate::InGameWindow;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
@@ -488,12 +489,12 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        menu.build(&mut ui, &mut character, &data);
+        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(menu.open);
 
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        menu.build(&mut ui, &mut character, &data);
+        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(!menu.open);
     }
 
@@ -508,7 +509,7 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = false;
-        menu.build(&mut ui, &mut character, &data);
+        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(!menu.open);
     }
 
@@ -527,7 +528,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        menu.build(&mut ui, &mut character, &data);
+        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(!menu.open);
     }
 
@@ -546,7 +547,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
                 .iter()
@@ -570,7 +571,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
 
@@ -588,7 +589,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
                 .iter()
@@ -612,7 +613,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
 
@@ -630,7 +631,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(e, GameEvent::QuitGame)));
         assert!(!menu.open);
     }
@@ -658,7 +659,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
         menu.allow_escape_toggle = true;
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::None);
         assert!(menu.open);
@@ -687,7 +688,7 @@ mod tests {
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
                 .iter()
@@ -710,7 +711,7 @@ mod tests {
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = menu.build(&mut ui, &mut character, &data);
+        let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
                 .iter()
@@ -730,7 +731,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.build(&mut ui, &mut character, &data);
+        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(menu.open);
         assert!(menu.dead);
     }

@@ -49,7 +49,7 @@ impl App {
                 .as_ref()
                 .map(|t| t.get_name_or_id(food_item_id))
                 .unwrap_or_else(|| format!("Item #{food_item_id}"));
-            self.game
+            self.windows
                 .chat_window
                 .add_error(format!("You don't have {name}."));
             return;
@@ -182,7 +182,7 @@ impl App {
                 }
             })
             .collect();
-        self.game
+        self.windows
             .item_list_selection_window
             .open("Hatch Pet", ListContext::SelectPetEgg, rows);
     }
@@ -234,7 +234,7 @@ impl App {
                 .get(gid)
                 .and_then(|e| e.name.clone())
                 .unwrap_or_else(|| "Pet".to_string());
-            self.game.chat_window.add_message(
+            self.windows.chat_window.add_message(
                 format!("{name} : {line}"),
                 [1.0, 1.0, 1.0, 1.0],
                 ragnarok_ui_component::game::chat_window::ChatChannel::Public,

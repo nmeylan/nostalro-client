@@ -68,7 +68,7 @@ impl App {
             .unwrap_or(0);
         if aid == own_aid {
             self.game.party = None;
-            self.game.party_friends_window.open = false;
+            self.windows.party_friends_window.open = false;
             return;
         }
         if let Some(party) = &mut self.game.party {
@@ -105,7 +105,7 @@ impl App {
             return;
         }
         let msg = format!("Join party \"{party_name}\"?");
-        self.game.arm_confirm(&msg, move |accept| {
+        self.game.arm_confirm(&mut self.windows, &msg, move |accept| {
             Some(GameEvent::RespondPartyInvite {
                 party_grid,
                 accept,
@@ -122,12 +122,12 @@ impl App {
             4 => format!("{name} is already a party member."),
             _ => format!("Party invitation to {name} failed."),
         };
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_party_create_result(&mut self, result: u8) {
         if result == 0 {
-            self.game.party_friends_window.open = true;
+            self.windows.party_friends_window.open = true;
             // The party now exists server-side; send any invite that was deferred
             // while waiting for this ack.
             if let Some(aid) = self.game.pending_confirms.pending_invite_aid.take() {
@@ -137,7 +137,7 @@ impl App {
             }
         } else {
             self.game.pending_confirms.pending_invite_aid = None;
-            self.game
+            self.windows
                 .chat_window
                 .add_system("Failed to create party.".to_string());
         }
@@ -161,6 +161,6 @@ impl App {
             Some(name) => format!("{name} : {message}"),
             None => message,
         };
-        self.game.chat_window.add_party(text);
+        self.windows.chat_window.add_party(text);
     }
 }

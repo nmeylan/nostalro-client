@@ -15,7 +15,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 impl App {
     pub(crate) fn capture_window_state(&mut self) {
         let positions = self.ui_state_cache.extract_window_positions();
-        let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
+        let open_collapsed = self.game.extract_window_state(&self.windows, &self.ui_state_cache);
         let mut window_state = HashMap::new();
         for (id, pos) in &positions {
             let (open, collapsed) = open_collapsed.get(id).copied().unwrap_or((false, false));
@@ -163,7 +163,7 @@ impl App {
                 },
             ]
         };
-        self.game.context_menu.open_at(mx as f32, my as f32, items);
+        self.windows.context_menu.open_at(mx as f32, my as f32, items);
         true
     }
 
@@ -206,7 +206,7 @@ impl App {
                 action: ContextMenuAction::PetCommand { csub: 3 },
             },
         ];
-        self.game.context_menu.open_at(mx as f32, my as f32, items);
+        self.windows.context_menu.open_at(mx as f32, my as f32, items);
         true
     }
 
@@ -278,7 +278,7 @@ impl App {
                 });
             }
         }
-        self.game
+        self.windows
             .context_menu
             .open_at(mx as f32, my as f32, items);
     }
@@ -334,7 +334,7 @@ impl App {
             _ => None,
         };
 
-        if pressed && self.game.hotkey_config_window.is_capturing() {
+        if pressed && self.windows.hotkey_config_window.is_capturing() {
             if let Some(code) = code {
                 self.capture_hotkey(code);
             }
@@ -362,11 +362,11 @@ impl App {
         // Minimap keeps its pre-gate slot: it cycles even while chatting or with
         // the system menu open.
         if action == Some(HotkeyAction::CycleMinimap) {
-            self.game.minimap_window.cycle_visibility();
+            self.windows.minimap_window.cycle_visibility();
             return;
         }
 
-        if self.game.chat_window.is_active() || self.game.system_menu.open {
+        if self.windows.chat_window.is_active() || self.windows.system_menu.open {
             return;
         }
 
@@ -406,19 +406,19 @@ impl App {
     fn dispatch_action(&mut self, action: HotkeyAction) {
         match action {
             HotkeyAction::ToggleInventory => self.game.character.inventory.toggle(),
-            HotkeyAction::ToggleEquipment => self.game.equipment_window.toggle(),
+            HotkeyAction::ToggleEquipment => self.windows.equipment_window.toggle(),
             HotkeyAction::ToggleSkillTree => self.game.character.skills.toggle(),
-            HotkeyAction::ToggleStatus => self.game.status_window.toggle(),
+            HotkeyAction::ToggleStatus => self.windows.status_window.toggle(),
             HotkeyAction::ToggleShortcutList => {
-                if !self.game.shortcut_list_window.is_open() {
-                    self.game
+                if !self.windows.shortcut_list_window.is_open() {
+                    self.windows
                         .shortcut_list_window
                         .set_bindings(&self.config.shortcut_commands);
                 }
-                self.game.shortcut_list_window.toggle();
+                self.windows.shortcut_list_window.toggle();
             }
-            HotkeyAction::ToggleEmotion => self.game.emotion_window.toggle(),
-            HotkeyAction::ToggleQuest => self.game.quest_window.toggle(),
+            HotkeyAction::ToggleEmotion => self.windows.emotion_window.toggle(),
+            HotkeyAction::ToggleQuest => self.windows.quest_window.toggle(),
             HotkeyAction::ToggleCart => {
                 let has_cart = self
                     .game
@@ -432,32 +432,32 @@ impl App {
             }
             HotkeyAction::ToggleGuild => {
                 if self.game.guild.is_some() {
-                    self.game.guild_window.toggle();
+                    self.windows.guild_window.toggle();
                 } else {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a guild.".to_string());
                 }
             }
-            HotkeyAction::ToggleChatRoomCreate => self.game.chat_room_create_window.toggle(),
-            HotkeyAction::ToggleBasicInfo => self.game.basic_info_window.toggle(),
-            HotkeyAction::ToggleParty => self.game.party_friends_window.open_party_tab(),
-            HotkeyAction::ToggleFriends => self.game.party_friends_window.open_friend_tab(),
+            HotkeyAction::ToggleChatRoomCreate => self.windows.chat_room_create_window.toggle(),
+            HotkeyAction::ToggleBasicInfo => self.windows.basic_info_window.toggle(),
+            HotkeyAction::ToggleParty => self.windows.party_friends_window.open_party_tab(),
+            HotkeyAction::ToggleFriends => self.windows.party_friends_window.open_friend_tab(),
             HotkeyAction::TogglePet => {
                 if self.game.companions.pet.gid.is_some() {
-                    self.game.pet_window.toggle();
+                    self.windows.pet_window.toggle();
                 }
             }
             HotkeyAction::ToggleSoundOptions => self.open_sound_options(),
             HotkeyAction::ToggleGraphicOptions => self.open_graphic_options(),
             HotkeyAction::ToggleHomunculus => {
                 if self.game.companions.homunculus.is_some() {
-                    self.game.homunculus_window.toggle();
+                    self.windows.homunculus_window.toggle();
                 }
             }
             HotkeyAction::ToggleMercenary => {
                 if self.game.companions.mercenary.is_some() {
-                    self.game.mercenary_window.toggle();
+                    self.windows.mercenary_window.toggle();
                 }
             }
             HotkeyAction::SitStand => {
@@ -477,7 +477,7 @@ impl App {
                     ));
                 }
             }
-            HotkeyAction::CycleMinimap => self.game.minimap_window.cycle_visibility(),
+            HotkeyAction::CycleMinimap => self.windows.minimap_window.cycle_visibility(),
             HotkeyAction::MercenaryFollow => {
                 if self.has_mercenary() {
                     self.push_owner_command_to(
@@ -492,7 +492,7 @@ impl App {
 
     fn capture_hotkey(&mut self, code: KeyCode) {
         if code == KeyCode::Escape {
-            self.game.hotkey_config_window.cancel_capture();
+            self.windows.hotkey_config_window.cancel_capture();
             return;
         }
         let name = format!("{code:?}");
@@ -505,7 +505,7 @@ impl App {
             self.input.ctrl_pressed,
             self.input.shift_pressed,
         );
-        self.game.hotkey_config_window.capture_key(chord);
+        self.windows.hotkey_config_window.capture_key(chord);
     }
 
     pub(crate) fn handle_modifiers_changed(&mut self, modifiers: Modifiers) {

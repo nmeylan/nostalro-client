@@ -111,14 +111,14 @@ impl App {
 
     pub(crate) fn clear_homunculus(&mut self) {
         self.game.companions.homunculus = None;
-        self.game.homunculus_window.set_visible(false);
-        self.game.homun_skill_window.set_visible(false);
+        self.windows.homunculus_window.set_visible(false);
+        self.windows.homun_skill_window.set_visible(false);
     }
 
     pub(crate) fn clear_mercenary(&mut self) {
         self.game.companions.mercenary = None;
-        self.game.mercenary_window.set_visible(false);
-        self.game.mercenary_skill_window.set_visible(false);
+        self.windows.mercenary_window.set_visible(false);
+        self.windows.mercenary_skill_window.set_visible(false);
     }
 
     pub(crate) fn clear_companions(&mut self) {

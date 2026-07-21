@@ -1,4 +1,4 @@
-use crate::Window;
+use crate::{BuildCtx, InGameWindow, Window};
 use crate::game::homun_skill_window::draw_companion_skill_tooltip;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
@@ -77,7 +77,7 @@ impl MercenarySkillWindow {
         self.visible = value;
     }
 
-    pub fn build(
+    fn build_body(
         &mut self,
         ui: &mut UiFrame,
         merc: Option<&MercenaryState>,
@@ -222,6 +222,12 @@ impl MercenarySkillWindow {
 
         ui.has_grf_textures = prev_grf;
         events
+    }
+}
+
+impl InGameWindow for MercenarySkillWindow {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.build_body(ui, ctx.mercenary, ctx.data)
     }
 }
 

@@ -37,7 +37,7 @@ impl App {
             3 => format!("{name}'s friend list is full."),
             _ => format!("Failed to add {name} as a friend."),
         };
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_friend_removed(&mut self, aid: u32, gid: u32) {
@@ -46,7 +46,7 @@ impl App {
 
     pub(super) fn handle_friend_request_received(&mut self, req_aid: u32, req_gid: u32, name: String) {
         let msg = format!("{name} wishes to be friends with you. Accept?");
-        self.game.arm_confirm(&msg, move |accept| {
+        self.game.arm_confirm(&mut self.windows, &msg, move |accept| {
             Some(GameEvent::RespondFriendRequest {
                 req_aid,
                 req_gid,

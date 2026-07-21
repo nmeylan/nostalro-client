@@ -3,10 +3,8 @@ use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button,
     draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::chat_room::ChatRoomMember;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, word_wrap};
 use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame, WidgetId};
@@ -245,9 +243,10 @@ impl InGameWindow for ChatRoomMemberWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.open {
             return Vec::new();
         }
@@ -437,6 +436,8 @@ impl InGameWindow for ChatRoomMemberWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -472,7 +473,7 @@ mod tests {
         ctx.mouse_down = i.down;
         ctx.key_enter = i.enter;
         let mut ui = make_frame(&ctx, state);
-        win.build(&mut ui, &mut character, &data)
+        win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
     }
 
     #[test]

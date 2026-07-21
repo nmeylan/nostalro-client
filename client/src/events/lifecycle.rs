@@ -25,7 +25,7 @@ impl App {
                 self.game.combat.damage_numbers.clear();
                 self.game.character.storage.clear();
                 self.game.character.trade.reset();
-                self.game.trade_window.reset_input();
+                self.windows.trade_window.reset_input();
                 self.game.pending_confirms.pending_trade_partner = None;
                 self.game.session.map_properties = MapProperties::default();
                 self.game.combat.damage_numbers.combat_hidden = false;
@@ -50,9 +50,9 @@ impl App {
                 self.game.assets.floor_item_sprites.clear();
                 self.game.chat_rooms.clear();
                 self.game.combat.waiting_item_throw_ack = false;
-                self.game.drop_quantity_dialog = None;
-                self.game.guild_expel_dialog = None;
-                self.game.card_insert_dialog = None;
+                self.windows.drop_quantity_dialog = None;
+                self.windows.guild_expel_dialog = None;
+                self.windows.card_insert_dialog = None;
                 self.game.pending_casts.pending_card_composition_index = None;
                 self.game.pending_casts.pending_pickup_item_id = None;
                 self.game.combat.attack_target_id = None;
@@ -63,13 +63,13 @@ impl App {
                 self.game.companions.pet_roulette = None;
                 self.game.quest_log.clear();
                 self.game.quest_markers.clear();
-                self.game.pet_window.set_visible(false);
+                self.windows.pet_window.set_visible(false);
                 self.game.companions.companion_attack_target = [None; 2];
-                self.game.homunculus_window.set_visible(false);
-                self.game.mercenary_window.set_visible(false);
+                self.windows.homunculus_window.set_visible(false);
+                self.windows.mercenary_window.set_visible(false);
                 self.game.guild = None;
                 self.game.sprite_caches.guild_head_sprites.clear();
-                self.game.guild_window.open = false;
+                self.windows.guild_window.open = false;
                 self.game.session.current_map = None;
                 self.game.session.map_coords = None;
                 self.game.session.gat = None;
@@ -97,11 +97,11 @@ impl App {
             }
             SessionChange::Death => {
                 self.game.session.player_dead = true;
-                self.game.system_menu.open_dead();
+                self.windows.system_menu.open_dead();
             }
             SessionChange::Resurrect => {
                 self.game.session.player_dead = false;
-                self.game.system_menu.close_dead();
+                self.windows.system_menu.close_dead();
             }
         }
     }

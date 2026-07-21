@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::config::WindowStateEntry;
+use crate::ui::windows::Windows;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_game::ailment::AilmentOverlay;
@@ -12,14 +13,13 @@ use ragnarok_game::poptip::PoptipStack;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::cursor::{
-    CursorAnimationState, CursorType, PendingCompanionSkill, PendingSkillTarget, RenderEntry,
+    CursorAnimationState, CursorType, PendingCompanionSkill, PendingSkillTarget,
 };
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
-use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::gr2_model::Gr2ModelInstance;
@@ -32,85 +32,15 @@ use ragnarok_game::quest::{QuestLog, QuestMarker};
 use ragnarok_game::map_coordinates::MapCoordinates;
 use ragnarok_game::party::Party;
 use ragnarok_game::server_time::ServerTimeClock;
-use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
-use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
-use ragnarok_ui_component::game::card_insert_dialog::CardInsertDialog;
-use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
-use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
-use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
-use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
-use ragnarok_ui_component::game::mailbox_window::{MAILBOX_WINDOW_ID, MailboxWindow};
-use ragnarok_ui_component::game::read_mail_window::{READ_MAIL_WINDOW_ID, ReadMailWindow};
-use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
-use ragnarok_ui_component::game::shortcut_list_window::{
-    SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
-};
-use ragnarok_ui_component::game::quest_window::{
-    QUEST_DETAIL_WINDOW_ID, QUEST_WINDOW_ID, QuestDetailWindow, QuestWindow,
-};
-use ragnarok_ui_component::game::chat_room_create_window::{
-    CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
-};
-use ragnarok_ui_component::game::chat_room_member_window::{
-    CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
-};
-use ragnarok_ui_component::game::chat_window::{self, ChatWindow};
-use ragnarok_ui_component::game::confirm_dialog::{ConfirmDialog, ConfirmResult};
-use ragnarok_ui_component::game::context_menu::ContextMenu;
-use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
-use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
-use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
-use ragnarok_ui_component::game::homun_skill_window::{HOMUN_SKILL_WINDOW_ID, HomunSkillWindow};
-use ragnarok_ui_component::game::companion_ai_config_window::{
-    COMPANION_AI_CONFIG_WINDOW_ID, CompanionAiConfigWindow,
-};
-use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
-use ragnarok_ui_component::game::mercenary_skill_window::{
-    MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
-};
-use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
-use ragnarok_ui_component::game::hotkey_bar::{HOTKEY_BAR_WINDOW_ID, HotkeyBarWindow};
-use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
-use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
-use ragnarok_ui_component::game::graphic_options::{GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow};
-use ragnarok_ui_component::game::hotkey_config_window::{
-    HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
-};
-use ragnarok_ui_component::game::sound_options::{SOUND_OPTIONS_WINDOW_ID, SoundOptionsWindow};
-use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
-use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, MinimapWindow};
-use ragnarok_ui_component::game::npc_dialog::NpcDialog;
-use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::emblem_picker_window::{
-    EMBLEM_PICKER_WINDOW_ID, EmblemPickerWindow,
-};
-use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
-use ragnarok_ui_component::game::party_friends_window::{PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow};
-use ragnarok_ui_component::game::party_helper_window::{PARTY_HELPER_WINDOW_ID, PartyHelperWindow};
-use ragnarok_ui_component::game::pet_window::{PET_WINDOW_ID, PetWindow};
-use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
-use ragnarok_ui_component::game::levelup_notification_window::{
-    LevelUpClick, LevelUpNotificationWindow,
-};
-use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
-use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
-use ragnarok_ui_component::game::system_menu::SystemMenu;
-use ragnarok_ui_component::game::map_missing_window::MapMissingWindow;
-use ragnarok_ui_component::game::item_list_selection_window::ItemListSelectionWindow;
-use ragnarok_ui_component::game::make_item_window::{MAKE_ITEM_WINDOW_ID, MakeItemWindow};
-use ragnarok_ui_component::game::vending_setup_window::{
-    VENDING_AVAILABLE_WINDOW_ID, VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
-};
-use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
-use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
-use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
-use ragnarok_ui_component::{InGameWindow, Window};
+use ragnarok_ui_component::game::chat_window::{self};
+use ragnarok_ui_component::game::confirm_dialog::ConfirmResult;
+use ragnarok_ui_component::game::equipment_window::EQ_WINDOW_ID;
+use ragnarok_ui_component::game::inventory_window::INV_WINDOW_ID;
+use ragnarok_ui_component::game::skill_tree_window::SKILL_WINDOW_ID;
 
 /// One-shot ice-shatter animation played when a freeze ends, following the
 /// entity by gid. `started_at` is lazily set to the render clock on first draw.
@@ -138,7 +68,7 @@ pub struct PendingConfirms {
 }
 
 impl PendingConfirms {
-    fn dispatch(&mut self, result: ConfirmResult) -> Option<GameEvent> {
+    pub(crate) fn dispatch(&mut self, result: ConfirmResult) -> Option<GameEvent> {
         let ctor = self.active.take()?;
         ctor(result == ConfirmResult::Ok)
     }
@@ -482,81 +412,26 @@ pub struct GameState {
     pub character: Character,
     pub data_table: DataTable,
     pub assets: AssetHandles,
-    pub chat_window: ChatWindow,
     pub broadcast: Broadcast,
-    pub equipment_window: EquipmentWindow,
-    pub inventory_window: InventoryWindow,
-    pub cart_window: CartWindow,
-    pub storage_window: StorageWindow,
-    pub trade_window: TradeWindow,
     pub pending_confirms: PendingConfirms,
-    pub mailbox_window: MailboxWindow,
-    pub read_mail_window: ReadMailWindow,
-    pub cart_select_window: CartSelectWindow,
-    pub npc_dialog: NpcDialog,
     /// NPC cutin illustrations by position slot (0 left / 1 middle / 2 right);
     /// GRF base name under `data/texture/유저인터페이스/illust/`.
     pub npc_cutins: [Option<String>; 3],
-    pub warp_list_window: WarpListWindow,
-    pub item_list_selection_window: ItemListSelectionWindow,
-    pub make_item_window: MakeItemWindow,
-    pub vending_shop_window: VendingShopWindow,
-    pub vending_setup_window: VendingSetupWindow,
-    pub my_shop_window: MyShopWindow,
-    pub confirm_dialog: ConfirmDialog,
-    pub npc_shop: NpcShop,
     pub chat_rooms: ChatRoomRegistry,
-    pub chat_room_create_window: ChatRoomCreateWindow,
-    pub chat_room_member_window: ChatRoomMemberWindow,
-    pub emotion_window: EmotionWindow,
-    pub shortcut_list_window: ShortcutListWindow,
-    pub quest_window: QuestWindow,
-    pub quest_detail_window: QuestDetailWindow,
     pub pending_chat_room: Option<(String, i16, bool)>,
-    pub system_menu: SystemMenu,
-    pub map_missing_window: MapMissingWindow,
     pub hover: HoverState,
-    pub drop_dialog_has_grf_textures: bool,
-    pub drop_quantity_dialog: Option<DropQuantityDialog>,
-    pub guild_expel_dialog: Option<GuildExpelDialog>,
-    pub card_insert_dialog: Option<CardInsertDialog>,
-    pub card_insert_dialog_has_grf_textures: bool,
     pub pending_casts: PendingCasts,
     pub combat: CombatState,
     pub prefs: Prefs,
-    pub item_info_window: ItemInfoWindow,
-    pub book_window: BookWindow,
-    pub sound_options: SoundOptionsWindow,
-    pub graphic_options: GraphicOptionsWindow,
-    pub hotkey_config_window: HotkeyConfigWindow,
-    pub item_pickup_notification: ItemPickupNotification,
-    pub skill_tree_window: SkillTreeWindow,
-    pub basic_info_window: BasicInfoWindow,
-    pub status_window: StatusWindow,
-    pub hotkey_bar: HotkeyBarWindow,
-    pub minimap_window: MinimapWindow,
-    pub status_icon_bar: StatusIconBarWindow,
-    pub levelup_notification: LevelUpNotificationWindow,
     pub party: Option<Party>,
     pub guild: Option<ragnarok_game::guild::Guild>,
     pub guild_menu_flag: i32,
-    pub guild_window: GuildWindow,
-    pub emblem_picker_window: EmblemPickerWindow,
     pub friends: ragnarok_game::friends::FriendList,
-    pub party_friends_window: PartyFriendsWindow,
-    pub party_helper_window: PartyHelperWindow,
     pub companions: Companions,
-    pub companion_ai_config_window: CompanionAiConfigWindow,
-    pub homunculus_window: HomunWindow,
-    pub mercenary_window: MercenaryWindow,
-    pub pet_window: PetWindow,
     pub quest_log: QuestLog,
     /// Over-NPC quest markers keyed by NPC block id (account-id space). Cleared
     /// on map change; the server re-sends on load.
     pub quest_markers: std::collections::HashMap<u32, QuestMarker>,
-    pub mercenary_skill_window: MercenarySkillWindow,
-    pub homun_skill_window: HomunSkillWindow,
-    pub context_menu: ContextMenu,
     pub debug_show_pick_bounds: bool,
     pub debug_overlay: bool,
     pub schedulers: Schedulers,
@@ -566,722 +441,9 @@ pub struct GameState {
 pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
 
 /// Item id of the Token of Siegfried, which enables standing resurrection.
-const TOKEN_OF_SIEGFRIED: u16 = 7621;
-
-const Z_ORDERABLE_WINDOWS: &[WidgetId] = &[
-    BASIC_INFO_WINDOW_ID,
-    chat_window::CHAT_WINDOW_ID,
-    INV_WINDOW_ID,
-    CART_WINDOW_ID,
-    STORAGE_WINDOW_ID,
-    TRADE_WINDOW_ID,
-    MAILBOX_WINDOW_ID,
-    READ_MAIL_WINDOW_ID,
-    CART_SELECT_WINDOW_ID,
-    MAKE_ITEM_WINDOW_ID,
-    VENDING_SHOP_WINDOW_ID,
-    VENDING_SETUP_WINDOW_ID,
-    VENDING_AVAILABLE_WINDOW_ID,
-    MY_SHOP_WINDOW_ID,
-    EQ_WINDOW_ID,
-    SKILL_WINDOW_ID,
-    STATUS_WINDOW_ID,
-    PARTY_FRIENDS_WINDOW_ID,
-    GUILD_WINDOW_ID,
-    EMBLEM_PICKER_WINDOW_ID,
-    PARTY_HELPER_WINDOW_ID,
-    HOMUN_WINDOW_ID,
-    MERCENARY_WINDOW_ID,
-    PET_WINDOW_ID,
-    MERCENARY_SKILL_WINDOW_ID,
-    HOMUN_SKILL_WINDOW_ID,
-    BOOK_WINDOW_ID,
-    SOUND_OPTIONS_WINDOW_ID,
-    GRAPHIC_OPTIONS_WINDOW_ID,
-    HOTKEY_CONFIG_WINDOW_ID,
-    COMPANION_AI_CONFIG_WINDOW_ID,
-    CHAT_ROOM_CREATE_WINDOW_ID,
-    CHAT_ROOM_MEMBER_WINDOW_ID,
-    EMOTION_WINDOW_ID,
-    SHORTCUT_LIST_WINDOW_ID,
-    QUEST_WINDOW_ID,
-    QUEST_DETAIL_WINDOW_ID,
-];
+pub(crate) const TOKEN_OF_SIEGFRIED: u16 = 7621;
 
 impl GameState {
-    pub fn build_in_game_ui(
-        &mut self,
-        ui: &mut UiFrame,
-        texture_size_fn: &dyn Fn(&str) -> Option<(u32, u32)>,
-        _render_list: &[RenderEntry],
-    ) -> Vec<GameEvent> {
-        let chat_was_active = self.chat_window.is_active();
-        let mut events = Vec::new();
-
-        self.npc_shop.setup_modal(ui);
-
-        let z_order = ui.get_z_order();
-        ui.compute_hovered_window(&z_order);
-        for &win_id in &z_order {
-            self.build_window(win_id, ui, &mut events);
-        }
-        for &win_id in Z_ORDERABLE_WINDOWS {
-            if !z_order.contains(&win_id) {
-                self.build_window(win_id, ui, &mut events);
-            }
-        }
-
-        let deposit_intents: Vec<u16> = events
-            .iter()
-            .filter_map(|e| match e {
-                GameEvent::RequestDepositItem { index } => Some(*index),
-                _ => None,
-            })
-            .collect();
-        if !deposit_intents.is_empty() {
-            events.retain(|e| !matches!(e, GameEvent::RequestDepositItem { .. }));
-            for index in deposit_intents {
-                let deposit = self.storage_window.begin_deposit_body(&self.character, index);
-                events.extend(deposit);
-            }
-        }
-
-        self.hotkey_bar.chat_is_active = self.chat_window.is_active();
-        self.hotkey_bar.companion_skills.clear();
-        if let Some(m) = &self.companions.mercenary {
-            self.hotkey_bar.companion_skills.extend(m.skills.iter().cloned());
-        }
-        if let Some(h) = &self.companions.homunculus {
-            self.hotkey_bar.companion_skills.extend(h.skills.iter().cloned());
-        }
-        events.extend(
-            self.hotkey_bar
-                .build(ui, &mut self.character, &self.data_table),
-        );
-
-        if let Some(player) = self.world.entities.player() {
-            self.minimap_window.player_position = Some(player.movement.position());
-            self.minimap_window.player_direction = player.direction;
-        }
-        if let Some(coords) = &self.session.map_coords {
-            self.minimap_window.map_width = coords.gat_width();
-            self.minimap_window.map_height = coords.gat_height();
-        }
-        self.minimap_window.map_name = self.session.current_map.clone();
-        self.minimap_window.entity_markers.clear();
-        for entity in self.world.entities.iter() {
-            if Some(entity.id) == self.world.entities.player_id() {
-                continue;
-            }
-            if entity.entity_type == EntityType::Npc {
-                let (ex, ey) = entity.movement.position();
-                let marker_type = if entity.job == JT_WARPNPC {
-                    MarkerType::WarpPortal
-                } else {
-                    MarkerType::Npc
-                };
-                self.minimap_window.entity_markers.push(MinimapMarker {
-                    x: ex,
-                    y: ey,
-                    marker_type,
-                });
-            }
-        }
-        if let Some(party) = &self.party {
-            let local_aid = self
-                .session.login_session
-                .as_ref()
-                .map(|s| s.account_id)
-                .unwrap_or(0);
-            let current_map = self.session.current_map.as_deref().unwrap_or("");
-            for member in &party.members {
-                if member.aid == local_aid || !member.online || member.map != current_map {
-                    continue;
-                }
-                self.minimap_window.entity_markers.push(MinimapMarker {
-                    x: member.x as f32,
-                    y: member.y as f32,
-                    marker_type: MarkerType::PartyMember,
-                });
-            }
-        }
-        if let Some(guild) = &self.guild {
-            let local_aid = self
-                .session.login_session
-                .as_ref()
-                .map(|s| s.account_id)
-                .unwrap_or(0);
-            for member in &guild.members {
-                if member.aid == local_aid || !member.has_live_position {
-                    continue;
-                }
-                self.minimap_window.entity_markers.push(MinimapMarker {
-                    x: member.x as f32,
-                    y: member.y as f32,
-                    marker_type: MarkerType::GuildMember,
-                });
-            }
-        }
-        for marker in self.quest_markers.values() {
-            self.minimap_window.entity_markers.push(MinimapMarker {
-                x: marker.x as f32,
-                y: marker.y as f32,
-                marker_type: MarkerType::Quest(marker.color),
-            });
-        }
-        events.extend(
-            self.minimap_window
-                .build(ui, &mut self.character, &self.data_table),
-        );
-
-        events.extend(
-            self.status_icon_bar
-                .build(ui, &mut self.character, &self.data_table),
-        );
-
-        match self.levelup_notification.build(ui) {
-            LevelUpClick::Base => self.status_window.open(),
-            LevelUpClick::Job => self.character.skills.open(),
-            LevelUpClick::None => {}
-        }
-
-        let npc_dialog_open = self.npc_dialog.dialog.is_open();
-        events.extend(
-            self.npc_dialog
-                .build(ui, &mut self.character, &self.data_table),
-        );
-        let shop_open = self.npc_shop.shop.is_open();
-        events.extend(
-            self.npc_shop
-                .build(ui, &mut self.character, &self.data_table),
-        );
-        let warp_list_open = self.warp_list_window.is_open();
-        events.extend(self.warp_list_window.build(ui));
-        let item_list_open = self.item_list_selection_window.is_open();
-        events.extend(self.item_list_selection_window.build(ui));
-        let mut allow_escape = !chat_was_active
-            && !npc_dialog_open
-            && !shop_open
-            && !warp_list_open
-            && !item_list_open;
-        if allow_escape && ui.ctx.key_escape && self.pending_casts.pending_skill_target.is_some() {
-            self.pending_casts.pending_skill_target = None;
-            allow_escape = false;
-        }
-        if allow_escape && ui.ctx.key_escape && (self.companions.capture_targeting || self.companions.pet_roulette.is_some()) {
-            self.companions.capture_targeting = false;
-            self.companions.pet_roulette = None;
-            allow_escape = false;
-        }
-        self.system_menu.allow_escape_toggle = allow_escape;
-        self.system_menu.can_resurrect = self.system_menu.dead
-            && !self.session.map_properties.enable_pk()
-            && !self.session.map_properties.is_siege()
-            && self
-                .character
-                .inventory
-                .all_items()
-                .iter()
-                .any(|item| item.item_id == TOKEN_OF_SIEGFRIED && item.count > 0);
-        events.extend(
-            self.system_menu
-                .build(ui, &mut self.character, &self.data_table),
-        );
-        events.extend(
-            self.item_info_window
-                .build(ui, &mut self.character, &self.data_table),
-        );
-        events.extend(InGameWindow::build(
-            &mut self.item_pickup_notification,
-            ui,
-            &mut self.character,
-            &self.data_table,
-        ));
-
-        let had_disconnect_dialog =
-            self.session.disconnect_dialog_shown && self.confirm_dialog.state.is_some();
-        self.confirm_dialog.build(ui);
-        if had_disconnect_dialog && self.confirm_dialog.state.is_none() {
-            self.session.pending_disconnect_exit = true;
-            self.session.disconnect_dialog_shown = false;
-        }
-
-        if let Some(result) = self.confirm_dialog.take_result()
-            && let Some(event) = self.pending_confirms.dispatch(result)
-        {
-            events.push(event);
-        }
-
-        events.extend(self.context_menu.build(ui));
-
-        events.extend(self.map_missing_window.build(ui));
-
-        ui.flush_tooltips();
-
-        if let Some(cancelled) = ui.draw_drag_icon() {
-            if cancelled.source_id == HOTKEY_BAR_WINDOW_ID {
-                if self.character.hotkeys.get_slot(cancelled.item_index)
-                    != ragnarok_game::hotkey::HotkeySlotContent::Empty
-                {
-                    self.character.hotkeys.clear_slot(cancelled.item_index);
-                    events.push(GameEvent::RequestHotkeyChange {
-                        index: cancelled.item_index as u16,
-                        is_skill: false,
-                        id: 0,
-                        count: 0,
-                    });
-                }
-            } else if cancelled.source_id == INV_WINDOW_ID && ui.hovered_window().is_none() {
-                if self.combat.waiting_item_throw_ack {
-                } else if self.equipment_window.is_visible() {
-                    self.chat_window
-                        .add_system("Please close the Equipment window.".to_string());
-                } else if let Some(item) = self
-                    .character
-                    .inventory
-                    .get_item(cancelled.item_index as u16)
-                {
-                    if item.count > 1 {
-                        let mut dialog = DropQuantityDialog::new(item.index, item.count);
-                        dialog.has_grf_textures = self.drop_dialog_has_grf_textures;
-                        if dialog.has_grf_textures {
-                            dialog.set_texture_sizes(texture_size_fn);
-                        }
-                        self.drop_quantity_dialog = Some(dialog);
-                    } else {
-                        events.push(GameEvent::RequestDropItem {
-                            index: item.index,
-                            count: 1,
-                        });
-                        self.combat.waiting_item_throw_ack = true;
-                    }
-                }
-            }
-        }
-
-        if let Some(dialog) = &mut self.drop_quantity_dialog {
-            let dialog_events =
-                InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
-            let closed = dialog_events.iter().any(|e| {
-                matches!(
-                    e,
-                    GameEvent::DialogClosed | GameEvent::RequestDropItem { .. }
-                )
-            });
-            if closed {
-                if dialog_events
-                    .iter()
-                    .any(|e| matches!(e, GameEvent::RequestDropItem { .. }))
-                {
-                    self.combat.waiting_item_throw_ack = true;
-                }
-                self.drop_quantity_dialog = None;
-            }
-            events.extend(
-                dialog_events
-                    .into_iter()
-                    .filter(|e| !matches!(e, GameEvent::DialogClosed)),
-            );
-        }
-
-        if let Some(dialog) = &mut self.guild_expel_dialog {
-            dialog.has_grf_textures = self.drop_dialog_has_grf_textures;
-            if dialog.has_grf_textures {
-                dialog.set_texture_sizes(texture_size_fn);
-            }
-            let dialog_events =
-                InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
-            if dialog_events.iter().any(|e| {
-                matches!(
-                    e,
-                    GameEvent::DialogClosed | GameEvent::ConfirmedGuildExpel { .. }
-                )
-            }) {
-                self.guild_expel_dialog = None;
-            }
-            events.extend(
-                dialog_events
-                    .into_iter()
-                    .filter(|e| !matches!(e, GameEvent::DialogClosed)),
-            );
-        }
-
-        if let Some(dialog) = &mut self.card_insert_dialog {
-            let dialog_events =
-                InGameWindow::build(dialog, ui, &mut self.character, &self.data_table);
-            let closed = dialog_events.iter().any(|e| {
-                matches!(
-                    e,
-                    GameEvent::DialogClosed | GameEvent::RequestCardInsert { .. }
-                )
-            });
-            if closed {
-                self.card_insert_dialog = None;
-            }
-            events.extend(
-                dialog_events
-                    .into_iter()
-                    .filter(|e| !matches!(e, GameEvent::DialogClosed)),
-            );
-        }
-
-        self.update_broadcast_overlays(ui);
-
-        events
-    }
-
-    fn update_broadcast_overlays(&mut self, ui: &mut UiFrame) {
-        let now = ui.elapsed_secs;
-        let dt = self
-            .broadcast
-            .broadcast_last_elapsed
-            .map_or(0.0, |last| (now - last).clamp(0.0, 0.1));
-        self.broadcast.broadcast_last_elapsed = Some(now);
-
-        self.broadcast.poptip.tick(dt);
-        self.draw_broadcast_poptip(ui);
-        self.update_broadcast_banner(ui, dt);
-    }
-
-    fn draw_broadcast_poptip(&mut self, ui: &mut UiFrame) {
-        const BASE_Y: f32 = 90.0;
-        if self.broadcast.poptip.is_empty() {
-            return;
-        }
-        let center_x = ui.ctx.screen_width * 0.5;
-        let line_h = ui.atlas.line_height + 4.0;
-        const PAD: f32 = 4.0;
-        for (index, (text, alpha)) in self.broadcast.poptip.iter().enumerate() {
-            let width = ui.atlas.measure_text(text);
-            let x = center_x - width * 0.5;
-            let y = BASE_Y - index as f32 * line_h;
-
-            let box_w = width + PAD * 2.0;
-            let box_h = ui.atlas.line_height + PAD * 2.0;
-            let box_x = x - PAD;
-            let box_y = y - ui.atlas.line_height * 0.5 - PAD;
-            let (bg_v, bg_i) =
-                ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, box_h, [0.0, 0.0, 0.0, 0.8 * alpha]);
-            ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
-                vertices: bg_v.to_vec(),
-                indices: bg_i.to_vec(),
-                texture: ragnarok_ui::draw::TextureRef::White,
-            });
-
-            ui.text(x, y, text, [1.0, 1.0, 1.0, alpha]);
-        }
-    }
-
-    fn update_broadcast_banner(&mut self, ui: &mut UiFrame, dt: f32) {
-        const BAR_Y: f32 = 40.0;
-        const BAR_H: f32 = 24.0;
-        const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.7];
-        const TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-
-        if !self.broadcast.banner.visible() {
-            return;
-        }
-        self.broadcast.banner.tick(dt);
-
-        let Some(render) = self.broadcast.banner.render() else {
-            return;
-        };
-        let text_width = ui.atlas.measure_text(render.text);
-        if self.broadcast.banner.current_scrolled_off(text_width) {
-            self.broadcast.banner.advance();
-            return;
-        }
-
-        let center_x = ui.ctx.screen_width * 0.5;
-        let bar_left = center_x - render.half_width;
-        let bar_right = center_x + render.half_width;
-
-        let (bg_v, bg_i) =
-            ragnarok_ui::draw::quad_vertices(bar_left, BAR_Y, render.half_width * 2.0, BAR_H, BG_COLOR);
-        ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
-            vertices: bg_v.to_vec(),
-            indices: bg_i.to_vec(),
-            texture: ragnarok_ui::draw::TextureRef::White,
-        });
-
-        let text_x = bar_left + render.text_offset_x;
-        let baseline_y = BAR_Y + (BAR_H + ui.atlas.ascent) * 0.5;
-        let (tv, ti) = ragnarok_ui::draw::text_vertices_clipped(
-            render.text,
-            text_x,
-            baseline_y,
-            TEXT_COLOR,
-            ui.atlas,
-            bar_left,
-            bar_right,
-        );
-        if !tv.is_empty() {
-            ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
-                vertices: tv,
-                indices: ti,
-                texture: ragnarok_ui::draw::TextureRef::FontAtlas,
-            });
-        }
-    }
-
-    fn build_window(&mut self, win_id: WidgetId, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        match win_id {
-            BASIC_INFO_WINDOW_ID => events.extend(self.basic_info_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            chat_window::CHAT_WINDOW_ID => events.extend(self.chat_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            INV_WINDOW_ID => events.extend(self.inventory_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            CART_WINDOW_ID => events.extend(self.cart_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            STORAGE_WINDOW_ID => events.extend(self.storage_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            TRADE_WINDOW_ID => events.extend(self.trade_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            MAILBOX_WINDOW_ID => events.extend(self.mailbox_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            READ_MAIL_WINDOW_ID => events.extend(self.read_mail_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            MAKE_ITEM_WINDOW_ID => events.extend(self.make_item_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            VENDING_SHOP_WINDOW_ID => events.extend(self.vending_shop_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            VENDING_SETUP_WINDOW_ID => events.extend(self.vending_setup_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            VENDING_AVAILABLE_WINDOW_ID => events.extend(self.vending_setup_window.build_available(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            MY_SHOP_WINDOW_ID => events.extend(self.my_shop_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            CART_SELECT_WINDOW_ID => events.extend(self.cart_select_window.build(
-                ui,
-                &mut self.character,
-                &self.data_table,
-            )),
-            EQ_WINDOW_ID => {
-                events.extend(self.equipment_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            SKILL_WINDOW_ID => {
-                events.extend(self.skill_tree_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            STATUS_WINDOW_ID => {
-                events.extend(
-                    self.status_window
-                        .build(ui, &mut self.character, &self.data_table),
-                );
-            }
-            PARTY_FRIENDS_WINDOW_ID => {
-                let local_aid = self
-                    .session.login_session
-                    .as_ref()
-                    .map(|s| s.account_id)
-                    .unwrap_or(0);
-                // The server never sends our own HP via party, and same-map members' HP only
-                // arrives on change — so refresh rows from live state each frame.
-                if let Some(party) = &mut self.party {
-                    for m in &mut party.members {
-                        if m.aid == local_aid {
-                            m.hp = Some(self.character.hp);
-                            m.max_hp = Some(self.character.max_hp);
-                            if let Some(p) = self.world.entities.player() {
-                                (m.x, m.y) = p.movement.cell_position();
-                            }
-                        } else if let Some(e) = self.world.entities.get(m.aid) {
-                            if let (Some(hp), Some(max_hp)) = (e.hp, e.max_hp) {
-                                m.hp = Some(hp);
-                                m.max_hp = Some(max_hp);
-                            }
-                            (m.x, m.y) = e.movement.cell_position();
-                        }
-                    }
-                }
-                self.party_friends_window
-                    .sync(self.party.as_ref(), &self.friends.friends, local_aid);
-                events.extend(self.party_friends_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            PARTY_HELPER_WINDOW_ID => {
-                events.extend(self.party_helper_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            GUILD_WINDOW_ID => {
-                let local_gid = self
-                    .session.login_session
-                    .as_ref()
-                    .map(|s| s.account_id)
-                    .unwrap_or(0);
-                self.guild_window
-                    .sync(self.guild.as_ref(), local_gid, &self.character.name);
-                events.extend(self.guild_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            EMBLEM_PICKER_WINDOW_ID => {
-                events.extend(self.emblem_picker_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            COMPANION_AI_CONFIG_WINDOW_ID => {
-                events.extend(
-                    self.companion_ai_config_window
-                        .build(ui, &mut self.companions.companion_ai),
-                );
-            }
-            HOMUN_WINDOW_ID => {
-                events.extend(self.homunculus_window.build(ui, self.companions.homunculus.as_ref()));
-            }
-            MERCENARY_WINDOW_ID => {
-                events.extend(self.mercenary_window.build(ui, self.companions.mercenary.as_ref()));
-            }
-            PET_WINDOW_ID => {
-                events.extend(self.pet_window.build(ui, &self.companions.pet));
-            }
-            MERCENARY_SKILL_WINDOW_ID => {
-                events.extend(self.mercenary_skill_window.build(
-                    ui,
-                    self.companions.mercenary.as_ref(),
-                    &self.data_table,
-                ));
-            }
-            HOMUN_SKILL_WINDOW_ID => {
-                events.extend(self.homun_skill_window.build(
-                    ui,
-                    self.companions.homunculus.as_ref(),
-                    &self.data_table,
-                ));
-            }
-            BOOK_WINDOW_ID => {
-                events.extend(
-                    self.book_window
-                        .build(ui, &mut self.character, &self.data_table),
-                );
-            }
-            SOUND_OPTIONS_WINDOW_ID => {
-                events.extend(
-                    self.sound_options
-                        .build(ui, &mut self.character, &self.data_table),
-                );
-            }
-            GRAPHIC_OPTIONS_WINDOW_ID => {
-                events.extend(
-                    self.graphic_options
-                        .build(ui, &mut self.character, &self.data_table),
-                );
-            }
-            HOTKEY_CONFIG_WINDOW_ID => {
-                events.extend(self.hotkey_config_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            CHAT_ROOM_CREATE_WINDOW_ID => {
-                events.extend(self.chat_room_create_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            CHAT_ROOM_MEMBER_WINDOW_ID => {
-                events.extend(self.chat_room_member_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            EMOTION_WINDOW_ID => {
-                events.extend(self.emotion_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            SHORTCUT_LIST_WINDOW_ID => {
-                events.extend(self.shortcut_list_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            QUEST_WINDOW_ID => {
-                self.quest_window.sync(&self.quest_log);
-                events.extend(self.quest_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            QUEST_DETAIL_WINDOW_ID => {
-                let quest = self
-                    .quest_detail_window
-                    .quest_id()
-                    .and_then(|id| self.quest_log.get(id).cloned());
-                self.quest_detail_window.sync(quest);
-                events.extend(self.quest_detail_window.build(
-                    ui,
-                    &mut self.character,
-                    &self.data_table,
-                ));
-            }
-            _ => {}
-        }
-    }
 
     /// Resolves a skill's cast metadata `(target type, attack range)` from the
     /// player's skills first, then the mercenary's, then the homunculus'.
@@ -1322,67 +484,19 @@ impl GameState {
             character: Character::new(),
             data_table: DataTable::new(),
             assets: AssetHandles::default(),
-            chat_window: ChatWindow::new(),
             broadcast: Broadcast::new(),
-            equipment_window: EquipmentWindow::new(),
-            inventory_window: InventoryWindow::new(),
-            cart_window: CartWindow::new(),
-            storage_window: StorageWindow::new(),
-            trade_window: TradeWindow::new(),
             pending_confirms: PendingConfirms::default(),
-            mailbox_window: MailboxWindow::new(),
-            read_mail_window: ReadMailWindow::new(),
-            cart_select_window: CartSelectWindow::new(),
-            npc_dialog: NpcDialog::new(),
             npc_cutins: [None, None, None],
-            warp_list_window: WarpListWindow::new(),
-            item_list_selection_window: ItemListSelectionWindow::new(),
-            make_item_window: MakeItemWindow::new(),
-            vending_shop_window: VendingShopWindow::new(),
-            vending_setup_window: VendingSetupWindow::new(),
-            my_shop_window: MyShopWindow::new(),
-            confirm_dialog: ConfirmDialog::new(),
-            npc_shop: NpcShop::new(),
             chat_rooms: ChatRoomRegistry::new(),
-            chat_room_create_window: ChatRoomCreateWindow::new(),
-            chat_room_member_window: ChatRoomMemberWindow::new(),
-            emotion_window: EmotionWindow::new(),
-            shortcut_list_window: ShortcutListWindow::new(),
-            quest_window: QuestWindow::new(),
-            quest_detail_window: QuestDetailWindow::new(),
             pending_chat_room: None,
-            system_menu: SystemMenu::new(),
-            map_missing_window: MapMissingWindow::new(),
             hover: HoverState::default(),
-            drop_dialog_has_grf_textures: false,
-            drop_quantity_dialog: None,
-            guild_expel_dialog: None,
-            card_insert_dialog: None,
-            card_insert_dialog_has_grf_textures: false,
             pending_casts: PendingCasts::default(),
             combat: CombatState::new(),
             prefs: Prefs::new(),
-            basic_info_window: BasicInfoWindow::new(),
-            status_window: StatusWindow::new(),
-            item_info_window: ItemInfoWindow::new(),
-            book_window: BookWindow::new(),
-            sound_options: SoundOptionsWindow::new(),
-            graphic_options: GraphicOptionsWindow::new(),
-            hotkey_config_window: HotkeyConfigWindow::new(),
-            item_pickup_notification: ItemPickupNotification::new(),
-            skill_tree_window: SkillTreeWindow::new(),
-            hotkey_bar: HotkeyBarWindow::new(),
-            minimap_window: MinimapWindow::new(),
-            status_icon_bar: StatusIconBarWindow::new(),
-            levelup_notification: LevelUpNotificationWindow::new(),
             party: None,
             guild: None,
             guild_menu_flag: 0,
-            guild_window: GuildWindow::new(),
-            emblem_picker_window: EmblemPickerWindow::new(),
             friends: ragnarok_game::friends::FriendList::default(),
-            party_friends_window: PartyFriendsWindow::new(),
-            party_helper_window: PartyHelperWindow::new(),
             companions: Companions {
                 homunculus: None,
                 mercenary: None,
@@ -1394,15 +508,8 @@ impl GameState {
                 capture_targeting: false,
                 pet_roulette: None,
             },
-            homunculus_window: HomunWindow::new(),
-            mercenary_window: MercenaryWindow::new(),
-            pet_window: PetWindow::new(),
             quest_log: QuestLog::default(),
             quest_markers: std::collections::HashMap::new(),
-            companion_ai_config_window: CompanionAiConfigWindow::new(),
-            mercenary_skill_window: MercenarySkillWindow::new(),
-            homun_skill_window: HomunSkillWindow::new(),
-            context_menu: ContextMenu::new(),
             debug_show_pick_bounds: false,
             debug_overlay: false,
             schedulers: Schedulers::new(),
@@ -1412,38 +519,50 @@ impl GameState {
 
     pub fn arm_confirm(
         &mut self,
+        windows: &mut Windows,
         message: &str,
         ctor: impl FnOnce(bool) -> Option<GameEvent> + 'static,
     ) {
         self.pending_confirms.active = Some(Box::new(ctor));
-        self.confirm_dialog.show_confirm(message);
+        windows.confirm_dialog.show_confirm(message);
     }
 
     /// Returns true when the request must be auto-refused; otherwise records the
     /// pending request and opens the accept dialog.
-    pub fn begin_trade_request(&mut self, name: String, gid: u32, auto_refuse: bool) -> bool {
+    pub fn begin_trade_request(
+        &mut self,
+        windows: &mut Windows,
+        name: String,
+        gid: u32,
+        auto_refuse: bool,
+    ) -> bool {
         if auto_refuse {
             return true;
         }
         self.pending_confirms.pending_trade_partner = Some((gid, name.clone()));
         self.pending_confirms.pending_trade_request = Some(gid);
         self.arm_confirm(
+            windows,
             &format!("Do you want to trade with {name}?"),
             |accept| Some(GameEvent::RespondExchangeRequest { accept }),
         );
         false
     }
 
-    pub fn apply_window_state(&mut self, window_state: &HashMap<u32, WindowStateEntry>) {
+    pub fn apply_window_state(
+        &mut self,
+        windows: &mut Windows,
+        window_state: &HashMap<u32, WindowStateEntry>,
+    ) {
         if let Some(entry) = window_state.get(&INV_WINDOW_ID.0) {
             if entry.open {
                 self.character.inventory.open();
             }
-            self.inventory_window.set_minimized(entry.collapsed);
+            windows.inventory_window.set_minimized(entry.collapsed);
         }
         if let Some(entry) = window_state.get(&EQ_WINDOW_ID.0) {
-            self.equipment_window.open = entry.open;
-            self.equipment_window.set_minimized(entry.collapsed);
+            windows.equipment_window.open = entry.open;
+            windows.equipment_window.set_minimized(entry.collapsed);
         }
         if let Some(entry) = window_state.get(&SKILL_WINDOW_ID.0)
             && entry.open
@@ -1458,28 +577,32 @@ impl GameState {
             } else {
                 5
             };
-            self.chat_window.set_initial_size_index(size_index);
+            windows.chat_window.set_initial_size_index(size_index);
         }
     }
 
-    pub fn extract_window_state(&self, state_cache: &StateCache) -> HashMap<u32, (bool, bool)> {
+    pub fn extract_window_state(
+        &self,
+        windows: &Windows,
+        state_cache: &StateCache,
+    ) -> HashMap<u32, (bool, bool)> {
         let mut result = HashMap::new();
         result.insert(
             INV_WINDOW_ID.0,
             (
                 self.character.inventory.is_open(),
-                self.inventory_window.is_minimized(),
+                windows.inventory_window.is_minimized(),
             ),
         );
         result.insert(
             EQ_WINDOW_ID.0,
             (
-                self.equipment_window.is_open(),
-                self.equipment_window.is_minimized(),
+                windows.equipment_window.is_open(),
+                windows.equipment_window.is_minimized(),
             ),
         );
         result.insert(SKILL_WINDOW_ID.0, (self.character.skills.is_open(), false));
-        let size_index = self.chat_window.get_size_index(state_cache);
+        let size_index = windows.chat_window.get_size_index(state_cache);
         result.insert(
             chat_window::CHAT_WINDOW_ID.0,
             (size_index > 0, size_index == 1),
@@ -1524,15 +647,16 @@ mod trade_request_tests {
     #[test]
     fn auto_refuse_skips_dialog_and_normal_path_opens_it() {
         let mut game = GameState::new();
-        assert!(game.begin_trade_request("Alice".to_string(), 42, true));
+        let mut windows = Windows::new();
+        assert!(game.begin_trade_request(&mut windows, "Alice".to_string(), 42, true));
         assert!(game.pending_confirms.pending_trade_request.is_none());
         assert!(game.pending_confirms.pending_trade_partner.is_none());
-        assert!(game.confirm_dialog.state.is_none());
+        assert!(windows.confirm_dialog.state.is_none());
 
-        assert!(!game.begin_trade_request("Alice".to_string(), 42, false));
+        assert!(!game.begin_trade_request(&mut windows, "Alice".to_string(), 42, false));
         assert_eq!(game.pending_confirms.pending_trade_request, Some(42));
         assert_eq!(game.pending_confirms.pending_trade_partner, Some((42, "Alice".to_string())));
-        assert!(game.confirm_dialog.state.is_some());
+        assert!(windows.confirm_dialog.state.is_some());
     }
 }
 
@@ -1543,18 +667,19 @@ mod pending_confirms_tests {
     #[test]
     fn arm_confirm_dispatches_on_accept_and_clears_on_refuse() {
         let mut game = GameState::new();
+        let mut windows = Windows::new();
 
-        game.arm_confirm("Join party?", |accept| {
+        game.arm_confirm(&mut windows, "Join party?", |accept| {
             Some(GameEvent::RespondPartyInvite { party_grid: 7, accept })
         });
-        assert!(game.confirm_dialog.state.is_some());
+        assert!(windows.confirm_dialog.state.is_some());
         assert!(matches!(
             game.pending_confirms.dispatch(ConfirmResult::Ok),
             Some(GameEvent::RespondPartyInvite { party_grid: 7, accept: true })
         ));
         assert!(game.pending_confirms.dispatch(ConfirmResult::Ok).is_none());
 
-        game.arm_confirm("Feed pet?", |accept| {
+        game.arm_confirm(&mut windows, "Feed pet?", |accept| {
             accept.then_some(GameEvent::RequestPetCommand { csub: 1 })
         });
         assert!(game.pending_confirms.dispatch(ConfirmResult::Cancel).is_none());
@@ -1569,14 +694,15 @@ mod window_state_persistence_tests {
     fn closed_skill_window_persists_and_restores_closed() {
         let cache = StateCache::new();
         let mut game = GameState::new();
+        let windows = Windows::new();
         game.character.skills.open();
         assert_eq!(
-            game.extract_window_state(&cache).get(&SKILL_WINDOW_ID.0),
+            game.extract_window_state(&windows, &cache).get(&SKILL_WINDOW_ID.0),
             Some(&(true, false))
         );
 
         game.character.skills.close();
-        let captured = game.extract_window_state(&cache);
+        let captured = game.extract_window_state(&windows, &cache);
         assert_eq!(captured.get(&SKILL_WINDOW_ID.0), Some(&(false, false)));
 
         let (open, collapsed) = captured[&SKILL_WINDOW_ID.0];
@@ -1590,7 +716,8 @@ mod window_state_persistence_tests {
             },
         );
         let mut next_login = GameState::new();
-        next_login.apply_window_state(&window_state);
+        let mut next_windows = Windows::new();
+        next_login.apply_window_state(&mut next_windows, &window_state);
         assert!(!next_login.character.skills.is_open());
     }
 }

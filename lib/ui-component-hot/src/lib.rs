@@ -21,6 +21,9 @@ use ragnarok_game::guild::{
     Guild, GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill,
 };
 use ragnarok_game::party::{Party, PartyMember};
+use ragnarok_ai::config::CompanionAiConfig;
+use ragnarok_game::friends::FriendList;
+use ragnarok_ui_component::BuildCtx;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
@@ -275,7 +278,7 @@ enum State {
     },
     QuestDetail {
         win: QuestDetailWindow,
-        quest: Quest,
+        log: QuestLog,
         character: Character,
         data: DataTable,
     },
@@ -1127,12 +1130,12 @@ fn create_single(name: &str) -> State {
         }
         "quest_detail" => {
             let log = demo_quest_log();
-            let quest = log.quests[0].clone();
+            let quest_id = log.quests[0].id;
             let mut win = QuestDetailWindow::new();
-            win.open(quest.id);
+            win.open(quest_id);
             State::QuestDetail {
                 win,
-                quest,
+                log,
                 character: Character::new(),
                 data: DataTable::new(),
             }
@@ -2493,35 +2496,71 @@ fn board_anchor(ui: &UiFrame, index: usize) -> (f32, f32) {
     (x, y)
 }
 
+struct HotCtxDefaults {
+    friends: FriendList,
+    quest_log: QuestLog,
+    pet: PetState,
+    companion_ai: CompanionAiConfig,
+}
+
+impl HotCtxDefaults {
+    fn new() -> Self {
+        Self {
+            friends: FriendList::default(),
+            quest_log: QuestLog::default(),
+            pet: PetState::default(),
+            companion_ai: CompanionAiConfig::default(),
+        }
+    }
+
+    fn ctx<'a>(&'a mut self, character: &'a mut Character, data: &'a DataTable) -> BuildCtx<'a> {
+        BuildCtx {
+            character,
+            data,
+            party: None,
+            friends: &self.friends,
+            guild: None,
+            quest_log: &self.quest_log,
+            homunculus: None,
+            mercenary: None,
+            pet: &self.pet,
+            companion_ai: &mut self.companion_ai,
+            local_aid: 0,
+            local_gid: 0,
+        }
+    }
+}
+
 fn build_single(state: &mut State, ui: &mut UiFrame) {
+    let mut d = HotCtxDefaults::new();
     match state {
         State::Inventory {
             inv,
             character,
             data,
         } => {
-            inv.build(ui, character, data);
+            inv.build(ui, &mut d.ctx(character, data));
         }
         State::Cart {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::Storage {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::Trade {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::Mailbox {
             win,
@@ -2530,7 +2569,8 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         } => {
             // No mail-server here, so stand in for the attach/send acks that
             // normally drive compose state.
-            for event in win.build(ui, character, data) {
+            let mail_events = win.build(ui, &mut d.ctx(character, data));
+            for event in mail_events {
                 match event {
                     GameEvent::RequestMailAddItem { .. } => {
                         if let Some(pending) = character.mail.compose.pending_item.take() {
@@ -2550,22 +2590,22 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::CartSelect {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::VendingSetup {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
-            win.build_available(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
+            win.build_available(ui, &mut d.ctx(character, data));
         }
         State::MyShop {
             win,
@@ -2573,7 +2613,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
             ..
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::VendingBuy {
             win,
@@ -2581,7 +2621,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
             ..
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::VendingBoard { container, name } => {
             let (ax, ay) = board_anchor(ui, 0);
@@ -2631,7 +2671,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                     shop.shop.open_buy(100, buy_items.clone());
                 }
             }
-            shop.build(ui, character, data);
+            shop.build(ui, &mut d.ctx(character, data));
         }
         State::Login { login } => {
             login.build(ui);
@@ -2641,14 +2681,14 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            chat.build(ui, character, data);
+            chat.build(ui, &mut d.ctx(character, data));
         }
         State::NpcDialog {
             npc,
             character,
             data,
         } => {
-            npc.build(ui, character, data);
+            npc.build(ui, &mut d.ctx(character, data));
         }
         State::ConfirmDialog { dialog, open } => {
             if *open && dialog.state.is_some() {
@@ -2669,7 +2709,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            equip.build(ui, character, data);
+            equip.build(ui, &mut d.ctx(character, data));
         }
         State::SystemMenu {
             menu,
@@ -2680,7 +2720,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                 menu.open = true;
             });
             menu.allow_escape_toggle = true;
-            menu.build(ui, character, data);
+            menu.build(ui, &mut d.ctx(character, data));
         }
         State::CharSelect { win } => {
             // No char-server here, so stand in for the reserve/confirm acks to make
@@ -2710,7 +2750,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             data,
             ..
         } => {
-            let events = win.build(ui, character, data);
+            let events = win.build(ui, &mut d.ctx(character, data));
             for event in events {
                 match event {
                     GameEvent::ShowCardInfo { item_id } => {
@@ -2739,49 +2779,49 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::Book {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::ChatRoomCreate {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::Emotion {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::ShortcutList {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::GraphicOptions {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::HotkeyConfig {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::Quest {
             win,
@@ -2789,56 +2829,58 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.sync(log);
-            win.build(ui, character, data);
+            let mut ctx = d.ctx(character, data);
+            ctx.quest_log = &*log;
+            win.build(ui, &mut ctx);
         }
         State::QuestDetail {
             win,
-            quest,
+            log,
             character,
             data,
         } => {
-            win.sync(Some(quest.clone()));
-            win.build(ui, character, data);
+            let mut ctx = d.ctx(character, data);
+            ctx.quest_log = &*log;
+            win.build(ui, &mut ctx);
         }
         State::ChatRoomMember {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::CardInsert {
             dialog,
             character,
             data,
         } => {
-            dialog.build(ui, character, data);
+            dialog.build(ui, &mut d.ctx(character, data));
         }
         State::DialogContainerDemo { notification } => {
             let mut character = Character::new();
-            notification.build(ui, &mut character, &DataTable::default());
+            notification.build(ui, &mut d.ctx(&mut character, &DataTable::default()));
         }
         State::HotkeyBarDemo {
             hotkey_win,
             character,
             data,
         } => {
-            hotkey_win.build(ui, character, data);
+            hotkey_win.build(ui, &mut d.ctx(character, data));
         }
         State::BasicInfoDemo {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::StatusDemo {
             win,
             character,
             data,
         } => {
-            win.build(ui, character, data);
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::PartyDemo {
             win,
@@ -2847,8 +2889,10 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.sync(Some(party), &[], *local_aid);
-            win.build(ui, character, data);
+            let mut ctx = d.ctx(character, data);
+            ctx.party = Some(&*party);
+            ctx.local_aid = *local_aid;
+            win.build(ui, &mut ctx);
         }
         State::GuildDemo {
             win,
@@ -2857,23 +2901,46 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.sync(Some(guild), *local_gid, "Walkiry");
-            win.build(ui, character, data);
+            character.name = "Walkiry".to_string();
+            let mut ctx = d.ctx(character, data);
+            ctx.guild = Some(&*guild);
+            ctx.local_gid = *local_gid;
+            win.build(ui, &mut ctx);
         }
         State::Mercenary { win, merc } => {
-            win.build(ui, Some(merc));
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = d.ctx(&mut character, &data);
+            ctx.mercenary = Some(&*merc);
+            win.build(ui, &mut ctx);
         }
         State::MercenarySkill { win, merc } => {
-            win.build(ui, Some(merc), &DataTable::new());
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = d.ctx(&mut character, &data);
+            ctx.mercenary = Some(&*merc);
+            win.build(ui, &mut ctx);
         }
         State::Homun { win, homun } => {
-            win.build(ui, Some(homun));
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = d.ctx(&mut character, &data);
+            ctx.homunculus = Some(&*homun);
+            win.build(ui, &mut ctx);
         }
         State::Pet { win, pet } => {
-            win.build(ui, pet);
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = d.ctx(&mut character, &data);
+            ctx.pet = &*pet;
+            win.build(ui, &mut ctx);
         }
         State::CompanionAiConfig { win, config } => {
-            win.build(ui, config);
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = d.ctx(&mut character, &data);
+            ctx.companion_ai = &mut *config;
+            win.build(ui, &mut ctx);
         }
         State::FallbackGallery { name_field } => {
             build_fallback_gallery(ui, name_field);

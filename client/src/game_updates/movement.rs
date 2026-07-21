@@ -82,13 +82,13 @@ impl App {
         if self.game.pending_casts.pending_skill_target.is_some() {
             return;
         }
-        if self.game.chat_window.is_active() {
+        if self.windows.chat_window.is_active() {
             return;
         }
-        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
+        if self.windows.npc_dialog.dialog.is_open() || self.windows.npc_shop.shop.is_open() {
             return;
         }
-        if self.game.chat_window.contains_point(
+        if self.windows.chat_window.contains_point(
             self.input.mouse_position.0 as f32,
             self.input.mouse_position.1 as f32,
         ) {

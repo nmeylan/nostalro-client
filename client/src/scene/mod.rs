@@ -628,7 +628,7 @@ impl App {
 
         let mut inline_textures = Vec::new();
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
-        if let Some(center) = self.game.equipment_window.character_center()
+        if let Some(center) = self.windows.equipment_window.character_center()
             && let Some(player_id) = self.game.world.entities.player_id()
             && let Some(sprite) = self.game.sprite_caches.sprites.get(&player_id)
         {
@@ -653,7 +653,7 @@ impl App {
             }
         }
 
-        if let Some(center) = self.game.equipment_window.cart_slot_center()
+        if let Some(center) = self.windows.equipment_window.cart_slot_center()
             && let Some(player_id) = self.game.world.entities.player_id()
             && let Some(cart) = self.game.sprite_caches.carts.get(&player_id)
         {
@@ -681,7 +681,7 @@ impl App {
         }
 
         let mut cart_select_calls: Vec<UiDrawCall> = Vec::new();
-        for &(design, center) in self.game.cart_select_window.model_previews() {
+        for &(design, center) in self.windows.cart_select_window.model_previews() {
             let Some(sprite) = self.game.sprite_caches.cart_preview_sprites.get(&design) else {
                 continue;
             };
@@ -788,9 +788,9 @@ impl App {
         }
 
         let mut guild_head_calls: Vec<UiDrawCall> = Vec::new();
-        if self.game.session.app_state == AppState::InGame && self.game.guild_window.is_open() {
+        if self.game.session.app_state == AppState::InGame && self.windows.guild_window.is_open() {
             let idle = ragnarok_formats::act::SpriteAnimationState::new(0);
-            for &(gid, center) in self.game.guild_window.member_head_slots() {
+            for &(gid, center) in self.windows.guild_window.member_head_slots() {
                 let Some(sprite) = self.game.sprite_caches.guild_head_sprites.get(&gid) else {
                     continue;
                 };
@@ -933,7 +933,7 @@ impl App {
         all_ui_calls.extend(ui_draw_calls);
 
         let paperdoll_abs = self
-            .game
+            .windows
             .equipment_window
             .paperdoll_insert_index()
             .map(|idx| (overlay_len + idx).min(all_ui_calls.len()));
@@ -946,7 +946,7 @@ impl App {
 
         let cart_len = cart_select_calls.len();
         let mut cart_abs: Option<usize> = None;
-        if let Some(insert_idx) = self.game.cart_select_window.preview_insert_index() {
+        if let Some(insert_idx) = self.windows.cart_select_window.preview_insert_index() {
             let mut abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
             // The paperdoll insertion above shifts later indices forward.
             if paperdoll_abs.is_some_and(|pd| abs_idx >= pd) {
@@ -959,7 +959,7 @@ impl App {
             }
         }
 
-        if let Some(insert_idx) = self.game.guild_window.head_insert_index()
+        if let Some(insert_idx) = self.windows.guild_window.head_insert_index()
             && !guild_head_calls.is_empty()
         {
             let mut abs_idx = overlay_len + insert_idx;
@@ -1039,13 +1039,13 @@ impl App {
 
             let custom = self.effect_holder.custom_count();
             if custom > 0 {
-                let frustums = frame
+                let _frustums = frame
                     .effect_draws
                     .primitives
                     .iter()
                     .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
                     .count();
-                let billboards = frame
+                let _billboards = frame
                     .effect_draws
                     .primitives
                     .iter()

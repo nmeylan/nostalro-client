@@ -14,7 +14,7 @@ impl App {
 
     pub(super) fn handle_divorced(&mut self, name: String) {
         self.game.character.partner_name.clear();
-        self.game
+        self.windows
             .chat_window
             .add_system(format!("You have divorced {name}."));
     }

@@ -2,12 +2,10 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer,
     draw_sys_button, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::friends::Friend;
-use ragnarok_game::party::Party;
+use ragnarok_game::party::{Party, PartyMember};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -76,9 +74,6 @@ pub struct PartyFriendsWindow {
     pub open: bool,
     pub has_grf_textures: bool,
     friend_tab: bool,
-    party: Option<Party>,
-    friends: Vec<Friend>,
-    local_aid: u32,
     selected: Option<usize>,
 }
 
@@ -94,9 +89,6 @@ impl PartyFriendsWindow {
             open: false,
             has_grf_textures: false,
             friend_tab: false,
-            party: None,
-            friends: Vec::new(),
-            local_aid: 0,
             selected: None,
         }
     }
@@ -125,17 +117,10 @@ impl PartyFriendsWindow {
         }
     }
 
-    pub fn sync(&mut self, party: Option<&Party>, friends: &[Friend], local_aid: u32) {
-        self.party = party.cloned();
-        self.friends = friends.to_vec();
-        self.local_aid = local_aid;
-    }
-
-    fn is_leader(&self) -> bool {
-        self.party
-            .as_ref()
+    fn is_leader(&self, party: Option<&Party>, local_aid: u32) -> bool {
+        party
             .and_then(|p| p.leader_aid())
-            .map(|aid| aid == self.local_aid)
+            .map(|aid| aid == local_aid)
             .unwrap_or(false)
     }
 
@@ -215,12 +200,14 @@ impl InGameWindow for PartyFriendsWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
         if !self.open {
             return Vec::new();
         }
+        let party = ctx.party;
+        let friends = &ctx.friends.friends;
+        let local_aid = ctx.local_aid;
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
@@ -237,9 +224,9 @@ impl InGameWindow for PartyFriendsWindow {
         // Titlebar
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
         let title = if self.friend_tab {
-            format!("Friends ({})", self.friends.len())
+            format!("Friends ({})", friends.len())
         } else {
-            match &self.party {
+            match party {
                 Some(p) if !p.name.is_empty() => format!("Party  {}", p.name),
                 _ => "Party".to_string(),
             }
@@ -277,15 +264,15 @@ impl InGameWindow for PartyFriendsWindow {
         draw_container(ui, x, content_y, WIN_W, CONTENT_H, grf);
 
         if self.friend_tab {
-            self.build_friend_list(ui, x, content_y);
+            self.build_friend_list(ui, friends, x, content_y);
         } else {
-            self.build_party_list(ui, x, content_y, tc);
+            self.build_party_list(ui, party, x, content_y, tc);
         }
 
         // Navigation bar
         let nav_y = content_y + CONTENT_H;
         draw_footer(ui, x, nav_y, WIN_W, NAV_H, grf);
-        events.extend(self.build_nav_bar(ui, x, nav_y));
+        events.extend(self.build_nav_bar(ui, party, friends, local_aid, x, nav_y));
 
         // Footer: tab switch
         let footer_y = nav_y + NAV_H;
@@ -298,12 +285,8 @@ impl InGameWindow for PartyFriendsWindow {
 }
 
 impl PartyFriendsWindow {
-    fn build_party_list(&mut self, ui: &mut UiFrame, x: f32, content_y: f32, tc: [f32; 4]) {
-        let members = self
-            .party
-            .as_ref()
-            .map(|p| p.members.clone())
-            .unwrap_or_default();
+    fn build_party_list(&mut self, ui: &mut UiFrame, party: Option<&Party>, x: f32, content_y: f32, tc: [f32; 4]) {
+        let members: &[PartyMember] = party.map(|p| p.members.as_slice()).unwrap_or(&[]);
         if members.is_empty() {
             ui.text(x + 8.0, content_y + 18.0, "Not in a party", OFFLINE_COLOR);
             return;
@@ -364,13 +347,12 @@ impl PartyFriendsWindow {
         }
     }
 
-    fn build_friend_list(&mut self, ui: &mut UiFrame, x: f32, content_y: f32) {
-        if self.friends.is_empty() {
+    fn build_friend_list(&mut self, ui: &mut UiFrame, friends: &[Friend], x: f32, content_y: f32) {
+        if friends.is_empty() {
             ui.text(x + 8.0, content_y + 18.0, "No friends", OFFLINE_COLOR);
             return;
         }
         let grf = self.has_grf_textures;
-        let friends = self.friends.clone();
         for (idx, f) in friends.iter().enumerate() {
             let row_y = content_y + 4.0 + idx as f32 * 18.0;
             if row_y + 18.0 > content_y + CONTENT_H {
@@ -392,7 +374,7 @@ impl PartyFriendsWindow {
         }
     }
 
-    fn build_nav_bar(&mut self, ui: &mut UiFrame, x: f32, nav_y: f32) -> Vec<GameEvent> {
+    fn build_nav_bar(&mut self, ui: &mut UiFrame, party: Option<&Party>, friends: &[Friend], local_aid: u32, x: f32, nav_y: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let mut bx = x + 3.0;
         if self.friend_tab {
@@ -401,21 +383,21 @@ impl PartyFriendsWindow {
             }
             bx += NAV_BTN_W;
             if Self::nav_button(ui, NAV_CHAT_ID, bx, nav_y, &MESBTN_CHAT, "Chat", "1:1 Chat") {
-                if let Some(name) = self.selected_friend_name() {
+                if let Some(name) = self.selected_friend_name(friends) {
                     events.push(GameEvent::RequestWhisper { name });
                 }
             }
             bx += NAV_BTN_W;
             if Self::nav_button(ui, NAV_REMOVE_ID, bx, nav_y, &MESBTN_REMOVE, "Del", "Delete") {
-                if let Some((aid, gid)) = self.selected_friend_ids() {
+                if let Some((aid, gid)) = self.selected_friend_ids(friends) {
                     events.push(GameEvent::RequestDeleteFriend { aid, gid });
                 }
             }
             return events;
         }
 
-        let has_party = self.party.as_ref().map(|p| !p.members.is_empty()).unwrap_or(false);
-        let is_leader = self.is_leader();
+        let has_party = party.map(|p| !p.members.is_empty()).unwrap_or(false);
+        let is_leader = self.is_leader(party, local_aid);
         if !has_party {
             if Self::nav_button(ui, NAV_CREATE_ID, bx, nav_y, &MESBTN_CREATE, "New", "Create Party") {
                 events.push(GameEvent::ShowPartyHelper { mode: 0 });
@@ -435,7 +417,7 @@ impl PartyFriendsWindow {
         }
         bx += NAV_BTN_W;
         if Self::nav_button(ui, NAV_CHAT_ID, bx, nav_y, &MESBTN_CHAT, "Chat", "1:1 Chat") {
-            if let Some(name) = self.selected_member_name() {
+            if let Some(name) = self.selected_member_name(party) {
                 events.push(GameEvent::RequestWhisper { name });
             }
         }
@@ -443,7 +425,7 @@ impl PartyFriendsWindow {
         if is_leader
             && Self::nav_button(ui, NAV_REMOVE_ID, bx, nav_y, &MESBTN_REMOVE, "Kick", "Expel from party")
         {
-            if let Some((aid, name)) = self.selected_member_kick() {
+            if let Some((aid, name)) = self.selected_member_kick(party, local_aid) {
                 events.push(GameEvent::RequestExpelMember { aid, name });
             }
         }
@@ -451,7 +433,7 @@ impl PartyFriendsWindow {
         if is_leader
             && Self::nav_button(ui, NAV_LEADER_ID, bx, nav_y, &MESBTN_SETUP, "Lead", "Delegate leader")
         {
-            if let Some((aid, _)) = self.selected_member_kick() {
+            if let Some((aid, _)) = self.selected_member_kick(party, local_aid) {
                 events.push(GameEvent::RequestChangePartyLeader { aid });
             }
         }
@@ -512,32 +494,32 @@ impl PartyFriendsWindow {
         }
     }
 
-    fn selected_member(&self) -> Option<&ragnarok_game::party::PartyMember> {
+    fn selected_member<'p>(&self, party: Option<&'p Party>) -> Option<&'p PartyMember> {
         let idx = self.selected?;
-        self.party.as_ref()?.members.get(idx)
+        party?.members.get(idx)
     }
 
-    fn selected_member_name(&self) -> Option<String> {
-        self.selected_member().map(|m| m.name.clone())
+    fn selected_member_name(&self, party: Option<&Party>) -> Option<String> {
+        self.selected_member(party).map(|m| m.name.clone())
     }
 
-    fn selected_member_kick(&self) -> Option<(u32, String)> {
-        let m = self.selected_member()?;
-        if m.aid == self.local_aid {
+    fn selected_member_kick(&self, party: Option<&Party>, local_aid: u32) -> Option<(u32, String)> {
+        let m = self.selected_member(party)?;
+        if m.aid == local_aid {
             return None;
         }
         Some((m.aid, m.name.clone()))
     }
 
-    fn selected_friend(&self) -> Option<&Friend> {
-        self.friends.get(self.selected?)
+    fn selected_friend<'f>(&self, friends: &'f [Friend]) -> Option<&'f Friend> {
+        friends.get(self.selected?)
     }
 
-    fn selected_friend_name(&self) -> Option<String> {
-        self.selected_friend().map(|f| f.name.clone())
+    fn selected_friend_name(&self, friends: &[Friend]) -> Option<String> {
+        self.selected_friend(friends).map(|f| f.name.clone())
     }
 
-    fn selected_friend_ids(&self) -> Option<(u32, u32)> {
-        self.selected_friend().map(|f| (f.aid, f.gid))
+    fn selected_friend_ids(&self, friends: &[Friend]) -> Option<(u32, u32)> {
+        self.selected_friend(friends).map(|f| (f.aid, f.gid))
     }
 }
