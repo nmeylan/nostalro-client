@@ -17,6 +17,7 @@ use ragnarok_game::cursor::{
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::entity_collection::EntityCollection;
@@ -197,6 +198,20 @@ pub struct EffectKeys {
     pub sight_aura_keys: HashMap<u32, u32>,
     pub ruwach_aura_keys: HashMap<u32, u32>,
     pub weather_keys: HashMap<EffectId, u32>,
+}
+
+impl EffectKeys {
+    pub fn clear(&mut self) {
+        self.status_buff_keys.clear();
+        self.next_status_buff_key = 0;
+        self.level_aura_keys.clear();
+        self.boss_aura_keys.clear();
+        self.warp_portal_keys.clear();
+        self.spirit_keys.clear();
+        self.sight_aura_keys.clear();
+        self.ruwach_aura_keys.clear();
+        self.weather_keys.clear();
+    }
 }
 
 #[derive(Default)]
@@ -1324,6 +1339,14 @@ impl GameState {
         None
     }
 
+    /// The queue and the key-maps must be wiped together: a key left behind
+    /// points into a now-empty queue and blocks the alive-gated auras from ever
+    /// re-spawning.
+    pub fn reset_effects(&mut self, queue: &mut EffectQueue) {
+        queue.clear();
+        self.effect_keys.clear();
+    }
+
     pub fn new() -> Self {
         Self {
             session: SessionState::new(),
@@ -1573,5 +1596,44 @@ mod window_state_persistence_tests {
         let mut next_login = GameState::new();
         next_login.apply_window_state(&window_state);
         assert!(!next_login.character.skills.is_open());
+    }
+}
+
+#[cfg(test)]
+mod effect_reset_tests {
+    use super::*;
+
+    #[test]
+    fn reset_effects_wipes_queue_and_every_key_map_together() {
+        let mut game = GameState::new();
+        let mut queue = EffectQueue::new();
+        queue.spawn_on_keyed(EffectId::Blessing, 1, 1);
+        queue.despawn(2);
+
+        let keys = &mut game.effect_keys;
+        keys.status_buff_keys.insert((1, 2), 3);
+        keys.next_status_buff_key = 9;
+        keys.level_aura_keys.insert(1, 1);
+        keys.boss_aura_keys.insert(1, 1);
+        keys.warp_portal_keys.insert(1, 1);
+        keys.spirit_keys.insert(1, 1);
+        keys.sight_aura_keys.insert(1, 1);
+        keys.ruwach_aura_keys.insert(1, 1);
+        keys.weather_keys.insert(EffectId::Snow, 1);
+
+        game.reset_effects(&mut queue);
+
+        assert!(queue.drain().is_empty());
+        assert!(queue.drain_despawns().is_empty());
+        let keys = &game.effect_keys;
+        assert!(keys.status_buff_keys.is_empty());
+        assert_eq!(keys.next_status_buff_key, 0);
+        assert!(keys.level_aura_keys.is_empty());
+        assert!(keys.boss_aura_keys.is_empty());
+        assert!(keys.warp_portal_keys.is_empty());
+        assert!(keys.spirit_keys.is_empty());
+        assert!(keys.sight_aura_keys.is_empty());
+        assert!(keys.ruwach_aura_keys.is_empty());
+        assert!(keys.weather_keys.is_empty());
     }
 }

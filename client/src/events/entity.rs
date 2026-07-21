@@ -1,3 +1,4 @@
+use super::lifecycle::SessionChange;
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
@@ -269,8 +270,7 @@ impl App {
                     if let Some(pos) = self.entity_world_pos(gid) {
                         self.effect_queue.spawn_at(EffectId::Devil, pos);
                     }
-                    self.game.session.player_dead = true;
-                    self.game.system_menu.open_dead();
+                    self.on_session_change(SessionChange::Death);
                 }
             }
             VanishType::OutOfSight => {
@@ -1167,8 +1167,7 @@ impl App {
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
         if self.game.world.entities.player_id() == Some(gid) {
-            self.game.session.player_dead = false;
-            self.game.system_menu.close_dead();
+            self.on_session_change(SessionChange::Resurrect);
         }
     }
 

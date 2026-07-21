@@ -8,6 +8,7 @@ mod entity;
 mod friends;
 mod guild;
 mod inventory;
+mod lifecycle;
 mod login;
 mod mail;
 pub(crate) mod marriage;
