@@ -10,7 +10,7 @@ It reflects the code as it stands after the refactor. When the code and this
 document disagree, the code is right and this document is stale; fix it.
 
 For the coordinate conventions used throughout (native RO axes, negative Y is
-up, camera placement). The short version, and the only part that matters here: world
+up, camera placement  [read more at ragnarokresearchlab.github.io](https://ragnarokresearchlab.github.io/rendering/coordinate-systems/).). The short version, and the only part that matters here: world
 coordinates are native RO, so up is negative Y, and a point one unit above the
 ground is `wy - 1.0`.
 
