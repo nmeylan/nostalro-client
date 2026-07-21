@@ -73,18 +73,11 @@ wrapper whose macros compile to nothing unless a feature is on). `audio` and
 depend on `network`, and it does not depend on `packets`. The dependency runs
 the other way: `network` depends on `game`.
 
-This is a rule, not an accident. Game state must be constructible and drivable
-without a socket so that tools (viewers, headless test harnesses) can reuse the
+The rational is game state must be constructible and drivable
+without a socket so that tools (viewers, headless tests) can reuse the
 exact same code the client runs. `models` stays in the graph because it carries
 domain enums (`ActionType`, `SkillTargetType`, `VanishType`) used across the
 game, not wire structs.
-
-The two packet-to-game translations that used to force a `packets` dependency on
-`game` now live in the network handler as free functions:
-`server_info_from_addr` and `character_info_from_neo_union` in
-`lib/network/src/handler.rs`. They build the game-native `ServerInfo` /
-`CharacterInfo` from the wire structs, so the wire types never cross the game
-boundary. `grep -rn "packets::" lib/game/src` returns nothing.
 
 `GameEvent` (the event vocabulary described below) lives in `lib/game`. It is the
 shared vocabulary both directions speak, and the bottom crate owning it is what
@@ -93,7 +86,7 @@ consume events.
 
 ## The frame
 
-The entry point is `App`, which implements winit's `ApplicationHandler`
+The entry point is `App`, which implements `winit` 's `ApplicationHandler`
 (`client/src/main.rs`). `resumed` creates the window and renderer, loads the GRF,
 and spawns the network thread. `about_to_wait` schedules a redraw every
 `FRAME_INTERVAL` and parks until then. All per-frame work happens in
@@ -126,7 +119,7 @@ then we resolve hover, pick a cursor, and render. The render step
 (`compose_and_render` into `Renderer::render`) is covered on its own in
 [`rendering.md`](rendering.md).
 
-### Outbound: input to the wire
+### Outbound: client to server
 
 User input and UI interaction produce `GameEvent`s, which `handle_ui_events`
 (`client/src/main.rs`) matches and turns into network traffic. The client never
@@ -151,7 +144,7 @@ main thread and the network thread: `cmd_tx` for outbound commands and packets,
 (`Connect`, `Disconnect`, `SetKeepalive`). Packet byte buffers are built by the
 `build_*_packet` functions re-exported from `lib/network`.
 
-### Inbound: the wire to game state
+### Inbound: server to client
 
 The network thread runs `network_loop` (`lib/network/src/lib.rs`) on a
 single-threaded tokio runtime, because the packet trait objects are not `Send`.
@@ -190,9 +183,7 @@ play it forward in time.
 grouped into co-access sub-structs (`Session`, `World`, `SpriteCaches`,
 `AssetHandles`, `EffectKeys`, `Schedulers`, `CombatState`, `Companions`,
 `PendingCasts`, `PendingConfirms`, `HoverState`, `Prefs`, `Broadcast`) so a
-method can borrow one group without borrowing the whole struct. That partial
-borrowing is what let the dialog-result `Rc<Cell<...>>` workarounds be deleted;
-`grep -c 'Rc<.*Cell' client/src/game_state.rs` is 0.
+method can borrow one group without borrowing the whole struct.
 
 The per-frame UI orchestration is not on `GameState`. It is a free function,
 `build_in_game_ui(game: &mut GameState, windows: &mut Windows, ui, ...)` in
