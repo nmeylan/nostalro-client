@@ -662,7 +662,6 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::AlIncagi | S::CashIncagi => T::on_target(&[E::Incagility]),
         S::AlBlessing | S::CashBlessing => T::on_target(&[E::Blessing]),
         S::McMammonite => T::hit(&[E::Coin]),
-        S::McCartrevolution => T::hit(&[E::Cartrevolution]),
         S::TfSteal => T::on_target(&[E::Steal]),
         S::TfDetoxify => T::on_target(&[E::Detoxication]),
         S::TfSprinklesand => T::on_target(&[E::Sprinklesand]),

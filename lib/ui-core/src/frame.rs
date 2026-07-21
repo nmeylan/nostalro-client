@@ -33,6 +33,7 @@ pub struct UiFrame<'a> {
     z_order_snapshot: Vec<WidgetId>,
     modal_layers: Vec<WidgetId>,
     in_popup_layer: bool,
+    keyboard_blocked: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -249,7 +250,23 @@ impl<'a> UiFrame<'a> {
             z_order_snapshot: Vec::new(),
             modal_layers: Vec::new(),
             in_popup_layer: false,
+            keyboard_blocked: false,
         }
+    }
+
+    /// Suppresses keyboard-driven window actions this frame (e.g. an open modal
+    /// dialog owns Enter/Escape). Windows must query [`UiFrame::enter_pressed`]
+    /// / [`UiFrame::escape_pressed`] rather than reading `ctx` directly.
+    pub fn block_keyboard(&mut self) {
+        self.keyboard_blocked = true;
+    }
+
+    pub fn enter_pressed(&self) -> bool {
+        self.ctx.key_enter && !self.keyboard_blocked
+    }
+
+    pub fn escape_pressed(&self) -> bool {
+        self.ctx.key_escape && !self.keyboard_blocked
     }
 
     pub fn get_z_order(&mut self) -> Vec<WidgetId> {

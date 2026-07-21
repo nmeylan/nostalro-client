@@ -81,7 +81,7 @@ pub enum KeepaliveMode {
 }
 
 pub enum NetworkCommand {
-    Connect(String),
+    Connect { addr: String, expect_aid: bool },
     SendPacket(Vec<u8>),
     Disconnect,
     SetKeepalive(KeepaliveMode),
@@ -94,13 +94,13 @@ pub async fn network_loop(
     debug_delay_ms: u32,
     trace_packets_send: bool,
     trace_packets_recv: bool,
+    start_time: Instant,
 ) {
     let mut connection: Option<Connection> = None;
     let mut session = Session::new(packetver);
     let mut keepalive = KeepaliveMode::Off;
     let mut keepalive_interval = time::interval(Duration::from_secs(10));
     keepalive_interval.reset();
-    let start_time = Instant::now();
     let mut keepalive_send_time_ms: u32 = 0;
     let delay_duration = Duration::from_millis(debug_delay_ms as u64);
     let mut delayed_events: VecDeque<(Instant, GameEvent)> = VecDeque::new();
@@ -234,8 +234,8 @@ pub async fn network_loop(
                                     session.state = SessionState::Disconnected;
                                 }
                         }
-                        Some(NetworkCommand::Connect(addr)) => {
-                            match Connection::connect(&addr, trace_packets_send, trace_packets_recv).await {
+                        Some(NetworkCommand::Connect { addr, expect_aid }) => {
+                            match Connection::connect(&addr, expect_aid, trace_packets_send, trace_packets_recv).await {
                                 Ok(conn) => {
                                     info!("connected to {addr}");
                                     connection = Some(conn);
@@ -264,8 +264,8 @@ pub async fn network_loop(
             }
         } else {
             match cmd_rx.recv().await {
-                Some(NetworkCommand::Connect(addr)) => {
-                    match Connection::connect(&addr, trace_packets_send, trace_packets_recv).await {
+                Some(NetworkCommand::Connect { addr, expect_aid }) => {
+                    match Connection::connect(&addr, expect_aid, trace_packets_send, trace_packets_recv).await {
                         Ok(conn) => {
                             info!("connected to {addr}");
                             connection = Some(conn);

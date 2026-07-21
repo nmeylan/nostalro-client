@@ -14,7 +14,7 @@ pub const TOTAL_DURATION_MS: u32 = (PARENT_DURATION_FRAMES / FRAMES_PER_SECOND *
 const BURST_FRAMES: [f32; 2] = [7.0, 20.0];
 const SUB_DURATION_FRAMES: f32 = 20.0;
 
-const RING_INITIAL_RADIUS: f32 = 2.0;
+const RING_INITIAL_RADIUS: f32 = 0.0;
 const RING_RADIUS_SPEED_PER_FRAME: f32 = 1.75;
 const RING_RADIUS_ACCEL_PER_FRAME2: f32 =
     -(RING_RADIUS_SPEED_PER_FRAME / SUB_DURATION_FRAMES) / 2.0;
@@ -25,7 +25,7 @@ const RING_FADE_OUT_START_FRAME: f32 = 5.0;
 const RING_UV_REPEAT: f32 = 4.0;
 
 // Burst sphere.
-const SPHERE_INITIAL_RADIUS: f32 = 2.0;
+const SPHERE_INITIAL_RADIUS: f32 = 0.0;
 const SPHERE_RADIUS_SPEED_PER_FRAME: f32 = 1.35;
 const SPHERE_RADIUS_ACCEL_PER_FRAME2: f32 =
     -(SPHERE_RADIUS_SPEED_PER_FRAME / SUB_DURATION_FRAMES) / 2.0;
@@ -197,6 +197,15 @@ mod tests {
             .count();
         assert_eq!(ring_count, 1, "burst #1 emits one ring");
         assert_eq!(sphere_count, 1, "burst #1 emits one sphere");
+
+        let sphere_radius = p8.iter().find_map(|p| match p {
+            EffectPrimitiveDraw::Sphere { radius, .. } => Some(*radius),
+            _ => None,
+        });
+        assert!(
+            sphere_radius.is_some_and(|r| r < 2.0),
+            "dome grows from zero (dhxj parity), not a seeded radius"
+        );
 
         let p25 = step_and_draw(&mut e, 17.0 / FRAMES_PER_SECOND);
         let rings = p25

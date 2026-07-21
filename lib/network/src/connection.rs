@@ -25,11 +25,13 @@ pub struct Connection {
     recv_buffer: Vec<u8>,
     trace_packets_send: bool,
     trace_packets_recv: bool,
+    expect_aid_preamble: bool,
 }
 
 impl Connection {
     pub async fn connect(
         addr: &str,
+        expect_aid_preamble: bool,
         trace_packets_send: bool,
         trace_packets_recv: bool,
     ) -> io::Result<Self> {
@@ -41,6 +43,7 @@ impl Connection {
             recv_buffer: Vec::with_capacity(4096),
             trace_packets_send,
             trace_packets_recv,
+            expect_aid_preamble,
         })
     }
 
@@ -90,6 +93,21 @@ impl Connection {
             self.recv_buffer.len(),
             &buf[..n.min(16)]
         );
+
+        if self.expect_aid_preamble {
+            if self.recv_buffer.len() < 4 {
+                return Ok(Vec::new());
+            }
+            let aid = u32::from_le_bytes([
+                self.recv_buffer[0],
+                self.recv_buffer[1],
+                self.recv_buffer[2],
+                self.recv_buffer[3],
+            ]);
+            tracing::info!("consumed account_id preamble: {aid}");
+            self.recv_buffer.drain(..4);
+            self.expect_aid_preamble = false;
+        }
 
         let mut packets = Vec::new();
         let mut offset = 0;

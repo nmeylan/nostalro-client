@@ -295,7 +295,7 @@ impl CharSelectWindow {
 
         push_quad(ui, win.x, win.y, WIN_W, WIN_H, TextureRef::Named(WIN_TEXTURE.to_string()));
 
-        self.build_slots(ui, win.x, win.y, true);
+        self.build_slots(ui, win.x, win.y, true, events);
         self.build_arrows(ui, win.x, win.y);
         self.build_info_panel(ui, win.x, win.y);
         self.build_buttons(ui, win.x, win.y, events);
@@ -315,13 +315,13 @@ impl CharSelectWindow {
             [1.0, 1.0, 1.0, 1.0],
         );
 
-        self.build_slots(ui, win.x, win.y, false);
+        self.build_slots(ui, win.x, win.y, false, events);
         self.build_arrows(ui, win.x, win.y);
         self.build_info_panel(ui, win.x, win.y);
         self.build_buttons(ui, win.x, win.y, events);
     }
 
-    fn build_slots(&mut self, ui: &mut UiFrame, ox: f32, oy: f32, grf: bool) {
+    fn build_slots(&mut self, ui: &mut UiFrame, ox: f32, oy: f32, grf: bool, events: &mut Vec<GameEvent>) {
         for col in 0..SLOTS_PER_PAGE {
             let slot_rect = Rect::new(ox + SLOT_LEFTS[col], oy + SLOT_TOP, SLOT_W, SLOT_H);
 
@@ -335,6 +335,15 @@ impl CharSelectWindow {
             }
             if resp.clicked() && self.delete_dialog.is_none() {
                 self.selected_col = col;
+            }
+            if resp.double_clicked() && self.delete_dialog.is_none() {
+                self.selected_col = col;
+                let slot = self.page * SLOTS_PER_PAGE + col;
+                events.push(if self.character_at(slot).is_some() {
+                    GameEvent::RequestSelectCharacter { slot: slot as u8 }
+                } else {
+                    GameEvent::RequestCreateCharacter { slot: slot as u8 }
+                });
             }
 
             if col == self.selected_col {
@@ -651,6 +660,29 @@ mod tests {
             events
                 .iter()
                 .any(|e| matches!(e, GameEvent::RequestCreateCharacter { slot: 1 }))
+        );
+    }
+
+    #[test]
+    fn double_click_on_occupied_slot_selects_it() {
+        let mut win = CharSelectWindow::new(vec![character(0, "Knight"), character(1, "Wizard")]);
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        {
+            let mut ui = make_frame(&ctx, &mut state);
+            win.build(&mut ui);
+        }
+        let (ox, oy) = win.win_origin;
+        ctx.mouse_x = ox + SLOT_LEFTS[1] + SLOT_W / 2.0;
+        ctx.mouse_y = oy + SLOT_TOP + SLOT_H / 2.0;
+        ctx.mouse_double_clicked = true;
+
+        let mut ui = make_frame(&ctx, &mut state);
+        let events = win.build(&mut ui);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestSelectCharacter { slot: 1 }))
         );
     }
 

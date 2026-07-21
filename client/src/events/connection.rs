@@ -87,7 +87,7 @@ impl App {
         }
         let addr = format!("{}:{}", ip_u32_to_string(ip), port);
         self.channel.send_cmd(NetworkCommand::Disconnect);
-        self.channel.send_cmd(NetworkCommand::Connect(addr));
+        self.channel.send_cmd(NetworkCommand::Connect { addr, expect_aid: true });
         if let Some(session) = &self.game.session.login_session {
             self.channel.send_packet(build_zone_enter_packet(session));
         }

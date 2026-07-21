@@ -379,9 +379,6 @@ impl App {
                 }
                 self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
             }
-            KeyCode::F10 => {
-                self.game.debug_overlay = !self.game.debug_overlay;
-            }
             KeyCode::F9 => {
                 self.profiler.start();
             }

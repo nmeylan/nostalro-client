@@ -113,6 +113,10 @@ impl LoginWindow {
                 LoginFocus::Password => PASSWORD_ID,
             };
             ui.set_focus(focus_id);
+            match self.focus {
+                LoginFocus::Username => self.username.move_cursor_to_end(),
+                LoginFocus::Password => self.password.move_cursor_to_end(),
+            }
         }
 
         if self.has_grf_textures {
@@ -194,7 +198,7 @@ impl LoginWindow {
         );
         ui.checkbox(KEEP_ID, keep_rect, &mut self.keep_id, &KEEP_CHECKBOX);
 
-        let submit = ui.ctx.key_enter || connect.clicked();
+        let submit = ui.enter_pressed() || connect.clicked();
         if submit && !self.username.text.is_empty() && !self.password.text.is_empty() {
             events.push(GameEvent::RequestLogin {
                 username: self.username.text.clone(),
@@ -274,10 +278,11 @@ mod tests {
     }
 
     #[test]
-    fn tab_cycles_focus() {
+    fn tab_moves_caret_to_end_of_prefilled_field() {
         let mut login = LoginWindow::new();
         let mut state = StateCache::new();
-        assert_eq!(login.focus, LoginFocus::Username);
+        login.username.text = "admin".to_string();
+        login.username.cursor_pos = 0;
 
         let mut ctx = make_ctx();
         ctx.key_tab = true;
@@ -288,6 +293,7 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
         login.build(&mut ui);
         assert_eq!(login.focus, LoginFocus::Username);
+        assert_eq!(login.username.cursor_pos, 5);
     }
 
     #[test]

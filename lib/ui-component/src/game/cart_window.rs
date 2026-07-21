@@ -1,4 +1,6 @@
 use super::inventory_window::INV_WINDOW_ID;
+use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
@@ -18,6 +20,7 @@ const CART_SCROLL_UP_ID: WidgetId = WidgetId(1803);
 const CART_SCROLL_DOWN_ID: WidgetId = WidgetId(1804);
 const CART_SCROLL_THUMB_ID: WidgetId = WidgetId(1805);
 const CART_ITEM_BASE_ID: u32 = 1820;
+const NUM_DIALOG_BASE: u32 = 1810; // uses 1810..1813
 
 const CELL_SIZE: f32 = 32.0;
 const ICON_SIZE: f32 = 24.0;
@@ -36,10 +39,17 @@ const MINI_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sy
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
+enum PendingCartMove {
+    FromBody { index: u16 },
+    FromStore { index: u16 },
+}
+
 pub struct CartWindow {
     pub has_grf_textures: bool,
     scroll_offset: usize,
     minimized: bool,
+    container: DialogContainer,
+    qty_dialog: Option<(PendingCartMove, NumberInputDialog)>,
 }
 
 impl Default for CartWindow {
@@ -54,7 +64,24 @@ impl CartWindow {
             has_grf_textures: false,
             scroll_offset: 0,
             minimized: false,
+            container: DialogContainer::new(),
+            qty_dialog: None,
         }
+    }
+
+    fn open_qty_dialog(&mut self, kind: PendingCartMove, max: i16) {
+        let mut dialog = NumberInputDialog::new(
+            NumberInputConfig {
+                label: None,
+                show_cancel: true,
+                escape_cancels: true,
+                default_value: max.to_string(),
+                max_len: 6,
+            },
+            WidgetId(NUM_DIALOG_BASE),
+        );
+        dialog.init_container(&self.container);
+        self.qty_dialog = Some((kind, dialog));
     }
 
     fn dimensions(&self) -> (f32, f32) {
@@ -72,6 +99,11 @@ impl Window for CartWindow {
     }
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+        self.container.has_grf_textures = value;
+    }
+
+    fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        self.container.set_texture_sizes(size_fn);
     }
 
     fn window_size(&self) -> (f32, f32) {
@@ -91,6 +123,7 @@ impl Window for CartWindow {
             CLOSE_ON_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
+        paths.extend(NumberInputDialog::grf_texture_paths());
         paths
     }
 }
@@ -104,6 +137,7 @@ impl InGameWindow for CartWindow {
         let character = &mut *ctx.character;
         let data = ctx.data;
         if !character.cart.is_open() {
+            self.qty_dialog = None;
             return Vec::new();
         }
         let mut events = Vec::new();
@@ -289,26 +323,25 @@ impl InGameWindow for CartWindow {
             GRID_ROWS as f32 * CELL_SIZE,
         );
         if let Some((source_id, item_index)) = ui.drop_zone(grid_rect) {
+            let index = item_index as u16;
             if source_id == INV_WINDOW_ID {
-                let count = character
-                    .inventory
-                    .get_item(item_index as u16)
-                    .map(|i| i.count)
-                    .unwrap_or(1);
-                events.push(GameEvent::RequestMoveItemBodyToCart {
-                    index: item_index as u16,
-                    count,
-                });
+                if let Some(it) = character.inventory.get_item(index) {
+                    let count = it.count;
+                    if count > 1 {
+                        self.open_qty_dialog(PendingCartMove::FromBody { index }, count);
+                    } else {
+                        events.push(GameEvent::RequestMoveItemBodyToCart { index, count: 1 });
+                    }
+                }
             } else if source_id == super::storage_window::STORAGE_WINDOW_ID {
-                let count = character
-                    .storage
-                    .get_item(item_index as u16)
-                    .map(|i| i.count)
-                    .unwrap_or(1);
-                events.push(GameEvent::RequestMoveItemStoreToCart {
-                    index: item_index as u16,
-                    count,
-                });
+                if let Some(it) = character.storage.get_item(index) {
+                    let count = it.count;
+                    if count > 1 {
+                        self.open_qty_dialog(PendingCartMove::FromStore { index }, count);
+                    } else {
+                        events.push(GameEvent::RequestMoveItemStoreToCart { index, count: 1 });
+                    }
+                }
             }
         }
 
@@ -343,7 +376,123 @@ impl InGameWindow for CartWindow {
             text_color,
         );
 
+        if let Some((kind, dialog)) = &mut self.qty_dialog {
+            match dialog.build(ui) {
+                NumberInputResult::Submitted => {
+                    let qty = dialog.value_i16().unwrap_or(0);
+                    if qty > 0 {
+                        match kind {
+                            PendingCartMove::FromBody { index } => {
+                                events.push(GameEvent::RequestMoveItemBodyToCart {
+                                    index: *index,
+                                    count: qty,
+                                });
+                            }
+                            PendingCartMove::FromStore { index } => {
+                                events.push(GameEvent::RequestMoveItemStoreToCart {
+                                    index: *index,
+                                    count: qty,
+                                });
+                            }
+                        }
+                    }
+                    self.qty_dialog = None;
+                }
+                NumberInputResult::Cancel => {
+                    self.qty_dialog = None;
+                }
+                NumberInputResult::None => {}
+            }
+        }
+
         ui.has_grf_textures = prev_grf;
         events
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use models::enums::item::ItemType;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
+    use ragnarok_game::item::Item;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::frame::DragState;
+    use ragnarok_ui::state::StateCache;
+
+    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
+        let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
+        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
+    }
+
+    fn potion(index: u16, count: i16) -> Item {
+        Item {
+            index,
+            item_id: 501,
+            item_type: ItemType::Healing,
+            count,
+            is_identified: true,
+            is_damaged: false,
+            refining_level: 0,
+            slot: [0; 4],
+            location: 0,
+            wear_state: 0,
+            name: "Red Potion".into(),
+            resource_name: None,
+        }
+    }
+
+    #[test]
+    fn dropping_a_stack_opens_dialog_then_moves_entered_count() {
+        let mut win = CartWindow::new();
+        let mut character = Character::new();
+        character.cart.open();
+        character.inventory.add_item(potion(3, 10));
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        // Seed an inventory drag released over the cart grid (WidgetId(u32::MAX)
+        // is the shared drag-state slot).
+        {
+            let drag = state.get_or_default::<DragState>(WidgetId(u32::MAX));
+            drag.active = true;
+            drag.source_id = INV_WINDOW_ID;
+            drag.item_index = 3;
+        }
+
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.mouse_x = 108.0;
+        ctx.mouse_y = 157.0;
+        let events = {
+            let mut ui = make_frame(&ctx, &mut state);
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMoveItemBodyToCart { .. })),
+            "a stack drop must open the dialog, not move immediately: {events:?}"
+        );
+        assert!(win.qty_dialog.is_some(), "quantity dialog should be open");
+
+        win.qty_dialog.as_mut().unwrap().1.set_input_text("4");
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.key_enter = true;
+        let events = {
+            let mut ui = make_frame(&ctx, &mut state);
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                GameEvent::RequestMoveItemBodyToCart { index: 3, count: 4 }
+            )),
+            "submitting the dialog moves the entered count: {events:?}"
+        );
+        assert!(win.qty_dialog.is_none());
     }
 }

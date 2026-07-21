@@ -195,6 +195,7 @@ struct App {
     sfx_rng: u32,
     start_time: Instant,
     last_frame_instant: Instant,
+    fps_smoothed: f32,
     next_frame: Instant,
     /// GameEvents produced by raw keyboard handling (skill-bar / emotion hotkeys),
     /// drained into `handle_ui_events` on the next redraw.
@@ -211,7 +212,6 @@ impl App {
             .collect();
         let mut game = GameState::new();
         let mut windows = ui::Windows::new();
-        game.debug_overlay = config.debug_overlay;
         windows.sound_options.set_values(
             config.bgm_volume,
             config.sfx_volume,
@@ -256,6 +256,7 @@ impl App {
             sfx_rng: 0x1234_5678,
             start_time: Instant::now(),
             last_frame_instant: Instant::now(),
+            fps_smoothed: 0.0,
             next_frame: Instant::now(),
             pending_events: Vec::new(),
             profiler: ragnarok_profiling::Profiler::default(),
@@ -426,6 +427,7 @@ impl App {
         let debug_delay_ms = self.config.debug_network_delay_ms;
         let trace_packets_send = self.config.trace_packets_send;
         let trace_packets_recv = self.config.trace_packets_recv;
+        let start_time = self.start_time;
         // Spawn on dedicated thread with single-threaded runtime
         // because network_loop uses non-Send packet types
         std::thread::spawn(move || {
@@ -440,6 +442,7 @@ impl App {
                 debug_delay_ms,
                 trace_packets_send,
                 trace_packets_recv,
+                start_time,
             ));
         });
     }
@@ -532,7 +535,7 @@ impl App {
                     self.config.save("config.json");
                     self.account_dialog.show_message("Please wait...");
                     let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
-                    self.channel.send_cmd(NetworkCommand::Connect(addr));
+                    self.channel.send_cmd(NetworkCommand::Connect { addr, expect_aid: false });
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel.send_packet(build_login_packet(
                         &username,
@@ -547,7 +550,7 @@ impl App {
                     {
                         let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
                         self.channel.send_cmd(NetworkCommand::Disconnect);
-                        self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
+                        self.channel.send_cmd(NetworkCommand::Connect { addr: addr.clone(), expect_aid: true });
                         if let Some(session) = &mut self.game.session.login_session {
                             session.char_server_addr = Some(addr);
                             self.channel.send_packet(build_char_enter_packet(session));
@@ -701,10 +704,14 @@ impl App {
                         .send_packet(build_npc_next_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcClose { npc_id } => {
+                    self.game.npc_cutins = [None, None, None];
                     self.channel
                         .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
                 }
                 GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
+                    if choice == 255 {
+                        self.game.npc_cutins = [None, None, None];
+                    }
                     self.channel.send_packet(build_npc_menu_select_packet(
                         npc_id,
                         choice,
@@ -1916,7 +1923,7 @@ impl App {
             return false;
         };
         self.channel.send_cmd(NetworkCommand::Disconnect);
-        self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
+        self.channel.send_cmd(NetworkCommand::Connect { addr: addr.clone(), expect_aid: true });
         self.channel.send_packet(build_char_enter_packet(session));
         self.channel
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
@@ -2624,6 +2631,20 @@ impl App {
                 self.channel
                     .send_packet(build_emotion_packet(emote_type, pv));
             }
+            ChatCommand::ToggleShowPing => {
+                self.game.show_ping = !self.game.show_ping;
+                let status = if self.game.show_ping { "ON" } else { "OFF" };
+                self.windows
+                    .chat_window
+                    .add_system(format!("Ping overlay: {status}"));
+            }
+            ChatCommand::ToggleShowFps => {
+                self.game.show_fps = !self.game.show_fps;
+                let status = if self.game.show_fps { "ON" } else { "OFF" };
+                self.windows
+                    .chat_window
+                    .add_system(format!("FPS overlay: {status}"));
+            }
             ChatCommand::Help => {
                 self.windows.chat_window.add_system("Commands:".to_string());
                 for (cmd, desc) in ragnarok_game::chat_command::COMMAND_HELP {
@@ -2668,6 +2689,9 @@ impl App {
                         initial_focus,
                         &self.saved_window_positions,
                     );
+                    if self.account_dialog.state.is_some() {
+                        ui.block_keyboard();
+                    }
                     let events = self.login_window.build(&mut ui);
                     self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2692,6 +2716,9 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
+                    if self.account_dialog.state.is_some() {
+                        ui.block_keyboard();
+                    }
                     let events = server_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2716,6 +2743,9 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
+                    if self.account_dialog.state.is_some() {
+                        ui.block_keyboard();
+                    }
                     let events = char_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2740,6 +2770,9 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
+                    if self.account_dialog.state.is_some() {
+                        ui.block_keyboard();
+                    }
                     let events = create_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
                     let any_hovered = ui.any_hovered;
@@ -2769,20 +2802,35 @@ impl App {
                         &render_list,
                     );
 
-                    if self.game.debug_overlay {
+                    let mut overlay_lines: Vec<String> = Vec::new();
+                    if self.game.show_fps {
+                        overlay_lines.push(format!("fps: {:.0}", self.fps_smoothed));
+                    }
+                    if self.game.show_ping {
                         let local_ms = self.start_time.elapsed().as_millis() as u32;
                         let st = &self.game.session.server_time;
                         let est = st.estimated_server_tick(local_ms);
                         let offset = est as i64 - local_ms as i64;
-                        let color = [0.5, 1.0, 0.6, 1.0];
-                        let lines = [
-                            format!("net sync: {}", if st.is_synced() { "yes" } else { "no" }),
-                            format!("rtt: {} ms (avg {:.0})", st.rtt(), st.rtt_avg()),
-                            format!("server tick est: {est}"),
-                            format!("offset: {offset} ms"),
-                        ];
-                        for (i, line) in lines.iter().enumerate() {
-                            ui.text(10.0, 10.0 + i as f32 * 16.0, line, color);
+                        overlay_lines.push(format!(
+                            "net sync: {}",
+                            if st.is_synced() { "yes" } else { "no" }
+                        ));
+                        overlay_lines.push(format!("rtt: {} ms (avg {:.0})", st.rtt(), st.rtt_avg()));
+                        overlay_lines.push(format!("server tick est: {est}"));
+                        overlay_lines.push(format!("offset: {offset} ms"));
+                    }
+                    if !overlay_lines.is_empty() {
+                        const MINIMAP_LEFT_MARGIN: f32 = 130.0;
+                        const PADDING: f32 = 10.0;
+                        let color = [1.0, 0.9, 0.25, 1.0];
+                        let shadow = [0.0, 0.0, 0.0, 0.9];
+                        let right_x = (ui.ctx.screen_width - MINIMAP_LEFT_MARGIN - PADDING).max(0.0);
+                        for (i, line) in overlay_lines.iter().enumerate() {
+                            let y = 10.0 + i as f32 * 16.0;
+                            let tw = ui.atlas.measure_text(line);
+                            let x = right_x - tw;
+                            ui.text(x + 1.0, y + 1.0, line, shadow);
+                            ui.text(x, y, line, color);
                         }
                     }
 
@@ -3311,6 +3359,14 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let raw_delta = now.duration_since(self.last_frame_instant).as_secs_f32();
                 self.last_frame_instant = now;
+                if raw_delta > 0.0 {
+                    let instant_fps = 1.0 / raw_delta;
+                    self.fps_smoothed = if self.fps_smoothed == 0.0 {
+                        instant_fps
+                    } else {
+                        self.fps_smoothed * 0.9 + instant_fps * 0.1
+                    };
+                }
                 let delta = raw_delta.min(0.1);
                 self.run_game_updates(delta, elapsed);
                 self.drain_sound_queue(delta);

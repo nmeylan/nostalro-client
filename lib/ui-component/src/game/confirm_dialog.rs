@@ -118,21 +118,13 @@ impl ConfirmDialog {
 
     pub fn close(&mut self) {
         if let Some(ref mut state) = self.state {
-            eprintln!(
-                "close: show_cancel={}, has_callback={}",
-                state.show_cancel,
-                state.onclose.is_some()
-            );
-            if !state.show_cancel {
-                if let Some(ref mut callback) = state.onclose.take() {
-                    eprintln!("calling Ok callback");
-                    callback(ConfirmResult::Ok);
-                }
+            let result = if state.show_cancel {
+                ConfirmResult::Cancel
             } else {
-                if let Some(ref mut callback) = state.onclose.take() {
-                    eprintln!("calling Cancel callback");
-                    callback(ConfirmResult::Cancel);
-                }
+                ConfirmResult::Ok
+            };
+            if let Some(ref mut callback) = state.onclose.take() {
+                callback(result);
             }
             self.state = None;
         }
@@ -232,23 +224,29 @@ impl ConfirmDialog {
 
         let mut callback = state.onclose.take();
         let deliver_result = state.deliver_result;
+        let enter = ui.ctx.key_enter;
+        let escape = ui.ctx.key_escape;
 
+        let mut cancelled = false;
         if state.show_cancel {
             let cancel = ui.button(CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
-            if cancel.clicked() {
-                if deliver_result {
-                    self.result = Some(ConfirmResult::Cancel);
-                }
-                if let Some(ref mut cb) = callback {
-                    cb(ConfirmResult::Cancel);
-                }
-                self.state = None;
-                return;
-            }
+            cancelled = cancel.clicked() || escape;
         }
-
         let ok = ui.button(OK_BTN_ID, btns[num_buttons - 1], &OK_BTN, "OK");
-        if ok.clicked() {
+        // Enter confirms; Escape on a lone OK box dismisses it as OK.
+        let confirmed = ok.clicked() || enter || (!state.show_cancel && escape);
+
+        if cancelled {
+            if deliver_result {
+                self.result = Some(ConfirmResult::Cancel);
+            }
+            if let Some(ref mut cb) = callback {
+                cb(ConfirmResult::Cancel);
+            }
+            self.state = None;
+            return;
+        }
+        if confirmed {
             if deliver_result {
                 self.result = Some(ConfirmResult::Ok);
             }
@@ -335,6 +333,26 @@ mod tests {
 
         dialog.close();
         assert_eq!(*callback_result.borrow(), Some(ConfirmResult::Cancel));
+        assert!(dialog.state.is_none());
+    }
+
+    #[test]
+    fn enter_key_confirms_ok_dialog() {
+        let mut dialog = ConfirmDialog::new();
+        let callback_result = Rc::new(RefCell::new(None));
+        let result_clone = Rc::clone(&callback_result);
+        dialog.show("Message", false, move |result| {
+            *result_clone.borrow_mut() = Some(result);
+        });
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_enter = true;
+        {
+            let mut ui = make_frame(&ctx, &mut state);
+            dialog.build(&mut ui);
+        }
+        assert_eq!(*callback_result.borrow(), Some(ConfirmResult::Ok));
         assert!(dialog.state.is_none());
     }
 

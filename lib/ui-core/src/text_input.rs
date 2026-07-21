@@ -46,6 +46,10 @@ impl TextInput {
         }
     }
 
+    pub fn move_cursor_to_end(&mut self) {
+        self.cursor_pos = self.char_count();
+    }
+
     pub fn display_text(&self) -> String {
         if self.is_password {
             "*".repeat(self.char_count())

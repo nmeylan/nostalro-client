@@ -94,6 +94,7 @@ impl App {
                     renderer.water_renderer = None;
                     renderer.grid_selector = None;
                 }
+                self.play_bgm_track("01.mp3");
             }
             SessionChange::Death => {
                 self.game.session.player_dead = true;

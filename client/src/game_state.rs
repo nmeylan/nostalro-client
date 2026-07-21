@@ -433,7 +433,8 @@ pub struct GameState {
     /// on map change; the server re-sends on load.
     pub quest_markers: std::collections::HashMap<u32, QuestMarker>,
     pub debug_show_pick_bounds: bool,
-    pub debug_overlay: bool,
+    pub show_ping: bool,
+    pub show_fps: bool,
     pub schedulers: Schedulers,
     pub effect_keys: EffectKeys,
 }
@@ -511,7 +512,8 @@ impl GameState {
             quest_log: QuestLog::default(),
             quest_markers: std::collections::HashMap::new(),
             debug_show_pick_bounds: false,
-            debug_overlay: false,
+            show_ping: false,
+            show_fps: false,
             schedulers: Schedulers::new(),
             effect_keys: EffectKeys::default(),
         }

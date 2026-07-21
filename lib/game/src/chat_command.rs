@@ -62,6 +62,10 @@ pub enum ChatCommand {
     /// (`false`) or mercenary (`true`) tab.
     OpenCompanionAi { mercenary: bool },
     Emote(u8),
+    /// `/show_ping` — toggle the network sync/latency overlay.
+    ToggleShowPing,
+    /// `/show_fps` — toggle the frame-rate overlay.
+    ToggleShowFps,
     /// List the supported commands ([`COMMAND_HELP`]) in the chat window.
     Help,
     /// A real client command we don't implement yet (e.g. `/camera`, `/set1`).
@@ -168,6 +172,8 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
     ("/refuse", "Auto-declines party invites (/accept re-enables)."),
     ("/noctrl or /nc", "Attack monsters with a single left-click."),
     ("/noshift or /ns", "Use support skills without holding Shift."),
+    ("/show_ping", "Toggles the network sync/latency overlay."),
+    ("/show_fps", "Toggles the frame-rate overlay."),
     ("/h or /help", "Lists the in-game commands."),
 ];
 
@@ -268,6 +274,8 @@ pub fn parse_chat_command(input: &str) -> ChatCommand {
         "/alchemist" => ChatCommand::Ranking(RankKind::Alchemist),
         "/blacksmith" => ChatCommand::Ranking(RankKind::Blacksmith),
         "/taekwon" => ChatCommand::Ranking(RankKind::Taekwon),
+        "/show_ping" => ChatCommand::ToggleShowPing,
+        "/show_fps" => ChatCommand::ToggleShowFps,
         "/h" | "/help" => ChatCommand::Help,
         "/who" | "/w" | "/showname" | "/report" | "/loading" => ChatCommand::Outdated,
         _ => match emote_type_for_command(raw_cmd) {
@@ -321,6 +329,8 @@ mod tests {
         assert_eq!(parse_chat_command("/bv 200"), ChatCommand::SetBgmVolume(127));
         assert_eq!(parse_chat_command("/v"), ChatCommand::Unknown);
         assert_eq!(parse_chat_command("/showexp"), ChatCommand::ToggleShowExp);
+        assert_eq!(parse_chat_command("/show_ping"), ChatCommand::ToggleShowPing);
+        assert_eq!(parse_chat_command("/show_fps"), ChatCommand::ToggleShowFps);
     }
 
     #[test]
