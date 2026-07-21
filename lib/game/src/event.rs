@@ -914,6 +914,11 @@ pub enum GameEvent {
     PartyExpOptionChanged {
         exp_option: u32,
     },
+    PartyConfigChanged {
+        exp_option: u32,
+        item_pickup_rule: u8,
+        item_division_rule: u8,
+    },
     SelfConfigChanged {
         kind: SelfConfigKind,
         enabled: bool,

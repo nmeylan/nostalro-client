@@ -94,6 +94,19 @@ impl App {
         }
     }
 
+    pub(super) fn handle_party_config_changed(
+        &mut self,
+        exp_option: u32,
+        item_pickup_rule: u8,
+        item_division_rule: u8,
+    ) {
+        if let Some(party) = &mut self.game.party {
+            party.exp_share = exp_option != 0;
+            party.item_pickup_rule = item_pickup_rule;
+            party.item_division_rule = item_division_rule;
+        }
+    }
+
     pub(super) fn handle_party_invite_received(&mut self, party_grid: u32, party_name: String) {
         if self.game.prefs.self_config.refuse_party_invite {
             self.channel

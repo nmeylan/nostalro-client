@@ -411,7 +411,7 @@ impl Entity {
     }
 
     pub fn is_move_locked(&self) -> bool {
-        self.state == EntityState::Hurt
+        matches!(self.state, EntityState::Hurt | EntityState::Pickup)
     }
 
     pub fn enter_hurt(&mut self, damage_motion_secs: f32) {
@@ -1016,6 +1016,18 @@ mod tests {
         assert!(e.is_move_locked());
 
         e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Standing);
+        assert!(!e.is_move_locked());
+    }
+
+    #[test]
+    fn pickup_motion_locks_movement_until_it_ends() {
+        let mut e = make_entity();
+        e.enter_pickup(0.5);
+        assert_eq!(e.state, EntityState::Pickup);
+        assert!(e.is_move_locked());
+
+        e.update_state(0.6);
         assert_eq!(e.state, EntityState::Standing);
         assert!(!e.is_move_locked());
     }

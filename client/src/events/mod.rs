@@ -1031,6 +1031,13 @@ impl App {
                 GameEvent::PartyExpOptionChanged { exp_option } => {
                     self.handle_party_exp_option_changed(exp_option);
                 }
+                GameEvent::PartyConfigChanged {
+                    exp_option,
+                    item_pickup_rule,
+                    item_division_rule,
+                } => {
+                    self.handle_party_config_changed(exp_option, item_pickup_rule, item_division_rule);
+                }
                 GameEvent::SelfConfigChanged { kind, enabled } => {
                     self.handle_self_config_changed(kind, enabled);
                 }

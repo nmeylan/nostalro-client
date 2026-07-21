@@ -1032,6 +1032,27 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             exp_option: p.exp_option,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcReqGroupinfoChangeV2>() {
+        return vec![GameEvent::PartyConfigChanged {
+            exp_option: p.exp_option,
+            item_pickup_rule: p.item_pickup_rule,
+            item_division_rule: p.item_division_rule,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketScNotifyBan>() {
+        let reason = match p.error_code {
+            1 => "Server closed the connection.",
+            2 => "Someone else has logged in with your account.",
+            3 => "Connection timed out.",
+            4 => "Server is full.",
+            8 => "The server still recognizes your last connection. Please try again shortly.",
+            9 => "Too many connections from this IP address.",
+            10 => "Your paid game time has run out.",
+            15 => "You were disconnected by a GM.",
+            _ => "You have been disconnected from the server.",
+        };
+        return vec![GameEvent::Disconnected(reason.to_string())];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyChatParty>() {
         let message: String = p.msg.chars().take_while(|c| *c != '\0').collect();
         return vec![GameEvent::PartyChatMessage {
