@@ -132,6 +132,30 @@ pub struct SelfConfig {
     pub homun_autofeed: bool,
 }
 
+#[derive(Default)]
+pub struct PendingConfirms {
+    pub pending_trade_partner: Option<(u32, String)>,
+    pub pending_trade_request: Option<u32>,
+    pub trade_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_friend_request: Option<(u32, u32)>,
+    pub friend_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pet_feed_pending: bool,
+    pub pet_feed_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_party_invite: Option<u32>,
+    pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_guild_invite: Option<u32>,
+    pub guild_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_adopt_request: Option<(u32, u32)>,
+    pub adopt_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_guild_ally: Option<u32>,
+    pub guild_ally_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_guild_confirm: Option<PendingGuildConfirm>,
+    pub guild_confirm_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub homun_delete_pending: bool,
+    pub homun_delete_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_invite_aid: Option<u32>,
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -181,9 +205,7 @@ pub struct GameState {
     pub cart_window: CartWindow,
     pub storage_window: StorageWindow,
     pub trade_window: TradeWindow,
-    pub pending_trade_partner: Option<(u32, String)>,
-    pub pending_trade_request: Option<u32>,
-    pub trade_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
+    pub pending_confirms: PendingConfirms,
     pub mailbox_window: MailboxWindow,
     pub read_mail_window: ReadMailWindow,
     pub cart_select_window: CartSelectWindow,
@@ -274,8 +296,6 @@ pub struct GameState {
     pub friends: ragnarok_game::friends::FriendList,
     pub party_friends_window: PartyFriendsWindow,
     pub party_helper_window: PartyHelperWindow,
-    pub pending_friend_request: Option<(u32, u32)>,
-    pub friend_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     pub homunculus: Option<HomunculusState>,
     pub mercenary: Option<MercenaryState>,
     pub pet: PetState,
@@ -287,8 +307,6 @@ pub struct GameState {
     pub homunculus_window: HomunWindow,
     pub mercenary_window: MercenaryWindow,
     pub pet_window: PetWindow,
-    pub pet_feed_pending: bool,
-    pub pet_feed_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
     /// Armed by ZC_START_CAPTURE: the next click on a valid mob opens the roulette.
     pub capture_targeting: bool,
     pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
@@ -299,19 +317,6 @@ pub struct GameState {
     pub mercenary_skill_window: MercenarySkillWindow,
     pub homun_skill_window: HomunSkillWindow,
     pub context_menu: ContextMenu,
-    pub pending_party_invite: Option<u32>,
-    pub party_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_guild_invite: Option<u32>,
-    pub guild_invite_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_adopt_request: Option<(u32, u32)>,
-    pub adopt_request_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_guild_ally: Option<u32>,
-    pub guild_ally_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_guild_confirm: Option<PendingGuildConfirm>,
-    pub guild_confirm_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub homun_delete_pending: bool,
-    pub homun_delete_result: std::rc::Rc<std::cell::Cell<Option<ConfirmResult>>>,
-    pub pending_invite_aid: Option<u32>,
     pub damage_numbers: DamageNumberManager,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
@@ -580,48 +585,48 @@ impl GameState {
             self.disconnect_dialog_shown = false;
         }
 
-        if let Some(grid) = self.pending_party_invite
-            && let Some(result) = self.party_invite_result.take()
+        if let Some(grid) = self.pending_confirms.pending_party_invite
+            && let Some(result) = self.pending_confirms.party_invite_result.take()
         {
             events.push(GameEvent::RespondPartyInvite {
                 party_grid: grid,
                 accept: result == ConfirmResult::Ok,
             });
-            self.pending_party_invite = None;
+            self.pending_confirms.pending_party_invite = None;
         }
 
-        if let Some(gdid) = self.pending_guild_invite
-            && let Some(result) = self.guild_invite_result.take()
+        if let Some(gdid) = self.pending_confirms.pending_guild_invite
+            && let Some(result) = self.pending_confirms.guild_invite_result.take()
         {
             events.push(GameEvent::RespondGuildInvite {
                 gdid,
                 accept: result == ConfirmResult::Ok,
             });
-            self.pending_guild_invite = None;
+            self.pending_confirms.pending_guild_invite = None;
         }
 
-        if self.pending_adopt_request.is_some()
-            && let Some(result) = self.adopt_request_result.take()
+        if self.pending_confirms.pending_adopt_request.is_some()
+            && let Some(result) = self.pending_confirms.adopt_request_result.take()
         {
             events.push(GameEvent::RespondAdoptionRequest {
                 accept: result == ConfirmResult::Ok,
             });
         }
 
-        if let Some(aid) = self.pending_guild_ally
-            && let Some(result) = self.guild_ally_result.take()
+        if let Some(aid) = self.pending_confirms.pending_guild_ally
+            && let Some(result) = self.pending_confirms.guild_ally_result.take()
         {
             events.push(GameEvent::RespondGuildAlly {
                 aid,
                 accept: result == ConfirmResult::Ok,
             });
-            self.pending_guild_ally = None;
+            self.pending_confirms.pending_guild_ally = None;
         }
 
-        if self.pending_guild_confirm.is_some()
-            && let Some(result) = self.guild_confirm_result.take()
+        if self.pending_confirms.pending_guild_confirm.is_some()
+            && let Some(result) = self.pending_confirms.guild_confirm_result.take()
         {
-            let pending = self.pending_guild_confirm.take().unwrap();
+            let pending = self.pending_confirms.pending_guild_confirm.take().unwrap();
             if result == ConfirmResult::Ok {
                 match pending {
                     PendingGuildConfirm::Leave => {
@@ -634,39 +639,39 @@ impl GameState {
             }
         }
 
-        if let Some((req_aid, req_gid)) = self.pending_friend_request
-            && let Some(result) = self.friend_request_result.take()
+        if let Some((req_aid, req_gid)) = self.pending_confirms.pending_friend_request
+            && let Some(result) = self.pending_confirms.friend_request_result.take()
         {
             events.push(GameEvent::RespondFriendRequest {
                 req_aid,
                 req_gid,
                 accept: result == ConfirmResult::Ok,
             });
-            self.pending_friend_request = None;
+            self.pending_confirms.pending_friend_request = None;
         }
 
-        if self.homun_delete_pending
-            && let Some(result) = self.homun_delete_result.take()
+        if self.pending_confirms.homun_delete_pending
+            && let Some(result) = self.pending_confirms.homun_delete_result.take()
         {
-            self.homun_delete_pending = false;
+            self.pending_confirms.homun_delete_pending = false;
             if result == ConfirmResult::Ok {
                 events.push(GameEvent::RequestHomunMenu { command: 2 });
             }
         }
 
-        if self.pet_feed_pending
-            && let Some(result) = self.pet_feed_result.take()
+        if self.pending_confirms.pet_feed_pending
+            && let Some(result) = self.pending_confirms.pet_feed_result.take()
         {
-            self.pet_feed_pending = false;
+            self.pending_confirms.pet_feed_pending = false;
             if result == ConfirmResult::Ok {
                 events.push(GameEvent::RequestPetCommand { csub: 1 });
             }
         }
 
-        if self.pending_trade_request.is_some()
-            && let Some(result) = self.trade_request_result.take()
+        if self.pending_confirms.pending_trade_request.is_some()
+            && let Some(result) = self.pending_confirms.trade_request_result.take()
         {
-            self.pending_trade_request = None;
+            self.pending_confirms.pending_trade_request = None;
             events.push(GameEvent::RespondExchangeRequest {
                 accept: result == ConfirmResult::Ok,
             });
@@ -1206,9 +1211,7 @@ impl GameState {
             cart_window: CartWindow::new(),
             storage_window: StorageWindow::new(),
             trade_window: TradeWindow::new(),
-            pending_trade_partner: None,
-            pending_trade_request: None,
-            trade_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
+            pending_confirms: PendingConfirms::default(),
             mailbox_window: MailboxWindow::new(),
             read_mail_window: ReadMailWindow::new(),
             cart_select_window: CartSelectWindow::new(),
@@ -1290,8 +1293,6 @@ impl GameState {
             friends: ragnarok_game::friends::FriendList::default(),
             party_friends_window: PartyFriendsWindow::new(),
             party_helper_window: PartyHelperWindow::new(),
-            pending_friend_request: None,
-            friend_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             homunculus: None,
             mercenary: None,
             pet: PetState::default(),
@@ -1299,8 +1300,6 @@ impl GameState {
             homunculus_window: HomunWindow::new(),
             mercenary_window: MercenaryWindow::new(),
             pet_window: PetWindow::new(),
-            pet_feed_pending: false,
-            pet_feed_result: std::rc::Rc::new(std::cell::Cell::new(None)),
             capture_targeting: false,
             pet_roulette: None,
             quest_log: QuestLog::default(),
@@ -1312,19 +1311,6 @@ impl GameState {
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
             context_menu: ContextMenu::new(),
-            pending_party_invite: None,
-            party_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
-            pending_guild_invite: None,
-            guild_invite_result: std::rc::Rc::new(std::cell::Cell::new(None)),
-            pending_adopt_request: None,
-            adopt_request_result: std::rc::Rc::new(std::cell::Cell::new(None)),
-            pending_guild_ally: None,
-            guild_ally_result: std::rc::Rc::new(std::cell::Cell::new(None)),
-            pending_guild_confirm: None,
-            guild_confirm_result: std::rc::Rc::new(std::cell::Cell::new(None)),
-            homun_delete_pending: false,
-            homun_delete_result: std::rc::Rc::new(std::cell::Cell::new(None)),
-            pending_invite_aid: None,
             disconnect_dialog_shown: false,
             pending_disconnect_exit: false,
             self_config: SelfConfig::default(),
@@ -1357,10 +1343,10 @@ impl GameState {
         if auto_refuse {
             return true;
         }
-        self.pending_trade_partner = Some((gid, name.clone()));
-        self.pending_trade_request = Some(gid);
-        self.trade_request_result.set(None);
-        let result = self.trade_request_result.clone();
+        self.pending_confirms.pending_trade_partner = Some((gid, name.clone()));
+        self.pending_confirms.pending_trade_request = Some(gid);
+        self.pending_confirms.trade_request_result.set(None);
+        let result = self.pending_confirms.trade_request_result.clone();
         self.confirm_dialog.show_with_out(
             &format!("Do you want to trade with {name}?"),
             true,
@@ -1461,13 +1447,13 @@ mod trade_request_tests {
     fn auto_refuse_skips_dialog_and_normal_path_opens_it() {
         let mut game = GameState::new();
         assert!(game.begin_trade_request("Alice".to_string(), 42, true));
-        assert!(game.pending_trade_request.is_none());
-        assert!(game.pending_trade_partner.is_none());
+        assert!(game.pending_confirms.pending_trade_request.is_none());
+        assert!(game.pending_confirms.pending_trade_partner.is_none());
         assert!(game.confirm_dialog.state.is_none());
 
         assert!(!game.begin_trade_request("Alice".to_string(), 42, false));
-        assert_eq!(game.pending_trade_request, Some(42));
-        assert_eq!(game.pending_trade_partner, Some((42, "Alice".to_string())));
+        assert_eq!(game.pending_confirms.pending_trade_request, Some(42));
+        assert_eq!(game.pending_confirms.pending_trade_partner, Some((42, "Alice".to_string())));
         assert!(game.confirm_dialog.state.is_some());
     }
 }

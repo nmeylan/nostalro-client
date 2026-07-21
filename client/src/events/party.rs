@@ -104,13 +104,13 @@ impl App {
                 ));
             return;
         }
-        self.game.pending_party_invite = Some(party_grid);
-        self.game.party_invite_result.set(None);
+        self.game.pending_confirms.pending_party_invite = Some(party_grid);
+        self.game.pending_confirms.party_invite_result.set(None);
         let msg = format!("Join party \"{party_name}\"?");
         self.game.confirm_dialog.show_with_out(
             &msg,
             true,
-            self.game.party_invite_result.clone(),
+            self.game.pending_confirms.party_invite_result.clone(),
             |_| {},
         );
     }
@@ -132,13 +132,13 @@ impl App {
             self.game.party_friends_window.open = true;
             // The party now exists server-side; send any invite that was deferred
             // while waiting for this ack.
-            if let Some(aid) = self.game.pending_invite_aid.take() {
+            if let Some(aid) = self.game.pending_confirms.pending_invite_aid.take() {
                 self.channel.send_packet(
                     ragnarok_network::build_req_join_party_packet(aid, self.config.packetver),
                 );
             }
         } else {
-            self.game.pending_invite_aid = None;
+            self.game.pending_confirms.pending_invite_aid = None;
             self.game
                 .chat_window
                 .add_system("Failed to create party.".to_string());

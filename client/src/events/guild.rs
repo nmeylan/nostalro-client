@@ -323,25 +323,25 @@ impl App {
     }
 
     pub(super) fn handle_guild_invite_received(&mut self, gdid: u32, name: String) {
-        self.game.pending_guild_invite = Some(gdid);
-        self.game.guild_invite_result.set(None);
+        self.game.pending_confirms.pending_guild_invite = Some(gdid);
+        self.game.pending_confirms.guild_invite_result.set(None);
         let msg = format!("Join guild \"{name}\"?");
         self.game.confirm_dialog.show_with_out(
             &msg,
             true,
-            self.game.guild_invite_result.clone(),
+            self.game.pending_confirms.guild_invite_result.clone(),
             |_| {},
         );
     }
 
     pub(super) fn handle_guild_ally_request_received(&mut self, aid: u32, name: String) {
-        self.game.pending_guild_ally = Some(aid);
-        self.game.guild_ally_result.set(None);
+        self.game.pending_confirms.pending_guild_ally = Some(aid);
+        self.game.pending_confirms.guild_ally_result.set(None);
         let msg = format!("Guild \"{name}\" requests an alliance. Accept?");
         self.game.confirm_dialog.show_with_out(
             &msg,
             true,
-            self.game.guild_ally_result.clone(),
+            self.game.pending_confirms.guild_ally_result.clone(),
             |_| {},
         );
     }

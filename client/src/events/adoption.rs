@@ -7,13 +7,13 @@ impl App {
         mother_aid: u32,
         name: String,
     ) {
-        self.game.pending_adopt_request = Some((father_aid, mother_aid));
-        self.game.adopt_request_result.set(None);
+        self.game.pending_confirms.pending_adopt_request = Some((father_aid, mother_aid));
+        self.game.pending_confirms.adopt_request_result.set(None);
         let msg = format!("{name} wishes to adopt you. Do you accept?");
         self.game.confirm_dialog.show_with_out(
             &msg,
             true,
-            self.game.adopt_request_result.clone(),
+            self.game.pending_confirms.adopt_request_result.clone(),
             |_| {},
         );
     }

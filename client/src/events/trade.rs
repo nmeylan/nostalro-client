@@ -15,9 +15,9 @@ impl App {
     }
 
     pub(crate) fn respond_exchange_request(&mut self, accept: bool) {
-        self.game.pending_trade_request = None;
+        self.game.pending_confirms.pending_trade_request = None;
         if !accept {
-            self.game.pending_trade_partner = None;
+            self.game.pending_confirms.pending_trade_partner = None;
         }
         let result = if accept { 3 } else { 4 };
         self.channel
@@ -30,7 +30,7 @@ impl App {
     pub(super) fn handle_exchange_ack_result(&mut self, result: u8, level: i16) {
         match result {
             3 => {
-                let (aid, name) = self.game.pending_trade_partner.take().unwrap_or((0, String::new()));
+                let (aid, name) = self.game.pending_confirms.pending_trade_partner.take().unwrap_or((0, String::new()));
                 let my_level = self.game.character.base_level as i16;
                 self.game.character.trade.begin(name, aid, level, my_level);
                 self.game.character.inventory.open();
@@ -112,7 +112,7 @@ impl App {
     pub(super) fn handle_exchange_canceled(&mut self) {
         self.game.character.trade.reset();
         self.game.trade_window.reset_input();
-        self.game.pending_trade_partner = None;
+        self.game.pending_confirms.pending_trade_partner = None;
         self.game
             .chat_window
             .add_system("The deal has been canceled.".to_string());
@@ -126,7 +126,7 @@ impl App {
         }
         self.game.character.trade.reset();
         self.game.trade_window.reset_input();
-        self.game.pending_trade_partner = None;
+        self.game.pending_confirms.pending_trade_partner = None;
     }
 
     pub(super) fn handle_exchange_undo(&mut self) {

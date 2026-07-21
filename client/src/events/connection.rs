@@ -381,7 +381,7 @@ impl App {
         self.game.character.storage.clear();
         self.game.character.trade.reset();
         self.game.trade_window.reset_input();
-        self.game.pending_trade_partner = None;
+        self.game.pending_confirms.pending_trade_partner = None;
         self.game.map_properties = MapProperties::default();
         self.game.damage_numbers.combat_hidden = false;
         self.game.pending_skill_target = None;

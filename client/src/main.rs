@@ -987,7 +987,7 @@ impl App {
                         .get(target_aid)
                         .and_then(|e| e.name.clone())
                         .unwrap_or_default();
-                    self.game.pending_trade_partner = Some((target_aid, name));
+                    self.game.pending_confirms.pending_trade_partner = Some((target_aid, name));
                     self.channel
                         .send_packet(build_req_exchange_item_packet(target_aid, self.config.packetver));
                 }
@@ -1130,12 +1130,12 @@ impl App {
                         .map(|h| h.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "your homunculus".to_string());
-                    self.game.homun_delete_result.set(None);
-                    self.game.homun_delete_pending = true;
+                    self.game.pending_confirms.homun_delete_result.set(None);
+                    self.game.pending_confirms.homun_delete_pending = true;
                     self.game.confirm_dialog.show_with_out(
                         &format!("Delete {name} permanently?"),
                         true,
-                        self.game.homun_delete_result.clone(),
+                        self.game.pending_confirms.homun_delete_result.clone(),
                         |_| {},
                     );
                 }
@@ -1540,7 +1540,7 @@ impl App {
                             .unwrap_or_else(|| "Party".to_string());
                         self.channel
                             .send_packet(build_make_party_packet(&party_name, pv));
-                        self.game.pending_invite_aid = Some(target_aid);
+                        self.game.pending_confirms.pending_invite_aid = Some(target_aid);
                     } else {
                         self.channel
                             .send_packet(build_req_join_party_packet(target_aid, pv));
@@ -1558,7 +1558,7 @@ impl App {
                         .send_packet(build_adopt_request_packet(target_aid, self.config.packetver));
                 }
                 GameEvent::RespondAdoptionRequest { accept } => {
-                    if let Some((father_aid, mother_aid)) = self.game.pending_adopt_request.take() {
+                    if let Some((father_aid, mother_aid)) = self.game.pending_confirms.pending_adopt_request.take() {
                         self.channel.send_packet(build_adopt_reply_packet(
                             father_aid,
                             mother_aid,
@@ -1721,12 +1721,12 @@ impl App {
                         .map(|g| g.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "the guild".to_string());
-                    self.game.guild_confirm_result.set(None);
-                    self.game.pending_guild_confirm = Some(PendingGuildConfirm::Leave);
+                    self.game.pending_confirms.guild_confirm_result.set(None);
+                    self.game.pending_confirms.pending_guild_confirm = Some(PendingGuildConfirm::Leave);
                     self.game.confirm_dialog.show_with_out(
                         &format!("Leave {name}?"),
                         true,
-                        self.game.guild_confirm_result.clone(),
+                        self.game.pending_confirms.guild_confirm_result.clone(),
                         |_| {},
                     );
                 }
@@ -1807,13 +1807,13 @@ impl App {
                     } else {
                         "Cancel this antagonist declaration?"
                     };
-                    self.game.guild_confirm_result.set(None);
-                    self.game.pending_guild_confirm =
+                    self.game.pending_confirms.guild_confirm_result.set(None);
+                    self.game.pending_confirms.pending_guild_confirm =
                         Some(PendingGuildConfirm::DeleteRelation { gdid, relation });
                     self.game.confirm_dialog.show_with_out(
                         msg,
                         true,
-                        self.game.guild_confirm_result.clone(),
+                        self.game.pending_confirms.guild_confirm_result.clone(),
                         |_| {},
                     );
                 }
@@ -1892,12 +1892,12 @@ impl App {
                         .send_packet(build_pet_act_packet(data, self.config.packetver));
                 }
                 GameEvent::RequestPetFeed => {
-                    self.game.pet_feed_result.set(None);
-                    self.game.pet_feed_pending = true;
+                    self.game.pending_confirms.pet_feed_result.set(None);
+                    self.game.pending_confirms.pet_feed_pending = true;
                     self.game.confirm_dialog.show_with_out(
                         "Are you sure you want to feed your pet?",
                         true,
-                        self.game.pet_feed_result.clone(),
+                        self.game.pending_confirms.pet_feed_result.clone(),
                         |_| {},
                     );
                 }
