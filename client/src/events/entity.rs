@@ -667,28 +667,28 @@ impl App {
             return;
         };
         let want_sight = effect_state & OPTION_SIGHT != 0;
-        match (want_sight, self.game.sight_aura_keys.contains_key(&gid)) {
+        match (want_sight, self.game.effect_keys.sight_aura_keys.contains_key(&gid)) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Sight2, gid, key);
-                self.game.sight_aura_keys.insert(gid, key);
+                self.game.effect_keys.sight_aura_keys.insert(gid, key);
             }
             (false, true) => {
-                if let Some(key) = self.game.sight_aura_keys.remove(&gid) {
+                if let Some(key) = self.game.effect_keys.sight_aura_keys.remove(&gid) {
                     self.effect_queue.despawn(key);
                 }
             }
             _ => {}
         }
         let want_ruwach = effect_state & OPTION_RUWACH != 0;
-        match (want_ruwach, self.game.ruwach_aura_keys.contains_key(&gid)) {
+        match (want_ruwach, self.game.effect_keys.ruwach_aura_keys.contains_key(&gid)) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Ruwach, gid, key);
-                self.game.ruwach_aura_keys.insert(gid, key);
+                self.game.effect_keys.ruwach_aura_keys.insert(gid, key);
             }
             (false, true) => {
-                if let Some(key) = self.game.ruwach_aura_keys.remove(&gid) {
+                if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
                     self.effect_queue.despawn(key);
                 }
             }
@@ -733,7 +733,7 @@ impl App {
         }
 
         let map_key = (gid, efst);
-        if let Some(old_key) = self.game.status_buff_keys.remove(&map_key) {
+        if let Some(old_key) = self.game.effect_keys.status_buff_keys.remove(&map_key) {
             self.effect_queue.despawn(old_key);
         }
         if active && !reaction.aura.is_empty() {
@@ -741,7 +741,7 @@ impl App {
             for &id in reaction.aura {
                 self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
             }
-            self.game.status_buff_keys.insert(map_key, key);
+            self.game.effect_keys.status_buff_keys.insert(map_key, key);
         }
 
         let bursts = if active {
@@ -813,14 +813,14 @@ impl App {
         let want = alive
             && self.config.display.show_level_aura
             && level_aura::level_aura_visible(entity_type, base_level, effect_state);
-        let have = self.game.level_aura_keys.contains_key(&gid);
+        let have = self.game.effect_keys.level_aura_keys.contains_key(&gid);
         match (want, have) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 for &id in LEVEL_AURA_LAYERS {
                     self.effect_queue.spawn_on_keyed(id, gid, key);
                 }
-                self.game.level_aura_keys.insert(gid, key);
+                self.game.effect_keys.level_aura_keys.insert(gid, key);
             }
             (false, true) => self.despawn_level_aura(gid),
             _ => {}
@@ -828,7 +828,7 @@ impl App {
     }
 
     pub(crate) fn despawn_level_aura(&mut self, gid: u32) {
-        if let Some(key) = self.game.level_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.level_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
@@ -845,14 +845,14 @@ impl App {
         let want = alive
             && self.config.display.show_level_aura
             && level_aura::boss_aura_visible(entity_type, is_boss, effect_state);
-        let have = self.game.boss_aura_keys.contains_key(&gid);
+        let have = self.game.effect_keys.boss_aura_keys.contains_key(&gid);
         match (want, have) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 for &id in BOSS_AURA_LAYERS {
                     self.effect_queue.spawn_on_keyed(id, gid, key);
                 }
-                self.game.boss_aura_keys.insert(gid, key);
+                self.game.effect_keys.boss_aura_keys.insert(gid, key);
             }
             (false, true) => self.despawn_boss_aura(gid),
             _ => {}
@@ -860,23 +860,23 @@ impl App {
     }
 
     pub(crate) fn despawn_boss_aura(&mut self, gid: u32) {
-        if let Some(key) = self.game.boss_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.boss_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
 
     pub(super) fn spawn_warp_portal(&mut self, gid: u32) {
-        if self.game.warp_portal_keys.contains_key(&gid) {
+        if self.game.effect_keys.warp_portal_keys.contains_key(&gid) {
             return;
         }
         let key = self.next_entity_effect_key();
         self.effect_queue
             .spawn_on_keyed(EffectId::Warpzone2, gid, key);
-        self.game.warp_portal_keys.insert(gid, key);
+        self.game.effect_keys.warp_portal_keys.insert(gid, key);
     }
 
     pub(crate) fn despawn_warp_portal(&mut self, gid: u32) {
-        if let Some(key) = self.game.warp_portal_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.warp_portal_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
@@ -885,7 +885,7 @@ impl App {
     /// balls, replaced whenever the server re-sends the count and cleared at 0.
     /// Champions and Gunslingers get their own sphere variant.
     pub(super) fn handle_spirits_changed(&mut self, gid: u32, count: u8) {
-        if let Some(old_key) = self.game.spirit_keys.remove(&gid) {
+        if let Some(old_key) = self.game.effect_keys.spirit_keys.remove(&gid) {
             self.effect_queue.despawn(old_key);
         }
         if count == 0 {
@@ -907,27 +907,27 @@ impl App {
         let key = self.next_entity_effect_key();
         self.effect_queue
             .spawn_on_keyed_with_count(effect, gid, key, count);
-        self.game.spirit_keys.insert(gid, key);
+        self.game.effect_keys.spirit_keys.insert(gid, key);
     }
 
     pub(crate) fn despawn_entity_effects(&mut self, gid: u32) {
         self.despawn_level_aura(gid);
         self.despawn_boss_aura(gid);
         self.despawn_warp_portal(gid);
-        if let Some(key) = self.game.spirit_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.spirit_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
-        if let Some(key) = self.game.sight_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.sight_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
-        if let Some(key) = self.game.ruwach_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
 
     fn next_entity_effect_key(&mut self) -> u32 {
-        let key = 0x8000_0000 | self.game.next_status_buff_key;
-        self.game.next_status_buff_key = (self.game.next_status_buff_key + 1) & 0x7fff_ffff;
+        let key = 0x8000_0000 | self.game.effect_keys.next_status_buff_key;
+        self.game.effect_keys.next_status_buff_key = (self.game.effect_keys.next_status_buff_key + 1) & 0x7fff_ffff;
         key
     }
 
@@ -1057,12 +1057,12 @@ impl App {
     /// suppresses the resend so weather never stacks. Duration `0` maps to
     /// `u32::MAX` so the effect lives until map change clears `weather_keys`.
     fn spawn_weather_effect(&mut self, id: EffectId, gid: u32) {
-        if self.game.weather_keys.contains_key(&id) {
+        if self.game.effect_keys.weather_keys.contains_key(&id) {
             return;
         }
         let key = self.next_entity_effect_key();
         self.effect_queue.spawn_on_keyed_for(id, gid, key, 0);
-        self.game.weather_keys.insert(id, key);
+        self.game.effect_keys.weather_keys.insert(id, key);
     }
 
     pub(super) fn handle_play_misc_effect_on_entity(&mut self, gid: u32, code: u8) {

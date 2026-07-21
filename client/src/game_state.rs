@@ -186,6 +186,19 @@ impl CombatState {
     }
 }
 
+#[derive(Default)]
+pub struct EffectKeys {
+    pub status_buff_keys: HashMap<(u32, i16), u32>,
+    pub next_status_buff_key: u32,
+    pub level_aura_keys: HashMap<u32, u32>,
+    pub boss_aura_keys: HashMap<u32, u32>,
+    pub warp_portal_keys: HashMap<u32, u32>,
+    pub spirit_keys: HashMap<u32, u32>,
+    pub sight_aura_keys: HashMap<u32, u32>,
+    pub ruwach_aura_keys: HashMap<u32, u32>,
+    pub weather_keys: HashMap<EffectId, u32>,
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -351,16 +364,8 @@ pub struct GameState {
     pub ambient_effects: AmbientEffectScheduler,
     pub ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler,
     pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
-    pub status_buff_keys: HashMap<(u32, i16), u32>,
-    pub next_status_buff_key: u32,
+    pub effect_keys: EffectKeys,
     pub day_night: DayNightState,
-    pub level_aura_keys: HashMap<u32, u32>,
-    pub boss_aura_keys: HashMap<u32, u32>,
-    pub warp_portal_keys: HashMap<u32, u32>,
-    pub spirit_keys: HashMap<u32, u32>,
-    pub sight_aura_keys: HashMap<u32, u32>,
-    pub ruwach_aura_keys: HashMap<u32, u32>,
-    pub weather_keys: HashMap<EffectId, u32>,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
     pub self_config: SelfConfig,
@@ -1342,16 +1347,8 @@ impl GameState {
             ambient_effects: AmbientEffectScheduler::empty(),
             ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler::empty(),
             repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler::new(),
-            status_buff_keys: HashMap::new(),
-            next_status_buff_key: 0,
+            effect_keys: EffectKeys::default(),
             day_night: DayNightState::default(),
-            level_aura_keys: HashMap::new(),
-            boss_aura_keys: HashMap::new(),
-            warp_portal_keys: HashMap::new(),
-            spirit_keys: HashMap::new(),
-            sight_aura_keys: HashMap::new(),
-            ruwach_aura_keys: HashMap::new(),
-            weather_keys: HashMap::new(),
         }
     }
 

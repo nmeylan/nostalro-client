@@ -142,13 +142,13 @@ impl App {
         self.game.ambient_sounds =
             ragnarok_game::sound::ambient::AmbientSoundScheduler::empty();
         self.game.repeat_sounds.clear();
-        self.game.status_buff_keys.clear();
-        self.game.next_status_buff_key = 0;
-        self.game.level_aura_keys.clear();
-        self.game.boss_aura_keys.clear();
-        self.game.warp_portal_keys.clear();
-        self.game.sight_aura_keys.clear();
-        self.game.ruwach_aura_keys.clear();
+        self.game.effect_keys.status_buff_keys.clear();
+        self.game.effect_keys.next_status_buff_key = 0;
+        self.game.effect_keys.level_aura_keys.clear();
+        self.game.effect_keys.boss_aura_keys.clear();
+        self.game.effect_keys.warp_portal_keys.clear();
+        self.game.effect_keys.sight_aura_keys.clear();
+        self.game.effect_keys.ruwach_aura_keys.clear();
         self.game.day_night.reset();
         if let Some(renderer) = &mut self.renderer {
             renderer.ground_renderer = None;
@@ -365,15 +365,15 @@ impl App {
         self.sound.stop_all_sfx();
         self.game.arrows.clear();
         self.game.combat.damage_numbers.clear();
-        self.game.status_buff_keys.clear();
-        self.game.next_status_buff_key = 0;
-        self.game.level_aura_keys.clear();
-        self.game.boss_aura_keys.clear();
-        self.game.warp_portal_keys.clear();
-        self.game.spirit_keys.clear();
-        self.game.sight_aura_keys.clear();
-        self.game.ruwach_aura_keys.clear();
-        self.game.weather_keys.clear();
+        self.game.effect_keys.status_buff_keys.clear();
+        self.game.effect_keys.next_status_buff_key = 0;
+        self.game.effect_keys.level_aura_keys.clear();
+        self.game.effect_keys.boss_aura_keys.clear();
+        self.game.effect_keys.warp_portal_keys.clear();
+        self.game.effect_keys.spirit_keys.clear();
+        self.game.effect_keys.sight_aura_keys.clear();
+        self.game.effect_keys.ruwach_aura_keys.clear();
+        self.game.effect_keys.weather_keys.clear();
     }
 
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
