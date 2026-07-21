@@ -73,7 +73,7 @@ testing. What it draws depends on `background_mode`:
 
 - `RswMap` (the normal in-game case): ground, then the map's static models, then
   per-skill-unit models, then animated GR2 models (emperium, guardians), then
-  the grid selector, then water. Each reads the shared camera uniform
+  the grid selector(this is a debug feature available by pressing `F11`), then water. Each reads the shared camera uniform
   (`global_uniforms`) and the texture cache.
 - `GroundProxy`: a single proxy ground plane, used when no map is loaded.
 - `Clear`: nothing, leaving just the clear color.
