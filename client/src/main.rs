@@ -8,16 +8,19 @@ mod overlay;
 mod scene;
 mod sound;
 mod sprite;
+mod ui;
 
 use config::Config;
-use game_state::{GameState, PendingGuildConfirm};
+use game_state::{
+    CursorInput, CursorPending, GameState, HoverState, cursor_type_from_hover,
+};
 use input::InputState;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    CursorType, PendingCompanionSkill, PendingSkillTarget, RenderEntry, RenderEntryKind,
-    cursor_type_for_cell, hovered_entity_cursor_type,
+    PendingCompanionSkill, PendingSkillTarget, RenderEntry, RenderEntryKind, cursor_type_for_cell,
+    hovered_entity_cursor_type,
 };
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
@@ -97,7 +100,7 @@ use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
-    block_on, upload_sprite_textures,
+    block_on,
 };
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -185,6 +188,7 @@ struct App {
     roulette_textures: Option<ragnarok_renderer::SpriteTextures>,
     channel: GameChannel,
     game: GameState,
+    windows: ui::Windows,
     sound: SoundManager,
     sound_queue: SoundQueue,
     bgm_table: HashMap<String, String>,
@@ -195,6 +199,7 @@ struct App {
     /// GameEvents produced by raw keyboard handling (skill-bar / emotion hotkeys),
     /// drained into `handle_ui_events` on the next redraw.
     pending_events: Vec<GameEvent>,
+    profiler: ragnarok_profiling::Profiler,
 }
 
 impl App {
@@ -205,14 +210,15 @@ impl App {
             .map(|(&id, entry)| (id, entry.position))
             .collect();
         let mut game = GameState::new();
+        let mut windows = ui::Windows::new();
         game.debug_overlay = config.debug_overlay;
-        game.sound_options.set_values(
+        windows.sound_options.set_values(
             config.bgm_volume,
             config.sfx_volume,
             config.bgm_enabled,
             config.sfx_enabled,
         );
-        game.self_config.refuse_party_invite = config.refuse_party_invite;
+        game.prefs.self_config.refuse_party_invite = config.refuse_party_invite;
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);
         let sound =
@@ -243,6 +249,7 @@ impl App {
             roulette_textures: None,
             channel: GameChannel::new(),
             game,
+            windows,
             sound,
             sound_queue: SoundQueue::new(),
             bgm_table: HashMap::new(),
@@ -251,6 +258,7 @@ impl App {
             last_frame_instant: Instant::now(),
             next_frame: Instant::now(),
             pending_events: Vec::new(),
+            profiler: ragnarok_profiling::Profiler::default(),
         }
     }
 
@@ -263,35 +271,35 @@ impl App {
         let map_data = match map_loader::load_map_data(grf, map_name) {
             Some(d) => d,
             None => {
-                self.game.map_missing_window.show(map_name.to_string());
+                self.windows.map_missing_window.show(map_name.to_string());
                 return;
             }
         };
 
-        self.game.map_missing_window.hide();
-        self.game.map_coords = map_data.coordinates;
-        self.game.gat = map_data.gat;
-        let was_locked = self.game.camera_locked;
-        self.game.camera_locked = map_data.indoor;
+        self.windows.map_missing_window.hide();
+        self.game.session.map_coords = map_data.coordinates;
+        self.game.session.gat = map_data.gat;
+        let was_locked = self.game.session.camera_locked;
+        self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {
             if map_data.indoor {
                 if !was_locked {
-                    self.game.saved_camera_yaw = Some(renderer.camera.yaw);
+                    self.game.session.saved_camera_yaw = Some(renderer.camera.yaw);
                 }
-                input::lock_indoor_camera(&mut renderer.camera);
-            } else if was_locked && let Some(yaw) = self.game.saved_camera_yaw.take() {
+                renderer.camera.lock_indoor();
+            } else if was_locked && let Some(yaw) = self.game.session.saved_camera_yaw.take() {
                 renderer.camera.yaw = yaw;
             }
         }
 
-        self.game.ambient_effects.clear(&mut self.effect_queue);
-        self.game.ambient_effects =
+        self.game.schedulers.ambient_effects.clear(&mut self.effect_queue);
+        self.game.schedulers.ambient_effects =
             ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
-        self.game.ambient_sounds =
+        self.game.schedulers.ambient_sounds =
             ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
-        self.game.repeat_sounds.clear();
+        self.game.schedulers.repeat_sounds.clear();
 
-        self.game.day_night.on_map_loaded(
+        self.game.schedulers.day_night.on_map_loaded(
             map_data.rsw.light.diffuse.unwrap_or([1.0, 1.0, 1.0]),
             map_data.rsw.light.ambient.unwrap_or([0.3, 0.3, 0.3]),
         );
@@ -359,7 +367,7 @@ impl App {
         }
 
         if let Some(renderer) = &mut self.renderer
-            && let Some(gat) = &self.game.gat
+            && let Some(gat) = &self.game.session.gat
         {
             let mut grid = GridSelectorRenderer::new(
                 &renderer.device.device,
@@ -385,10 +393,10 @@ impl App {
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
-        if let (Some(coords), Some(renderer)) = (&self.game.map_coords, &mut self.renderer) {
+        if let (Some(coords), Some(renderer)) = (&self.game.session.map_coords, &mut self.renderer) {
             input::position_camera_at(
                 &mut renderer.camera,
-                self.game.gat.as_ref(),
+                self.game.session.gat.as_ref(),
                 coords,
                 cell_x,
                 cell_y,
@@ -397,17 +405,14 @@ impl App {
     }
 
     fn hovered_cell(&self) -> Option<(i32, i32)> {
-        let (renderer, coords) = match (&self.renderer, &self.game.map_coords) {
-            (Some(r), Some(c)) => (r, c),
-            _ => return None,
-        };
+        let (renderer, coords, screen_w, screen_h) = self.screen_dims()?;
         input::hovered_cell(
             self.input.mouse_position,
             &renderer.camera,
-            renderer.device.surface_config.width as f32 / renderer.dpi_scale,
-            renderer.device.surface_config.height as f32 / renderer.dpi_scale,
+            screen_w,
+            screen_h,
             coords,
-            self.game.gat.as_ref(),
+            self.game.session.gat.as_ref(),
         )
     }
 
@@ -472,6 +477,7 @@ impl App {
         let cell_y = y as f32 + sub_y as f32 / 16.0;
         let ground_y = self
             .game
+            .session
             .gat
             .as_ref()
             .map(|gat| gat.get_height(cell_x + 0.5, cell_y + 0.5))
@@ -492,23 +498,19 @@ impl App {
             is_falling,
             initial_y: ground_y,
         };
-        self.game.floor_items.insert(id, floor_item);
+        self.game.world.floor_items.insert(id, floor_item);
 
         if let Some(res_name) = &resource_name
-            && let (Some(grf), Some(renderer)) = (&self.grf, &self.renderer)
+            && let Some(grf) = &self.grf
         {
             let base = format!("data/sprite/아이템/{res_name}");
             let spr_path = format!("{base}.spr");
             let act_path = format!("{base}.act");
-            if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path) {
-                let tex = upload_sprite_textures(
-                    &data.images,
-                    data.indexed_count,
-                    &renderer.device.device,
-                    &renderer.device.queue,
-                    &renderer.texture_cache.bind_group_layout,
-                );
+            if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path)
+                && let Some(tex) = self.upload_sprite(&data)
+            {
                 self.game
+                    .assets
                     .floor_item_sprites
                     .insert(id, (Rc::new(tex), data.act));
             }
@@ -516,6 +518,7 @@ impl App {
     }
 
     fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
+        ragnarok_profiling::profile_function!();
         for event in events {
             match event {
                 GameEvent::RequestLogin { username, password } => {
@@ -545,7 +548,7 @@ impl App {
                         let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
                         self.channel.send_cmd(NetworkCommand::Disconnect);
                         self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
-                        if let Some(session) = &mut self.game.login_session {
+                        if let Some(session) = &mut self.game.session.login_session {
                             session.char_server_addr = Some(addr);
                             self.channel.send_packet(build_char_enter_packet(session));
                             self.channel.send_cmd(NetworkCommand::SetKeepalive(
@@ -559,7 +562,7 @@ impl App {
                 GameEvent::RequestSelectCharacter { slot } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     if let Some(char_win) = &self.char_select_window {
-                        self.game.selected_character = char_win
+                        self.game.session.selected_character = char_win
                             .characters
                             .iter()
                             .find(|c| c.slot == slot as i8)
@@ -588,7 +591,7 @@ impl App {
                     }
                     self.char_create_window = Some(win);
                     self.char_create_built_appearance = None;
-                    self.game.app_state = AppState::CharacterCreate;
+                    self.game.session.app_state = AppState::CharacterCreate;
                 }
                 GameEvent::RequestMakeCharacter {
                     name,
@@ -620,7 +623,7 @@ impl App {
                 }
                 GameEvent::CancelCreateCharacter => {
                     self.char_create_window = None;
-                    self.game.app_state = AppState::CharacterSelect;
+                    self.game.session.app_state = AppState::CharacterSelect;
                 }
                 GameEvent::RequestDeleteCharacterReserve { gid } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
@@ -641,26 +644,26 @@ impl App {
                         .send_packet(build_delete_char_cancel_packet(gid, self.config.packetver));
                 }
                 GameEvent::BackToServerSelect => {
-                    self.game.app_state = AppState::ServerSelect;
+                    self.game.session.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
                     self.char_create_window = None;
                     self.account_anims.clear();
-                    self.game.system_menu.open = false;
+                    self.windows.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToLogin => {
-                    self.game.app_state = AppState::Login;
+                    self.game.session.app_state = AppState::Login;
                     self.server_list_window = None;
                     self.char_select_window = None;
                     self.char_create_window = None;
                     self.account_anims.clear();
-                    self.game.login_session = None;
-                    self.game.system_menu.open = false;
+                    self.game.session.login_session = None;
+                    self.windows.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToCharacterSelect => {
-                    self.game.system_menu.open = false;
-                    self.game.map_missing_window.hide();
+                    self.windows.system_menu.open = false;
+                    self.windows.map_missing_window.hide();
                     self.clear_companions();
                     self.channel
                         .send_packet(build_restart_packet(self.config.packetver));
@@ -676,7 +679,7 @@ impl App {
                 GameEvent::RequestMapRecoveryWarp => {
                     let char_name = self
                         .game
-                        .selected_character
+                        .session.selected_character
                         .as_ref()
                         .map(|c| c.name.as_str())
                         .unwrap_or("Unknown");
@@ -685,7 +688,7 @@ impl App {
                         .send_packet(build_chat_packet(&full_msg, self.config.packetver));
                 }
                 GameEvent::QuitGame => {
-                    self.game.system_menu.open = false;
+                    self.windows.system_menu.open = false;
                     self.channel
                         .send_packet(build_req_disconnect_packet(self.config.packetver));
                 }
@@ -713,7 +716,7 @@ impl App {
                         .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
                 }
                 GameEvent::ToggleChatRoomCreate => {
-                    self.game.chat_room_create_window.toggle();
+                    self.windows.chat_room_create_window.toggle();
                 }
                 GameEvent::RequestCreateChatRoom {
                     title,
@@ -747,13 +750,13 @@ impl App {
                 GameEvent::RequestLeaveChatRoom => {
                     self.channel
                         .send_packet(build_exit_room_packet(self.config.packetver));
-                    self.game.chat_room_member_window.close();
+                    self.windows.chat_room_member_window.close();
                 }
                 GameEvent::RequestEditChatRoomSettings => {
-                    let w = &self.game.chat_room_member_window;
+                    let w = &self.windows.chat_room_member_window;
                     let (room_id, title, limit, public) =
                         (w.room_id(), w.title().to_string(), w.max_count(), w.public());
-                    self.game
+                    self.windows
                         .chat_room_create_window
                         .open_change(room_id, &title, limit, public);
                 }
@@ -781,7 +784,7 @@ impl App {
                             action: ContextMenuAction::KickFromChatRoom { name },
                         },
                     ];
-                    self.game.context_menu.open_at(x, y, items);
+                    self.windows.context_menu.open_at(x, y, items);
                 }
                 GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
                     self.channel.send_packet(build_select_warppoint_packet(
@@ -822,7 +825,7 @@ impl App {
                         .send_packet(build_sell_item_list_packet(&items, self.config.packetver));
                 }
                 GameEvent::RequestNpcShopClose => {
-                    match self.game.npc_shop.shop.mode {
+                    match self.windows.npc_shop.shop.mode {
                         Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
                             self.channel.send_packet(build_purchase_item_list_packet(
                                 &[],
@@ -837,31 +840,31 @@ impl App {
                         }
                         None => {}
                     }
-                    self.game.npc_shop.close();
+                    self.windows.npc_shop.close();
                 }
                 GameEvent::ShowItemInfo { index } => {
                     if let Some(item) = self.game.character.inventory.get_item(index) {
                         let is_book = self.item_is_book(item.item_id);
-                        self.game
+                        self.windows
                             .item_info_window
                             .show(item, &self.game.data_table, is_book);
-                        let tex_paths = self.game.item_info_window.pending_texture_paths();
+                        let tex_paths = self.windows.item_info_window.pending_texture_paths();
                         self.preload_item_icons(tex_paths);
                     }
                 }
                 GameEvent::ShowItemInfoDirect { item } => {
                     let is_book = self.item_is_book(item.item_id);
-                    self.game
+                    self.windows
                         .item_info_window
                         .show(&item, &self.game.data_table, is_book);
-                    let tex_paths = self.game.item_info_window.pending_texture_paths();
+                    let tex_paths = self.windows.item_info_window.pending_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }
                 GameEvent::ShowCardInfo { item_id } => {
-                    self.game
+                    self.windows
                         .item_info_window
                         .show_card(item_id, &self.game.data_table);
-                    let tex_paths = self.game.item_info_window.pending_card_texture_paths();
+                    let tex_paths = self.windows.item_info_window.pending_card_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }
                 GameEvent::ShowCardIllustration { item_id } => {
@@ -879,11 +882,11 @@ impl App {
                         .as_ref()
                         .and_then(|t| t.illustration_path(item_id));
                     if let Some(path) = illust_path {
-                        self.game
+                        self.windows
                             .item_info_window
                             .show_illustration(item_id, name, path);
                         let tex_paths = self
-                            .game
+                            .windows
                             .item_info_window
                             .pending_illustration_texture_paths();
                         self.preload_item_icons(tex_paths);
@@ -894,8 +897,8 @@ impl App {
                         && let Ok(data) = grf.read_file(&format!("data/book/{item_id}.txt"))
                     {
                         let content = ragnarok_game::book::BookContent::parse(&data);
-                        self.game.book_window.show(content);
-                        self.game.item_info_window.close();
+                        self.windows.book_window.show(content);
+                        self.windows.item_info_window.close();
                     }
                 }
                 GameEvent::RequestUseItem { index } => {
@@ -904,7 +907,7 @@ impl App {
                     }
                     let account_id = self
                         .game
-                        .login_session
+                        .session.login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -991,11 +994,12 @@ impl App {
                 GameEvent::RequestExchangeItem { target_aid } => {
                     let name = self
                         .game
+                        .world
                         .entities
                         .get(target_aid)
                         .and_then(|e| e.name.clone())
                         .unwrap_or_default();
-                    self.game.pending_trade_partner = Some((target_aid, name));
+                    self.game.pending_confirms.pending_trade_partner = Some((target_aid, name));
                     self.channel
                         .send_packet(build_req_exchange_item_packet(target_aid, self.config.packetver));
                 }
@@ -1121,7 +1125,7 @@ impl App {
                 GameEvent::RequestHomunRest => {
                     let skill_id = SkillEnum::AmRest.id() as u16;
                     if !self.skill_on_cooldown(skill_id) {
-                        let target_id = self.game.entities.player_id().unwrap_or(0);
+                        let target_id = self.game.world.entities.player_id().unwrap_or(0);
                         self.channel.send_packet(build_use_skill_packet(
                             skill_id,
                             1,
@@ -1133,18 +1137,15 @@ impl App {
                 GameEvent::RequestHomunDelete => {
                     let name = self
                         .game
+                        .companions
                         .homunculus
                         .as_ref()
                         .map(|h| h.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "your homunculus".to_string());
-                    self.game.homun_delete_result.set(None);
-                    self.game.homun_delete_pending = true;
-                    self.game.confirm_dialog.show_with_out(
+                    self.game.arm_confirm(&mut self.windows,
                         &format!("Delete {name} permanently?"),
-                        true,
-                        self.game.homun_delete_result.clone(),
-                        |_| {},
+                        |accept| accept.then_some(GameEvent::RequestHomunMenu { command: 2 }),
                     );
                 }
                 GameEvent::RequestMercenaryCommand { command } => {
@@ -1161,23 +1162,24 @@ impl App {
                         .send_packet(build_rename_homun_packet(&name, self.config.packetver));
                 }
                 GameEvent::ToggleHomunculusWindow => {
-                    self.game.homunculus_window.toggle();
+                    self.windows.homunculus_window.toggle();
                 }
                 GameEvent::ToggleMercenaryWindow => {
-                    self.game.mercenary_window.toggle();
+                    self.windows.mercenary_window.toggle();
                 }
                 GameEvent::ToggleMercenarySkillWindow => {
-                    self.game.mercenary_skill_window.toggle();
+                    self.windows.mercenary_skill_window.toggle();
                 }
                 GameEvent::ToggleHomunSkillWindow => {
-                    self.game.homun_skill_window.toggle();
+                    self.windows.homun_skill_window.toggle();
                 }
                 GameEvent::ToggleCompanionAiConfig => {
-                    self.game.companion_ai_config_window.toggle();
+                    self.windows.companion_ai_config_window.toggle();
                 }
                 GameEvent::SaveCompanionAiConfig => {
                     if let Err(e) = self
                         .game
+                        .companions
                         .companion_ai
                         .save(crate::game_state::COMPANION_AI_CONFIG_PATH)
                     {
@@ -1185,12 +1187,12 @@ impl App {
                     }
                 }
                 GameEvent::RevertCompanionAiConfig => {
-                    self.game.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
                         crate::game_state::COMPANION_AI_CONFIG_PATH,
                     );
                 }
                 GameEvent::ResetCompanionAiConfig => {
-                    self.game.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
+                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
                 }
                 GameEvent::ToggleCompanionStandby { is_mercenary } => {
                     self.push_owner_command_to(
@@ -1227,14 +1229,14 @@ impl App {
                     if skill_id == SkillEnum::McChangecart.id() as u16 {
                         if self.game.character.cart_design.is_some() {
                             self.preload_cart_previews(&[1, 2, 3, 4, 5]);
-                            self.game.cart_select_window.open();
+                            self.windows.cart_select_window.open();
                         }
                         continue;
                     }
                     if skill_id == SkillEnum::AcMakingarrow.id() as u16
                         || skill_id == SkillEnum::SaCreatecon.id() as u16
                     {
-                        self.game.pending_list_skill = Some(skill_id);
+                        self.game.pending_casts.pending_list_skill = Some(skill_id);
                     }
                     let skill_target_type = self
                         .game
@@ -1244,7 +1246,7 @@ impl App {
                     match skill_target_type {
                         SkillTargetType::MySelf => {
                             if !self.skill_on_cooldown(skill_id) {
-                                let target_id = self.game.entities.player_id().unwrap_or(0);
+                                let target_id = self.game.world.entities.player_id().unwrap_or(0);
                                 self.channel.send_packet(build_use_skill_packet(
                                     skill_id,
                                     level,
@@ -1254,13 +1256,13 @@ impl App {
                             }
                         }
                         SkillTargetType::Target | SkillTargetType::Friend => {
-                            self.game.pending_skill_target =
+                            self.game.pending_casts.pending_skill_target =
                                 Some(PendingSkillTarget::Entity { skill_id, level });
-                            self.game.pending_skill_id = Some(skill_id);
-                            self.game.pending_skill_level = Some(level);
+                            self.game.pending_casts.pending_skill_id = Some(skill_id);
+                            self.game.pending_casts.pending_skill_level = Some(level);
                         }
                         SkillTargetType::Ground | SkillTargetType::Trap => {
-                            self.game.pending_skill_target =
+                            self.game.pending_casts.pending_skill_target =
                                 Some(PendingSkillTarget::Ground { skill_id, level });
                         }
                         _ => {
@@ -1280,9 +1282,9 @@ impl App {
                     // list (with the target type) is available here even though the
                     // hotkey that triggered this carried only the id.
                     let companion = if is_mercenary {
-                        self.game.mercenary.as_ref().map(|m| (m.gid, &m.skills))
+                        self.game.companions.mercenary.as_ref().map(|m| (m.gid, &m.skills))
                     } else {
-                        self.game.homunculus.as_ref().map(|h| (h.gid, &h.skills))
+                        self.game.companions.homunculus.as_ref().map(|h| (h.gid, &h.skills))
                     };
                     let Some((gid, skills)) = companion else {
                         tracing::info!("RequestCompanionUseSkill: no companion present — dropped");
@@ -1298,7 +1300,7 @@ impl App {
                     );
                     match target_type {
                         SkillTargetType::Target | SkillTargetType::Friend => {
-                            self.game.pending_companion_skill = Some(PendingCompanionSkill {
+                            self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                                 is_mercenary,
                                 skill_id,
                                 level,
@@ -1306,7 +1308,7 @@ impl App {
                             });
                         }
                         SkillTargetType::Ground | SkillTargetType::Trap => {
-                            self.game.pending_companion_skill = Some(PendingCompanionSkill {
+                            self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                                 is_mercenary,
                                 skill_id,
                                 level,
@@ -1327,12 +1329,12 @@ impl App {
                 GameEvent::RequestPickupItem { id } => {
                     self.channel
                         .send_packet(build_pickup_item_packet(id, self.config.packetver));
-                    if let Some(entity) = self.game.entities.player_mut() {
+                    if let Some(entity) = self.game.world.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
                 }
                 GameEvent::RequestCardInsertList { card_index } => {
-                    self.game.pending_card_composition_index = Some(card_index);
+                    self.game.pending_casts.pending_card_composition_index = Some(card_index);
                     self.channel.send_packet(build_card_composition_list_packet(
                         card_index,
                         self.config.packetver,
@@ -1347,7 +1349,7 @@ impl App {
                         equip_index,
                         self.config.packetver,
                     ));
-                    self.game.pending_card_composition_index = None;
+                    self.game.pending_casts.pending_card_composition_index = None;
                 }
                 GameEvent::RequestIdentifyItem { index } => {
                     self.channel
@@ -1392,7 +1394,7 @@ impl App {
                         &items,
                         self.config.packetver,
                     ));
-                    self.game.pending_shop_name = Some(shop_name);
+                    self.game.pending_casts.pending_shop_name = Some(shop_name);
                 }
                 GameEvent::RequestCancelVendingSetup => {
                     self.channel
@@ -1423,24 +1425,24 @@ impl App {
                 GameEvent::RequestSendWhisper { name, message } => {
                     self.channel
                         .send_packet(build_whisper_packet(&name, &message, self.config.packetver));
-                    self.game.chat_window.add_whisper_out(name, message);
+                    self.windows.chat_window.add_whisper_out(name, message);
                 }
                 GameEvent::ToggleShortcutList => {
-                    if !self.game.shortcut_list_window.is_open() {
-                        self.game
+                    if !self.windows.shortcut_list_window.is_open() {
+                        self.windows
                             .shortcut_list_window
                             .set_bindings(&self.config.shortcut_commands);
                     }
-                    self.game.shortcut_list_window.toggle();
+                    self.windows.shortcut_list_window.toggle();
                 }
                 GameEvent::ShortcutBindingsChanged(commands) => {
                     self.config.shortcut_commands = commands;
                 }
                 GameEvent::ToggleQuestWindow => {
-                    self.game.quest_window.toggle();
+                    self.windows.quest_window.toggle();
                 }
                 GameEvent::OpenQuestDetail { quest_id } => {
-                    self.game.quest_detail_window.open(quest_id);
+                    self.windows.quest_detail_window.open(quest_id);
                 }
                 GameEvent::RequestToggleQuestActive { quest_id, active } => {
                     self.channel.send_packet(ragnarok_network::build_active_quest_packet(
@@ -1457,23 +1459,23 @@ impl App {
                     self.game.character.inventory.toggle();
                 }
                 GameEvent::ToggleEquipment => {
-                    self.game.equipment_window.toggle();
+                    self.windows.equipment_window.toggle();
                 }
                 GameEvent::ToggleSkills => {
                     self.game.character.skills.toggle();
                 }
                 GameEvent::ToggleEmotionWindow => {
-                    self.game.emotion_window.toggle();
+                    self.windows.emotion_window.toggle();
                 }
                 GameEvent::RequestEmotion { emote_type } => {
                     self.channel
                         .send_packet(build_emotion_packet(emote_type, self.config.packetver));
                 }
                 GameEvent::ToggleStatusWindow => {
-                    self.game.status_window.toggle();
+                    self.windows.status_window.toggle();
                 }
                 GameEvent::ToggleMinimap => {
-                    self.game.minimap_window.cycle_visibility();
+                    self.windows.minimap_window.cycle_visibility();
                 }
                 GameEvent::ToggleSoundOptions => {
                     self.open_sound_options();
@@ -1522,18 +1524,18 @@ impl App {
                     );
                 }
                 GameEvent::ToggleHotkeyConfig => {
-                    if !self.game.hotkey_config_window.is_open() {
-                        self.game
+                    if !self.windows.hotkey_config_window.is_open() {
+                        self.windows
                             .hotkey_config_window
                             .set_bindings(&self.config.keybindings, &self.config.emotion_keys);
                     }
-                    self.game.hotkey_config_window.toggle();
+                    self.windows.hotkey_config_window.toggle();
                 }
                 GameEvent::TogglePartyWindow => {
-                    self.game.party_friends_window.open_party_tab();
+                    self.windows.party_friends_window.open_party_tab();
                 }
                 GameEvent::ToggleFriendWindow => {
-                    self.game.party_friends_window.open_friend_tab();
+                    self.windows.party_friends_window.open_friend_tab();
                 }
                 GameEvent::RequestPartyInvite { target_aid } => {
                     let pv = self.config.packetver;
@@ -1542,13 +1544,13 @@ impl App {
                         // wait for the create ack — sending it now would be dropped.
                         let party_name = self
                             .game
-                            .selected_character
+                            .session.selected_character
                             .as_ref()
                             .map(|c| c.name.clone())
                             .unwrap_or_else(|| "Party".to_string());
                         self.channel
                             .send_packet(build_make_party_packet(&party_name, pv));
-                        self.game.pending_invite_aid = Some(target_aid);
+                        self.game.pending_confirms.pending_invite_aid = Some(target_aid);
                     } else {
                         self.channel
                             .send_packet(build_req_join_party_packet(target_aid, pv));
@@ -1566,7 +1568,7 @@ impl App {
                         .send_packet(build_adopt_request_packet(target_aid, self.config.packetver));
                 }
                 GameEvent::RespondAdoptionRequest { accept } => {
-                    if let Some((father_aid, mother_aid)) = self.game.pending_adopt_request.take() {
+                    if let Some((father_aid, mother_aid)) = self.game.pending_confirms.pending_adopt_request.take() {
                         self.channel.send_packet(build_adopt_reply_packet(
                             father_aid,
                             mother_aid,
@@ -1608,7 +1610,7 @@ impl App {
                 GameEvent::ShowPartyHelper { mode } => {
                     let local_aid = self
                         .game
-                        .login_session
+                        .session.login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -1626,7 +1628,7 @@ impl App {
                         .map(|p| (p.exp_share, p.item_pickup_rule, p.item_division_rule))
                         .unwrap_or((false, 0, 0));
                     let editable = mode == MODE_CREATE || is_leader;
-                    self.game
+                    self.windows
                         .party_helper_window
                         .open(mode, exp, pickup, division, editable);
                 }
@@ -1669,7 +1671,7 @@ impl App {
                     };
                     let local_gid = self
                         .game
-                        .login_session
+                        .session.login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -1709,7 +1711,7 @@ impl App {
                             });
                         }
                     }
-                    self.game.context_menu.open_at(x, y, items);
+                    self.windows.context_menu.open_at(x, y, items);
                 }
                 GameEvent::RequestSetGuildNotice { subject, body } => {
                     if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
@@ -1729,23 +1731,19 @@ impl App {
                         .map(|g| g.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "the guild".to_string());
-                    self.game.guild_confirm_result.set(None);
-                    self.game.pending_guild_confirm = Some(PendingGuildConfirm::Leave);
-                    self.game.confirm_dialog.show_with_out(
+                    self.game.arm_confirm(&mut self.windows,
                         &format!("Leave {name}?"),
-                        true,
-                        self.game.guild_confirm_result.clone(),
-                        |_| {},
+                        |accept| accept.then_some(GameEvent::ConfirmedGuildLeave),
                     );
                 }
                 GameEvent::RequestGuildExpel { aid, gid, name } => {
-                    self.game.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
+                    self.windows.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
                 }
                 GameEvent::ConfirmedGuildLeave => {
                     if let Some(g) = &self.game.guild {
                         let aid = self
                             .game
-                            .login_session
+                            .session.login_session
                             .as_ref()
                             .map(|s| s.account_id)
                             .unwrap_or(0) as i32;
@@ -1815,15 +1813,9 @@ impl App {
                     } else {
                         "Cancel this antagonist declaration?"
                     };
-                    self.game.guild_confirm_result.set(None);
-                    self.game.pending_guild_confirm =
-                        Some(PendingGuildConfirm::DeleteRelation { gdid, relation });
-                    self.game.confirm_dialog.show_with_out(
-                        msg,
-                        true,
-                        self.game.guild_confirm_result.clone(),
-                        |_| {},
-                    );
+                    self.game.arm_confirm(&mut self.windows, msg, move |accept| {
+                        accept.then_some(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation })
+                    });
                 }
                 GameEvent::ConfirmedDeleteGuildRelation { gdid, relation } => {
                     self.channel.send_packet(build_req_delete_related_guild(
@@ -1859,7 +1851,7 @@ impl App {
                     ));
                 }
                 GameEvent::RequestWhisper { name } => {
-                    self.game.chat_window.start_whisper(name);
+                    self.windows.chat_window.start_whisper(name);
                 }
 
                 GameEvent::RequestTryCapture { gid } => {
@@ -1872,11 +1864,11 @@ impl App {
                     // The window opens on this explicit request, not on the
                     // incoming property packet (which also arrives unsolicited).
                     if csub == 0 {
-                        self.game.pet_window.set_visible(true);
+                        self.windows.pet_window.set_visible(true);
                     }
                     // Return-to-egg: the pet vanishes and the egg becomes usable again.
                     if csub == 3
-                        && let Some(index) = self.game.pet.egg_index.take()
+                        && let Some(index) = self.game.companions.pet.egg_index.take()
                     {
                         self.game.character.inventory.set_item_damaged(index, false);
                     }
@@ -1892,7 +1884,7 @@ impl App {
                 GameEvent::RequestSelectPetEgg { index } => {
                     self.channel
                         .send_packet(build_select_petegg_packet(index, self.config.packetver));
-                    self.game.pet.egg_index = Some(index);
+                    self.game.companions.pet.egg_index = Some(index);
                     self.game.character.inventory.set_item_damaged(index, true);
                 }
                 GameEvent::RequestPetAct { data } => {
@@ -1900,17 +1892,13 @@ impl App {
                         .send_packet(build_pet_act_packet(data, self.config.packetver));
                 }
                 GameEvent::RequestPetFeed => {
-                    self.game.pet_feed_result.set(None);
-                    self.game.pet_feed_pending = true;
-                    self.game.confirm_dialog.show_with_out(
+                    self.game.arm_confirm(&mut self.windows,
                         "Are you sure you want to feed your pet?",
-                        true,
-                        self.game.pet_feed_result.clone(),
-                        |_| {},
+                        |accept| accept.then_some(GameEvent::RequestPetCommand { csub: 1 }),
                     );
                 }
                 GameEvent::TogglePetWindow => {
-                    self.game.pet_window.toggle();
+                    self.windows.pet_window.toggle();
                 }
                 _ => {}
             }
@@ -1921,7 +1909,7 @@ impl App {
         if self.channel.cmd_tx.is_none() {
             return false;
         }
-        let Some(session) = &self.game.login_session else {
+        let Some(session) = &self.game.session.login_session else {
             return false;
         };
         let Some(addr) = &session.char_server_addr else {
@@ -1934,14 +1922,14 @@ impl App {
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
                 account_id: session.account_id,
             }));
-        self.game.app_state = AppState::CharacterSelect;
+        self.game.session.app_state = AppState::CharacterSelect;
         true
     }
 
     fn local_aid_gid(&self) -> (u32, u32) {
         let aid = self
             .game
-            .login_session
+            .session.login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
@@ -2006,23 +1994,23 @@ impl App {
             });
         }
         if entries.is_empty() {
-            self.game.chat_window.add_system(format!(
+            self.windows.chat_window.add_system(format!(
                 "No emblem .bmp found in '{}'.",
                 dir.display()
             ));
         }
-        self.game.emblem_picker_window.open(entries);
+        self.windows.emblem_picker_window.open(entries);
     }
 
     fn upload_emblem_file(&mut self, path: &str) {
         let Ok(bmp) = std::fs::read(path) else {
-            self.game
+            self.windows
                 .chat_window
                 .add_system(format!("Failed to read emblem '{path}'."));
             return;
         };
         if let Err(e) = ragnarok_game::guild::validate_emblem_bmp(&bmp) {
-            self.game.chat_window.add_system(e);
+            self.windows.chat_window.add_system(e);
             return;
         }
         let compressed = ragnarok_formats::zlib_compress(&bmp);
@@ -2037,18 +2025,18 @@ impl App {
     }
 
     fn open_sound_options(&mut self) {
-        self.game.sound_options.set_values(
+        self.windows.sound_options.set_values(
             self.config.bgm_volume,
             self.config.sfx_volume,
             self.config.bgm_enabled,
             self.config.sfx_enabled,
         );
-        self.game.sound_options.toggle();
+        self.windows.sound_options.toggle();
     }
 
     fn open_graphic_options(&mut self) {
-        if !self.game.graphic_options.open {
-            self.game.graphic_options.set_values(
+        if !self.windows.graphic_options.open {
+            self.windows.graphic_options.set_values(
                 self.config.dpi_scale,
                 self.config.fullscreen,
                 self.config.fog,
@@ -2058,7 +2046,7 @@ impl App {
                 self.config.refuse_party_invite,
             );
         }
-        self.game.graphic_options.toggle();
+        self.windows.graphic_options.toggle();
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2084,7 +2072,7 @@ impl App {
         self.config.display = display;
         self.config.refuse_trade = refuse_trade;
         self.config.refuse_party_invite = refuse_party_invite;
-        self.game.self_config.refuse_party_invite = refuse_party_invite;
+        self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;
 
         if let Some(window) = &self.window {
             if fullscreen_changed {
@@ -2111,7 +2099,7 @@ impl App {
         }
         self.effect_queue.set_effects_enabled(show_skill_effects);
         if aura_changed {
-            let gids: Vec<u32> = self.game.entities.iter().map(|e| e.id).collect();
+            let gids: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
             for gid in gids {
                 self.refresh_level_aura(gid);
             }
@@ -2129,13 +2117,13 @@ impl App {
             self.handle_slash_command(message);
         } else if let Some(party_msg) = message.strip_prefix('%') {
             if self.game.party.is_none() {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("You are not in a party.".to_string());
             } else {
                 let char_name = self
                     .game
-                    .selected_character
+                    .session.selected_character
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("Unknown");
@@ -2145,13 +2133,13 @@ impl App {
             }
         } else if let Some(guild_msg) = message.strip_prefix('$') {
             if self.game.guild.is_none() {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("You are not in a guild.".to_string());
             } else {
                 let char_name = self
                     .game
-                    .selected_character
+                    .session.selected_character
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("Unknown");
@@ -2162,7 +2150,7 @@ impl App {
         } else {
             let char_name = self
                 .game
-                .selected_character
+                .session.selected_character
                 .as_ref()
                 .map(|c| c.name.as_str())
                 .unwrap_or("Unknown");
@@ -2174,7 +2162,7 @@ impl App {
 
     fn turn_body(&mut self, step: u8) {
         let pv = self.config.packetver;
-        if let Some(entity) = self.game.entities.player_mut() {
+        if let Some(entity) = self.game.world.entities.player_mut() {
             entity.direction = (entity.direction + step) % 8;
             entity.head_dir = 0;
             let (head_dir, dir) = (entity.head_dir, entity.direction);
@@ -2191,7 +2179,7 @@ impl App {
                 if self.player_hidden() {
                     return;
                 }
-                if let Some(entity) = self.game.entities.player() {
+                if let Some(entity) = self.game.world.entities.player() {
                     let action = if entity.state == EntityState::Sitting {
                         3u8
                     } else {
@@ -2207,6 +2195,7 @@ impl App {
                 }
                 let sitting = self
                     .game
+                    .world
                     .entities
                     .player()
                     .is_some_and(|e| e.state == EntityState::Sitting);
@@ -2216,7 +2205,7 @@ impl App {
                 }
             }
             ChatCommand::Doridori => {
-                if let Some(entity) = self.game.entities.player_mut() {
+                if let Some(entity) = self.game.world.entities.player_mut() {
                     entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
                     let (head_dir, dir) = (entity.head_dir, entity.direction);
                     self.channel
@@ -2226,14 +2215,14 @@ impl App {
             ChatCommand::BingBing => self.turn_body(1),
             ChatCommand::BangBang => self.turn_body(7),
             ChatCommand::Where => {
-                match (self.game.current_map.as_ref(), self.game.entities.player()) {
+                match (self.game.session.current_map.as_ref(), self.game.world.entities.player()) {
                     (Some(map_name), Some(player)) => {
                         let (x, y) = player.movement.cell_position();
                         let message = format!("{map_name}.gat ({x}, {y})");
-                        self.game.chat_window.add_system(message);
+                        self.windows.chat_window.add_system(message);
                     }
                     _ => {
-                        self.game
+                        self.windows
                             .chat_window
                             .add_system("You are not in a map yet.".to_string());
                     }
@@ -2249,18 +2238,18 @@ impl App {
                 if self.game.party.is_some() {
                     self.channel.send_packet(build_leave_party_packet(pv));
                 } else {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a party.".to_string());
                 }
             }
             ChatCommand::MakeParty(name) => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /organize <party name>".to_string());
                 } else if self.game.party.is_some() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are already in a party.".to_string());
                 } else {
@@ -2270,7 +2259,7 @@ impl App {
             }
             ChatCommand::InviteParty(name) => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /invite <character name>".to_string());
                 } else {
@@ -2289,20 +2278,20 @@ impl App {
                     .any(|i| i.item_id == EMPERIUM_ITEM_ID);
                 let gid = self
                     .game
-                    .login_session
+                    .session.login_session
                     .as_ref()
                     .map(|s| s.account_id)
                     .unwrap_or(0);
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /guild <guild name>".to_string());
                 } else if self.game.guild.is_some() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are already in a guild.".to_string());
                 } else if !has_emperium {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You need an Emperium to create a guild.".to_string());
                 } else {
@@ -2311,11 +2300,11 @@ impl App {
             }
             ChatCommand::BreakGuild(name) => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /breakguild <guild name>".to_string());
                 } else if self.game.guild.is_none() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a guild.".to_string());
                 } else {
@@ -2344,7 +2333,7 @@ impl App {
                 );
                 self.channel.send_packet(build_lesseffect_packet(!show, pv));
                 let status = if show { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Skill effects: {status}"));
             }
@@ -2361,7 +2350,7 @@ impl App {
                     true,
                 );
                 let status = if fog { "ON" } else { "OFF" };
-                self.game.chat_window.add_system(format!("Fog: {status}"));
+                self.windows.chat_window.add_system(format!("Fog: {status}"));
             }
             ChatCommand::ToggleAura => {
                 let mut display = self.config.display.clone();
@@ -2377,7 +2366,7 @@ impl App {
                     self.config.refuse_party_invite,
                     true,
                 );
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Level aura: {status}"));
             }
@@ -2394,7 +2383,7 @@ impl App {
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Refuse trade requests: {status}"));
             }
@@ -2410,21 +2399,21 @@ impl App {
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Refuse party invites: {status}"));
             }
             ChatCommand::ToggleNoShift => {
-                self.game.noshift_mode = !self.game.noshift_mode;
-                let status = if self.game.noshift_mode { "ON" } else { "OFF" };
-                self.game
+                self.game.prefs.noshift_mode = !self.game.prefs.noshift_mode;
+                let status = if self.game.prefs.noshift_mode { "ON" } else { "OFF" };
+                self.windows
                     .chat_window
                     .add_system(format!("No-shift mode: {status}"));
             }
             ChatCommand::ToggleNoCtrl => {
-                self.game.noctrl_mode = !self.game.noctrl_mode;
-                let status = if self.game.noctrl_mode { "ON" } else { "OFF" };
-                self.game
+                self.game.prefs.noctrl_mode = !self.game.prefs.noctrl_mode;
+                let status = if self.game.prefs.noctrl_mode { "ON" } else { "OFF" };
+                self.windows
                     .chat_window
                     .add_system(format!("No-ctrl mode: {status}"));
             }
@@ -2436,7 +2425,7 @@ impl App {
                 );
                 self.config.save("config.json");
                 let status = if self.config.bgm_enabled { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Background music: {status}"));
             }
@@ -2448,7 +2437,7 @@ impl App {
                 );
                 self.config.save("config.json");
                 let status = if self.config.sfx_enabled { "ON" } else { "OFF" };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Sound effects: {status}"));
             }
@@ -2459,7 +2448,7 @@ impl App {
                     self.config.effective_sfx_volume(),
                 );
                 self.config.save("config.json");
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("BGM volume: {vol}"));
             }
@@ -2470,21 +2459,21 @@ impl App {
                     self.config.effective_sfx_volume(),
                 );
                 self.config.save("config.json");
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Sound volume: {vol}"));
             }
             ChatCommand::ToggleShowExp => {
-                self.game.show_exp = !self.game.show_exp;
-                let status = if self.game.show_exp { "ON" } else { "OFF" };
-                self.game
+                self.game.prefs.show_exp = !self.game.prefs.show_exp;
+                let status = if self.game.prefs.show_exp { "ON" } else { "OFF" };
+                self.windows
                     .chat_window
                     .add_system(format!("Experience messages: {status}"));
             }
             ChatCommand::ToggleHidePublicChat => {
-                self.game.hide_public_chat = !self.game.hide_public_chat;
-                let status = if self.game.hide_public_chat { "OFF" } else { "ON" };
-                self.game
+                self.game.prefs.hide_public_chat = !self.game.prefs.hide_public_chat;
+                let status = if self.game.prefs.hide_public_chat { "OFF" } else { "ON" };
+                self.windows
                     .chat_window
                     .add_system(format!("Public chat: {status}"));
             }
@@ -2495,7 +2484,7 @@ impl App {
                 } else {
                     "OFF"
                 };
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Battle Mode {status}"));
             }
@@ -2509,38 +2498,38 @@ impl App {
                 self.channel.send_packet(packet);
             }
             ChatCommand::ToggleMiss => {
-                self.game.show_miss = !self.game.show_miss;
-                let status = if self.game.show_miss { "ON" } else { "OFF" };
-                self.game
+                self.game.prefs.show_miss = !self.game.prefs.show_miss;
+                let status = if self.game.prefs.show_miss { "ON" } else { "OFF" };
+                self.windows
                     .chat_window
                     .add_system(format!("Miss text: {status}"));
             }
             ChatCommand::ToggleEqOpen => {
                 const CONFIG_OPEN_EQUIPMENT_WINDOW: i32 = 0;
-                self.game.equip_open = !self.game.equip_open;
+                self.game.prefs.equip_open = !self.game.prefs.equip_open;
                 self.channel.send_packet(build_config_packet(
                     CONFIG_OPEN_EQUIPMENT_WINDOW,
-                    self.game.equip_open as i32,
+                    self.game.prefs.equip_open as i32,
                     pv,
                 ));
-                let status = if self.game.equip_open { "ON" } else { "OFF" };
-                self.game
+                let status = if self.game.prefs.equip_open { "ON" } else { "OFF" };
+                self.windows
                     .chat_window
                     .add_system(format!("Equipment visible to others: {status}"));
             }
             ChatCommand::GuildChat(msg) => {
                 if msg.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /gc <message>".to_string());
                 } else if self.game.guild.is_none() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a guild.".to_string());
                 } else {
                     let char_name = self
                         .game
-                        .selected_character
+                        .session.selected_character
                         .as_ref()
                         .map(|c| c.name.as_str())
                         .unwrap_or("Unknown");
@@ -2551,7 +2540,7 @@ impl App {
             }
             ChatCommand::WhisperFriends(text) => {
                 if text.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /hi <message>".to_string());
                 } else {
@@ -2564,7 +2553,7 @@ impl App {
                         .map(|f| f.name.clone())
                         .collect();
                     if targets.is_empty() {
-                        self.game
+                        self.windows
                             .chat_window
                             .add_system("No friends are online.".to_string());
                     } else {
@@ -2577,18 +2566,18 @@ impl App {
             }
             ChatCommand::WhisperBlock { name, block } => {
                 if name.is_empty() {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("Usage: /ex <character name>".to_string());
                 } else {
                     self.channel
                         .send_packet(build_setting_whisper_pc_packet(&name, block, pv));
-                    self.game.blocked_whispers.retain(|n| n != &name);
+                    self.game.prefs.blocked_whispers.retain(|n| n != &name);
                     if block {
-                        self.game.blocked_whispers.push(name.clone());
+                        self.game.prefs.blocked_whispers.push(name.clone());
                     }
                     let verb = if block { "Blocked" } else { "Unblocked" };
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system(format!("{verb} whispers from {name}."));
                 }
@@ -2601,33 +2590,33 @@ impl App {
                 } else {
                     "Accepting all whispers."
                 };
-                self.game.chat_window.add_system(msg.to_string());
+                self.windows.chat_window.add_system(msg.to_string());
             }
             ChatCommand::WhisperListBlocked => {
-                if self.game.blocked_whispers.is_empty() {
-                    self.game
+                if self.game.prefs.blocked_whispers.is_empty() {
+                    self.windows
                         .chat_window
                         .add_system("No blocked players.".to_string());
                 } else {
-                    let list = self.game.blocked_whispers.join(", ");
-                    self.game
+                    let list = self.game.prefs.blocked_whispers.join(", ");
+                    self.windows
                         .chat_window
                         .add_system(format!("Blocked: {list}"));
                 }
             }
             ChatCommand::OpenChatCreate => {
-                self.game.chat_room_create_window.toggle();
+                self.windows.chat_room_create_window.toggle();
             }
             ChatCommand::OpenEmotionList => {
-                self.game.emotion_window.toggle();
+                self.windows.emotion_window.toggle();
             }
             ChatCommand::OpenCompanionAi { mercenary } => {
-                self.game
+                self.windows
                     .companion_ai_config_window
                     .open_at_tab(if mercenary { 1 } else { 0 });
             }
             ChatCommand::Unsupported => {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("This command is not supported yet.".to_string());
             }
@@ -2636,21 +2625,21 @@ impl App {
                     .send_packet(build_emotion_packet(emote_type, pv));
             }
             ChatCommand::Help => {
-                self.game.chat_window.add_system("Commands:".to_string());
+                self.windows.chat_window.add_system("Commands:".to_string());
                 for (cmd, desc) in ragnarok_game::chat_command::COMMAND_HELP {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system(format!("{cmd} - {desc}"));
                 }
             }
             ChatCommand::Outdated => {
-                self.game
+                self.windows
                     .chat_window
                     .add_system("This command is no longer available.".to_string());
             }
             ChatCommand::Unknown => {
                 let cmd = command.split_whitespace().next().unwrap_or("");
-                self.game
+                self.windows
                     .chat_window
                     .add_system(format!("Unknown command: {cmd}"));
             }
@@ -2658,11 +2647,12 @@ impl App {
     }
 
     fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool, bool) {
+        ragnarok_profiling::profile_function!();
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         if let Some(ui_ctx) = &mut self.ui_context {
             ui_ctx.now_ms = now_ms;
         }
-        match self.game.app_state {
+        match self.game.session.app_state {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
@@ -2767,11 +2757,13 @@ impl App {
                         &renderer.font_atlas,
                         &mut self.ui_state_cache,
                         elapsed,
-                        self.game.system_menu.has_grf_textures,
+                        self.windows.system_menu.has_grf_textures,
                         None,
                         &self.saved_window_positions,
                     );
-                    let events = self.game.build_in_game_ui(
+                    let events = crate::ui::build_in_game_ui(
+                        &mut self.game,
+                        &mut self.windows,
                         &mut ui,
                         &|name| renderer.texture_cache.texture_size(name),
                         &render_list,
@@ -2779,7 +2771,7 @@ impl App {
 
                     if self.game.debug_overlay {
                         let local_ms = self.start_time.elapsed().as_millis() as u32;
-                        let st = &self.game.server_time;
+                        let st = &self.game.session.server_time;
                         let est = st.estimated_server_tick(local_ms);
                         let offset = est as i64 - local_ms as i64;
                         let color = [0.5, 1.0, 0.6, 1.0];
@@ -2805,15 +2797,15 @@ impl App {
     }
 
     fn update_grid_hover(&mut self) -> Option<(i32, i32)> {
-        let hovered = if self.game.app_state == AppState::InGame {
+        let hovered = if self.game.session.app_state == AppState::InGame {
             self.hovered_cell()
         } else {
             None
         };
 
         let hover_corners = hovered.and_then(|(cx, cy)| {
-            let coords = self.game.map_coords.as_ref()?;
-            let gat = self.game.gat.as_ref()?;
+            let coords = self.game.session.map_coords.as_ref()?;
+            let gat = self.game.session.gat.as_ref()?;
             Some(coords.cell_corners_world(gat, cx, cy))
         });
 
@@ -2837,6 +2829,7 @@ impl App {
         for entry in render_list {
             let is_vendor = self
                 .game
+                .world
                 .entities
                 .get(entry.id)
                 .is_some_and(|e| e.vending_board.is_some());
@@ -2867,73 +2860,112 @@ impl App {
         None
     }
 
+    fn screen_dims(
+        &self,
+    ) -> Option<(
+        &Renderer,
+        &ragnarok_formats::map_coordinates::MapCoordinates,
+        f32,
+        f32,
+    )> {
+        let renderer = self.renderer.as_ref()?;
+        let coords = self.game.session.map_coords.as_ref()?;
+        let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+        let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        Some((renderer, coords, screen_w, screen_h))
+    }
+
+    fn push_projected(
+        list: &mut Vec<RenderEntry>,
+        kind: RenderEntryKind,
+        id: u32,
+        projected: Option<([f32; 2], f32, u8, f32, [f32; 2])>,
+        flat_depth_gradient: Option<[f32; 2]>,
+        camera_dir: Option<u8>,
+        bounds: impl FnOnce([f32; 2], f32, u8, f32) -> ([f32; 4], f32),
+    ) {
+        let Some((screen_anchor, depth, projected_dir, sprite_scale, depth_gradient)) = projected
+        else {
+            return;
+        };
+        let (pick_bounds, head_offset) = bounds(screen_anchor, depth, projected_dir, sprite_scale);
+        list.push(RenderEntry {
+            kind,
+            id,
+            screen_anchor,
+            depth,
+            depth_gradient,
+            flat_depth_gradient: flat_depth_gradient.unwrap_or(depth_gradient),
+            camera_dir: camera_dir.unwrap_or(projected_dir),
+            sprite_scale,
+            pick_bounds,
+            head_offset,
+        });
+    }
+
     fn compute_render_list(&self) -> Vec<RenderEntry> {
+        ragnarok_profiling::profile_function!();
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            for entity in self.game.entities.iter() {
-                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
-                    input::entity_screen_params(
-                        entity.movement.position(),
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        renderer.device.surface_config.width as f32 / renderer.dpi_scale,
-                        renderer.device.surface_config.height as f32 / renderer.dpi_scale,
-                    )
-                {
-                    let (pick_bounds, head_offset) = match self.game.sprites.get(&entity.id) {
-                        Some(sprite) => (
-                            sprite.compute_pick_bounds(
-                                &entity.animation,
-                                Some(camera_dir),
-                                entity.head_dir,
-                                screen_anchor,
-                                depth,
-                                sprite_scale,
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
+            for entity in self.game.world.entities.iter() {
+                let projected = input::entity_screen_params(
+                    entity.movement.position(),
+                    self.game.session.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                let flat_depth_gradient = input::entity_ground_gradient(
+                    entity.movement.position(),
+                    self.game.session.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Entity,
+                    entity.id,
+                    projected,
+                    Some(flat_depth_gradient),
+                    None,
+                    |screen_anchor, depth, camera_dir, sprite_scale| {
+                        match self.game.sprite_caches.sprites.get(&entity.id) {
+                            Some(sprite) => (
+                                sprite.compute_pick_bounds(
+                                    &entity.animation,
+                                    Some(camera_dir),
+                                    entity.head_dir,
+                                    screen_anchor,
+                                    depth,
+                                    sprite_scale,
+                                ),
+                                sprite.compute_head_offset(
+                                    &entity.animation,
+                                    Some(camera_dir),
+                                    entity.head_dir,
+                                    screen_anchor,
+                                    depth,
+                                    sprite_scale,
+                                ),
                             ),
-                            sprite.compute_head_offset(
-                                &entity.animation,
-                                Some(camera_dir),
-                                entity.head_dir,
-                                screen_anchor,
-                                depth,
-                                sprite_scale,
-                            ),
-                        ),
-                        None => {
-                            let half = 50.0;
-                            (
-                                [
-                                    screen_anchor[0] - half,
-                                    screen_anchor[1] - 100.0,
-                                    screen_anchor[0] + half,
-                                    screen_anchor[1],
-                                ],
-                                100.0,
-                            )
+                            None => {
+                                let half = 50.0;
+                                (
+                                    [
+                                        screen_anchor[0] - half,
+                                        screen_anchor[1] - 100.0,
+                                        screen_anchor[0] + half,
+                                        screen_anchor[1],
+                                    ],
+                                    100.0,
+                                )
+                            }
                         }
-                    };
-                    let flat_depth_gradient = input::entity_ground_gradient(
-                        entity.movement.position(),
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        renderer.device.surface_config.width as f32 / renderer.dpi_scale,
-                        renderer.device.surface_config.height as f32 / renderer.dpi_scale,
-                    );
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::Entity,
-                        id: entity.id,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient,
-                        camera_dir,
-                        sprite_scale,
-                        pick_bounds,
-                        head_offset,
-                    });
-                }
+                    },
+                );
             }
         }
         render_list.sort_by(|a, b| {
@@ -2946,11 +2978,9 @@ impl App {
 
     fn compute_cart_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            for entity in self.game.entities.iter() {
-                if entity.cart_type.is_none() || !self.game.carts.contains_key(&entity.id) {
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
+            for entity in self.game.world.entities.iter() {
+                if entity.cart_type.is_none() || !self.game.sprite_caches.carts.contains_key(&entity.id) {
                     continue;
                 }
                 let (px, py) = entity.movement.position();
@@ -2959,29 +2989,23 @@ impl App {
                     px - ox * crate::sprite::cart::CART_TRAIL_DISTANCE,
                     py - oy * crate::sprite::cart::CART_TRAIL_DISTANCE,
                 );
-                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
-                    input::entity_screen_params(
-                        cart_pos,
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                    )
-                {
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::Cart,
-                        id: entity.id,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient: depth_gradient,
-                        camera_dir,
-                        sprite_scale,
-                        pick_bounds: [0.0; 4],
-                        head_offset: 0.0,
-                    });
-                }
+                let projected = input::entity_screen_params(
+                    cart_pos,
+                    self.game.session.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Cart,
+                    entity.id,
+                    projected,
+                    None,
+                    None,
+                    |_, _, _, _| ([0.0; 4], 0.0),
+                );
             }
         }
         render_list
@@ -2989,32 +3013,24 @@ impl App {
 
     fn compute_falcon_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            for (gid, falcon) in self.game.falcons.iter() {
-                if let Some((screen_anchor, depth, camera_dir, sprite_scale, depth_gradient)) =
-                    input::project_world_screen(
-                        falcon.motion.pos,
-                        coords,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                    )
-                {
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::Falcon,
-                        id: *gid,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient: depth_gradient,
-                        camera_dir,
-                        sprite_scale,
-                        pick_bounds: [0.0; 4],
-                        head_offset: 0.0,
-                    });
-                }
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
+            for (gid, falcon) in self.game.sprite_caches.falcons.iter() {
+                let projected = input::project_world_screen(
+                    falcon.motion.pos,
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Falcon,
+                    *gid,
+                    projected,
+                    None,
+                    None,
+                    |_, _, _, _| ([0.0; 4], 0.0),
+                );
             }
         }
         render_list
@@ -3022,41 +3038,36 @@ impl App {
 
     fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
-        if let (Some(renderer), Some(coords)) = (&self.renderer, &self.game.map_coords) {
-            let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
-            let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            for floor_item in self.game.floor_items.values() {
-                let pos = floor_item.world_position();
-                if let Some((screen_anchor, depth, _camera_dir, sprite_scale, depth_gradient)) =
-                    input::entity_screen_params(
-                        pos,
-                        self.game.gat.as_ref(),
-                        coords,
-                        &renderer.camera,
-                        screen_w,
-                        screen_h,
-                    )
-                {
-                    let half = 17.0 * sprite_scale;
-                    let pick_bounds = [
-                        screen_anchor[0] - half,
-                        screen_anchor[1] - half,
-                        screen_anchor[0] + half,
-                        screen_anchor[1] + half,
-                    ];
-                    render_list.push(RenderEntry {
-                        kind: RenderEntryKind::FloorItem,
-                        id: floor_item.id,
-                        screen_anchor,
-                        depth,
-                        depth_gradient,
-                        flat_depth_gradient: depth_gradient,
-                        camera_dir: 0,
-                        sprite_scale,
-                        pick_bounds,
-                        head_offset: half * 2.0,
-                    });
-                }
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
+            for floor_item in self.game.world.floor_items.values() {
+                let projected = input::entity_screen_params(
+                    floor_item.world_position(),
+                    self.game.session.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::FloorItem,
+                    floor_item.id,
+                    projected,
+                    None,
+                    Some(0),
+                    |screen_anchor, _, _, sprite_scale| {
+                        let half = 17.0 * sprite_scale;
+                        (
+                            [
+                                screen_anchor[0] - half,
+                                screen_anchor[1] - half,
+                                screen_anchor[0] + half,
+                                screen_anchor[1] + half,
+                            ],
+                            half * 2.0,
+                        )
+                    },
+                );
             }
         }
         render_list.sort_by(|a, b| {
@@ -3067,106 +3078,102 @@ impl App {
         render_list
     }
 
-    fn update_cursor_type(
-        &mut self,
-        hovered: Option<(i32, i32)>,
-        ui_any_hovered: bool,
-        ui_any_interactive_hovered: bool,
-        render_list: &[RenderEntry],
-    ) -> Option<u32> {
+    fn prune_companion_targets(&mut self) {
         for (idx, present) in [self.has_homunculus(), self.has_mercenary()]
             .into_iter()
             .enumerate()
         {
-            if let Some(t) = self.game.companion_attack_target[idx] {
-                if !present || self.game.entities.get(t).is_none() {
-                    self.game.companion_attack_target[idx] = None;
+            if let Some(t) = self.game.companions.companion_attack_target[idx] {
+                if !present || self.game.world.entities.get(t).is_none() {
+                    self.game.companions.companion_attack_target[idx] = None;
                 }
             }
         }
+    }
+
+    fn resolve_hover(
+        &self,
+        hovered_cell: Option<(i32, i32)>,
+        render_list: &[RenderEntry],
+        floor_item_render_list: &[RenderEntry],
+        ui_any_hovered: bool,
+        ui_any_interactive_hovered: bool,
+    ) -> HoverState {
+        let mut hover = HoverState::default();
+        let mouse = self.input.mouse_position;
+        let entities = &self.game.world.entities;
+        let map = &self.game.session.map_properties;
+
+        hover.hovered_player_id = ragnarok_game::cursor::hovered_player(mouse, entities, render_list);
+
+        if let Some(gat) = &self.game.session.gat {
+            hover.cell_cursor = cursor_type_for_cell(gat, hovered_cell);
+        }
+
         let companion_target_armed =
-            self.game.companion_attack_target.iter().any(Option::is_some);
-        self.game.hovered_chat_room = None;
-        let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
-            if self.input.right_mouse_down {
-                (CursorType::Rotate, None)
-            } else if ui_any_interactive_hovered {
-                (CursorType::Click, None)
-            } else if ui_any_hovered {
-                (CursorType::Default, None)
-            } else if companion_target_armed {
-                (CursorType::Lock, None)
-            } else if let Some(pending) = &self.game.pending_companion_skill {
-                if pending.is_ground {
-                    (CursorType::Lock, None)
-                } else {
-                    // Resolve the entity under the cursor so the target click can
-                    // find it; no class filter, since a companion skill may target
-                    // either an enemy or an ally.
-                    let hovered = hovered_entity_cursor_type(
-                        self.input.mouse_position,
-                        &self.game.entities,
-                        render_list,
-                        &self.game.map_properties,
-                        None,
-                    );
-                    (CursorType::Lock, hovered.map(|(_, id)| id))
+            self.game.companions.companion_attack_target.iter().any(Option::is_some);
+        let suppressed = self.input.right_mouse_down
+            || ui_any_interactive_hovered
+            || ui_any_hovered
+            || companion_target_armed;
+
+        if !suppressed {
+            if let Some(pending) = &self.game.pending_casts.pending_companion_skill {
+                if !pending.is_ground {
+                    hover.hovered_entity_id =
+                        hovered_entity_cursor_type(mouse, entities, render_list, map, None)
+                            .map(|(_, id)| id);
                 }
-            } else if self.game.capture_targeting {
-                let hovered = hovered_entity_cursor_type(
-                    self.input.mouse_position,
-                    &self.game.entities,
+            } else if self.game.companions.capture_targeting {
+                hover.hovered_entity_id = hovered_entity_cursor_type(
+                    mouse,
+                    entities,
                     render_list,
-                    &self.game.map_properties,
+                    map,
                     Some(TargetClass::Offensive),
-                );
-                (CursorType::Lock, hovered.map(|(_, id)| id))
-            } else if let Some(pending) = &self.game.pending_skill_target {
-                match pending {
-                    PendingSkillTarget::Entity { skill_id, .. } => {
-                        let class = self
-                            .game
-                            .character
-                            .skills
-                            .get_skill(*skill_id)
-                            .map(|s| skill_target_class(s.skill_target_type))
-                            .unwrap_or(TargetClass::Offensive);
-                        let hovered = hovered_entity_cursor_type(
-                            self.input.mouse_position,
-                            &self.game.entities,
-                            render_list,
-                            &self.game.map_properties,
-                            Some(class),
-                        );
-                        (CursorType::Lock, hovered.map(|(_, id)| id))
-                    }
-                    PendingSkillTarget::Ground { .. } => (CursorType::Lock, None),
+                )
+                .map(|(_, id)| id);
+            } else if let Some(PendingSkillTarget::Entity { skill_id, .. }) =
+                &self.game.pending_casts.pending_skill_target
+            {
+                let class = self
+                    .game
+                    .character
+                    .skills
+                    .get_skill(*skill_id)
+                    .map(|s| skill_target_class(s.skill_target_type))
+                    .unwrap_or(TargetClass::Offensive);
+                hover.hovered_entity_id =
+                    hovered_entity_cursor_type(mouse, entities, render_list, map, Some(class))
+                        .map(|(_, id)| id);
+            } else if self.game.pending_casts.pending_skill_target.is_none() {
+                if let Some(room_id) = self.hovered_chat_room(render_list) {
+                    hover.hovered_chat_room = Some(room_id);
+                } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
+                    hover.hovered_vending = Some(vendor_id);
+                } else if let Some((cursor, id)) =
+                    hovered_entity_cursor_type(mouse, entities, render_list, map, None)
+                {
+                    hover.hovered_entity_id = Some(id);
+                    hover.hovered_entity_cursor = Some(cursor);
                 }
-            } else if let Some(room_id) = self.hovered_chat_room(render_list) {
-                self.game.hovered_chat_room = Some(room_id);
-                (CursorType::Click, None)
-            } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
-                (CursorType::Click, Some(vendor_id))
-            } else if let Some((entity_cursor, entity_id)) = hovered_entity_cursor_type(
-                self.input.mouse_position,
-                &self.game.entities,
-                render_list,
-                &self.game.map_properties,
-                None,
-            ) {
-                (entity_cursor, Some(entity_id))
-            } else if let Some(gat) = &self.game.gat {
-                (cursor_type_for_cell(gat, hovered), None)
-            } else {
-                (CursorType::Default, None)
             }
-        } else if ui_any_interactive_hovered {
-            (CursorType::Click, None)
-        } else {
-            (CursorType::Default, None)
-        };
-        self.game.cursor_animation.set_cursor_type(cursor);
-        hovered_entity_id
+        }
+
+        if hover.target_id().is_none() && !ui_any_hovered && !self.input.right_mouse_down {
+            let (mx, my) = (mouse.0 as f32, mouse.1 as f32);
+            hover.hovered_floor_item_id = floor_item_render_list
+                .iter()
+                .find(|entry| {
+                    mx >= entry.pick_bounds[0]
+                        && mx <= entry.pick_bounds[2]
+                        && my >= entry.pick_bounds[1]
+                        && my <= entry.pick_bounds[3]
+                })
+                .map(|entry| entry.id);
+        }
+
+        hover
     }
 }
 
@@ -3280,6 +3287,8 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_input(event),
             WindowEvent::ModifiersChanged(modifiers) => self.handle_modifiers_changed(modifiers),
             WindowEvent::RedrawRequested => {
+                self.profiler.new_frame();
+                ragnarok_profiling::profile_scope!("frame");
                 let elapsed = self.start_time.elapsed().as_secs_f32();
 
                 self.handle_game_events(event_loop);
@@ -3287,7 +3296,7 @@ impl ApplicationHandler for App {
                 let (ui_draw_calls, ui_events, ui_any_hovered, ui_any_interactive) =
                     self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
-                if let Some(dirty) = self.game.hotkey_config_window.take_dirty_bindings() {
+                if let Some(dirty) = self.windows.hotkey_config_window.take_dirty_bindings() {
                     self.config.keybindings = dirty.interface;
                     self.config.emotion_keys = dirty.emotion;
                     self.config.save("config.json");
@@ -3296,7 +3305,7 @@ impl ApplicationHandler for App {
                 queued.extend(ui_events);
                 self.handle_ui_events(queued, event_loop);
 
-                if self.game.pending_disconnect_exit {
+                if self.game.session.pending_disconnect_exit {
                     event_loop.exit();
                 }
                 let now = Instant::now();
@@ -3317,57 +3326,57 @@ impl ApplicationHandler for App {
                 let pick_render_list: Vec<RenderEntry> = render_list
                     .iter()
                     .filter(|entry| {
-                        self.game.entities.get(entry.id).is_none_or(|e| {
+                        self.game.world.entities.get(entry.id).is_none_or(|e| {
                             hidden_render(e.effect_state, self.hidden_viewer_for(entry.id))
                                 != HiddenRender::Skip
                         })
                     })
                     .copied()
                     .collect();
-                let hovered_entity_id = self.update_cursor_type(
+                self.prune_companion_targets();
+                let hover = self.resolve_hover(
                     hovered,
+                    &pick_render_list,
+                    &floor_item_render_list,
                     ui_any_hovered,
                     ui_any_interactive,
-                    &pick_render_list,
                 );
-                self.game.hovered_entity_id = hovered_entity_id;
-                self.game.hovered_player_id = ragnarok_game::cursor::hovered_player(
-                    self.input.mouse_position,
-                    &self.game.entities,
-                    &pick_render_list,
+                let cursor = cursor_type_from_hover(
+                    &hover,
+                    CursorInput {
+                        in_game: self.game.session.app_state == AppState::InGame,
+                        right_mouse_down: self.input.right_mouse_down,
+                        ui_any_hovered,
+                        ui_any_interactive_hovered: ui_any_interactive,
+                    },
+                    CursorPending {
+                        companion_target_armed: self
+                            .game
+                            .companions
+                            .companion_attack_target
+                            .iter()
+                            .any(Option::is_some),
+                        pending_companion_skill: self
+                            .game
+                            .pending_casts
+                            .pending_companion_skill
+                            .is_some(),
+                        capture_targeting: self.game.companions.capture_targeting,
+                        pending_skill: self.game.pending_casts.pending_skill_target.is_some(),
+                    },
                 );
-                let hovered_named_id = hovered_entity_id.or(self.game.hovered_player_id);
+                self.game.assets.cursor_animation.set_cursor_type(cursor);
+                self.game.hover = hover;
+
+                let hovered_named_id = self.game.hover.target_id().or(self.game.hover.hovered_player_id);
+                let hovered_floor_item_id = self.game.hover.hovered_floor_item_id;
                 if let Some(entity_id) = hovered_named_id
-                    && let Some(entity) = self.game.entities.get_mut(entity_id)
+                    && let Some(entity) = self.game.world.entities.get_mut(entity_id)
                     && !entity.name_requested
                 {
                     entity.name_requested = true;
                     self.channel
                         .send_packet(build_reqname_packet(entity_id, self.config.packetver));
-                }
-
-                let hovered_floor_item_id = if hovered_entity_id.is_none()
-                    && !ui_any_hovered
-                    && !self.input.right_mouse_down
-                {
-                    let (mx, my) = self.input.mouse_position;
-                    let mx = mx as f32;
-                    let my = my as f32;
-                    floor_item_render_list
-                        .iter()
-                        .find(|entry| {
-                            mx >= entry.pick_bounds[0]
-                                && mx <= entry.pick_bounds[2]
-                                && my >= entry.pick_bounds[1]
-                                && my <= entry.pick_bounds[3]
-                        })
-                        .map(|entry| entry.id)
-                } else {
-                    None
-                };
-                self.game.hovered_floor_item_id = hovered_floor_item_id;
-                if hovered_floor_item_id.is_some() {
-                    self.game.cursor_animation.set_cursor_type(CursorType::Pick);
                 }
 
                 let cursor_clips = self.build_cursor_sprite_clips(delta);

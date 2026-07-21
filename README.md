@@ -73,17 +73,17 @@ cargo run --bin ragnarok-grf-editor
 Creation of UI is something that can takes lot of iteration, for this reason it was designed from scratch to be hot reloadable
 ```bash
 # In game UI
-lib/ui-component/dev.sh game
+tools/ui-component-dev.sh game
 # Login/char select UI
-lib/ui-component/dev.sh account
+tools/ui-component-dev.sh account
 # Homunculus/Mercenary/Pet
-lib/ui-component/dev.sh companion
+tools/ui-component-dev.sh companion
 # Guild
-lib/ui-component/dev.sh guild
+tools/ui-component-dev.sh guild
 # Social: guild, party, vending board, emotion, mailbox, trade
-lib/ui-component/dev.sh social
+tools/ui-component-dev.sh social
 # Chat: chat, chat room create/member/board
-lib/ui-component/dev.sh chat
+tools/ui-component-dev.sh chat
 ```
 
 ## Effect viewer hot reload

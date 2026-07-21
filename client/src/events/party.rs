@@ -1,5 +1,5 @@
 use crate::App;
-use ragnarok_game::event::PartyMemberData;
+use ragnarok_game::event::{GameEvent, PartyMemberData};
 use ragnarok_game::party::{Party, PartyMember};
 impl App {
     pub(super) fn handle_party_member_list(&mut self, name: String, members: Vec<PartyMemberData>) {
@@ -62,13 +62,13 @@ impl App {
     pub(super) fn handle_party_member_removed(&mut self, aid: u32, _name: String, _result: u8) {
         let own_aid = self
             .game
-            .login_session
+            .session.login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
         if aid == own_aid {
             self.game.party = None;
-            self.game.party_friends_window.open = false;
+            self.windows.party_friends_window.open = false;
             return;
         }
         if let Some(party) = &mut self.game.party {
@@ -95,7 +95,7 @@ impl App {
     }
 
     pub(super) fn handle_party_invite_received(&mut self, party_grid: u32, party_name: String) {
-        if self.game.self_config.refuse_party_invite {
+        if self.game.prefs.self_config.refuse_party_invite {
             self.channel
                 .send_packet(ragnarok_network::build_join_party_reply_packet(
                     party_grid,
@@ -104,15 +104,13 @@ impl App {
                 ));
             return;
         }
-        self.game.pending_party_invite = Some(party_grid);
-        self.game.party_invite_result.set(None);
         let msg = format!("Join party \"{party_name}\"?");
-        self.game.confirm_dialog.show_with_out(
-            &msg,
-            true,
-            self.game.party_invite_result.clone(),
-            |_| {},
-        );
+        self.game.arm_confirm(&mut self.windows, &msg, move |accept| {
+            Some(GameEvent::RespondPartyInvite {
+                party_grid,
+                accept,
+            })
+        });
     }
 
     pub(super) fn handle_party_invite_result(&mut self, name: String, answer: u8) {
@@ -124,22 +122,22 @@ impl App {
             4 => format!("{name} is already a party member."),
             _ => format!("Party invitation to {name} failed."),
         };
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_party_create_result(&mut self, result: u8) {
         if result == 0 {
-            self.game.party_friends_window.open = true;
+            self.windows.party_friends_window.open = true;
             // The party now exists server-side; send any invite that was deferred
             // while waiting for this ack.
-            if let Some(aid) = self.game.pending_invite_aid.take() {
+            if let Some(aid) = self.game.pending_confirms.pending_invite_aid.take() {
                 self.channel.send_packet(
                     ragnarok_network::build_req_join_party_packet(aid, self.config.packetver),
                 );
             }
         } else {
-            self.game.pending_invite_aid = None;
-            self.game
+            self.game.pending_confirms.pending_invite_aid = None;
+            self.windows
                 .chat_window
                 .add_system("Failed to create party.".to_string());
         }
@@ -154,6 +152,7 @@ impl App {
             .map(|m| m.name.clone())
             .or_else(|| {
                 self.game
+                    .world
                     .entities
                     .get(aid)
                     .and_then(|e| e.name.clone())
@@ -162,6 +161,6 @@ impl App {
             Some(name) => format!("{name} : {message}"),
             None => message,
         };
-        self.game.chat_window.add_party(text);
+        self.windows.chat_window.add_party(text);
     }
 }

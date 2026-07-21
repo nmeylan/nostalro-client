@@ -122,8 +122,8 @@ pub struct FalconVisual {
 
 impl App {
     fn falcon_orbit_target(&self, owner_gid: u32) -> Option<[f32; 3]> {
-        let coords = self.game.map_coords.as_ref()?;
-        let entity = self.game.entities.get(owner_gid)?;
+        let coords = self.game.session.map_coords.as_ref()?;
+        let entity = self.game.world.entities.get(owner_gid)?;
         let (px, py) = entity.movement.position();
         let (ox, oy) = direction_offset(entity.direction);
         let (cx, cy) = (
@@ -133,6 +133,7 @@ impl App {
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         let ground = self
             .game
+            .session
             .gat
             .as_ref()
             .map_or(0.0, |gat| gat.get_height(cx + 0.5, cy + 0.5));
@@ -140,11 +141,12 @@ impl App {
     }
 
     pub(crate) fn spawn_falcon_visual(&mut self, owner_gid: u32) {
-        if self.game.falcons.contains_key(&owner_gid) {
+        if self.game.sprite_caches.falcons.contains_key(&owner_gid) {
             return;
         }
         let job = self
             .game
+            .world
             .entities
             .get(owner_gid)
             .map(|e| e.job)
@@ -181,6 +183,7 @@ impl App {
         ));
         let direction = self
             .game
+            .world
             .entities
             .get(owner_gid)
             .map(|e| e.direction)
@@ -189,7 +192,7 @@ impl App {
             .falcon_orbit_target(owner_gid)
             .or_else(|| self.entity_world_pos(owner_gid))
             .unwrap_or([0.0; 3]);
-        self.game.falcons.insert(
+        self.game.sprite_caches.falcons.insert(
             owner_gid,
             FalconVisual {
                 sprite,
@@ -200,11 +203,11 @@ impl App {
     }
 
     pub(crate) fn despawn_falcon_visual(&mut self, owner_gid: u32) {
-        self.game.falcons.remove(&owner_gid);
+        self.game.sprite_caches.falcons.remove(&owner_gid);
     }
 
     pub(crate) fn start_falcon_flight(&mut self, owner_gid: u32, target: [f32; 3]) {
-        if let Some(falcon) = self.game.falcons.get_mut(&owner_gid) {
+        if let Some(falcon) = self.game.sprite_caches.falcons.get_mut(&owner_gid) {
             falcon.motion.start_flight(target);
         }
     }
@@ -215,19 +218,20 @@ impl App {
             .as_ref()
             .map(|r| r.camera.direction_index())
             .unwrap_or(0);
-        let owners: Vec<u32> = self.game.falcons.keys().copied().collect();
+        let owners: Vec<u32> = self.game.sprite_caches.falcons.keys().copied().collect();
         for gid in owners {
-            if self.game.entities.get(gid).is_none() {
-                self.game.falcons.remove(&gid);
+            if self.game.world.entities.get(gid).is_none() {
+                self.game.sprite_caches.falcons.remove(&gid);
                 continue;
             }
             let orbit = self.falcon_orbit_target(gid);
             let owner_moving = self
                 .game
+                .world
                 .entities
                 .get(gid)
                 .is_some_and(|e| e.state == EntityState::Moving);
-            let Some(falcon) = self.game.falcons.get_mut(&gid) else {
+            let Some(falcon) = self.game.sprite_caches.falcons.get_mut(&gid) else {
                 continue;
             };
             let (action, motion) = falcon.motion.advance(delta, orbit, owner_moving);

@@ -25,12 +25,12 @@ impl App {
             (1.0, 0.0),
             (1.0, 1.0),
         ];
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };
         let mut prints: Vec<(EffectId, [f32; 3], [f32; 3])> = Vec::new();
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             let chasewalk = entity.effect_state & OPTION_CHASEWALK != 0;
             if !entity.is_running && !chasewalk {
                 continue;
@@ -70,25 +70,25 @@ impl App {
     }
 
     pub(crate) fn process_continuous_walk(&mut self, delta: f32) {
-        if !self.input.left_mouse_down || self.game.app_state != AppState::InGame {
+        if !self.input.left_mouse_down || self.game.session.app_state != AppState::InGame {
             return;
         }
         if self.input.ui_dragging {
             return;
         }
-        if self.game.attack_target_id.is_some() {
+        if self.game.combat.attack_target_id.is_some() {
             return;
         }
-        if self.game.pending_skill_target.is_some() {
+        if self.game.pending_casts.pending_skill_target.is_some() {
             return;
         }
-        if self.game.chat_window.is_active() {
+        if self.windows.chat_window.is_active() {
             return;
         }
-        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
+        if self.windows.npc_dialog.dialog.is_open() || self.windows.npc_shop.shop.is_open() {
             return;
         }
-        if self.game.chat_window.contains_point(
+        if self.windows.chat_window.contains_point(
             self.input.mouse_position.0 as f32,
             self.input.mouse_position.1 as f32,
         ) {
@@ -107,13 +107,13 @@ impl App {
     }
 
     pub(crate) fn update_movement(&mut self, delta: f32, elapsed: f32) {
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             entity.movement.decay_correction(delta);
             if entity.movement.is_moving() {
                 entity.movement.update(elapsed);
             }
         }
-        if let Some(player) = self.game.entities.player() {
+        if let Some(player) = self.game.world.entities.player() {
             let (px, py) = player.movement.position();
             self.position_camera_at(px, py);
         }

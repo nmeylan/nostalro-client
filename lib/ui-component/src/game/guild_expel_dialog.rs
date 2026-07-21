@@ -1,7 +1,5 @@
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 
@@ -39,9 +37,10 @@ impl InGameWindow for GuildExpelDialog {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         self.inner.has_grf_textures = self.has_grf_textures;
         match self.inner.build(ui) {
             NumberInputResult::Submitted => vec![GameEvent::ConfirmedGuildExpel {
@@ -76,6 +75,8 @@ impl Window for GuildExpelDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -91,7 +92,7 @@ mod tests {
     fn build(dialog: &mut GuildExpelDialog, ctx: &UiContext, state: &mut StateCache) -> Vec<GameEvent> {
         let mut ui = make_frame(ctx, state);
         let mut character = Character::new();
-        dialog.build(&mut ui, &mut character, &DataTable::default())
+        dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::default()))
     }
 
     #[test]

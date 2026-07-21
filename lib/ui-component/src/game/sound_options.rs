@@ -2,9 +2,7 @@ use crate::helper::CHECKBOX;
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -89,9 +87,10 @@ impl InGameWindow for SoundOptionsWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.open {
             return Vec::new();
         }

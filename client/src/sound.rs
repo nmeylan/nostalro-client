@@ -19,7 +19,7 @@ impl App {
         const SOUND_ACT_REPEAT: u8 = 1;
         const SOUND_ACT_STOP: u8 = 2;
         if act == SOUND_ACT_STOP {
-            self.game.repeat_sounds.stop(&name);
+            self.game.schedulers.repeat_sounds.stop(&name);
             return;
         }
         match self.entity_world_pos(gid) {
@@ -27,7 +27,7 @@ impl App {
             None => self.sound_queue.ui(name.clone()),
         }
         if act == SOUND_ACT_REPEAT && term_ms > 0 {
-            self.game.repeat_sounds.start(name, gid, term_ms);
+            self.game.schedulers.repeat_sounds.start(name, gid, term_ms);
         }
     }
 
@@ -55,10 +55,10 @@ impl App {
 
     /// Player world position — the audio listener (not the camera).
     fn listener_pos(&self) -> Option<[f32; 3]> {
-        let gat = self.game.gat.as_ref()?;
-        let coords = self.game.map_coords.as_ref()?;
-        let pid = self.game.entities.player_id()?;
-        let (cx, cy) = self.game.entities.get(pid)?.movement.position();
+        let gat = self.game.session.gat.as_ref()?;
+        let coords = self.game.session.map_coords.as_ref()?;
+        let pid = self.game.world.entities.player_id()?;
+        let (cx, cy) = self.game.world.entities.get(pid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
     }
@@ -72,7 +72,7 @@ impl App {
         }
 
         let listener = self.listener_pos();
-        self.game.ambient_sounds.update(
+        self.game.schedulers.ambient_sounds.update(
             delta,
             listener.map(|l| [l[0], l[2]]),
             &mut self.sound_queue,

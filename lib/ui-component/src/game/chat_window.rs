@@ -1,6 +1,4 @@
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -712,9 +710,10 @@ impl InGameWindow for ChatWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         let mut events = Vec::new();
         let screen_h = ui.ctx.screen_height;
         let input_h = INPUT_H;
@@ -1222,7 +1221,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
         assert_eq!(ws.size_index, DEFAULT_SIZE_INDEX);
 
@@ -1230,7 +1229,7 @@ mod tests {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_f10 = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
-            chat.build(&mut ui, &mut character, &data);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
             let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
             assert_eq!(ws.size_index, expected_index);
         }
@@ -1246,13 +1245,13 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         for _ in 0..2 {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_f10 = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
-            chat.build(&mut ui, &mut character, &data);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         }
 
         let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
@@ -1260,7 +1259,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(ui.draw_calls.is_empty());
         assert!(chat.bounding_rect.is_none());
     }
@@ -1275,13 +1274,13 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         for _ in 0..3 {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_f10 = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
-            chat.build(&mut ui, &mut character, &data);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         }
 
         let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
@@ -1290,7 +1289,7 @@ mod tests {
         chat.active = true;
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(!ui.draw_calls.is_empty());
         assert!(chat.bounding_rect.is_some());
         let rect = chat.bounding_rect.unwrap();
@@ -1308,7 +1307,7 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.active = true;
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let rect = chat.bounding_rect.unwrap();
         assert!(chat.contains_point(rect.x + 1.0, rect.y + 1.0));
@@ -1326,7 +1325,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let initial_h = state
             .get::<ChatWindowState>(CHAT_WINDOW_ID)
             .unwrap()
@@ -1339,14 +1338,14 @@ mod tests {
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 100.0;
         ctx.mouse_y = handle_y - 50.0;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let new_h = state
             .get::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -1371,7 +1370,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let initial_w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
 
         let rect = chat.bounding_rect.unwrap();
@@ -1382,14 +1381,14 @@ mod tests {
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = edge_x + 80.0;
         ctx.mouse_y = rect.y + rect.h / 2.0;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let new_w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
         assert!(
@@ -1425,7 +1424,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
         let (start_x, start_y) = (st.pos_x, st.pos_y);
         let grab_x = start_x + 40.0;
@@ -1437,14 +1436,14 @@ mod tests {
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = grab_x + 60.0;
         ctx.mouse_y = grab_y - 30.0;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
         assert_eq!(st.pos_x, start_x + 60.0);
@@ -1462,7 +1461,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let rect = chat.bounding_rect.unwrap();
         let edge_x = rect.x + rect.w;
@@ -1472,14 +1471,14 @@ mod tests {
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = edge_x + 1000.0;
         ctx.mouse_y = rect.y + rect.h / 2.0;
         ctx.mouse_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let w = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().chat_w;
         assert!(
@@ -1505,7 +1504,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         state
             .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -1517,7 +1516,7 @@ mod tests {
         ctx.mouse_y = rect.y + 10.0;
         ctx.scroll_delta = 1.0;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let offset = state
             .get::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -1548,7 +1547,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         assert_eq!(
             state
@@ -1564,7 +1563,7 @@ mod tests {
         ctx.mouse_y = rect.y + 10.0;
         ctx.scroll_delta = 3.0;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let offset = state
             .get::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -1593,7 +1592,7 @@ mod tests {
         chat.whisper_target.text = "Bob".to_string();
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let (channel_cx, _, bubble_cy) = bubble_centers(&mut state);
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1601,7 +1600,7 @@ mod tests {
         ctx.mouse_y = bubble_cy;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             state
                 .get::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -1618,7 +1617,7 @@ mod tests {
         ctx.mouse_y = item_y;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             state
                 .get::<ChatWindowState>(CHAT_WINDOW_ID)
@@ -1639,7 +1638,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let before = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().size_index;
 
         let (_, height_cx, bubble_cy) = bubble_centers(&mut state);
@@ -1648,7 +1647,7 @@ mod tests {
         ctx.mouse_y = bubble_cy;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let after = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().size_index;
         assert_ne!(after, before, "height bubble should cycle size_index");
     }
@@ -1668,7 +1667,7 @@ mod tests {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_enter = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
-            let events = chat.build(&mut ui, &mut character, &data);
+            let events = chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
             assert!(
                 !events.iter().any(|e| matches!(
                     e,
@@ -1692,7 +1691,7 @@ mod tests {
         ctx.key_enter = true;
         ctx.ctrl_pressed = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(chat.is_active());
         assert_eq!(
             state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
@@ -1705,7 +1704,7 @@ mod tests {
         ctx.key_enter = true;
         ctx.alt_pressed = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
             SendChannel::Guild
@@ -1727,7 +1726,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        let events = chat.build(&mut ui, &mut character, &data);
+        let events = chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(
             e,
             GameEvent::RequestSendWhisper { name, message } if name == "Bob" && message == "psst"
@@ -1740,7 +1739,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        let events = chat.build(&mut ui, &mut character, &data);
+        let events = chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(
             e,
             GameEvent::RequestSendChat { message } if message == "%to party"
@@ -1759,7 +1758,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        let events = chat.build(&mut ui, &mut character, &data);
+        let events = chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(
             e,
             GameEvent::RequestSendChat { message } if message == "%team up"
@@ -1772,7 +1771,7 @@ mod tests {
         ctx.key_enter = true;
         ctx.ctrl_pressed = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        let events = chat.build(&mut ui, &mut character, &data);
+        let events = chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(
             e,
             GameEvent::RequestSendChat { message } if message == "%hi"
@@ -1839,7 +1838,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(chat.active);
 
         let messages = ["hello", "world", "test"];
@@ -1850,7 +1849,7 @@ mod tests {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_enter = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
-            chat.build(&mut ui, &mut character, &data);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         }
         assert_eq!(chat.sent_history, vec!["hello", "world", "test"]);
 
@@ -1859,28 +1858,28 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_up = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.input.text, "test");
         assert_eq!(chat.history_index, Some(0));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_up = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.input.text, "world");
         assert_eq!(chat.history_index, Some(1));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.input.text, "test");
         assert_eq!(chat.history_index, Some(0));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.input.text, "");
         assert!(chat.history_index.is_none());
 
@@ -1890,7 +1889,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.sent_history, vec!["hello", "world", "test"]);
 
         chat.sent_history.clear();
@@ -1901,7 +1900,7 @@ mod tests {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_enter = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
-            chat.build(&mut ui, &mut character, &data);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         }
         assert_eq!(chat.sent_history.len(), MAX_HISTORY);
         assert_eq!(chat.sent_history[0], "msg5");
@@ -1912,14 +1911,14 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_up = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.draft, "draft text");
         assert_ne!(chat.input.text, "draft text");
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_down = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(chat.input.text, "draft text");
     }
 
@@ -1934,13 +1933,13 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(chat.active);
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         ui.set_focus(INPUT_ID);
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(ui.focused(), Some(INPUT_ID));
 
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1956,7 +1955,7 @@ mod tests {
             Some(INPUT_ID),
             positions,
         );
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(ui.focused(), Some(WHISPER_INPUT_ID));
 
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1970,7 +1969,7 @@ mod tests {
             Some(WHISPER_INPUT_ID),
             positions,
         );
-        chat.build(&mut ui, &mut character, &data);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(ui.focused(), Some(INPUT_ID));
     }
 }

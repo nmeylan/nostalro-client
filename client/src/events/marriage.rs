@@ -8,13 +8,13 @@ pub(crate) fn cutin_texture_path(image: &str) -> String {
 
 impl App {
     pub(super) fn handle_wedding_celebration(&mut self, account_id: u32) {
-        let key = self.game.entities.resolve_key(account_id);
+        let key = self.game.world.entities.resolve_key(account_id);
         self.effect_queue.spawn_on(EffectId::Colorpaper, key);
     }
 
     pub(super) fn handle_divorced(&mut self, name: String) {
         self.game.character.partner_name.clear();
-        self.game
+        self.windows
             .chat_window
             .add_system(format!("You have divorced {name}."));
     }

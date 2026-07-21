@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::SprFile;
-use ragnarok_game::effect::{EffectDrawList, EffectPrimitiveDraw};
+use ragnarok_effects::{EffectDrawList, EffectPrimitiveDraw};
 
 use crate::camera::Camera;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
@@ -305,7 +305,7 @@ pub fn project_billboard_depth_anchored(
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Smoke3DParticle {
+pub struct BurstParticle {
     pub pos: [f32; 3],
     pub age: f32,
     pub lifetime: f32,
@@ -324,7 +324,7 @@ pub enum SpriteEffectEmitter<'a> {
         anim_time: f32,
         action_index: usize,
     },
-    Smoke3D {
+    ParticleBurst {
         sprite_path: &'a str,
         alpha_max: f32,
         color: [f32; 4],
@@ -332,8 +332,33 @@ pub enum SpriteEffectEmitter<'a> {
         anim_speed: f32,
         size_shrink: bool,
         twinkle: bool,
-        particles: Vec<Smoke3DParticle>,
+        particles: Vec<BurstParticle>,
     },
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_billboard_draw<'cache>(
+    sprite: &'cache EffectSpriteEntry,
+    camera: &Camera,
+    pos: [f32; 3],
+    motion_index: usize,
+    action_index: usize,
+    size: f32,
+    color: [f32; 4],
+    screen_w: f32,
+    screen_h: f32,
+) -> Option<EmitterDraw<'cache>> {
+    let (anchor, depth, ppu) = project_billboard(camera, pos, screen_w, screen_h)?;
+    Some(EmitterDraw {
+        sprite,
+        screen_anchor: anchor,
+        depth,
+        sprite_scale: (ppu / 7.5) * size,
+        motion_index,
+        action_index,
+        color,
+        additive: false,
+    })
 }
 
 pub fn collect_sprite_effect_draws<'cache>(
@@ -360,12 +385,6 @@ pub fn collect_sprite_effect_draws<'cache>(
                 let Some(sprite) = cache.get(sprite_path) else {
                     continue;
                 };
-                let Some((anchor, depth, ppu)) =
-                    project_billboard(camera, *position, screen_w, screen_h)
-                else {
-                    continue;
-                };
-                let sprite_scale = ppu / 7.5;
                 if sprite.act.actions.is_empty() {
                     continue;
                 }
@@ -382,18 +401,21 @@ pub fn collect_sprite_effect_draws<'cache>(
                 } else {
                     raw_motion.min(motion_count - 1)
                 };
-                draws.push(EmitterDraw {
+                if let Some(draw) = push_billboard_draw(
                     sprite,
-                    screen_anchor: anchor,
-                    depth,
-                    sprite_scale: sprite_scale * size_scale,
+                    camera,
+                    *position,
                     motion_index,
-                    action_index: *action_index,
-                    color: *color,
-                    additive: false,
-                });
+                    *action_index,
+                    *size_scale,
+                    *color,
+                    screen_w,
+                    screen_h,
+                ) {
+                    draws.push(draw);
+                }
             }
-            SpriteEffectEmitter::Smoke3D {
+            SpriteEffectEmitter::ParticleBurst {
                 sprite_path,
                 alpha_max,
                 color,
@@ -413,7 +435,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                 }
                 let frames_per_sec = 60.0 / anim_speed.max(1.0);
                 for particle in particles {
-                    let Smoke3DParticle {
+                    let BurstParticle {
                         pos,
                         age,
                         lifetime,
@@ -436,28 +458,25 @@ pub fn collect_sprite_effect_draws<'cache>(
                     if alpha <= 0.01 {
                         continue;
                     }
-                    let Some((anchor, depth, ppu)) =
-                        project_billboard(camera, pos, screen_w, screen_h)
-                    else {
-                        continue;
-                    };
-                    let sprite_scale = ppu / 7.5;
                     let per_particle_size = if *size_shrink {
                         (1.0 - t).max(0.0)
                     } else {
                         1.0
                     };
                     let motion_index = (age * frames_per_sec) as usize % motion_count;
-                    draws.push(EmitterDraw {
+                    if let Some(draw) = push_billboard_draw(
                         sprite,
-                        screen_anchor: anchor,
-                        depth,
-                        sprite_scale: sprite_scale * size_scale * per_particle_size,
+                        camera,
+                        pos,
                         motion_index,
-                        action_index: 0,
-                        color: [color[0], color[1], color[2], color[3] * alpha],
-                        additive: false,
-                    });
+                        0,
+                        *size_scale * per_particle_size,
+                        [color[0], color[1], color[2], color[3] * alpha],
+                        screen_w,
+                        screen_h,
+                    ) {
+                        draws.push(draw);
+                    }
                 }
             }
         }

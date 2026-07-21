@@ -1,4 +1,4 @@
-use crate::Window;
+use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::colors;
 use crate::helper::dropdown::{self, Dropdown};
 use crate::helper::window_chrome::{
@@ -80,7 +80,7 @@ impl PetWindow {
         self.visible = !self.visible;
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame, pet: &PetState) -> Vec<GameEvent> {
+    fn build_body(&mut self, ui: &mut UiFrame, pet: &PetState) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -209,6 +209,12 @@ impl PetWindow {
 
         ui.has_grf_textures = prev_grf;
         events
+    }
+}
+
+impl InGameWindow for PetWindow {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.build_body(ui, ctx.pet)
     }
 }
 

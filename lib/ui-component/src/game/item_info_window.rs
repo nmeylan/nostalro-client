@@ -1,8 +1,7 @@
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
 use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
@@ -375,9 +374,10 @@ impl InGameWindow for ItemInfoWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let data = ctx.data;
         if self.item.is_none() && self.card_info.is_none() && self.card_illustration.is_none() {
             return Vec::new();
         }
@@ -840,6 +840,7 @@ fn build_info_window(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::data_table::DataTable;
     use models::enums::EnumWithNumberValue;
     use models::enums::item::ItemType;
     use ragnarok_game::data_table::item_resource_table::ItemResourceTable;

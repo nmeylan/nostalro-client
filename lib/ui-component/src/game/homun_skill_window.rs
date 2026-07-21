@@ -1,4 +1,4 @@
-use crate::Window;
+use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
@@ -85,7 +85,7 @@ impl HomunSkillWindow {
         self.visible = value;
     }
 
-    pub fn build(
+    fn build_body(
         &mut self,
         ui: &mut UiFrame,
         homun: Option<&HomunculusState>,
@@ -238,6 +238,12 @@ impl HomunSkillWindow {
 
         ui.has_grf_textures = prev_grf;
         events
+    }
+}
+
+impl InGameWindow for HomunSkillWindow {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.build_body(ui, ctx.homunculus, ctx.data)
     }
 }
 

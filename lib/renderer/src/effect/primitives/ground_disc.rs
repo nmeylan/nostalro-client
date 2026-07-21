@@ -1,5 +1,24 @@
+//! Flat ring on the ground: the `GroundDisc` draw variant,
+//! `PipelineKind::GroundDisc`.
+//!
+//! We emit an annulus (outer `radius`, inner `radius - thickness`) as a
+//! triangle strip, optionally covering a partial `arc_angle_deg`; segment count
+//! scales with the arc. Positions are world space: the ring is built in the
+//! local XZ plane at `center`, then `tilt_rad` rotates that plane about local X
+//! (PI/2 stands it upright) and `spin_rad` rotates it about the vertical axis. U
+//! wraps around the ring scaled by `uv_repeat` and offset by `rotation`, V spans
+//! inner-to-outer. Sorts at `center`.
+//!
+//! Blend is per-record alpha or additive; when the draw sets `no_depth` the
+//! bucket is promoted to the `*NoDepth` variant, which selects a pipeline that
+//! compares `Always` instead of `LessEqual`. No pipeline writes depth.
+//! `GroundDiscRenderer` implements `EffectPrimitiveRenderer` and is registered
+//! under this kind. Emitted by `EffectSpec::Custom` effects such as Blessing and
+//! Cart Revolution.
+
 use crate::camera::Camera;
-use crate::device::DEPTH_FORMAT;
+use crate::effect::blend::ADDITIVE_BLEND;
+use crate::effect::pipeline::{PipelineOpts, build_pipeline, effect_pipeline_layout};
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::effect::{EffectDrawList, EffectPrimitiveDraw};
 use crate::sprite::SpriteVertex;
@@ -86,89 +105,30 @@ impl GroundDiscRenderer {
             label: Some("effect_ground_disc"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("effect_ground_disc"),
-            bind_group_layouts: &[camera_bind_group_layout, texture_bind_group_layout],
-            immediate_size: 0,
-        });
-
-        let alpha = wgpu::BlendState::ALPHA_BLENDING;
-        let additive = wgpu::BlendState {
-            color: wgpu::BlendComponent {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::One,
-                operation: wgpu::BlendOperation::Add,
-            },
-            alpha: wgpu::BlendComponent {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::One,
-                operation: wgpu::BlendOperation::Add,
-            },
+        let layout = effect_pipeline_layout(
+            device,
+            "effect_ground_disc",
+            camera_bind_group_layout,
+            texture_bind_group_layout,
+        );
+        let opts = |blend| PipelineOpts {
+            label: "effect_ground_disc",
+            blend,
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            cull_mode: None,
+            depth_write: false,
+            depth_compare,
         };
-
-        let pipeline_alpha = Self::create_pipeline(
+        let pipeline_alpha = build_pipeline(
             device,
             surface_format,
-            &pipeline_layout,
+            &layout,
             &shader,
-            alpha,
-            depth_compare,
+            &opts(wgpu::BlendState::ALPHA_BLENDING),
         );
-        let pipeline_additive = Self::create_pipeline(
-            device,
-            surface_format,
-            &pipeline_layout,
-            &shader,
-            additive,
-            depth_compare,
-        );
+        let pipeline_additive =
+            build_pipeline(device, surface_format, &layout, &shader, &opts(ADDITIVE_BLEND));
         (pipeline_alpha, pipeline_additive)
-    }
-
-    fn create_pipeline(
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        pipeline_layout: &wgpu::PipelineLayout,
-        shader: &wgpu::ShaderModule,
-        blend: wgpu::BlendState,
-        depth_compare: wgpu::CompareFunction,
-    ) -> wgpu::RenderPipeline {
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("effect_ground_disc"),
-            layout: Some(pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[SpriteVertex::LAYOUT],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(blend),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: false,
-                depth_compare,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: Default::default(),
-            multiview_mask: None,
-            cache: None,
-        })
     }
 }
 

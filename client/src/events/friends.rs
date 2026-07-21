@@ -1,5 +1,5 @@
 use crate::App;
-use ragnarok_game::event::FriendData;
+use ragnarok_game::event::{FriendData, GameEvent};
 use ragnarok_game::friends::Friend;
 
 impl App {
@@ -37,7 +37,7 @@ impl App {
             3 => format!("{name}'s friend list is full."),
             _ => format!("Failed to add {name} as a friend."),
         };
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_friend_removed(&mut self, aid: u32, gid: u32) {
@@ -45,14 +45,13 @@ impl App {
     }
 
     pub(super) fn handle_friend_request_received(&mut self, req_aid: u32, req_gid: u32, name: String) {
-        self.game.pending_friend_request = Some((req_aid, req_gid));
-        self.game.friend_request_result.set(None);
         let msg = format!("{name} wishes to be friends with you. Accept?");
-        self.game.confirm_dialog.show_with_out(
-            &msg,
-            true,
-            self.game.friend_request_result.clone(),
-            |_| {},
-        );
+        self.game.arm_confirm(&mut self.windows, &msg, move |accept| {
+            Some(GameEvent::RespondFriendRequest {
+                req_aid,
+                req_gid,
+                accept,
+            })
+        });
     }
 }

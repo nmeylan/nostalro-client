@@ -48,7 +48,6 @@ const CONNECT_ID: WidgetId = WidgetId(2);
 const EXIT_ID: WidgetId = WidgetId(3);
 const KEEP_ID: WidgetId = WidgetId(4);
 
-const KEEP_X: f32 = 12.0;
 const FALLBACK_KEEP_W: f32 = 34.0;
 const FALLBACK_KEEP_H: f32 = 10.0;
 
@@ -332,11 +331,11 @@ mod tests {
 
         let win_x = (800.0 - FALLBACK_WIN_W) / 2.0;
         let win_y = (600.0 - FALLBACK_WIN_H) / 2.0;
-        let btn_y = win_y + FALLBACK_WIN_H - BTN_BOTTOM - FALLBACK_BTN_H;
-        let keep_y = btn_y + (FALLBACK_BTN_H - FALLBACK_KEEP_H) / 2.0;
+        let keep_x = win_x + FALLBACK_WIN_W - FALLBACK_KEEP_W - 20.0;
+        let keep_y = win_y + USERNAME_Y + (FALLBACK_BTN_H - FALLBACK_KEEP_H) / 2.0;
 
         let mut ctx = make_ctx();
-        ctx.mouse_x = win_x + KEEP_X + FALLBACK_KEEP_W / 2.0;
+        ctx.mouse_x = keep_x + FALLBACK_KEEP_W / 2.0;
         ctx.mouse_y = keep_y + FALLBACK_KEEP_H / 2.0;
         ctx.mouse_clicked = true;
 

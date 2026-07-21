@@ -1,4 +1,4 @@
-use ragnarok_formats::gat::GatFile;
+use crate::gat::GatFile;
 
 pub struct MapCoordinates {
     zoom: f32,

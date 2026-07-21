@@ -2,9 +2,7 @@ use super::inventory_window::INV_WINDOW_ID;
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::inventory::{EquipmentLocation, InventoryData};
@@ -222,9 +220,10 @@ impl InGameWindow for EquipmentWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         let inventory = &character.inventory;
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();

@@ -7,9 +7,7 @@ use crate::helper::window_chrome::{
     ITEMWIN_MID_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_textured_quad, draw_titlebar,
     text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::{GameEvent, VendorItem};
 use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -468,9 +466,10 @@ impl InGameWindow for VendingShopWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.open {
             return Vec::new();
         }
@@ -622,6 +621,8 @@ fn truncate_to_width(text: &str, max_w: f32, atlas: &FontAtlas) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
 
@@ -672,7 +673,7 @@ mod tests {
         ctx.mouse_y = buy_rect.y + buy_rect.h / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = win.build(&mut ui, &mut character, &DataTable::new());
+        let events = win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::new()));
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestPurchaseFromVendor { items, .. } => {

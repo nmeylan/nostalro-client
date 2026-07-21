@@ -243,23 +243,7 @@ pub struct DamageNumberRenderEntry {
     pub data: DamageNumberRenderData,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-pub enum TextureSource {
-    Number,
-    Message,
-}
-
-#[repr(C)]
-pub struct DamageNumberQuad {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
-    pub color: [f32; 4],
-    pub source: TextureSource,
-    pub tex_idx: usize,
-}
+pub use ragnarok_formats::damage_number::{DamageNumberQuad, TextureSource};
 
 pub fn build_damage_number_quads(
     entries: &[DamageNumberRenderEntry],

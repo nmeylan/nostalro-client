@@ -100,7 +100,7 @@ pub const TEIHIT3: TeihitParams = TeihitParams {
 ///
 /// The original game shows pale/neutral bubbles (not red), so we leave the
 /// soft round `alpha_center.tga` untinted. Its texture `effect\thunder_red.bmp`
-/// is **absent from the classic GRF** and there is no reference gif, so the
+/// is **absent from the GRF** and there is no reference gif, so the
 /// look is matched to the observed in-game behaviour
 /// rather than a capture.
 #[derive(Clone, Copy)]

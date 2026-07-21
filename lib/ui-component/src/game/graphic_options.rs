@@ -3,9 +3,7 @@ use crate::helper::dropdown::Dropdown;
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::display::DisplayOptions;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -136,9 +134,10 @@ impl InGameWindow for GraphicOptionsWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.open {
             return Vec::new();
         }
@@ -293,6 +292,8 @@ impl InGameWindow for GraphicOptionsWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use crate::InGameWindow;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
@@ -320,7 +321,7 @@ mod tests {
         let mut ui = make_frame(&ctx, state);
         let mut character = Character::new();
         let data = DataTable::new();
-        win.build(&mut ui, &mut character, &data)
+        win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
     }
 
     #[test]

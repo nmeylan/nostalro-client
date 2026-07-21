@@ -3,7 +3,7 @@ use ragnarok_game::event::SelfConfigKind;
 
 impl App {
     pub(super) fn handle_self_config_changed(&mut self, kind: SelfConfigKind, enabled: bool) {
-        let config = &mut self.game.self_config;
+        let config = &mut self.game.prefs.self_config;
         match kind {
             SelfConfigKind::RefusePartyInvite => config.refuse_party_invite = enabled,
             SelfConfigKind::OpenEquipmentWindow => config.open_equipment_window = enabled,

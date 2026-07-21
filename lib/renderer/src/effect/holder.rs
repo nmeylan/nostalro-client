@@ -3,17 +3,17 @@ use std::sync::Arc;
 use models::enums::EnumWithNumberValue;
 use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::SpriteAnimationState;
-use ragnarok_game::effect::spec::EffectAnchor;
-use ragnarok_game::effect::{
+use ragnarok_effects::spec::EffectAnchor;
+use ragnarok_effects::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
     EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
-    NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, effect_spec, make_effect,
-    spawn_camera_shake,
+    NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, custom_duration_ms, effect_spec,
+    make_effect, spawn_camera_shake,
 };
 
-use ragnarok_game::sound::tables::{SfxSchedule, SfxTiming, WaveChoice, effect_sound};
+use ragnarok_effects::sfx::{SfxSchedule, effect_sound, emit};
 
-use crate::effect_sprite::Smoke3DParticle;
+use crate::effect_sprite::BurstParticle;
 
 pub trait ExternalCustomBackend: Send + Sync {
     fn spawn(
@@ -108,11 +108,11 @@ pub struct SprBurstSnapshot {
     pub anim_speed: f32,
     pub size_shrink: bool,
     pub twinkle: bool,
-    pub particles: Vec<Smoke3DParticle>,
+    pub particles: Vec<BurstParticle>,
 }
 
 #[derive(Clone, Copy)]
-struct BurstParticle {
+struct BurstParticleSim {
     pos: [f32; 3],
     velocity: [f32; 3],
     age: f32,
@@ -131,7 +131,7 @@ struct BurstParticle {
 struct BurstState {
     sprite: String,
     params: SprBurstParams,
-    particles: Vec<BurstParticle>,
+    particles: Vec<BurstParticleSim>,
     has_emitted: bool,
     cooldown_timer: f32,
     body_recolor: Option<SprBodyRecolor>,
@@ -194,14 +194,6 @@ struct HeldEffect {
     sfx_rng: u32,
 }
 
-fn next_rand(state: &mut u32) -> u32 {
-    // xorshift; seed is never zero at call time.
-    *state ^= *state << 13;
-    *state ^= *state >> 17;
-    *state ^= *state << 5;
-    *state
-}
-
 pub struct AfterimageSnapshot {
     entity_id: u32,
     pub anim: SpriteAnimationState,
@@ -254,52 +246,6 @@ pub struct EffectHolder {
     shake: ShakeController,
     afterimages: Vec<AfterimageSnapshot>,
     pending_sfx: Vec<(String, [f32; 3])>,
-}
-
-fn pick_wave(w: &WaveChoice, rng: &mut u32) -> String {
-    match w {
-        WaveChoice::Fixed(s) => (*s).to_string(),
-        WaveChoice::Randomized { pattern, count } => {
-            let n = 1 + (next_rand(rng) % (*count as u32).max(1));
-            pattern.replace("{}", &n.to_string())
-        }
-    }
-}
-
-fn emit_cue(
-    cue: &ragnarok_game::sound::tables::SfxCue,
-    prev: i32,
-    cur: i32,
-    rng: &mut u32,
-    pos: [f32; 3],
-    out: &mut Vec<(String, [f32; 3])>,
-) {
-    match cue.timing {
-        SfxTiming::AtFrames(frames) => {
-            for &f in frames {
-                let f = f as i32;
-                if f > prev && f <= cur {
-                    out.push((pick_wave(&cue.wave, rng), pos));
-                }
-            }
-        }
-        SfxTiming::EveryFrames(n) => {
-            let n = n as i32;
-            if n > 0 {
-                for f in (prev + 1)..=cur {
-                    if f > 0 && f % n == 0 {
-                        out.push((pick_wave(&cue.wave, rng), pos));
-                    }
-                }
-            }
-        }
-        SfxTiming::AtFrameChance { frame, one_in } => {
-            let f = frame as i32;
-            if f > prev && f <= cur && one_in > 0 && next_rand(rng) % one_in as u32 == 0 {
-                out.push((pick_wave(&cue.wave, rng), pos));
-            }
-        }
-    }
 }
 
 impl EffectHolder {
@@ -373,12 +319,12 @@ impl EffectHolder {
             self.last_spawn = Some(SpawnOutcome::NoSpec);
             return None;
         };
+        if let Some(shake) = spawn_camera_shake(effect_id) {
+            self.shake.trigger(shake);
+        }
         if matches!(spec, EffectSpec::Noop) {
             self.last_spawn = Some(SpawnOutcome::Noop);
             return None;
-        }
-        if let Some(shake) = spawn_camera_shake(effect_id) {
-            self.shake.trigger(shake);
         }
         let payload = match &spec {
             EffectSpec::Str { file, repeat, .. } => {
@@ -430,7 +376,7 @@ impl EffectHolder {
                 })
             }
             EffectSpec::Noop => unreachable!("Noop handled above"),
-            EffectSpec::Custom { .. } => {
+            EffectSpec::Custom => {
                 if let Some(backend) = &self.external_backend {
                     let (from, to) = match attach {
                         Attach::WorldPos(p) => (p, p),
@@ -487,8 +433,8 @@ impl EffectHolder {
         let duration_ms = override_duration_ms.unwrap_or_else(|| match spec {
             EffectSpec::Str { duration_ms, .. }
             | EffectSpec::Spr { duration_ms, .. }
-            | EffectSpec::SprBurst { duration_ms, .. }
-            | EffectSpec::Custom { duration_ms, .. } => duration_ms,
+            | EffectSpec::SprBurst { duration_ms, .. } => duration_ms,
+            EffectSpec::Custom => custom_duration_ms(effect_id),
             EffectSpec::Noop => unreachable!("Noop handled above"),
         });
         let duration = if duration_ms == u32::MAX {
@@ -611,6 +557,10 @@ impl EffectHolder {
         let mut shake_requests: Vec<CameraShake> = Vec::new();
         let mut sfx_out: Vec<(String, [f32; 3])> = Vec::new();
         self.effects.retain_mut(|e| {
+            ragnarok_profiling::profile_scope!(
+                "effect_update",
+                format!("{} {:?}", e.effect_id.value(), e.effect_id)
+            );
             e.age += dt;
             let expired = e.age >= e.duration;
             let attach = e.attach;
@@ -669,9 +619,7 @@ impl EffectHolder {
                 let cur_frame = (e.age * 60.0) as i32;
                 if cur_frame > e.sfx_last_frame {
                     if let Some(pos) = resolve_position(&attach, resolve_entity_pos) {
-                        for cue in sched {
-                            emit_cue(cue, e.sfx_last_frame, cur_frame, &mut e.sfx_rng, pos, &mut sfx_out);
-                        }
+                        emit(sched, e.sfx_last_frame, cur_frame, &mut e.sfx_rng, pos, &mut sfx_out);
                     }
                     e.sfx_last_frame = cur_frame;
                 }
@@ -822,6 +770,10 @@ impl EffectHolder {
 
     pub fn collect_custom_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx) {
         for e in &self.effects {
+            ragnarok_profiling::profile_scope!(
+                "effect_collect",
+                format!("{} {:?}", e.effect_id.value(), e.effect_id)
+            );
             match &e.payload {
                 HeldPayload::Custom(c) => c.collect_draws(out, ctx),
                 HeldPayload::CustomExternal { handle } => {
@@ -849,7 +801,7 @@ impl EffectHolder {
                 let particles = b
                     .particles
                     .iter()
-                    .map(|p| Smoke3DParticle {
+                    .map(|p| BurstParticle {
                         pos: p.pos,
                         age: p.age,
                         lifetime: p.lifetime,
@@ -1158,7 +1110,7 @@ fn spawn_burst(b: &mut BurstState, anchor: [f32; 3]) {
             .unwrap_or(0.0);
         let (alpha, alpha_max, alpha_speed, keyframe_idx) =
             init_alpha_state(b.params.alpha_keyframes);
-        b.particles.push(BurstParticle {
+        b.particles.push(BurstParticleSim {
             pos: [
                 anchor[0] + ox,
                 anchor[1] + b.params.pos_y_start,
@@ -1246,7 +1198,7 @@ fn rand_u32() -> u32 {
 mod tests {
     use super::*;
     use models::enums::effect_id::EffectId;
-    use ragnarok_game::effect::Attach;
+    use ragnarok_effects::Attach;
 
     fn ctx(dt: f32) -> EffectUpdateCtx {
         EffectUpdateCtx {
@@ -1477,8 +1429,7 @@ mod tests {
     fn screen_quake_spawn_triggers_and_settles_camera_shake() {
         let mut h = EffectHolder::new();
         assert_eq!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
-        h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None)
-            .expect("spawn");
+        h.spawn(EffectId::ScreenQuake, Attach::WorldPos([0.0; 3]), None);
         h.update(&ctx(0.05), &|_| None, &|_| None);
         assert_ne!(h.camera_shake_offset(), [0.0, 0.0, 0.0]);
         h.update(&ctx(3.0), &|_| None, &|_| None);

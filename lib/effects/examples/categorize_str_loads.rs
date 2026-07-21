@@ -5,13 +5,13 @@
 //!
 //! Buckets (an effect attempts an STR load only in these cases):
 //!   * STR_BACKLOG  — `EffectSpec::Str`, not in `is_noop_bucket`: a genuine
-//!     STR effect with no Rust renderer yet (or asset-blocked in classic GRF).
+//!     STR effect with no Rust renderer yet (or asset-blocked in the GRF).
 //!   * NOOP_TAGGED_WITH_ALIAS — `EffectSpec::Str`, but the id IS in
 //!     `is_noop_bucket`, so `str_aliases` shadows the Noop classification
 //!     (`bucket_default` checks str_aliases before is_noop_bucket). NOTE:
 //!     `is_noop_bucket` membership is NOT a reliable "delete me" signal — some
 //!     of these are real STR effects that are merely asset-blocked in the
-//!     classic GRF (e.g. `EndureZhan/Sou/Shan/Jing`). Review each individually
+//!     the GRF (e.g. `EndureZhan/Sou/Shan/Jing`). Review each individually
 //!     before touching `str_aliases.rs`.
 //!   * HYBRID_OVERLAY — `EffectSpec::Custom` whose effect declares
 //!     `str_overlay()` (intentional STR layered on a custom primitive).
@@ -41,7 +41,7 @@ fn main() {
                     backlog.push((id, file));
                 }
             }
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 if let Some(eff) =
                     make_effect(id, EffectAnchor::Point([0.0, 0.0, 0.0]), None, None, None)
                     && let Some(overlay) = eff.str_overlay()

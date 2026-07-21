@@ -1,3 +1,4 @@
+use super::lifecycle::SessionChange;
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
@@ -81,7 +82,7 @@ impl App {
         guild_emblem_version: i32,
         is_new_entry: bool,
     ) {
-        if self.game.entities.player_id() == Some(gid) {
+        if self.game.world.entities.player_id() == Some(gid) {
             if effect_state != 0 {
                 self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
             }
@@ -89,15 +90,16 @@ impl App {
         }
         let stale = self
             .game
+            .world
             .entities
             .get(gid)
             .is_some_and(|e| e.state == EntityState::Dead || e.is_fading());
         if stale {
             self.despawn_entity_effects(gid);
-            self.game.entities.remove(gid);
-            self.game.sprites.remove(&gid);
+            self.game.world.entities.remove(gid);
+            self.game.sprite_caches.sprites.remove(&gid);
             self.remove_gr2_model(gid);
-        } else if let Some(existing) = self.game.entities.get_mut(gid) {
+        } else if let Some(existing) = self.game.world.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
             // A fresh spawn for an already-visible entity re-declares its cell: on
             // a same-map teleport the master's companion is re-sent here rather
@@ -150,8 +152,8 @@ impl App {
             2 => entity.state = EntityState::Sitting,
             _ => {}
         }
-        self.game.entities.insert(entity);
-        self.game.entities.register_account_id(aid, gid);
+        self.game.world.entities.insert(entity);
+        self.game.world.entities.register_account_id(aid, gid);
         self.request_entity_guild_emblem(guild_id, guild_emblem_version);
         let sprite_job = visual_job(job, effect_state);
         self.load_entity_sprite(
@@ -170,6 +172,7 @@ impl App {
         );
         let pet_accessory = self
             .game
+            .world
             .entities
             .get(gid)
             .filter(|e| e.is_pet && e.pet_accessory != 0)
@@ -181,7 +184,7 @@ impl App {
             self.effect_queue.spawn_on(EffectId::Entry2, gid);
         }
         if let Some(design) = cart_design_from_option(effect_state) {
-            if let Some(entity) = self.game.entities.get_mut(gid) {
+            if let Some(entity) = self.game.world.entities.get_mut(gid) {
                 entity.cart_type = Some(design);
             }
             self.spawn_cart_visual(gid, design);
@@ -207,10 +210,11 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
         let already_moving_to_dest = self
             .game
+            .world
             .entities
             .get(gid)
             .filter(|e| e.movement.is_moving())
@@ -219,9 +223,10 @@ impl App {
         if already_moving_to_dest {
             return;
         }
-        if let Some(gat) = &self.game.gat {
+        if let Some(gat) = &self.game.session.gat {
             let (sx, sy) = self
                 .game
+                .world
                 .entities
                 .get(gid)
                 .map(|e| e.movement.cell_position())
@@ -229,7 +234,7 @@ impl App {
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
                 let now = local_ms as f32 / 1000.0;
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.movement.start_move(path, now);
                     entity.state_timer = 0.0;
                 }
@@ -238,39 +243,38 @@ impl App {
     }
 
     pub(super) fn handle_entity_vanished(&mut self, gid: u32, vanish_type: VanishType) {
-        if self.game.attack_target_id == Some(gid) {
-            self.game.attack_target_id = None;
+        if self.game.combat.attack_target_id == Some(gid) {
+            self.game.combat.attack_target_id = None;
         }
-        if self.game.pet.gid == Some(gid) {
-            self.game.pet.clear_entity();
+        if self.game.companions.pet.gid == Some(gid) {
+            self.game.companions.pet.clear_entity();
         }
-        if let Some(h) = self.game.homunculus.as_mut().filter(|h| h.gid == gid) {
+        if let Some(h) = self.game.companions.homunculus.as_mut().filter(|h| h.gid == gid) {
             if matches!(vanish_type, VanishType::Die) {
                 h.hp = 0;
             }
         }
-        if let Some(m) = self.game.mercenary.as_mut().filter(|m| m.gid == gid) {
+        if let Some(m) = self.game.companions.mercenary.as_mut().filter(|m| m.gid == gid) {
             if matches!(vanish_type, VanishType::Die) {
                 m.hp = 0;
             }
         }
         match vanish_type {
             VanishType::Die => {
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.request_pending_death();
                 }
                 self.despawn_level_aura(gid);
                 self.despawn_boss_aura(gid);
-                if self.game.entities.player_id() == Some(gid) {
+                if self.game.world.entities.player_id() == Some(gid) {
                     if let Some(pos) = self.entity_world_pos(gid) {
                         self.effect_queue.spawn_at(EffectId::Devil, pos);
                     }
-                    self.game.player_dead = true;
-                    self.game.system_menu.open_dead();
+                    self.on_session_change(SessionChange::Death);
                 }
             }
             VanishType::OutOfSight => {
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.start_vanish_fade();
                     tracing::debug!("EntityVanished(outofsight): gid={gid}");
                 }
@@ -280,6 +284,7 @@ impl App {
                     VanishType::Teleport => {
                         let hidden = self
                             .game
+                            .world
                             .entities
                             .get(gid)
                             .is_some_and(|e| is_hidden(e.effect_state));
@@ -294,8 +299,8 @@ impl App {
                     self.effect_queue.spawn_at(effect, pos);
                 }
                 self.despawn_entity_effects(gid);
-                let r1 = self.game.entities.remove(gid).is_some();
-                let r2 = self.game.sprites.remove(&gid).is_some();
+                let r1 = self.game.world.entities.remove(gid).is_some();
+                let r2 = self.game.sprite_caches.sprites.remove(&gid).is_some();
                 self.remove_gr2_model(gid);
                 tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
             }
@@ -317,23 +322,23 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
         let action_start = self
             .game
-            .server_time
+            .session.server_time
             .server_to_local_secs_clamped(start_time, local_ms);
         let local_now = local_ms as f32 / 1000.0;
         let age = (local_now - action_start).max(0.0);
         match action {
             ActionType::Sit => {
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.state = EntityState::Sitting;
                     entity.state_timer = 0.0;
                 }
             }
             ActionType::Stand => {
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.state = EntityState::Standing;
                     entity.state_timer = 0.0;
                 }
@@ -346,11 +351,12 @@ impl App {
             | ActionType::AttackCritical => {
                 let target_pos = self
                     .game
+                    .world
                     .entities
                     .get(target_gid)
                     .map(|e| e.movement.cell_position());
                 let mut shooter_cell = None;
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     if let Some(tp) = target_pos {
                         let sp = entity.movement.cell_position();
                         if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
@@ -387,7 +393,7 @@ impl App {
                 };
 
                 let is_critical = matches!(action, ActionType::AttackCritical);
-                if let Some(target) = self.game.entities.get_mut(target_gid) {
+                if let Some(target) = self.game.world.entities.get_mut(target_gid) {
                     let double_attack_term = 0.2;
                     for i in 0..effective_count {
                         let hit_time = now + delay_time + (i as f32 * double_attack_term);
@@ -415,11 +421,12 @@ impl App {
             ActionType::AttackLucky => {
                 let dir = self
                     .game
+                    .world
                     .entities
                     .get(target_gid)
                     .map(|e| e.direction)
                     .unwrap_or(0);
-                self.game.damage_numbers.add(DamageNumber::new(
+                self.game.combat.damage_numbers.add(DamageNumber::new(
                     target_gid,
                     0,
                     DamageNumberType::Lucky,
@@ -427,7 +434,7 @@ impl App {
                 ));
             }
             ActionType::Itempickup => {
-                if let Some(entity) = self.game.entities.get_mut(gid) {
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.enter_pickup(0.5);
                 }
             }
@@ -442,7 +449,7 @@ impl App {
         attack_mt: i32,
         count: u16,
     ) {
-        let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
+        let (Some(gat), Some(coords)) = (&self.game.session.gat, &self.game.session.map_coords) else {
             return;
         };
         let cell_world = |x: u16, y: u16| {
@@ -461,16 +468,17 @@ impl App {
         for i in 0..count.max(1) {
             let delay = (land_at - flight + i as f32 * double_attack_term).max(0.0);
             self.game
+                .world
                 .arrows
                 .push(ArrowProjectile::new(from, to, delay, flight));
         }
     }
 
     pub(super) fn handle_entity_hp_changed(&mut self, gid: u32, hp: u32, max_hp: u32) {
-        if self.game.entities.is_player(gid) {
+        if self.game.world.entities.is_player(gid) {
             self.game.character.hp = hp;
             self.game.character.max_hp = max_hp;
-        } else if let Some(entity) = self.game.entities.get_mut(gid) {
+        } else if let Some(entity) = self.game.world.entities.get_mut(gid) {
             entity.hp = Some(hp);
             entity.max_hp = Some(max_hp);
         }
@@ -486,29 +494,32 @@ impl App {
         tracing::debug!(
             "EntityOptionChanged: gid={gid} body=0x{body_state:04x} health=0x{health_state:04x} effect_state=0x{effect_state:08x}"
         );
-        if self.game.entities.is_player(gid) {
+        if self.game.world.entities.is_player(gid) {
             self.game.character.effect_state = effect_state;
         }
-        let is_player = self.game.entities.player_id() == Some(gid);
+        let is_player = self.game.world.entities.player_id() == Some(gid);
         let prev_health = self
             .game
+            .world
             .entities
             .get(gid)
             .map(|e| e.health_state)
             .unwrap_or(0);
         let prev_body = self
             .game
+            .world
             .entities
             .get(gid)
             .map(|e| e.body_state)
             .unwrap_or(0);
         let old_effect_state = self
             .game
+            .world
             .entities
             .get(gid)
             .map(|e| e.effect_state)
             .unwrap_or(0);
-        if let Some(entity) = self.game.entities.get_mut(gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
             entity.body_state = body_state;
             entity.health_state = health_state;
         }
@@ -518,7 +529,7 @@ impl App {
             if now_frozen && !was_frozen {
                 self.queue_status_sound(gid, StatusSoundKind::FreezeEnter);
             } else if was_frozen && !now_frozen {
-                self.game.freeze_shatters.push(crate::game_state::FreezeShatter {
+                self.game.world.freeze_shatters.push(crate::game_state::FreezeShatter {
                     gid,
                     started_at: None,
                 });
@@ -545,7 +556,7 @@ impl App {
             }
         }
         if is_player
-            && let Some(player) = self.game.entities.player_mut()
+            && let Some(player) = self.game.world.entities.player_mut()
             && ailment::movement_blocked(body_state, player.rooted)
         {
             player.movement.stop();
@@ -561,7 +572,7 @@ impl App {
         }
         let (mut old_cart, mut new_cart) = (None, None);
         let (mut old_falcon, mut new_falcon) = (false, false);
-        if let Some(entity) = self.game.entities.get_mut(gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
             let old_sprite_job = visual_job(entity.job, entity.effect_state);
             let new_sprite_job = visual_job(entity.job, effect_state);
             old_cart = cart_design_from_option(entity.effect_state);
@@ -591,7 +602,7 @@ impl App {
                 let entity_type = entity.entity_type;
                 if is_player {
                     let (weapon, cloth_color) = {
-                        let e = self.game.entities.get(gid).unwrap();
+                        let e = self.game.world.entities.get(gid).unwrap();
                         (e.weapon, e.cloth_color)
                     };
                     self.load_player_sprite(
@@ -648,7 +659,7 @@ impl App {
             }
             let gained_hide = old_effect_state & OPTION_HIDE == 0 && effect_state & OPTION_HIDE != 0;
             if gained_hide && self.player_hide_move_blocked() {
-                if let Some(player) = self.game.entities.player_mut() {
+                if let Some(player) = self.game.world.entities.player_mut() {
                     player.movement.stop();
                 }
             }
@@ -663,32 +674,32 @@ impl App {
     /// set. Reconcile each against its option bit — spawn a persistent orbit
     /// when the bit turns on, drop it when it clears.
     pub(super) fn refresh_detect_aura(&mut self, gid: u32) {
-        let Some(effect_state) = self.game.entities.get(gid).map(|e| e.effect_state) else {
+        let Some(effect_state) = self.game.world.entities.get(gid).map(|e| e.effect_state) else {
             return;
         };
         let want_sight = effect_state & OPTION_SIGHT != 0;
-        match (want_sight, self.game.sight_aura_keys.contains_key(&gid)) {
+        match (want_sight, self.game.effect_keys.sight_aura_keys.contains_key(&gid)) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Sight2, gid, key);
-                self.game.sight_aura_keys.insert(gid, key);
+                self.game.effect_keys.sight_aura_keys.insert(gid, key);
             }
             (false, true) => {
-                if let Some(key) = self.game.sight_aura_keys.remove(&gid) {
+                if let Some(key) = self.game.effect_keys.sight_aura_keys.remove(&gid) {
                     self.effect_queue.despawn(key);
                 }
             }
             _ => {}
         }
         let want_ruwach = effect_state & OPTION_RUWACH != 0;
-        match (want_ruwach, self.game.ruwach_aura_keys.contains_key(&gid)) {
+        match (want_ruwach, self.game.effect_keys.ruwach_aura_keys.contains_key(&gid)) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Ruwach, gid, key);
-                self.game.ruwach_aura_keys.insert(gid, key);
+                self.game.effect_keys.ruwach_aura_keys.insert(gid, key);
             }
             (false, true) => {
-                if let Some(key) = self.game.ruwach_aura_keys.remove(&gid) {
+                if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
                     self.effect_queue.despawn(key);
                 }
             }
@@ -705,8 +716,8 @@ impl App {
         val1: i32,
     ) {
         if efst == EFST_SKE {
-            if self.game.entities.player_id() == Some(gid) {
-                self.game.day_night.set_night(active);
+            if self.game.world.entities.player_id() == Some(gid) {
+                self.game.schedulers.day_night.set_night(active);
             }
             return;
         }
@@ -715,11 +726,11 @@ impl App {
             return;
         };
 
-        if let Some(entity) = self.game.entities.get_mut(gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
             entity.react_to_status(icon, active);
         }
 
-        if self.game.entities.player_id() == Some(gid) {
+        if self.game.world.entities.player_id() == Some(gid) {
             self.set_status_icon(efst, active, val1, remain_ms as u64);
         }
 
@@ -733,7 +744,7 @@ impl App {
         }
 
         let map_key = (gid, efst);
-        if let Some(old_key) = self.game.status_buff_keys.remove(&map_key) {
+        if let Some(old_key) = self.game.effect_keys.status_buff_keys.remove(&map_key) {
             self.effect_queue.despawn(old_key);
         }
         if active && !reaction.aura.is_empty() {
@@ -741,7 +752,7 @@ impl App {
             for &id in reaction.aura {
                 self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
             }
-            self.game.status_buff_keys.insert(map_key, key);
+            self.game.effect_keys.status_buff_keys.insert(map_key, key);
         }
 
         let bursts = if active {
@@ -776,10 +787,10 @@ impl App {
     }
 
     fn handle_push_cart_status(&mut self, gid: u32, active: bool, val1: i32) {
-        let is_player = self.game.entities.player_id() == Some(gid);
+        let is_player = self.game.world.entities.player_id() == Some(gid);
         if active {
             let design = val1.clamp(0, u8::MAX as i32) as u8;
-            if let Some(entity) = self.game.entities.get_mut(gid) {
+            if let Some(entity) = self.game.world.entities.get_mut(gid) {
                 entity.cart_type = Some(design);
             }
             self.spawn_cart_visual(gid, design);
@@ -789,7 +800,7 @@ impl App {
         } else if is_player {
             self.handle_cart_off();
         } else {
-            if let Some(entity) = self.game.entities.get_mut(gid) {
+            if let Some(entity) = self.game.world.entities.get_mut(gid) {
                 entity.cart_type = None;
             }
             self.despawn_cart_visual(gid);
@@ -799,13 +810,14 @@ impl App {
     pub(crate) fn refresh_level_aura(&mut self, gid: u32) {
         let Some((entity_type, effect_state, entity_level, alive)) = self
             .game
+            .world
             .entities
             .get(gid)
             .map(|e| (e.entity_type, e.effect_state, e.base_level, e.is_alive()))
         else {
             return;
         };
-        let base_level = if self.game.entities.player_id() == Some(gid) {
+        let base_level = if self.game.world.entities.player_id() == Some(gid) {
             self.game.character.base_level as i16
         } else {
             entity_level
@@ -813,14 +825,14 @@ impl App {
         let want = alive
             && self.config.display.show_level_aura
             && level_aura::level_aura_visible(entity_type, base_level, effect_state);
-        let have = self.game.level_aura_keys.contains_key(&gid);
+        let have = self.game.effect_keys.level_aura_keys.contains_key(&gid);
         match (want, have) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 for &id in LEVEL_AURA_LAYERS {
                     self.effect_queue.spawn_on_keyed(id, gid, key);
                 }
-                self.game.level_aura_keys.insert(gid, key);
+                self.game.effect_keys.level_aura_keys.insert(gid, key);
             }
             (false, true) => self.despawn_level_aura(gid),
             _ => {}
@@ -828,7 +840,7 @@ impl App {
     }
 
     pub(crate) fn despawn_level_aura(&mut self, gid: u32) {
-        if let Some(key) = self.game.level_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.level_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
@@ -836,6 +848,7 @@ impl App {
     pub(super) fn refresh_boss_aura(&mut self, gid: u32) {
         let Some((entity_type, is_boss, effect_state, alive)) = self
             .game
+            .world
             .entities
             .get(gid)
             .map(|e| (e.entity_type, e.is_boss, e.effect_state, e.is_alive()))
@@ -845,14 +858,14 @@ impl App {
         let want = alive
             && self.config.display.show_level_aura
             && level_aura::boss_aura_visible(entity_type, is_boss, effect_state);
-        let have = self.game.boss_aura_keys.contains_key(&gid);
+        let have = self.game.effect_keys.boss_aura_keys.contains_key(&gid);
         match (want, have) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 for &id in BOSS_AURA_LAYERS {
                     self.effect_queue.spawn_on_keyed(id, gid, key);
                 }
-                self.game.boss_aura_keys.insert(gid, key);
+                self.game.effect_keys.boss_aura_keys.insert(gid, key);
             }
             (false, true) => self.despawn_boss_aura(gid),
             _ => {}
@@ -860,23 +873,23 @@ impl App {
     }
 
     pub(crate) fn despawn_boss_aura(&mut self, gid: u32) {
-        if let Some(key) = self.game.boss_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.boss_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
 
     pub(super) fn spawn_warp_portal(&mut self, gid: u32) {
-        if self.game.warp_portal_keys.contains_key(&gid) {
+        if self.game.effect_keys.warp_portal_keys.contains_key(&gid) {
             return;
         }
         let key = self.next_entity_effect_key();
         self.effect_queue
             .spawn_on_keyed(EffectId::Warpzone2, gid, key);
-        self.game.warp_portal_keys.insert(gid, key);
+        self.game.effect_keys.warp_portal_keys.insert(gid, key);
     }
 
     pub(crate) fn despawn_warp_portal(&mut self, gid: u32) {
-        if let Some(key) = self.game.warp_portal_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.warp_portal_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
@@ -885,7 +898,7 @@ impl App {
     /// balls, replaced whenever the server re-sends the count and cleared at 0.
     /// Champions and Gunslingers get their own sphere variant.
     pub(super) fn handle_spirits_changed(&mut self, gid: u32, count: u8) {
-        if let Some(old_key) = self.game.spirit_keys.remove(&gid) {
+        if let Some(old_key) = self.game.effect_keys.spirit_keys.remove(&gid) {
             self.effect_queue.despawn(old_key);
         }
         if count == 0 {
@@ -893,6 +906,7 @@ impl App {
         }
         let Some(job) = self
             .game
+            .world
             .entities
             .get(gid)
             .and_then(|e| JobName::try_from_value(e.job as usize).ok())
@@ -907,27 +921,27 @@ impl App {
         let key = self.next_entity_effect_key();
         self.effect_queue
             .spawn_on_keyed_with_count(effect, gid, key, count);
-        self.game.spirit_keys.insert(gid, key);
+        self.game.effect_keys.spirit_keys.insert(gid, key);
     }
 
     pub(crate) fn despawn_entity_effects(&mut self, gid: u32) {
         self.despawn_level_aura(gid);
         self.despawn_boss_aura(gid);
         self.despawn_warp_portal(gid);
-        if let Some(key) = self.game.spirit_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.spirit_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
-        if let Some(key) = self.game.sight_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.sight_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
-        if let Some(key) = self.game.ruwach_aura_keys.remove(&gid) {
+        if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
 
     fn next_entity_effect_key(&mut self) -> u32 {
-        let key = 0x8000_0000 | self.game.next_status_buff_key;
-        self.game.next_status_buff_key = (self.game.next_status_buff_key + 1) & 0x7fff_ffff;
+        let key = 0x8000_0000 | self.game.effect_keys.next_status_buff_key;
+        self.game.effect_keys.next_status_buff_key = (self.game.effect_keys.next_status_buff_key + 1) & 0x7fff_ffff;
         key
     }
 
@@ -943,7 +957,7 @@ impl App {
         // removed shortly after by ZC_SKILL_DISAPPEAR).
         if sprite_type == 0
             && value == UNT_USED_TRAPS as u16
-            && let Some((unit_id, world)) = self.game.trap_units.remove(&gid)
+            && let Some((unit_id, world)) = self.game.world.trap_units.remove(&gid)
         {
             if let Some(burst) = trap_trigger_effect(unit_id) {
                 self.effect_queue.spawn_at(burst, world);
@@ -951,14 +965,14 @@ impl App {
             return;
         }
 
-        let left_hand_is_weapon = self.game.entities.is_player(gid)
+        let left_hand_is_weapon = self.game.world.entities.is_player(gid)
             && self
                 .game
                 .character
                 .inventory
                 .equipped_in_slot(models::enums::item::EquipmentLocation::HandLeft)
                 .is_some_and(|item| item.is_weapon());
-        if let Some(entity) = self.game.entities.get_mut(gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
             if sprite_type == 2 {
                 let right_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value);
                 if left_hand_is_weapon {
@@ -997,7 +1011,7 @@ impl App {
                 entity.cloth_color,
             );
             let entity_type = entity.entity_type;
-            let is_player = self.game.entities.player_id() == Some(gid);
+            let is_player = self.game.world.entities.player_id() == Some(gid);
             if is_player {
                 self.load_player_sprite(
                     gid,
@@ -1057,12 +1071,12 @@ impl App {
     /// suppresses the resend so weather never stacks. Duration `0` maps to
     /// `u32::MAX` so the effect lives until map change clears `weather_keys`.
     fn spawn_weather_effect(&mut self, id: EffectId, gid: u32) {
-        if self.game.weather_keys.contains_key(&id) {
+        if self.game.effect_keys.weather_keys.contains_key(&id) {
             return;
         }
         let key = self.next_entity_effect_key();
         self.effect_queue.spawn_on_keyed_for(id, gid, key, 0);
-        self.game.weather_keys.insert(id, key);
+        self.game.effect_keys.weather_keys.insert(id, key);
     }
 
     pub(super) fn handle_play_misc_effect_on_entity(&mut self, gid: u32, code: u8) {
@@ -1085,18 +1099,18 @@ impl App {
         }
         self.effect_queue.spawn_on(id, gid);
 
-        if self.game.entities.player_id() == Some(gid) {
+        if self.game.world.entities.player_id() == Some(gid) {
             match code {
-                0 | 7 | 9 => self.game.levelup_notification.notify_base_level_up(),
-                1 | 8 => self.game.levelup_notification.notify_job_level_up(),
+                0 | 7 | 9 => self.windows.levelup_notification.notify_base_level_up(),
+                1 | 8 => self.windows.levelup_notification.notify_job_level_up(),
                 _ => {}
             }
         }
     }
 
     pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
-        let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
-        let (cx, cy) = self.game.entities.get(gid)?.movement.position();
+        let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
+        let (cx, cy) = self.game.world.entities.get(gid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
     }
@@ -1109,21 +1123,23 @@ impl App {
         let wav = if is_skill {
             skill_hit_sound(roll)
         } else {
-            let victim_humanoid = self.game.entities.get(victim_gid).is_some_and(|e| {
+            let victim_humanoid = self.game.world.entities.get(victim_gid).is_some_and(|e| {
                 matches!(e.entity_type, EntityType::Player | EntityType::Mercenary)
             });
             if victim_humanoid {
                 self.game
+                    .world
                     .entities
                     .get(victim_gid)
                     .and_then(|e| JobName::try_from_value(e.job as usize).ok())
                     .map(|j| job_hit_sound(j).to_string())
                     .unwrap_or_else(|| skill_hit_sound(roll))
             } else {
-                let weapon = self.game.entities.get(attacker_gid).and_then(|e| e.weapon);
-                let is_taekwon = self.game.entities.player_id() == Some(attacker_gid)
+                let weapon = self.game.world.entities.get(attacker_gid).and_then(|e| e.weapon);
+                let is_taekwon = self.game.world.entities.player_id() == Some(attacker_gid)
                     && self
                         .game
+                        .world
                         .entities
                         .get(attacker_gid)
                         .and_then(|e| JobName::try_from_value(e.job as usize).ok())
@@ -1145,14 +1161,13 @@ impl App {
     }
 
     pub(super) fn handle_entity_resurrected(&mut self, gid: u32) {
-        if let Some(entity) = self.game.entities.get_mut(gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
             entity.revive();
         }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
-        if self.game.entities.player_id() == Some(gid) {
-            self.game.player_dead = false;
-            self.game.system_menu.close_dead();
+        if self.game.world.entities.player_id() == Some(gid) {
+            self.on_session_change(SessionChange::Resurrect);
         }
     }
 
@@ -1169,7 +1184,7 @@ impl App {
         unit_id: u8,
         is_visible: bool,
     ) {
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };
@@ -1183,10 +1198,10 @@ impl App {
         // (cast by others) is held aside until a skill-unit update reveals it.
         if trap_model_name(unit_id).is_some() {
             if is_visible {
-                self.game.hidden_traps.remove(&aid);
-                self.game.trap_units.insert(aid, (unit_id, world));
+                self.game.world.hidden_traps.remove(&aid);
+                self.game.world.trap_units.insert(aid, (unit_id, world));
             } else {
-                self.game.hidden_traps.insert(aid, (unit_id, world));
+                self.game.world.hidden_traps.insert(aid, (unit_id, world));
             }
             return;
         }
@@ -1212,15 +1227,15 @@ impl App {
     pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
         eprintln!("[song-unit] DISAPPEAR aid={aid}");
         self.effect_queue.despawn(aid);
-        self.game.trap_units.remove(&aid);
-        self.game.hidden_traps.remove(&aid);
+        self.game.world.trap_units.remove(&aid);
+        self.game.world.hidden_traps.remove(&aid);
     }
 
     /// A skill-unit update reveals a trap that was hidden from us (e.g. an ankle
     /// snare springs on a monster): promote it so its ground model is built.
     pub(super) fn handle_skill_unit_updated(&mut self, gid: u32) {
-        if let Some(trap) = self.game.hidden_traps.remove(&gid) {
-            self.game.trap_units.insert(gid, trap);
+        if let Some(trap) = self.game.world.hidden_traps.remove(&gid) {
+            self.game.world.trap_units.insert(gid, trap);
         }
     }
 }

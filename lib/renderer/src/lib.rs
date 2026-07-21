@@ -32,7 +32,7 @@ pub use effect::{
     prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use effect_sprite::{
-    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, Smoke3DParticle, SpriteEffectEmitter,
+    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, BurstParticle, SpriteEffectEmitter,
     build_emitter_batches, collect_sprite_effect_draws, prepare_sprite_particle_records,
     project_billboard,
 };
@@ -89,6 +89,18 @@ pub struct UiDrawCall {
     pub texture: UiTextureRef,
 }
 
+pub struct FrameInputs<'a> {
+    pub ui_draw_calls: &'a [UiDrawCall],
+    pub effect_sprite_batches: &'a [SpriteBatch<'a>],
+    pub effect_draws: &'a effect::EffectDrawList,
+    pub sprite_particle_records: Vec<DrawRecord<'a>>,
+    pub sprite_batches: &'a [SpriteBatch<'a>],
+    pub silhouette_batches: &'a [SpriteBatch<'a>],
+    pub cursor_batches: &'a [SpriteBatch<'a>],
+    pub inline_textures: &'a [&'a wgpu::BindGroup],
+    pub elapsed: f32,
+}
+
 pub struct Renderer {
     pub device: RenderDevice,
     pub camera: Camera,
@@ -104,16 +116,7 @@ pub struct Renderer {
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
     pub effect_sprite_renderer: SpriteRenderer,
-    pub effect_ground_disc_renderer: effect::GroundDiscRenderer,
-    pub effect_frustum_renderer: effect::FrustumRenderer,
-    pub effect_cylinder_renderer: effect::CylinderRenderer,
-    pub effect_quad_horn_renderer: effect::QuadHornRenderer,
-    pub effect_sphere_renderer: effect::SphereRenderer,
-    pub effect_world_quad_renderer: effect::WorldQuadRenderer,
-    pub effect_texture3d_renderer: effect::Texture3DRenderer,
-    pub effect_radial_ring_renderer: effect::RadialRingRenderer,
-    pub effect_line_strip_renderer: effect::LineStripRenderer,
-    pub effect_fullscreen_renderer: effect::FullscreenOverlayRenderer,
+    pub effect_primitives: effect::EffectPrimitiveRegistry,
     pub effect_dispatcher: effect::EffectDispatcher,
     pub ui_renderer: UiRenderer,
     pub font_atlas: FontAtlas,
@@ -140,19 +143,14 @@ fn build_effect_records<'tex>(
     white_bind_group: &'tex wgpu::BindGroup,
     logical_w: f32,
     logical_h: f32,
+    primitives: &effect::EffectPrimitiveRegistry,
 ) -> Vec<DrawRecord<'tex>> {
     let texture_lookup = |name: &str| -> Option<&'tex wgpu::BindGroup> {
         if name.is_empty() {
             return None;
         }
-        name.split('|').find_map(|candidate| {
-            let full = if candidate.contains('/') {
-                format!("data/texture/{candidate}")
-            } else {
-                format!("data/texture/effect/{candidate}")
-            };
-            texture_cache.get(&full)
-        })
+        name.split('|')
+            .find_map(|candidate| texture_cache.get(&effect::effect_texture_path(candidate)))
     };
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     records.extend(prepare_billboard_records(
@@ -161,67 +159,11 @@ fn build_effect_records<'tex>(
         logical_w,
         logical_h,
         white_bind_group,
-        texture_lookup,
+        &texture_lookup,
     ));
-    records.extend(prepare_frustum_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_cylinder_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_ground_disc_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_quad_horn_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_sphere_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_world_quad_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_texture3d_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_radial_ring_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_line_strip_records(
-        effect_draws,
-        camera,
-        white_bind_group,
-        texture_lookup,
-    ));
-    records.extend(prepare_screen_quad_records(
-        effect_draws,
-        white_bind_group,
-        texture_lookup,
-    ));
+    for renderer in primitives.iter() {
+        records.extend(renderer.prepare(effect_draws, camera, white_bind_group, &texture_lookup));
+    }
     records
 }
 
@@ -284,61 +226,7 @@ impl Renderer {
             include_str!("shaders/sprite.wgsl"),
             false,
         );
-        let effect_ground_disc_renderer = effect::GroundDiscRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_frustum_renderer = effect::FrustumRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_cylinder_renderer = effect::CylinderRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_quad_horn_renderer = effect::QuadHornRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_sphere_renderer = effect::SphereRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_world_quad_renderer = effect::WorldQuadRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_texture3d_renderer = effect::Texture3DRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_radial_ring_renderer = effect::RadialRingRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_line_strip_renderer = effect::LineStripRenderer::new(
-            &device.device,
-            device.surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-        );
-        let effect_fullscreen_renderer = effect::FullscreenOverlayRenderer::new(
+        let effect_primitives = effect::EffectPrimitiveRegistry::new(
             &device.device,
             device.surface_format,
             &global_uniforms.bind_group_layout,
@@ -368,16 +256,7 @@ impl Renderer {
             grid_selector: None,
             sprite_renderer,
             effect_sprite_renderer,
-            effect_ground_disc_renderer,
-            effect_frustum_renderer,
-            effect_cylinder_renderer,
-            effect_quad_horn_renderer,
-            effect_sphere_renderer,
-            effect_world_quad_renderer,
-            effect_texture3d_renderer,
-            effect_radial_ring_renderer,
-            effect_line_strip_renderer,
-            effect_fullscreen_renderer,
+            effect_primitives,
             effect_dispatcher,
             ui_renderer,
             font_atlas,
@@ -661,18 +540,8 @@ impl Renderer {
         self.ground_proxy = Some(proxy);
     }
 
-    pub fn render(
-        &mut self,
-        ui_draw_calls: &[UiDrawCall],
-        effect_sprite_batches: &[SpriteBatch],
-        effect_draws: &effect::EffectDrawList,
-        sprite_particle_records: Vec<DrawRecord>,
-        sprite_batches: &[SpriteBatch],
-        silhouette_batches: &[SpriteBatch],
-        cursor_batches: &[SpriteBatch],
-        inline_textures: &[&wgpu::BindGroup],
-        elapsed: f32,
-    ) {
+    pub fn render(&mut self, frame: FrameInputs) {
+        ragnarok_profiling::profile_function!();
         let output = match self.device.surface.get_current_texture() {
             Ok(tex) => tex,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -691,22 +560,7 @@ impl Renderer {
         let phys_w = self.device.surface_config.width;
         let phys_h = self.device.surface_config.height;
         let clear = self.clear_color;
-        self.render_into(
-            &view,
-            &depth_view,
-            phys_w,
-            phys_h,
-            clear,
-            ui_draw_calls,
-            effect_sprite_batches,
-            effect_draws,
-            sprite_particle_records,
-            sprite_batches,
-            silhouette_batches,
-            cursor_batches,
-            inline_textures,
-            elapsed,
-        );
+        self.render_into(&view, &depth_view, phys_w, phys_h, clear, frame);
         output.present();
     }
 
@@ -717,19 +571,23 @@ impl Renderer {
         physical_w: u32,
         physical_h: u32,
         clear_color: wgpu::Color,
-        ui_draw_calls: &[UiDrawCall],
-        effect_sprite_batches: &[SpriteBatch],
-        effect_draws: &effect::EffectDrawList,
-        sprite_particle_records: Vec<DrawRecord>,
-        sprite_batches: &[SpriteBatch],
-        silhouette_batches: &[SpriteBatch],
-        cursor_batches: &[SpriteBatch],
-        inline_textures: &[&wgpu::BindGroup],
-        elapsed: f32,
+        frame: FrameInputs,
     ) {
+        ragnarok_profiling::profile_function!();
         if physical_w == 0 || physical_h == 0 {
             return;
         }
+        let FrameInputs {
+            ui_draw_calls,
+            effect_sprite_batches,
+            effect_draws,
+            sprite_particle_records,
+            sprite_batches,
+            silhouette_batches,
+            cursor_batches,
+            inline_textures,
+            elapsed,
+        } = frame;
         let logical_w = physical_w as f32 / self.dpi_scale;
         let logical_h = physical_h as f32 / self.dpi_scale;
         self.camera.aspect = physical_w as f32 / physical_h as f32;
@@ -754,6 +612,7 @@ impl Renderer {
             .create_command_encoder(&Default::default());
 
         {
+            ragnarok_profiling::profile_scope!("scene-opaque");
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -779,21 +638,30 @@ impl Renderer {
             match self.background_mode {
                 BackgroundMode::RswMap => {
                     if let Some(ground) = &self.ground_renderer {
+                        ragnarok_profiling::profile_scope!("ground");
                         ground.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if let Some(model) = &self.model_renderer {
+                        ragnarok_profiling::profile_scope!("model");
                         model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
-                    for model in self.skill_unit_models.values() {
-                        model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    if !self.skill_unit_models.is_empty() {
+                        ragnarok_profiling::profile_scope!("skill-unit-models");
+                        for model in self.skill_unit_models.values() {
+                            model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                        }
                     }
-                    for model in self.gr2_models.values() {
-                        model.render(&mut pass, &self.global_uniforms);
+                    if !self.gr2_models.is_empty() {
+                        ragnarok_profiling::profile_scope!("gr2-models");
+                        for model in self.gr2_models.values() {
+                            model.render(&mut pass, &self.global_uniforms);
+                        }
                     }
                     if let Some(grid) = &self.grid_selector {
                         grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if let Some(water) = &self.water_renderer {
+                        ragnarok_profiling::profile_scope!("water");
                         water.render(
                             &mut pass,
                             &self.global_uniforms,
@@ -812,6 +680,7 @@ impl Renderer {
         }
 
         if !effect_draws.behind.is_empty() {
+            ragnarok_profiling::profile_scope!("effect-behind");
             let behind_list = effect_draws.behind_as_list();
             let behind_records = build_effect_records(
                 &behind_list,
@@ -820,6 +689,7 @@ impl Renderer {
                 &self.white_bind_group,
                 logical_w,
                 logical_h,
+                &self.effect_primitives,
             );
             if !behind_records.is_empty() {
                 self.effect_dispatcher.dispatch(
@@ -832,21 +702,13 @@ impl Renderer {
                     &self.global_uniforms.bind_group,
                     &self.effect_sprite_renderer.uniform_bind_group,
                     &self.effect_sprite_renderer,
-                    &self.effect_frustum_renderer,
-                    &self.effect_cylinder_renderer,
-                    &self.effect_ground_disc_renderer,
-                    &self.effect_quad_horn_renderer,
-                    &self.effect_sphere_renderer,
-                    &self.effect_world_quad_renderer,
-                    &self.effect_texture3d_renderer,
-                    &self.effect_radial_ring_renderer,
-                    &self.effect_line_strip_renderer,
-                    &self.effect_fullscreen_renderer,
+                    &self.effect_primitives,
                 );
             }
         }
 
         if !sprite_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("sprite");
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
@@ -862,6 +724,7 @@ impl Renderer {
         // effect passes below occlude against the body (effects above the feet
         // draw on top; ground effects at the feet are hidden).
         if !silhouette_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("silhouette");
             self.sprite_renderer.render_silhouette(
                 &mut encoder,
                 &view,
@@ -873,6 +736,7 @@ impl Renderer {
         }
 
         if !effect_sprite_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("effect-sprite");
             self.effect_sprite_renderer.render(
                 &mut encoder,
                 &view,
@@ -884,16 +748,21 @@ impl Renderer {
             );
         }
 
-        let mut records: Vec<DrawRecord<'_>> = build_effect_records(
-            effect_draws,
-            &self.camera,
-            &self.texture_cache,
-            &self.white_bind_group,
-            logical_w,
-            logical_h,
-        );
+        let mut records: Vec<DrawRecord<'_>> = {
+            ragnarok_profiling::profile_scope!("effect-build");
+            build_effect_records(
+                effect_draws,
+                &self.camera,
+                &self.texture_cache,
+                &self.white_bind_group,
+                logical_w,
+                logical_h,
+                &self.effect_primitives,
+            )
+        };
         records.extend(sprite_particle_records);
         if !records.is_empty() {
+            ragnarok_profiling::profile_scope!("effect-dispatch");
             self.effect_dispatcher.dispatch(
                 records,
                 &mut encoder,
@@ -904,20 +773,14 @@ impl Renderer {
                 &self.global_uniforms.bind_group,
                 &self.effect_sprite_renderer.uniform_bind_group,
                 &self.effect_sprite_renderer,
-                &self.effect_frustum_renderer,
-                &self.effect_cylinder_renderer,
-                &self.effect_ground_disc_renderer,
-                &self.effect_quad_horn_renderer,
-                &self.effect_sphere_renderer,
-                &self.effect_world_quad_renderer,
-                &self.effect_texture3d_renderer,
-                &self.effect_radial_ring_renderer,
-                &self.effect_line_strip_renderer,
-                &self.effect_fullscreen_renderer,
+                &self.effect_primitives,
             );
         }
 
-        self.device.queue.submit(std::iter::once(encoder.finish()));
+        {
+            ragnarok_profiling::profile_scope!("submit-scene");
+            self.device.queue.submit(std::iter::once(encoder.finish()));
+        }
 
         let mut encoder = self
             .device
@@ -925,6 +788,7 @@ impl Renderer {
             .create_command_encoder(&Default::default());
 
         if !ui_draw_calls.is_empty() {
+            ragnarok_profiling::profile_scope!("ui");
             let resolved: Vec<UiDrawCommand> = ui_draw_calls
                 .iter()
                 .map(|call| {
@@ -955,6 +819,7 @@ impl Renderer {
         }
 
         if !cursor_batches.is_empty() {
+            ragnarok_profiling::profile_scope!("cursor");
             self.sprite_renderer.render(
                 &mut encoder,
                 &view,
@@ -966,7 +831,10 @@ impl Renderer {
             );
         }
 
-        self.device.queue.submit(std::iter::once(encoder.finish()));
+        {
+            ragnarok_profiling::profile_scope!("submit-ui");
+            self.device.queue.submit(std::iter::once(encoder.finish()));
+        }
     }
 
     pub fn try_load_grf_font(&mut self, grf: &GrfArchive) {

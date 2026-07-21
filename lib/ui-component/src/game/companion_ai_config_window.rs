@@ -1,4 +1,4 @@
-use crate::Window;
+use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::CHECKBOX;
 use crate::helper::colors;
 use crate::helper::dropdown::{self, Dropdown};
@@ -417,7 +417,7 @@ impl CompanionAiConfigWindow {
         self.visible = value;
     }
 
-    pub fn build(
+    fn build_body(
         &mut self,
         ui: &mut UiFrame,
         config: &mut CompanionAiConfig,
@@ -782,6 +782,12 @@ fn push_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) 
     });
 }
 
+impl InGameWindow for CompanionAiConfigWindow {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.build_body(ui, &mut *ctx.companion_ai)
+    }
+}
+
 impl Window for CompanionAiConfigWindow {
     fn has_grf_textures(&self) -> bool {
         self.has_grf_textures
@@ -854,7 +860,7 @@ mod tests {
         ctx.mouse_clicked = true;
         {
             let mut ui = frame(&ctx, &atlas, &mut state);
-            win.build(&mut ui, &mut cfg);
+            win.build_body(&mut ui, &mut cfg);
         }
         assert_eq!(win.open_enum, Some(ROW_WIDGET_BASE));
 
@@ -865,7 +871,7 @@ mod tests {
         ctx.mouse_clicked = true;
         {
             let mut ui = frame(&ctx, &atlas, &mut state);
-            win.build(&mut ui, &mut cfg);
+            win.build_body(&mut ui, &mut cfg);
         }
         assert_eq!(i32::from(cfg.homunculus_tactics[0].basic), picked);
         assert!(win.open_enum.is_none());

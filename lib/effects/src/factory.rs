@@ -132,25 +132,16 @@ pub fn make_effect(
             effects::magic_bolt::FIRE_ARROW,
         )),
         EffectId::Fireball => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::fireball::FireballEffect::new(from, to))
         }
         EffectId::Yufitel => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::yupitel::YupitelEffect::new(from, to))
         }
         EffectId::Blitzbeat => Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point())),
         EffectId::Waterball => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::waterball::WaterballEffect::new(from, to))
         }
         EffectId::Waterfall => Box::new(effects::waterfall::WaterfallEffect::new(
@@ -235,10 +226,7 @@ pub fn make_effect(
             effects::cloud::CLOUD8,
         )),
         EffectId::Fireivy => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::fireivy::FireivyEffect::new(from, to))
         }
         EffectId::Detecting => Box::new(effects::detecting::DetectingEffect::new(anchor.point())),
@@ -458,10 +446,7 @@ pub fn make_effect(
         | EffectId::Foot4
         | EffectId::Foot5
         | EffectId::Foot6 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             let params = match id {
                 EffectId::Foot => effects::foot::FOOT,
                 EffectId::Foot2 => effects::foot::FOOT2,
@@ -486,10 +471,7 @@ pub fn make_effect(
             effects::teihit::TEIHIT3,
         )),
         EffectId::Teihit2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::teihit::TeiHit2Effect::new(
                 from,
                 to,
@@ -497,10 +479,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Backstap => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::teihit::TeiHit2Effect::new(
                 from,
                 to,
@@ -706,10 +685,7 @@ pub fn make_effect(
         }
 
         EffectId::Tripleattack | EffectId::Tripleattack2 | EffectId::Tripleattack3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             let params = match id {
                 EffectId::Tripleattack => effects::tripleattack::TRIPLEATTACK,
                 EffectId::Tripleattack2 => effects::tripleattack::TRIPLEATTACK2,
@@ -753,10 +729,7 @@ pub fn make_effect(
         }
 
         EffectId::Frostdiver => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 from,
                 to,
@@ -772,10 +745,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Grimtooth => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 from,
                 to,
@@ -791,10 +761,7 @@ pub fn make_effect(
         )),
         EffectId::Electric => Box::new(effects::electric::ElectricEffect::new_ring(anchor.point())),
         EffectId::Electric2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::electric::ElectricEffect::new_aimed(from, to))
         }
         EffectId::Hitline | EffectId::Hitline2 => {
@@ -814,10 +781,7 @@ pub fn make_effect(
         | EffectId::Hitline5
         | EffectId::Hitline6
         | EffectId::Hitline7 => {
-            let (anchor_pos, aim) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (anchor_pos, aim) = anchor.trail();
             let params = match id {
                 EffectId::Hitline3 => effects::hit_line::HITLINE3,
                 EffectId::Hitline4 => effects::hit_line::HITLINE4,
@@ -835,10 +799,7 @@ pub fn make_effect(
         )),
         EffectId::Icewall => Box::new(effects::icewall::IceWallEffect::new(anchor.point())),
         EffectId::Soulstrike => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::soul_strike::SoulStrikeEffect::new(
                 from,
                 to,
@@ -846,10 +807,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Soulstrike2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::soul_strike::SoulStrikeEffect::with_sprite(
                 from,
                 to,
@@ -858,10 +816,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Soulbreaker => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::soul_breaker::SoulBreakerEffect::new_directed(
                 from, to,
             ))
@@ -870,10 +825,7 @@ pub fn make_effect(
             anchor.point(),
         )),
         EffectId::Blooddrain => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -881,10 +833,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Energydrain => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -892,10 +841,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Energydrain2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -903,10 +849,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Energydrain3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -928,10 +871,7 @@ pub fn make_effect(
         // Potion / Slim Potion Pitcher throw a level-dependent potion icon; the
         // caller passes the potion index through `hit_count`.
         EffectId::Throwitem2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::throw_item as ti;
             let params = ti::potion_throw_params(hit_count.unwrap_or(1));
             Box::new(ti::ThrowItemEffect::new(from, to, &[params]))
@@ -946,10 +886,7 @@ pub fn make_effect(
         | EffectId::Throwitem8
         | EffectId::Throwitem9
         | EffectId::Throwitem10 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::throw_item as ti;
             let variants: &[ti::ThrowItemParams] = match id {
                 EffectId::Throwitem => &[ti::THROW_BOTTLES],
@@ -985,10 +922,7 @@ pub fn make_effect(
         | EffectId::Shieldboomerang
         | EffectId::Shieldboomerang2
         | EffectId::Shieldboomerang3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::cloud_projectile as cp;
             if id == EffectId::Shieldboomerang3 {
                 return Some(Box::new(cp::CloudProjectileEffect::new_spray(
@@ -1045,10 +979,7 @@ pub fn make_effect(
         | EffectId::Smatk2
         | EffectId::Smatk3
         | EffectId::Smatk4 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::chemical as ch;
             let params = match id {
                 EffectId::Chemical2 => ch::CHEMICAL2,
@@ -1064,10 +995,7 @@ pub fn make_effect(
         }
 
         EffectId::Stin | EffectId::Stin2 | EffectId::Stin4 | EffectId::Stin5 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::stin as st;
             let params = match id {
                 EffectId::Stin => st::STIN,
@@ -1079,10 +1007,7 @@ pub fn make_effect(
         }
 
         EffectId::Sma | EffectId::Stin3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             let kind = if matches!(id, EffectId::Stin3) {
                 effects::sma::SmaKind::Particles
             } else {
@@ -1156,10 +1081,7 @@ pub fn make_effect(
             effects::hit5_6::HIT6,
         )),
         EffectId::Sonicblowhit => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::sonicblowhit::SonicBlowHitEffect::new_with_trail(
                 from, to,
             ))
@@ -1183,17 +1105,11 @@ pub fn make_effect(
             Box::new(effects::hitdark::HitDarkEffect::new(anchor.point()))
         }
         EffectId::Spearbmr => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::spearbmr::SpearBmrEffect::new(from, to))
         }
         EffectId::Waterball2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::waterball2::WaterBall2Effect::new(from, to))
         }
 
@@ -1837,10 +1753,7 @@ pub fn make_effect(
         )),
         EffectId::Revive => Box::new(effects::revive::ReviveEffect::new(anchor.point())),
         EffectId::Pierce => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::pierce::PierceEffect::new_with_level(
                 from,
                 to,
@@ -1862,17 +1775,11 @@ pub fn make_effect(
         )),
 
         EffectId::Bowlingbash => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::bowling_bash::BowlingBashEffect::new_with_direction(from, to))
         }
         EffectId::Dragonsmoke => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::dragonsmoke::DragonsmokeEffect::new(from, to))
         }
 
@@ -1905,251 +1812,14 @@ pub fn make_effect(
     })
 }
 
-pub fn is_real_impl(id: EffectId) -> bool {
-    matches!(
-        id,
-        EffectId::Warp
-            | EffectId::Bash
-            | EffectId::Hasteup
-            | EffectId::Flasher
-            | EffectId::Blessing
-            | EffectId::Endure
-            | EffectId::Enhance
-            | EffectId::Entry
-            | EffectId::Exit
-            | EffectId::Glasswall
-            | EffectId::Healsp
-            | EffectId::Portal
-            | EffectId::Portal2
-            | EffectId::Portal3
-            | EffectId::Portal4
-            | EffectId::Portal5
-            | EffectId::Stormkick
-            | EffectId::Stormkick1
-            | EffectId::Stormkick2
-            | EffectId::Stormkick3
-            | EffectId::Stormkick4
-            | EffectId::Stormkick5
-            | EffectId::Stormkick6
-            | EffectId::Stormkick7
-            | EffectId::Spraypond
-            | EffectId::Firearrow
-            | EffectId::Fireball
-            | EffectId::Napalmbeat
-            | EffectId::Sandwind
-            | EffectId::Frostdiver
-            | EffectId::Frostdiver2
-            | EffectId::Soulstrike
-            | EffectId::Soulstrike2
-            | EffectId::Yufitel
-            | EffectId::Blitzbeat
-            | EffectId::Waterball
-            | EffectId::Fireivy
-            | EffectId::Detecting
-            | EffectId::Toprank
-            | EffectId::Lockon
-            | EffectId::Party
-            | EffectId::Curseattack
-            | EffectId::Magnumbreak
-            | EffectId::Magnum2
-            | EffectId::GiExplosion
-            | EffectId::Sight
-            | EffectId::Ruwach
-            | EffectId::Sight2
-            | EffectId::Incagility
-            | EffectId::Decagility
-            | EffectId::Incagidex
-            | EffectId::Hit1
-            | EffectId::Hit2
-            | EffectId::Hit3
-            | EffectId::Hit4
-            | EffectId::Hit5
-            | EffectId::Hit6
-            | EffectId::Sonicblowhit
-            | EffectId::Cartrevolution
-            | EffectId::Glasswall2
-            | EffectId::Providence
-            | EffectId::Kouenka
-            | EffectId::Napalmvalcan
-            | EffectId::Stormgust
-            | EffectId::BottomSanc
-            | EffectId::Warpzone
-            | EffectId::Warpzone2
-            | EffectId::Landprotector
-            | EffectId::Volcano
-            | EffectId::Deluge
-            | EffectId::Violentgale
-            | EffectId::Ganbantein
-            | EffectId::Gumgang3
-            | EffectId::Gumgang2
-            | EffectId::Defender
-            | EffectId::Heal
-            | EffectId::Heal2
-            | EffectId::Heal3
-            | EffectId::Heal4
-            | EffectId::Reflectshield
-            | EffectId::Absorbspirits
-            | EffectId::Exit2
-            | EffectId::Entry2
-            | EffectId::Smdef
-            | EffectId::Teleportation2
-            | EffectId::WindBuff
-            | EffectId::Wind
-            | EffectId::Bash3d
-            | EffectId::Bash3d2
-            | EffectId::Bash3d3
-            | EffectId::Bash3d4
-            | EffectId::Bash3d5
-            | EffectId::Truesight
-            | EffectId::Level99
-            | EffectId::Level992
-            | EffectId::Level993
-            | EffectId::Level994
-            | EffectId::Level995
-            | EffectId::Level996
-            | EffectId::Beginspell
-            | EffectId::Beginspell2
-            | EffectId::Beginspell3
-            | EffectId::Beginspell4
-            | EffectId::Beginspell5
-            | EffectId::Beginspell6
-            | EffectId::Beginspell7
-            | EffectId::Beginspellred
-            | EffectId::Beginspellwhite
-            | EffectId::BeginspellN
-            | EffectId::Beginasura
-            | EffectId::Beginasura1
-            | EffectId::Beginasura2
-            | EffectId::Beginasura3
-            | EffectId::Beginasura4
-            | EffectId::Beginasura5
-            | EffectId::Beginasura6
-            | EffectId::Beginasura7
-            | EffectId::Beginasura11
-            | EffectId::TorchRed
-            | EffectId::TorchGreen
-            | EffectId::TorchPurple
-            | EffectId::Dust
-            | EffectId::Glow1
-            | EffectId::Glow2
-            | EffectId::Glow11
-            | EffectId::Glow12
-            | EffectId::BottomGospel
-            | EffectId::BottomEvilland
-            | EffectId::BottomFortunekiss
-            | EffectId::BottomLullaby
-            | EffectId::BottomRichmankim
-            | EffectId::BottomDrumbattlefield
-            | EffectId::BottomRingnibelungen
-            | EffectId::BottomIntoabyss
-            | EffectId::BottomWhistle
-            | EffectId::BottomPoembragi
-            | EffectId::BottomAppleidun
-            | EffectId::BottomHumming
-            | EffectId::BottomMag
-            | EffectId::BottomFogwall
-            | EffectId::BottomVo
-            | EffectId::BottomDe
-            | EffectId::BottomVi
-            | EffectId::BottomSuiton
-            | EffectId::BottomBasilica
-            | EffectId::BottomDissonance
-            | EffectId::BottomUglydance
-            | EffectId::BottomAssassincross
-            | EffectId::BottomDontforgetme
-            | EffectId::BottomServiceforyou
-            | EffectId::BottomEternalchaos
-            | EffectId::BottomSiegfried
-            | EffectId::BottomLa
-            | EffectId::BottomRunner
-            | EffectId::BottomTransfer
-            | EffectId::BottomSpider
-            | EffectId::BottomHermode
-            | EffectId::BottomRokisweil
-            | EffectId::Potionpillar
-            | EffectId::Revive
-            | EffectId::Pierce
-            | EffectId::PotionBerserk
-            | EffectId::PotionCon
-            | EffectId::Potion
-            | EffectId::ItemLight
-            | EffectId::Forestlight
-            | EffectId::Forestlight2
-            | EffectId::Forestlight3
-            | EffectId::Forestlight4
-            | EffectId::Wink
-            | EffectId::Fvoice
-            | EffectId::Ghost
-            | EffectId::Bat
-            | EffectId::Bat2
-            | EffectId::M02
-            | EffectId::Kaizel
-            | EffectId::TempOk
-            | EffectId::TempFail
-            | EffectId::Tarotcard1
-            | EffectId::Tarotcard2
-            | EffectId::Tarotcard3
-            | EffectId::Tarotcard4
-            | EffectId::Tarotcard5
-            | EffectId::Tarotcard6
-            | EffectId::Tarotcard7
-            | EffectId::Tarotcard8
-            | EffectId::Tarotcard9
-            | EffectId::Tarotcard10
-            | EffectId::Tarotcard11
-            | EffectId::Tarotcard12
-            | EffectId::Tarotcard13
-            | EffectId::Tarotcard14
-            | EffectId::NpcSlowcast
-            | EffectId::Hyousensou
-            | EffectId::Earthspike
-            | EffectId::Bowlingbash
-            | EffectId::Overthrust
-            | EffectId::Callzone
-            | EffectId::Groundsample
-            | EffectId::Flowercast
-            | EffectId::Yufitel2
-            | EffectId::TextureFalling
-            | EffectId::Aciddemon
-            | EffectId::Rainbow
-            | EffectId::Agiup
-            | EffectId::Lightsphere
-            | EffectId::Lightsphere2
-            | EffectId::Linelink
-            | EffectId::Linelink2
-            | EffectId::Linelink3
-            | EffectId::MapMagiczone
-            | EffectId::MapMagiczone2
-            | EffectId::Glow4
-            | EffectId::Quakebody
-            | EffectId::Quakebody2
-            | EffectId::Quakebody3
-            | EffectId::Quakebody4
-            | EffectId::Twohandquicken
-            | EffectId::Spearquicken
-            | EffectId::Lkconcentration
-            | EffectId::Mappillar
-            | EffectId::Mappillar2
-            | EffectId::Mappillar3
-            | EffectId::Mappillar4
-            | EffectId::Tanji
-            | EffectId::Tanji2
-            | EffectId::Alattack1
-            | EffectId::Alattack2
-            | EffectId::Alattack3
-            | EffectId::Alattack4
-            | EffectId::Shieldboomerang
-            | EffectId::Shieldboomerang2
-            | EffectId::Shieldboomerang3
-            | EffectId::Slim
-            | EffectId::Slim2
-            | EffectId::Slim3
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn has_real_impl(id: EffectId) -> bool {
+        make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None)
+            .is_some_and(|e| !e.is_placeholder())
+    }
 
     #[test]
     fn warp_dispatches() {
@@ -2161,7 +1831,7 @@ mod tests {
             None,
         );
         assert!(e.is_some());
-        assert!(is_real_impl(EffectId::Warp));
+        assert!(has_real_impl(EffectId::Warp));
     }
 
     #[test]
@@ -2185,7 +1855,7 @@ mod tests {
             assert!(
                 matches!(
                     effect_spec(id),
-                    Some(crate::spec::EffectSpec::Custom { .. })
+                    Some(crate::spec::EffectSpec::Custom)
                 ),
                 "{id:?} must resolve to Custom, not a shadowing str alias",
             );
@@ -2231,17 +1901,17 @@ mod tests {
                 elapsed: 0.0,
             },
         );
-        let center = draws
+        let pos = draws
             .primitives
             .iter()
             .find_map(|p| match p {
-                EffectPrimitiveDraw::GroundDisc { center, .. } => Some(*center),
+                EffectPrimitiveDraw::BillboardRing { pos, .. } => Some(*pos),
                 _ => None,
             })
-            .expect("magnum_break emits a GroundDisc");
+            .expect("magnum_break emits a BillboardRing");
         assert!(
-            (center[0] - anchor_pos[0]).abs() < 1e-3 && (center[2] - anchor_pos[2]).abs() < 1e-3,
-            "GroundDisc centre {center:?} should match anchor {anchor_pos:?}",
+            (pos[0] - anchor_pos[0]).abs() < 1e-3 && (pos[2] - anchor_pos[2]).abs() < 1e-3,
+            "BillboardRing pos {pos:?} should match anchor {anchor_pos:?}",
         );
     }
 
@@ -2265,7 +1935,7 @@ mod tests {
     fn unimplemented_custom_falls_back_to_placeholder() {
         assert!(
             make_effect(
-                EffectId::Spherewind,
+                EffectId::Steal,
                 EffectAnchor::Point([0.0; 3]),
                 None,
                 None,
@@ -2273,7 +1943,7 @@ mod tests {
             )
             .is_some()
         );
-        assert!(!is_real_impl(EffectId::Spherewind));
+        assert!(!has_real_impl(EffectId::Steal));
     }
 
     #[test]
@@ -2288,7 +1958,7 @@ mod tests {
             EffectId::Glow11,
             EffectId::Glow12,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2308,7 +1978,7 @@ mod tests {
             EffectId::BottomDontforgetme,
             EffectId::BottomServiceforyou,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2316,7 +1986,7 @@ mod tests {
 
     #[test]
     fn bottom_hermode_dispatches_to_world_quad_cube() {
-        assert!(is_real_impl(EffectId::BottomHermode));
+        assert!(has_real_impl(EffectId::BottomHermode));
         let e = make_effect(
             EffectId::BottomHermode,
             EffectAnchor::Point([0.0; 3]),
@@ -2330,7 +2000,7 @@ mod tests {
 
     #[test]
     fn bottom_rokisweil_dispatches_to_billboard_pulse() {
-        assert!(is_real_impl(EffectId::BottomRokisweil));
+        assert!(has_real_impl(EffectId::BottomRokisweil));
         let e = make_effect(
             EffectId::BottomRokisweil,
             EffectAnchor::Point([0.0; 3]),
@@ -2350,7 +2020,7 @@ mod tests {
             EffectId::BottomTransfer,
             EffectId::BottomSpider,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2359,7 +2029,7 @@ mod tests {
     #[test]
     fn bottom_light_variants_dispatch_to_world_quad_curtain() {
         for id in [EffectId::BottomEternalchaos, EffectId::BottomSiegfried] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2368,7 +2038,7 @@ mod tests {
     #[test]
     fn bottom_magnus_variants_dispatch_to_frustum_pillar() {
         for id in [EffectId::BottomMag, EffectId::BottomFogwall] {
-            assert!(is_real_impl(id), "{:?} must have a real impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None);
         }
@@ -2390,7 +2060,7 @@ mod tests {
             EffectId::BottomAppleidun,
             EffectId::BottomHumming,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2412,7 +2082,7 @@ mod tests {
             EffectId::BottomSuiton,
             EffectId::BottomBasilica,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(
                 e.str_overlay(),
@@ -2421,7 +2091,7 @@ mod tests {
                 id
             );
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{:?} spec must be Custom, got {:?}",
                 id,
                 effect_spec(id),
@@ -2438,11 +2108,11 @@ mod tests {
             EffectId::Tarotcard14,
             EffectId::NpcSlowcast,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{:?} spec must be Custom, got {:?}",
                 id,
                 effect_spec(id),
@@ -2460,11 +2130,11 @@ mod tests {
             EffectId::Mappillar3,
             EffectId::Mappillar4,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
             assert_eq!(e.str_overlay(), None, "{:?} has no STR overlay", id);
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{:?} spec must be Custom, got {:?}",
                 id,
                 effect_spec(id),
@@ -2481,7 +2151,7 @@ mod tests {
             EffectId::Gumgang2,
             EffectId::Napalmvalcan,
         ] {
-            assert!(is_real_impl(id), "{:?} must have a real factory impl", id);
+            assert!(has_real_impl(id), "{:?} must have a real factory impl", id);
             let _ = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None).unwrap();
         }
         let cart = make_effect(
@@ -2516,7 +2186,7 @@ mod tests {
 
     #[test]
     fn soulstrike_dispatches_with_trail_and_hit_count() {
-        assert!(is_real_impl(EffectId::Soulstrike));
+        assert!(has_real_impl(EffectId::Soulstrike));
         let e = make_effect(
             EffectId::Soulstrike,
             EffectAnchor::Trail {
@@ -2549,9 +2219,9 @@ mod tests {
             EffectId::Slim2,
             EffectId::Slim3,
         ] {
-            assert!(is_real_impl(id), "{id:?} must have a real impl");
+            assert!(has_real_impl(id), "{id:?} must have a real impl");
             assert!(
-                matches!(effect_spec(id), Some(EffectSpec::Custom { .. })),
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} spec"
             );
             let e = make_effect(

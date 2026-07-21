@@ -5,8 +5,7 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_footer, draw_sys_button,
     draw_titlebar,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::guild::{GUILD_PERM_EXPEL, GUILD_PERM_INVITE, Guild, GuildPosition};
@@ -168,9 +167,6 @@ pub struct GuildWindow {
     pub has_grf_textures: bool,
     just_opened: bool,
     tab: GuildTab,
-    guild: Option<Guild>,
-    local_gid: u32,
-    local_name: String,
     members_scroll: usize,
     positions_scroll: usize,
     skills_scroll: usize,
@@ -201,9 +197,6 @@ impl GuildWindow {
             has_grf_textures: false,
             just_opened: false,
             tab: GuildTab::Info,
-            guild: None,
-            local_gid: 0,
-            local_name: String::new(),
             members_scroll: 0,
             positions_scroll: 0,
             skills_scroll: 0,
@@ -259,13 +252,8 @@ impl GuildWindow {
         self.open_member_dropdown = None;
     }
 
-    pub fn sync(&mut self, guild: Option<&Guild>, local_gid: u32, local_name: &str) {
-        self.guild = guild.cloned();
-        self.local_gid = local_gid;
-        if self.local_name != local_name {
-            self.local_name = local_name.to_string();
-        }
-        if let Some(g) = &self.guild {
+    fn seed_from_guild(&mut self, guild: Option<&Guild>) {
+        if let Some(g) = guild {
             let current = (g.notice_subject.clone(), g.notice_body.clone());
             if current != self.last_notice {
                 self.notice_subject_input.text = current.0.clone();
@@ -276,12 +264,12 @@ impl GuildWindow {
             }
         }
         if !self.pos_dirty {
-            self.rebuild_pos_edits();
+            self.rebuild_pos_edits(guild);
         }
     }
 
-    fn rebuild_pos_edits(&mut self) {
-        let Some(g) = &self.guild else {
+    fn rebuild_pos_edits(&mut self, guild: Option<&Guild>) {
+        let Some(g) = guild else {
             self.pos_edits.clear();
             return;
         };
@@ -320,15 +308,15 @@ impl GuildWindow {
             .collect()
     }
 
-    fn is_master(&self) -> bool {
-        let Some(g) = &self.guild else {
+    fn is_master(&self, guild: Option<&Guild>, local_gid: u32, local_name: &str) -> bool {
+        let Some(g) = guild else {
             return false;
         };
         g.am_i_master
             || (!g.master_name.is_empty()
-                && !self.local_name.is_empty()
-                && g.master_name == self.local_name)
-            || g.member_by_gid(self.local_gid)
+                && !local_name.is_empty()
+                && g.master_name == local_name)
+            || g.member_by_gid(local_gid)
                 .map(|m| m.position_id == 0)
                 .unwrap_or(false)
     }
@@ -388,12 +376,16 @@ impl InGameWindow for GuildWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let data = ctx.data;
         if !self.open {
             return Vec::new();
         }
+        let guild = ctx.guild;
+        let local_gid = ctx.local_gid;
+        let is_master = self.is_master(guild, local_gid, &ctx.character.name);
+        self.seed_from_guild(guild);
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
@@ -454,17 +446,17 @@ impl InGameWindow for GuildWindow {
         Self::fill(ui, x, content_y, WIN_W, 1.0, TAB_INACTIVE);
 
         match self.tab {
-            GuildTab::Info => events.extend(self.build_info_tab(ui, x, content_y)),
-            GuildTab::Members => events.extend(self.build_members_tab(ui, x, content_y)),
-            GuildTab::Position => self.build_position_tab(ui, x, content_y),
-            GuildTab::Skill => events.extend(self.build_skill_tab(ui, x, content_y, data)),
-            GuildTab::Expel => self.build_expel_tab(ui, x, content_y),
-            GuildTab::Notice => self.build_notice_tab(ui, x, content_y),
+            GuildTab::Info => events.extend(self.build_info_tab(ui, guild, is_master, x, content_y)),
+            GuildTab::Members => events.extend(self.build_members_tab(ui, guild, is_master, x, content_y)),
+            GuildTab::Position => self.build_position_tab(ui, guild.is_some(), is_master, x, content_y),
+            GuildTab::Skill => events.extend(self.build_skill_tab(ui, guild, is_master, x, content_y, data)),
+            GuildTab::Expel => self.build_expel_tab(ui, guild, x, content_y),
+            GuildTab::Notice => self.build_notice_tab(ui, guild, is_master, x, content_y),
         }
 
         let footer_y = content_y + CONTENT_H;
         draw_footer(ui, x, footer_y, WIN_W, FOOTER_H, grf);
-        events.extend(self.build_footer(ui, x, footer_y));
+        events.extend(self.build_footer(ui, guild.is_some(), is_master, x, footer_y));
 
         self.head_insert_index = Some(ui.draw_calls.len());
         events.extend(self.render_member_pos_overlay(ui));
@@ -509,9 +501,9 @@ impl GuildWindow {
         clicked_tab
     }
 
-    fn build_footer(&mut self, ui: &mut UiFrame, x: f32, footer_y: f32) -> Vec<GameEvent> {
+    fn build_footer(&mut self, ui: &mut UiFrame, guild_present: bool, is_master: bool, x: f32, footer_y: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        if self.guild.is_none() || !self.is_master() {
+        if !guild_present || !is_master {
             return events;
         }
         let show_ok = matches!(self.tab, GuildTab::Position | GuildTab::Notice);
@@ -543,13 +535,12 @@ impl GuildWindow {
         events
     }
 
-    fn build_info_tab(&self, ui: &mut UiFrame, x: f32, cy: f32) -> Vec<GameEvent> {
+    fn build_info_tab(&self, ui: &mut UiFrame, guild: Option<&Guild>, is_master: bool, x: f32, cy: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let Some(g) = &self.guild else {
+        let Some(g) = guild else {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return events;
         };
-        let is_master = self.is_master();
         let grf = ui.has_grf_textures;
         let lx = x + 9.0;
         let online = g.members.iter().filter(|m| m.online).count();
@@ -609,8 +600,8 @@ impl GuildWindow {
 
         ui.text(rx, cy + 68.0, &format!("Tax Point : {}", g.point), TEXT);
 
-        events.extend(self.build_relation_box(ui, rx, cy + 98.0, "Alliance", 0, is_master));
-        events.extend(self.build_relation_box(ui, rx, cy + 178.0, "Antagonist", 1, is_master));
+        events.extend(self.build_relation_box(ui, g, rx, cy + 98.0, "Alliance", 0, is_master));
+        events.extend(self.build_relation_box(ui, g, rx, cy + 178.0, "Antagonist", 1, is_master));
         events
     }
 
@@ -631,6 +622,7 @@ impl GuildWindow {
     fn build_relation_box(
         &self,
         ui: &mut UiFrame,
+        g: &Guild,
         rx: f32,
         top: f32,
         label: &str,
@@ -638,9 +630,6 @@ impl GuildWindow {
         is_master: bool,
     ) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let Some(g) = &self.guild else {
-            return events;
-        };
         ui.text(rx, top - 4.0, label, TEXT);
         let box_y = top;
         let box_w = 168.0;
@@ -673,10 +662,9 @@ impl GuildWindow {
         events
     }
 
-    fn build_members_tab(&mut self, ui: &mut UiFrame, x: f32, cy: f32) -> Vec<GameEvent> {
+    fn build_members_tab(&mut self, ui: &mut UiFrame, guild: Option<&Guild>, is_master: bool, x: f32, cy: f32) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let is_master = self.is_master();
-        let Some(g) = &self.guild else {
+        let Some(g) = guild else {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return events;
         };
@@ -841,9 +829,8 @@ impl GuildWindow {
         events
     }
 
-    fn build_position_tab(&mut self, ui: &mut UiFrame, x: f32, cy: f32) {
-        let is_master = self.is_master();
-        if self.guild.is_none() {
+    fn build_position_tab(&mut self, ui: &mut UiFrame, guild_present: bool, is_master: bool, x: f32, cy: f32) {
+        if !guild_present {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return;
         }
@@ -962,13 +949,14 @@ impl GuildWindow {
     fn build_skill_tab(
         &mut self,
         ui: &mut UiFrame,
+        guild: Option<&Guild>,
+        is_master: bool,
         x: f32,
         cy: f32,
         data: &DataTable,
     ) -> Vec<GameEvent> {
         let mut events = Vec::new();
-        let is_master = self.is_master();
-        let (skills, skill_point) = match &self.guild {
+        let (skills, skill_point) = match guild {
             Some(g) => (g.skills.clone(), g.skill_point),
             None => {
                 ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
@@ -1090,8 +1078,8 @@ impl GuildWindow {
         }
     }
 
-    fn build_expel_tab(&self, ui: &mut UiFrame, x: f32, cy: f32) {
-        let Some(g) = &self.guild else {
+    fn build_expel_tab(&self, ui: &mut UiFrame, guild: Option<&Guild>, x: f32, cy: f32) {
+        let Some(g) = guild else {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return;
         };
@@ -1116,8 +1104,8 @@ impl GuildWindow {
         }
     }
 
-    fn build_notice_tab(&mut self, ui: &mut UiFrame, x: f32, cy: f32) {
-        if self.guild.is_none() {
+    fn build_notice_tab(&mut self, ui: &mut UiFrame, guild: Option<&Guild>, is_master: bool, x: f32, cy: f32) {
+        if guild.is_none() {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return;
         }
@@ -1126,12 +1114,12 @@ impl GuildWindow {
         ui.text(x + 9.0, cy + 46.0, "Contents", TEXT);
         let body_rect = Rect::new(x + 9.0, cy + 52.0, WIN_W - 18.0, CONTENT_H - 68.0);
 
-        if self.is_master() {
+        if is_master {
             ui.text_input(NOTICE_SUBJECT_INPUT, subj_rect, &mut self.notice_subject_input, TextInputBg::Gray);
             self.multiline_input(ui, body_rect);
         } else {
             let (subject, body) = {
-                let g = self.guild.as_ref().unwrap();
+                let g = guild.unwrap();
                 (g.notice_subject.clone(), g.notice_body.clone())
             };
             Self::fill(ui, subj_rect.x, subj_rect.y, subj_rect.w, subj_rect.h, INPUT_BG);
@@ -1195,6 +1183,8 @@ fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_game::guild::GuildRelation;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
@@ -1219,17 +1209,23 @@ mod tests {
             name: "Allies".to_string(),
             relation: 0,
         }];
-        win.sync(Some(&guild), 1, "Me");
-
         let mut character = Character::new();
+        character.name = "Me".to_string();
         let data = DataTable::new();
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.mouse_x = 300.0;
-        ctx.mouse_y = 226.0;
+        let win_x = 80.0;
+        let win_y = 50.0;
+        let content_y = win_y + TITLE_H + TAB_H;
+        let alliance_row_y = content_y + 98.0 + 2.0;
+        ctx.mouse_x = win_x + 301.0 + 168.0 / 2.0;
+        ctx.mouse_y = alliance_row_y + 13.0 / 2.0;
         ctx.mouse_right_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = win.build(&mut ui, &mut character, &data);
+        let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
+        build_ctx.guild = Some(&guild);
+        build_ctx.local_gid = 1;
+        let events = win.build(&mut ui, &mut build_ctx);
 
         assert!(
             events

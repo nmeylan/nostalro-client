@@ -74,7 +74,7 @@ impl App {
                 }
             })
             .collect();
-        self.game
+        self.windows
             .item_list_selection_window
             .open("Identify", ListContext::Identify, rows);
     }
@@ -93,11 +93,11 @@ impl App {
         } else {
             "Appraisal failed.".to_string()
         };
-        self.game.chat_window.add_system(msg);
+        self.windows.chat_window.add_system(msg);
     }
 
     pub(crate) fn handle_auto_cast_skill(&mut self, skill_id: u16, level: i16) {
-        let target_id = self.game.entities.player_id().unwrap_or(0);
+        let target_id = self.game.world.entities.player_id().unwrap_or(0);
         self.channel.send_packet(ragnarok_network::build_use_skill_packet(
             skill_id,
             level,
@@ -107,16 +107,16 @@ impl App {
     }
 
     pub(crate) fn handle_making_arrow_list(&mut self, item_ids: Vec<u16>) {
-        let converter = self.game.pending_list_skill
+        let converter = self.game.pending_casts.pending_list_skill
             == Some(SkillEnum::SaCreatecon.id() as u16);
-        self.game.pending_list_skill = None;
+        self.game.pending_casts.pending_list_skill = None;
         let rows: Vec<ListRow> = item_ids.iter().map(|&id| self.simple_row(id)).collect();
         let (title, context) = if converter {
             ("Elemental Converter", ListContext::ElementalConverter)
         } else {
             ("Make Arrow", ListContext::MakingArrow)
         };
-        self.game
+        self.windows
             .item_list_selection_window
             .open(title, context, rows);
     }
@@ -150,14 +150,14 @@ impl App {
                 }
             })
             .collect();
-        self.game
+        self.windows
             .item_list_selection_window
             .open("Auto Spell", ListContext::AutoSpell, rows);
     }
 
     pub(crate) fn handle_weapon_refine_list(&mut self, items: Vec<RefineItemRow>) {
         let rows: Vec<ListRow> = items.iter().map(|r| self.refine_row(r)).collect();
-        self.game
+        self.windows
             .item_list_selection_window
             .open("Refine Weapon", ListContext::WeaponRefine, rows);
     }
@@ -169,12 +169,12 @@ impl App {
             2 => "You need a higher skill level to refine this.".to_string(),
             _ => format!("Failed to refine {name}."),
         };
-        self.game.chat_window.add_system(msg);
+        self.windows.chat_window.add_system(msg);
     }
 
     pub(crate) fn handle_repair_item_list(&mut self, target_aid: u32, items: Vec<RefineItemRow>) {
         let rows: Vec<ListRow> = items.iter().map(|r| self.refine_row(r)).collect();
-        self.game.item_list_selection_window.open(
+        self.windows.item_list_selection_window.open(
             "Repair Weapon",
             ListContext::RepairWeapon { target_aid },
             rows,
@@ -187,7 +187,7 @@ impl App {
         } else {
             "Repair failed.".to_string()
         };
-        self.game.chat_window.add_system(msg);
+        self.windows.chat_window.add_system(msg);
     }
 
     pub(crate) fn handle_makable_item_list(&mut self, item_ids: Vec<u16>) {
@@ -201,7 +201,7 @@ impl App {
         // Producible items are not necessarily in the inventory, so their icons
         // are not preloaded — do it here or the make window renders blank icons.
         self.preload_item_icons(rows.iter().filter_map(|(_, _, icon)| icon.clone()).collect());
-        self.game.make_item_window.open(rows);
+        self.windows.make_item_window.open(rows);
     }
 
     pub(crate) fn handle_making_item_result(&mut self, result: i16, item_id: u16) {
@@ -210,7 +210,7 @@ impl App {
             0 | 2 => format!("Successfully created {name}."),
             _ => format!("Failed to create {name}."),
         };
-        self.game.chat_window.add_system(msg);
+        self.windows.chat_window.add_system(msg);
     }
 
     pub(crate) fn handle_vending_shop_list(
@@ -230,30 +230,31 @@ impl App {
         self.preload_item_icons(icon_paths);
         let title = self
             .game
+            .world
             .entities
             .get(aid)
             .and_then(|e| e.vending_board.clone())
             .unwrap_or_default();
-        self.game
+        self.windows
             .vending_shop_window
             .open(aid, unique_id, title, rows);
     }
 
     pub(crate) fn handle_open_vending_setup(&mut self, max_items: i16) {
-        self.game
+        self.windows
             .vending_setup_window
             .open(max_items.max(0) as usize);
     }
 
     pub(crate) fn handle_vending_board_shown(&mut self, aid: u32, name: String) {
-        if let Some(entity) = self.game.entities.get_mut(aid) {
+        if let Some(entity) = self.game.world.entities.get_mut(aid) {
             entity.vending_board = Some(name);
             entity.state = EntityState::Sitting;
         }
     }
 
     pub(crate) fn handle_vending_board_hidden(&mut self, aid: u32) {
-        if let Some(entity) = self.game.entities.get_mut(aid) {
+        if let Some(entity) = self.game.world.entities.get_mut(aid) {
             entity.vending_board = None;
             if entity.state == EntityState::Sitting {
                 entity.state = EntityState::Standing;
@@ -262,10 +263,10 @@ impl App {
     }
 
     pub(crate) fn handle_vending_own_stock(&mut self, items: Vec<VendorItem>) {
-        self.game
+        self.windows
             .chat_window
             .add_system(format!("Your shop is open ({} items).", items.len()));
-        let shop_name = self.game.pending_shop_name.take().unwrap_or_default();
+        let shop_name = self.game.pending_casts.pending_shop_name.take().unwrap_or_default();
 
         let rows: Vec<(VendorItem, String, Option<String>)> = items
             .into_iter()
@@ -274,12 +275,12 @@ impl App {
                 (it, name, icon)
             })
             .collect();
-        self.game.my_shop_window.open(shop_name.clone(), rows);
+        self.windows.my_shop_window.open(shop_name.clone(), rows);
 
-        self.game.vending_setup_window.close();
+        self.windows.vending_setup_window.close();
 
-        if let Some(pid) = self.game.entities.player_id()
-            && let Some(entity) = self.game.entities.get_mut(pid)
+        if let Some(pid) = self.game.world.entities.player_id()
+            && let Some(entity) = self.game.world.entities.get_mut(pid)
         {
             entity.vending_board = Some(shop_name);
             entity.state = EntityState::Sitting;
@@ -290,10 +291,10 @@ impl App {
         self.channel.send_packet(ragnarok_network::build_req_closestore_packet(
             self.config.packetver,
         ));
-        self.game.pending_shop_name = None;
-        self.game.my_shop_window.close();
-        if let Some(pid) = self.game.entities.player_id()
-            && let Some(entity) = self.game.entities.get_mut(pid)
+        self.game.pending_casts.pending_shop_name = None;
+        self.windows.my_shop_window.close();
+        if let Some(pid) = self.game.world.entities.player_id()
+            && let Some(entity) = self.game.world.entities.get_mut(pid)
         {
             entity.vending_board = None;
             if entity.state == EntityState::Sitting {
@@ -310,23 +311,23 @@ impl App {
             4 => "The item is out of stock.",
             _ => "Purchase failed.",
         };
-        self.game.chat_window.add_system(msg.to_string());
-        if result == 0 && self.game.vending_shop_window.is_open() {
-            self.game.vending_shop_window.record_sale(index, curcount);
+        self.windows.chat_window.add_system(msg.to_string());
+        if result == 0 && self.windows.vending_shop_window.is_open() {
+            self.windows.vending_shop_window.record_sale(index, curcount);
         }
     }
 
     pub(crate) fn handle_vending_stock_decrement(&mut self, index: i16, count: i16) {
-        self.game.my_shop_window.record_sale(index, count);
-        self.game
+        self.windows.my_shop_window.record_sale(index, count);
+        self.windows
             .chat_window
             .add_system("An item was sold from your shop.".to_string());
     }
 
     pub(crate) fn handle_vending_open_result(&mut self, result: u8) {
         if result != 0 {
-            self.game.pending_shop_name = None;
-            self.game
+            self.game.pending_casts.pending_shop_name = None;
+            self.windows
                 .chat_window
                 .add_system("Failed to open your shop.".to_string());
         }

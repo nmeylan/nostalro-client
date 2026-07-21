@@ -17,7 +17,7 @@
 //! `Throwitem4` (Acid Demonstration) throws a single molotov, launched at
 //! frame 5.
 //!
-//! Texture note: each effect throws the matching item icon. The classic GRF
+//! Texture note: each effect throws the matching item icon. The data archive
 //! stores item icons under their Korean names in
 //! `data/texture/유저인터페이스/item/`.
 //!
@@ -29,7 +29,7 @@
 //!
 //! The pitcher throws (Potion / Slim Potion / Berserk Pitcher) reuse a single
 //! greyscale bottle in the original, tinted per skill level. That bottle is
-//! absent from the classic GRF, so [`potion_throw_params`] substitutes the real
+//! absent from the GRF, so [`potion_throw_params`] substitutes the real
 //! potion item icon matching each level instead.
 //!
 //!

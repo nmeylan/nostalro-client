@@ -10,16 +10,15 @@ use ragnarok_game::effect::{
     is_trail_effect, potion_throw_index, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::entity::{ChatBubbleState, EntityState};
+use ragnarok_game::entity::ChatBubbleState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::sound::tables::{
     SkillSoundPos, skill_cast_begin_sound, skill_projectile_sound, skill_use_sound,
 };
+use ragnarok_game::autocounter;
 use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
 use ragnarok_network::build_change_direction_packet;
-
-const AUTOCOUNTER_SECS_PER_LEVEL: f32 = 0.4;
 
 /// AL_HEAL's green heal sparkle size by healed amount, matching the original
 /// game's thresholds (the tiniest and largest heals share the biggest sparkle).
@@ -62,13 +61,13 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
         // Server timeline anchor (in the past by ~half-RTT): all skill timings derive from
         // when the cast actually resolved on the server, not from the late arrival here.
         let now = self
             .game
-            .server_time
+            .session.server_time
             .server_to_local_secs_clamped(start_time, local_ms);
         let local_now = local_ms as f32 / 1000.0;
         let age = (local_now - now).max(0.0);
@@ -89,7 +88,7 @@ impl App {
         // A hunter/sniper's falcon darts at the struck target on Blitz Beat and
         // Falcon Assault. Auto Blitz Beat arrives through this same packet, so it
         // is covered without extra wiring.
-        if self.game.falcons.contains_key(&src_gid)
+        if self.game.sprite_caches.falcons.contains_key(&src_gid)
             && matches!(
                 SkillEnum::from_id(skill_id as u32),
                 SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
@@ -106,11 +105,12 @@ impl App {
 
         let target_pos = self
             .game
+            .world
             .entities
             .get(target_gid)
             .map(|e| e.movement.cell_position());
         let mut caster_anim = None;
-        if let Some(entity) = self.game.entities.get_mut(src_gid) {
+        if let Some(entity) = self.game.world.entities.get_mut(src_gid) {
             if let Some(dst) = target_pos {
                 let src = entity.movement.cell_position();
                 if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
@@ -134,7 +134,7 @@ impl App {
         // Arrow-consuming skills fire the same flying arrow as a normal ranged
         // attack: bow skills use the Attack motion, whip/instrument skills the
         // Attack2 motion. Multi-hit skills (e.g. Arrow Vulcan) fire one per hit.
-        if let Some(caster) = self.game.entities.get(src_gid) {
+        if let Some(caster) = self.game.world.entities.get(src_gid) {
             let weapon = caster.weapon;
             let fires_arrow = match skill_motion_type(skill_id) {
                 SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
@@ -187,7 +187,7 @@ impl App {
         // Blitz Beat / Falcon Assault have no flying trail effect — the falcon
         // itself is the projectile, so hold the hit until the bird reaches the
         // target (the falcon flight was launched at the top of this handler).
-        let falcon_flight = if self.game.falcons.contains_key(&src_gid)
+        let falcon_flight = if self.game.sprite_caches.falcons.contains_key(&src_gid)
             && matches!(
                 SkillEnum::from_id(skill_id as u32),
                 SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
@@ -203,7 +203,7 @@ impl App {
         let hit_delay = anim_hit.max(flight) + hit_extra_delay;
 
         let double_attack_term = 0.2;
-        if let Some(target) = self.game.entities.get_mut(target_gid) {
+        if let Some(target) = self.game.world.entities.get_mut(target_gid) {
             for i in 0..effective_count {
                 let hit_time = local_now + hit_delay + (i as f32 * double_attack_term);
                 target.scheduled_hits.push(ScheduledHit {
@@ -238,7 +238,7 @@ impl App {
             "SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}"
         );
         if replays_caster && effective_count > 1 {
-            if let Some(caster) = self.game.entities.get_mut(src_gid) {
+            if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
                 for i in 1..effective_count {
                     let hit_time = local_now + anim_hit + (i as f32 * double_attack_term);
                     caster.pending_attack_replays.push((hit_time, skill_id));
@@ -375,7 +375,7 @@ impl App {
     /// its swing connects — the `atk` keyframe. Defaults to mid-animation when
     /// the caster sprite or action is unavailable.
     fn atk_keyframe_fraction(&self, caster_gid: u32, base_action: usize, direction: u8) -> f32 {
-        let Some(sprite) = self.game.sprites.get(&caster_gid) else {
+        let Some(sprite) = self.game.sprite_caches.sprites.get(&caster_gid) else {
             return 0.5;
         };
         let act = &sprite.body_act;
@@ -415,9 +415,9 @@ impl App {
     const PROJECTILE_CHEST_LIFT: f32 = 10.0;
 
     fn skill_trail_endpoints(&self, src_gid: u32, target_gid: u32) -> Option<([f32; 3], [f32; 3])> {
-        let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
+        let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
         let cell_world = |gid: u32| {
-            let (cx, cy) = self.game.entities.get(gid)?.movement.cell_position();
+            let (cx, cy) = self.game.world.entities.get(gid)?.movement.cell_position();
             let (wx, _, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
             Some([
                 wx,
@@ -538,7 +538,7 @@ impl App {
             }
         }
         if is_heal_tier && level > 0 {
-            self.game.damage_numbers.add(DamageNumber::new(
+            self.game.combat.damage_numbers.add(DamageNumber::new(
                 target_gid,
                 level as i32,
                 DamageNumberType::Heal,
@@ -548,7 +548,7 @@ impl App {
         // WE_FEMALE ("I Look up to You") restores partner SP: a light-blue rising
         // recovery number.
         if skill == SkillEnum::WeFemale && level > 0 {
-            self.game.damage_numbers.add(DamageNumber::effect_number(
+            self.game.combat.damage_numbers.add(DamageNumber::effect_number(
                 target_gid,
                 level as i32,
                 [85.0 / 255.0, 177.0 / 255.0, 255.0 / 255.0],
@@ -574,12 +574,13 @@ impl App {
         };
         let partner = self
             .game
+            .world
             .entities
             .get(target_gid)
             .and_then(|e| e.name.clone())
             .unwrap_or_default();
         let message = format!("{partner} !!  {love_line}");
-        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+        if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
             caster.chat_bubble = Some(ChatBubbleState::new(message));
         }
     }
@@ -592,7 +593,7 @@ impl App {
             return;
         }
         let message = format!("{partner} !!  I miss you");
-        if let Some(caster) = self.game.entities.get_mut(src_gid) {
+        if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
             caster.chat_bubble = Some(ChatBubbleState::new(message));
         }
     }
@@ -613,39 +614,27 @@ impl App {
         }
     }
 
-    pub(crate) fn is_kn_autocounter(skill_id: u16) -> bool {
-        skill_id == SkillEnum::KnAutocounter.id() as u16
-    }
-
-    pub(crate) fn player_in_autocounter(&self) -> bool {
-        self.game.entities.player().is_some_and(|e| {
-            e.state == EntityState::Casting
-                && e.active_skill_id.is_some_and(Self::is_kn_autocounter)
-        })
-    }
-
     pub(crate) fn start_autocounter_channel(&mut self, gid: u32) {
         let skill_id = SkillEnum::KnAutocounter.id() as u16;
-        let level = self
-            .game
-            .character
-            .skills
-            .get_skill(skill_id)
-            .map(|s| s.level.max(1))
-            .unwrap_or(1);
-        let duration = level as f32 * AUTOCOUNTER_SECS_PER_LEVEL;
-        let is_player = self.game.entities.player_id() == Some(gid);
-        let face = if is_player {
-            self.game.last_attacked_enemy.or(self.game.attack_target_id.take())
+        let is_player = self.game.world.entities.player_id() == Some(gid);
+        let attack_target = if is_player {
+            self.game.combat.attack_target_id.take()
         } else {
             None
         };
+        let params = autocounter::channel_params(
+            &self.game.character,
+            is_player,
+            self.game.combat.last_attacked_enemy,
+            attack_target,
+        );
         self.game
+            .world
             .entities
-            .apply_autocounter_channel(gid, face, skill_id, duration);
+            .apply_autocounter_channel(gid, params.face, skill_id, params.duration);
         if is_player
-            && face.is_some()
-            && let Some(dir) = self.game.entities.player().map(|e| e.direction)
+            && params.face.is_some()
+            && let Some(dir) = self.game.world.entities.player().map(|e| e.direction)
         {
             self.channel
                 .send_packet(build_change_direction_packet(0, dir, self.config.packetver));
@@ -653,18 +642,20 @@ impl App {
     }
 
     pub(crate) fn dispel_autocounter(&mut self) {
-        if self.player_in_autocounter()
-            && let Some(gid) = self.game.entities.player_id()
+        if autocounter::player_in_autocounter(&self.game.world.entities)
+            && let Some(gid) = self.game.world.entities.player_id()
         {
-            self.game.entities.apply_skill_cast_cancel(gid);
+            self.game.world.entities.apply_skill_cast_cancel(gid);
         }
     }
 
     pub(crate) fn fire_autocounter_on_cancel(&mut self, cancel_gid: u32) {
-        let Some(player_gid) = self.game.entities.player_id() else {
+        let Some(player_gid) = self.game.world.entities.player_id() else {
             return;
         };
-        if !self.player_in_autocounter() || (cancel_gid != 0 && cancel_gid != player_gid) {
+        if !autocounter::player_in_autocounter(&self.game.world.entities)
+            || (cancel_gid != 0 && cancel_gid != player_gid)
+        {
             return;
         }
         self.effect_queue.spawn_on(EffectId::Autocounter, player_gid);
@@ -683,7 +674,7 @@ impl App {
         if effects.is_empty() {
             return;
         }
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };
@@ -693,7 +684,7 @@ impl App {
         // Slim Potion Pitcher lobs the level's slim potion from the caster onto
         // the target cell before the splash lands.
         if let Some(potion) = potion_throw_index(skill, level)
-            && let Some(caster) = self.game.entities.get(src_gid)
+            && let Some(caster) = self.game.world.entities.get(src_gid)
         {
             let (ccx, ccy) = caster.movement.cell_position();
             let (fx, _, fz) = coords.cell_to_world(ccx as f32 + 0.5, ccy as f32 + 0.5);
@@ -719,11 +710,11 @@ impl App {
     }
 
     pub(super) fn handle_skill_failed(&mut self, skill_id: u16, cause: u8) {
-        self.game.pending_skill_target = None;
-        self.game.pending_skill_id = None;
-        self.game.pending_skill_level = None;
+        self.game.pending_casts.pending_skill_target = None;
+        self.game.pending_casts.pending_skill_id = None;
+        self.game.pending_casts.pending_skill_level = None;
         let msg = ragnarok_game::skill::skill_failure_message(cause).unwrap_or("Skill failed.");
         tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
-        self.game.chat_window.add_error(msg.to_string());
+        self.windows.chat_window.add_error(msg.to_string());
     }
 }

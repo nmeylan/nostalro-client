@@ -103,7 +103,7 @@ pub fn build_delete_char_cancel_packet(gid: u32, packetver: u32) -> Vec<u8> {
 pub fn build_request_move_packet(dest_x: u16, dest_y: u16, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRequestMove::new(packetver);
     pkt.set_dest(crate::helpers::encode_pos(dest_x, dest_y, 0));
-    pkt.fill_raw();
+    pkt.fill_raw_with_packetver(Some(packetver));
     pkt.raw
 }
 
@@ -161,6 +161,23 @@ mod tests {
         assert_eq!(u16::from_le_bytes([raw[0], raw[1]]), 0x0890);
         assert_eq!(i16::from_le_bytes([raw[2], raw[3]]), 2);
         assert_eq!(raw[4], 5);
+    }
+
+    // WalkToXY body has version-dependent junk padding before the 3-byte position:
+    // pad=0 @20120307 (len5, id0x0437), pad=10 @20050718 (len15, id0x00a7), pad=3 @20040705 (len8, id0x0085)
+    #[test]
+    fn request_move_body_varies_by_packetver() {
+        let modern = build_request_move_packet(10, 20, 20120307);
+        assert_eq!(modern.len(), 5);
+        assert_eq!(u16::from_le_bytes([modern[0], modern[1]]), 0x0437);
+
+        let mid = build_request_move_packet(10, 20, 20050718);
+        assert_eq!(mid.len(), 15);
+        assert_eq!(u16::from_le_bytes([mid[0], mid[1]]), 0x00a7);
+
+        let old = build_request_move_packet(10, 20, 20040705);
+        assert_eq!(old.len(), 8);
+        assert_eq!(u16::from_le_bytes([old[0], old[1]]), 0x0085);
     }
 
     #[test]

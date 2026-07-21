@@ -1,8 +1,10 @@
 pub mod blend;
 pub mod dispatch;
 pub mod holder;
+pub mod pipeline;
 pub mod primitives;
 pub mod queue;
+pub mod registry;
 pub mod scene;
 pub mod str_pipeline;
 
@@ -18,8 +20,10 @@ pub use primitives::{
     prepare_sphere_records, prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
-pub use ragnarok_game::effect::{
+pub use registry::{EffectPrimitiveRegistry, EffectPrimitiveRenderer};
+pub use ragnarok_effects::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx, EffectStatus, EffectUpdateCtx,
+    effect_texture_path,
 };
 pub use scene::{EffectFrameInputs, EffectFrameOutputs, compose_effect_frame};
 pub use str_pipeline::{StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches};

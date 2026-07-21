@@ -29,7 +29,7 @@ impl App {
             .map(|t| t.title(quest.id))
             .unwrap_or_else(|| "Unknown Quest".to_string());
         self.game.quest_log.add(quest);
-        self.game.chat_window.add_message(
+        self.windows.chat_window.add_message(
             format!("Quest added : {title}"),
             [1.0, 1.0, 1.0, 1.0],
             ChatChannel::Public,
@@ -59,7 +59,7 @@ impl App {
                     .as_ref()
                     .map(|t| t.title(entry.quest_id))
                     .unwrap_or_default();
-                self.game.chat_window.add_message(
+                self.windows.chat_window.add_message(
                     format!(
                         "Mission [{title}], you killed {name}. ({}/{})",
                         entry.current, entry.required

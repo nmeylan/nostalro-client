@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 ragnarok-game = { workspace = true }
+ragnarok-profiling = { workspace = true }
 packets = { workspace = true }
 models = { workspace = true }
 tracing = { workspace = true }

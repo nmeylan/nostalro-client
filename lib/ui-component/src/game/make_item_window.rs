@@ -4,9 +4,8 @@ use crate::helper::window_chrome::{
     draw_titlebar, text_color,
 };
 use crate::game::inventory_window::INV_WINDOW_ID;
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -421,9 +420,10 @@ impl InGameWindow for MakeItemWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.open {
             return Vec::new();
         }
@@ -445,6 +445,8 @@ impl InGameWindow for MakeItemWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -471,11 +473,11 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
 
         let mut ui = make_frame(&ctx, &mut state);
-        assert!(win.build(&mut ui, &mut character, &DataTable::new()).is_empty());
+        assert!(win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::new())).is_empty());
 
         win.phase = Phase::Process;
         let mut ui = make_frame(&ctx, &mut state);
-        assert!(win.build(&mut ui, &mut character, &DataTable::new()).is_empty());
+        assert!(win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::new())).is_empty());
 
         win.close();
         assert!(!win.is_open());

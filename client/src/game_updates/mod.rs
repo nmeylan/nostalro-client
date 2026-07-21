@@ -16,7 +16,7 @@ pub(crate) const CREATE_PREVIEW_GID: u32 = u32::MAX;
 
 impl App {
     fn update_account_sprites(&mut self, _delta: f32, elapsed: f32) {
-        if self.game.app_state != AppState::CharacterCreate {
+        if self.game.session.app_state != AppState::CharacterCreate {
             return;
         }
         let appearance = match &self.char_create_window {
@@ -24,7 +24,7 @@ impl App {
             None => return,
         };
         if self.char_create_built_appearance != Some(appearance) {
-            let sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+            let sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
             self.load_player_sprite(
                 CREATE_PREVIEW_GID,
                 0,
@@ -49,6 +49,7 @@ impl App {
     }
 
     pub(crate) fn run_game_updates(&mut self, delta: f32, elapsed: f32) {
+        ragnarok_profiling::profile_function!();
         self.update_account_sprites(delta, elapsed);
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         self.game.character.prune_expired(now_ms);
@@ -56,7 +57,7 @@ impl App {
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);
         self.update_companion_ai(delta);
-        self.game.damage_numbers.update(delta);
+        self.game.combat.damage_numbers.update(delta);
         self.process_scheduled_hits();
         self.process_caster_replays();
         self.update_floor_items(elapsed);
@@ -73,31 +74,35 @@ impl App {
         self.update_falcon_visuals(delta);
         self.update_pet_roulette(delta);
         self.update_fades(delta);
-        self.game.day_night.tick(delta);
-        if self.game.day_night.take_dirty()
+        self.game.schedulers.day_night.tick(delta);
+        if self.game.schedulers.day_night.take_dirty()
             && let Some(renderer) = &mut self.renderer
         {
             renderer.set_day_night(
-                self.game.day_night.world_diffuse(),
-                self.game.day_night.sprite_light(),
+                self.game.schedulers.day_night.world_diffuse(),
+                self.game.schedulers.day_night.sprite_light(),
             );
         }
         let camera = self.renderer.as_ref().map(|r| &r.camera);
         let is_visible = |pos: [f32; 3]| {
             camera.is_some_and(|c| c.is_world_pos_visible(pos[0], pos[1], pos[2], 0.25))
         };
-        self.game
-            .ambient_effects
-            .update(delta, &is_visible, &mut self.effect_queue);
+        {
+            ragnarok_profiling::profile_scope!("ambient-effects");
+            self.game
+                .schedulers
+                .ambient_effects
+                .update(delta, &is_visible, &mut self.effect_queue);
+        }
 
-        let entities = &self.game.entities;
+        let entities = &self.game.world.entities;
         let resolve_caster_yaw = |id: u32| {
             entities
                 .get(id)
                 .map(|e| e.direction as f32 * (std::f32::consts::TAU / 8.0))
         };
-        let gat = self.game.gat.as_ref();
-        let map_coords = self.game.map_coords.as_ref();
+        let gat = self.game.session.gat.as_ref();
+        let map_coords = self.game.session.map_coords.as_ref();
         let resolve_entity_pos = |id: u32| {
             let (gat, coords) = (gat?, map_coords?);
             let (cx, cy) = entities.get(id)?.movement.position();
@@ -115,19 +120,23 @@ impl App {
             }
         }
         self.game
+            .schedulers
             .repeat_sounds
             .update(delta, &resolve_entity_pos, &mut self.sound_queue);
         self.effect_holder
             .drain_queue(&mut self.effect_queue, &resolve_entity_pos);
-        self.effect_holder.update(
-            &EffectUpdateCtx {
-                delta,
-                camera_target: None,
-                caster_yaw: None,
-            },
-            &resolve_caster_yaw,
-            &resolve_entity_pos,
-        );
+        {
+            ragnarok_profiling::profile_scope!("effects-update");
+            self.effect_holder.update(
+                &EffectUpdateCtx {
+                    delta,
+                    camera_target: None,
+                    caster_yaw: None,
+                },
+                &resolve_caster_yaw,
+                &resolve_entity_pos,
+            );
+        }
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.camera.shake_offset = self.effect_holder.camera_shake_offset().into();
         }
@@ -148,7 +157,7 @@ impl App {
         }
 
         for (entity_id, req) in self.effect_holder.drain_number_requests() {
-            self.game.damage_numbers.add(DamageNumber::effect_number(
+            self.game.combat.damage_numbers.add(DamageNumber::effect_number(
                 entity_id, req.value, req.color, 0,
             ));
         }
@@ -161,18 +170,18 @@ impl App {
         let (Some(renderer), Some(grf)) = (self.renderer.as_mut(), self.grf.as_ref()) else {
             return;
         };
-        let live: std::collections::HashSet<u32> = self.game.trap_units.keys().copied().collect();
+        let live: std::collections::HashSet<u32> = self.game.world.trap_units.keys().copied().collect();
         renderer.retain_skill_unit_models(&live);
-        if self.game.trap_units.is_empty() {
+        if self.game.world.trap_units.is_empty() {
             return;
         }
         let scale_factor = self
             .game
-            .map_coords
+            .session.map_coords
             .as_ref()
             .map(|c| c.zoom() / 10.0)
             .unwrap_or(1.0);
-        for (&aid, &(unit_id, world)) in &self.game.trap_units {
+        for (&aid, &(unit_id, world)) in &self.game.world.trap_units {
             if renderer.has_skill_unit_model(aid) {
                 continue;
             }

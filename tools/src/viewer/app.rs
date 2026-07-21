@@ -18,7 +18,7 @@ use ragnarok_game::effect::{
     EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_link_effect,
     is_trail_effect, str_aliases,
 };
-use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
@@ -30,7 +30,7 @@ use ragnarok_renderer::effect::{
 };
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
 use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
-use ragnarok_renderer::{BackgroundMode, Renderer, UiDrawCall, block_on};
+use ragnarok_renderer::{BackgroundMode, FrameInputs, Renderer, UiDrawCall, block_on};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -589,7 +589,7 @@ impl App {
         match effect_spec(id) {
             Some(EffectSpec::Spr { sprite, .. }) => sprites.push(sprite),
             Some(EffectSpec::SprBurst { sprite, .. }) => sprites.push(sprite),
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 sprites.extend(ragnarok_game::effect::custom_effect_sprite_paths());
             }
             _ => return,
@@ -615,7 +615,7 @@ impl App {
     fn ensure_str_loaded(&mut self, id: EffectId) {
         let file: &'static str = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
@@ -1181,17 +1181,17 @@ impl App {
             );
         }
 
-        renderer.render(
-            &ui_calls,
-            &effect_batches,
-            &effect_draws,
+        renderer.render(FrameInputs {
+            ui_draw_calls: &ui_calls,
+            effect_sprite_batches: &effect_batches,
+            effect_draws: &effect_draws,
             sprite_particle_records,
-            &sprite_batches,
-            &silhouette_batches,
-            &[],
-            &number_inline_textures,
-            dt,
-        );
+            sprite_batches: &sprite_batches,
+            silhouette_batches: &silhouette_batches,
+            cursor_batches: &[],
+            inline_textures: &number_inline_textures,
+            elapsed: dt,
+        });
     }
 }
 

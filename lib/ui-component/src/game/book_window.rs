@@ -1,10 +1,8 @@
 use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::book::BookContent;
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -113,9 +111,10 @@ impl InGameWindow for BookWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if self.content.is_none() {
             return Vec::new();
         }

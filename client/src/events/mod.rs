@@ -8,6 +8,7 @@ mod entity;
 mod friends;
 mod guild;
 mod inventory;
+mod lifecycle;
 mod login;
 mod mail;
 pub(crate) mod marriage;
@@ -28,6 +29,7 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_ui_component::game::chat_room_member_window;
+use ragnarok_game::autocounter;
 use ragnarok_game::event::GameEvent;
 use ragnarok_network::build_npc_close_packet;
 use ragnarok_renderer::Renderer;
@@ -122,8 +124,8 @@ impl App {
                     self.handle_map_changed(map_name, x, y);
                 }
                 GameEvent::MapPropertyChanged(properties) => {
-                    self.game.damage_numbers.combat_hidden = properties.is_siege();
-                    self.game.map_properties = properties;
+                    self.game.combat.damage_numbers.combat_hidden = properties.is_siege();
+                    self.game.session.map_properties = properties;
                 }
                 GameEvent::PlayerMoved {
                     start_x,
@@ -202,13 +204,13 @@ impl App {
                     self.handle_entity_vanished(gid, vanish_type);
                 }
                 GameEvent::EntityStopMove { gid, x, y } => {
-                    self.game.entities.apply_entity_stop_move(gid, x, y);
+                    self.game.world.entities.apply_entity_stop_move(gid, x, y);
                 }
                 GameEvent::EntityHighJumped { gid, x, y } => {
                     // By the time this relocate arrives the leap has carried the
                     // caster off-screen (faded), so teleport to the landing cell
                     // straight away — the landing effect drops it back in.
-                    self.game.entities.apply_entity_stop_move(gid, x, y);
+                    self.game.world.entities.apply_entity_stop_move(gid, x, y);
                 }
                 GameEvent::EntityAction {
                     gid,
@@ -236,11 +238,12 @@ impl App {
                 }
                 GameEvent::EntityDirectionChanged { gid, head_dir, dir } => {
                     self.game
+                        .world
                         .entities
                         .apply_entity_direction_changed(gid, head_dir, dir);
                 }
                 GameEvent::EntityNameReceived { gid, name } => {
-                    self.game.entities.apply_entity_name_received(gid, name);
+                    self.game.world.entities.apply_entity_name_received(gid, name);
                 }
                 GameEvent::EntityNamesReceived {
                     gid,
@@ -248,7 +251,7 @@ impl App {
                     guild_name,
                     position_name,
                 } => {
-                    self.game.entities.apply_entity_names_received(
+                    self.game.world.entities.apply_entity_names_received(
                         gid,
                         name,
                         guild_name,
@@ -285,14 +288,14 @@ impl App {
                     active,
                 } => {
                     for gid in [src_gid, dest_gid] {
-                        if let Some(entity) = self.game.entities.get_mut(gid) {
+                        if let Some(entity) = self.game.world.entities.get_mut(gid) {
                             entity.rooted = active;
                             if active {
                                 entity.movement.stop();
                             }
                         }
                     }
-                    if let Some(caster) = self.game.entities.get_mut(src_gid) {
+                    if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
                         caster.forced_animation = active.then(|| {
                             ForcedAnimation::held(
                                 SpriteActionType::Skill as usize,
@@ -333,42 +336,42 @@ impl App {
                     self.handle_entity_sprite_changed(gid, sprite_type, value, value2);
                 }
                 GameEvent::EntityEmotion { gid, emotion_type } => {
-                    self.game.entities.apply_entity_emotion(gid, emotion_type);
+                    self.game.world.entities.apply_entity_emotion(gid, emotion_type);
                 }
 
                 GameEvent::NpcDialogText { npc_id, text } => {
-                    self.game.npc_dialog.dialog.open_text(npc_id, &text);
+                    self.windows.npc_dialog.dialog.open_text(npc_id, &text);
                 }
                 GameEvent::NpcDialogNext { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_next(npc_id);
+                    self.windows.npc_dialog.dialog.wait_for_next(npc_id);
                 }
                 GameEvent::NpcDialogClose { npc_id } => {
-                    if self.game.npc_dialog.dialog.has_text() {
-                        self.game.npc_dialog.dialog.wait_for_close(npc_id);
+                    if self.windows.npc_dialog.dialog.has_text() {
+                        self.windows.npc_dialog.dialog.wait_for_close(npc_id);
                     } else {
-                        self.game.npc_dialog.dialog.close();
+                        self.windows.npc_dialog.dialog.close();
                         self.game.npc_cutins = [None, None, None];
                         self.channel
                             .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
                     }
                 }
                 GameEvent::NpcDialogMenu { npc_id, items } => {
-                    self.game.npc_dialog.dialog.show_menu(npc_id, items);
+                    self.windows.npc_dialog.dialog.show_menu(npc_id, items);
                 }
                 GameEvent::WarpList {
                     skill_id,
                     destinations,
                 } => {
-                    self.game.warp_list_window.open(skill_id, destinations);
+                    self.windows.warp_list_window.open(skill_id, destinations);
                 }
                 GameEvent::NpcInputNumber { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_number_input(npc_id);
+                    self.windows.npc_dialog.dialog.wait_for_number_input(npc_id);
                 }
                 GameEvent::NpcInputString { npc_id } => {
-                    self.game.npc_dialog.dialog.wait_for_string_input(npc_id);
+                    self.windows.npc_dialog.dialog.wait_for_string_input(npc_id);
                 }
                 GameEvent::NpcDealTypeSelect { npc_id } => {
-                    self.game.npc_dialog.dialog.show_deal_type(npc_id);
+                    self.windows.npc_dialog.dialog.show_deal_type(npc_id);
                 }
 
                 GameEvent::NpcShopBuyList { npc_id, items } => {
@@ -403,8 +406,8 @@ impl App {
                 }
                 GameEvent::ChatRoomDestroy { room_id } => {
                     self.game.chat_rooms.remove(room_id);
-                    if self.game.chat_room_member_window.room_id() == room_id {
-                        self.game.chat_room_member_window.close();
+                    if self.windows.chat_room_member_window.room_id() == room_id {
+                        self.windows.chat_room_member_window.close();
                     }
                 }
                 GameEvent::ChatRoomEntered { room_id, members } => {
@@ -415,7 +418,7 @@ impl App {
                         .map(|r| (r.title.clone(), r.max_count, r.atype != 0))
                         .unwrap_or_default();
                     let local_name = self.game.character.name.clone();
-                    self.game.chat_room_member_window.open_joined(
+                    self.windows.chat_room_member_window.open_joined(
                         room_id,
                         &title,
                         max_count,
@@ -423,11 +426,11 @@ impl App {
                         members,
                         &local_name,
                     );
-                    self.game.chat_room_member_window.push_message(
+                    self.windows.chat_room_member_window.push_message(
                         "You entered the room.".to_string(),
                         chat_room_member_window::JOIN_MSG_COLOR,
                     );
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You entered the room.".to_string());
                 }
@@ -435,49 +438,49 @@ impl App {
                     if flag == 0 {
                         if let Some((title, limit, public)) = self.game.pending_chat_room.take() {
                             let local_name = self.game.character.name.clone();
-                            self.game.chat_room_member_window.open_created(
+                            self.windows.chat_room_member_window.open_created(
                                 0, &title, limit, public, &local_name,
                             );
                         }
-                        self.game.chat_room_create_window.close();
+                        self.windows.chat_room_create_window.close();
                     } else {
                         let reason = match flag {
                             1 => "Room limit exceeded.",
                             2 => "A room with that name already exists.",
                             _ => "Could not create the room.",
                         };
-                        self.game.chat_window.add_system(reason.to_string());
+                        self.windows.chat_window.add_system(reason.to_string());
                     }
                 }
                 GameEvent::ChatRoomMemberJoined { name, .. } => {
-                    self.game.chat_room_member_window.add_member(&name);
+                    self.windows.chat_room_member_window.add_member(&name);
                     let msg = format!("{name} has joined the room.");
-                    self.game
+                    self.windows
                         .chat_room_member_window
                         .push_message(msg.clone(), chat_room_member_window::JOIN_MSG_COLOR);
-                    self.game.chat_window.add_system(msg);
+                    self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomMemberLeft { name, kicked, .. } => {
                     let verb = if kicked { "was kicked from" } else { "has left" };
                     let msg = format!("{name} {verb} the room.");
-                    if self.game.chat_room_member_window.is_local(&name) {
-                        self.game.chat_room_member_window.close();
+                    if self.windows.chat_room_member_window.is_local(&name) {
+                        self.windows.chat_room_member_window.close();
                     } else {
-                        self.game.chat_room_member_window.remove_member(&name);
-                        self.game.chat_room_member_window.push_message(
+                        self.windows.chat_room_member_window.remove_member(&name);
+                        self.windows.chat_room_member_window.push_message(
                             msg.clone(),
                             chat_room_member_window::LEAVE_MSG_COLOR,
                         );
                     }
-                    self.game.chat_window.add_system(msg);
+                    self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomOwnerChanged { name } => {
-                    self.game.chat_room_member_window.set_owner(&name);
+                    self.windows.chat_room_member_window.set_owner(&name);
                     let msg = format!("{name} is now the room owner.");
-                    self.game
+                    self.windows
                         .chat_room_member_window
                         .push_message(msg.clone(), chat_room_member_window::SYSTEM_MSG_COLOR);
-                    self.game.chat_window.add_system(msg);
+                    self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomJoinRefused { result } => {
                     let reason = match result {
@@ -489,7 +492,7 @@ impl App {
                         6 => "Your level is too high to enter.",
                         _ => "Cannot enter the room.",
                     };
-                    self.game.chat_window.add_system(reason.to_string());
+                    self.windows.chat_window.add_system(reason.to_string());
                 }
 
                 GameEvent::InventoryNormalItems { items } => {
@@ -541,9 +544,9 @@ impl App {
                         let used_effect = item_id.and_then(consumable_use_effect);
                         let target_gid = item_id
                             .filter(|id| is_mercenary_potion(*id))
-                            .and(self.game.mercenary.as_ref().map(|m| m.gid))
+                            .and(self.game.companions.mercenary.as_ref().map(|m| m.gid))
                             .filter(|gid| *gid != 0)
-                            .or_else(|| self.game.entities.player_id());
+                            .or_else(|| self.game.world.entities.player_id());
                         if let (Some(effect), Some(gid)) = (used_effect, target_gid) {
                             self.effect_queue.spawn_on(effect, gid);
                         }
@@ -581,7 +584,7 @@ impl App {
                         .character
                         .inventory
                         .subtract_item_count(index, count);
-                    self.game.waiting_item_throw_ack = false;
+                    self.game.combat.waiting_item_throw_ack = false;
                 }
                 GameEvent::CartNormalItems { items } => {
                     self.handle_cart_normal_items(items);
@@ -735,7 +738,7 @@ impl App {
                     self.handle_mail_return_ack(mail_id, ok);
                 }
                 GameEvent::ShowSystemMessage { message } => {
-                    self.game.chat_window.add_system(message);
+                    self.windows.chat_window.add_system(message);
                 }
 
                 GameEvent::CardInsertItemList { equip_indices, .. } => {
@@ -773,8 +776,8 @@ impl App {
                     );
                 }
                 GameEvent::FloorItemDisappeared { id } => {
-                    self.game.floor_items.remove(&id);
-                    self.game.floor_item_sprites.remove(&id);
+                    self.game.world.floor_items.remove(&id);
+                    self.game.assets.floor_item_sprites.remove(&id);
                 }
 
                 GameEvent::ChatMessage { gid, message } => {
@@ -818,7 +821,7 @@ impl App {
                         .apply_status_changed(status_type, base, bonus);
                 }
                 GameEvent::AttackRangeChanged { range } => {
-                    self.game.attack_range = range;
+                    self.game.combat.attack_range = range;
                 }
 
                 GameEvent::SkillCasting {
@@ -831,8 +834,8 @@ impl App {
                     y,
                     skill_name,
                 } => {
-                    if Self::is_kn_autocounter(skill_id)
-                        && self.game.entities.player_id() == Some(gid)
+                    if autocounter::is_kn_autocounter(skill_id)
+                        && self.game.world.entities.player_id() == Some(gid)
                     {
                         self.start_autocounter_channel(gid);
                     } else {
@@ -840,7 +843,7 @@ impl App {
                             self.game.data_table.skill_name.as_ref().map(|table| {
                                 table.get_display_name_or_internal(&skill_name.unwrap_or_default())
                             });
-                        self.game.entities.apply_skill_casting(
+                        self.game.world.entities.apply_skill_casting(
                             gid, target_gid, skill_id, delay_ms, x, y, display_name,
                         );
                         self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
@@ -898,12 +901,12 @@ impl App {
                     target_gid,
                     level,
                 } => {
-                    if Self::is_kn_autocounter(skill_id)
-                        && self.game.entities.player_id() == Some(src_gid)
+                    if autocounter::is_kn_autocounter(skill_id)
+                        && self.game.world.entities.player_id() == Some(src_gid)
                     {
                         self.start_autocounter_channel(src_gid);
                     } else {
-                        self.game.entities.apply_skill_no_damage(
+                        self.game.world.entities.apply_skill_no_damage(
                             skill_id,
                             src_gid,
                             target_gid,
@@ -919,15 +922,16 @@ impl App {
                     y,
                 } => {
                     self.game
+                        .world
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, src_gid, level, x, y);
-                    let falcon_target = if self.game.falcons.contains_key(&src_gid)
+                    let falcon_target = if self.game.sprite_caches.falcons.contains_key(&src_gid)
                         && matches!(
                             SkillEnum::from_id(skill_id as u32),
                             SkillEnum::HtDetecting | SkillEnum::SnSight
                         ) {
-                        match (self.game.map_coords.as_ref(), self.game.gat.as_ref()) {
+                        match (self.game.session.map_coords.as_ref(), self.game.session.gat.as_ref()) {
                             (Some(coords), Some(gat)) => {
                                 let (wx, _, wz) =
                                     coords.cell_to_world(x as f32 + 0.5, y as f32 + 0.5);
@@ -960,7 +964,7 @@ impl App {
                 }
                 GameEvent::SkillCastCancel { gid } => {
                     self.fire_autocounter_on_cancel(gid);
-                    self.game.entities.apply_skill_cast_cancel(gid);
+                    self.game.world.entities.apply_skill_cast_cancel(gid);
                 }
                 GameEvent::SkillFailed { skill_id, cause } => {
                     self.handle_skill_failed(skill_id, cause);
@@ -997,8 +1001,8 @@ impl App {
                     self.handle_disconnected(reason, event_loop);
                 }
                 GameEvent::ActionFailure => {
-                    self.game.attack_target_id = None;
-                    self.game.entities.apply_action_failure();
+                    self.game.combat.attack_target_id = None;
+                    self.game.world.entities.apply_action_failure();
                 }
 
                 GameEvent::PartyMemberList { name, members } => {
@@ -1174,6 +1178,7 @@ impl App {
                     emblem_version,
                 } => {
                     self.game
+                        .world
                         .entities
                         .apply_entity_guild_changed(aid, gdid, emblem_version);
                     self.request_entity_guild_emblem(gdid, emblem_version);
@@ -1229,7 +1234,7 @@ impl App {
                     self.handle_weapon_refine_result(result, item_id);
                 }
                 GameEvent::RepairItemList { items } => {
-                    let target_aid = self.game.pending_repair_target.take().unwrap_or(0);
+                    let target_aid = self.game.pending_casts.pending_repair_target.take().unwrap_or(0);
                     self.handle_repair_item_list(target_aid, items);
                 }
                 GameEvent::RepairItemResult { index, ok } => {
@@ -1439,6 +1444,6 @@ impl App {
                 _ => {}
             }
         }
-        self.game.entities.clear_just_spawned_flags();
+        self.game.world.entities.clear_just_spawned_flags();
     }
 }

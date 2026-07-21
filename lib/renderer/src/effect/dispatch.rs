@@ -1,9 +1,5 @@
-use crate::effect::primitives::{
-    CylinderRenderer, FrustumRenderer, FullscreenOverlayRenderer, GroundDiscRenderer,
-    LineStripRenderer, QuadHornRenderer, RadialRingRenderer, SphereRenderer, Texture3DRenderer,
-    WorldQuadRenderer,
-};
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
+use crate::effect::registry::EffectPrimitiveRegistry;
 use crate::sprite::{SpriteRenderer, SpriteVertex};
 
 const INITIAL_VERTEX_CAPACITY: usize = 4096;
@@ -50,16 +46,7 @@ impl EffectDispatcher {
         camera_bind_group: &wgpu::BindGroup,
         sprite_uniform_bind_group: &wgpu::BindGroup,
         sprite_renderer: &SpriteRenderer,
-        frustum: &FrustumRenderer,
-        cylinder: &CylinderRenderer,
-        ground_disc: &GroundDiscRenderer,
-        quad_horn: &QuadHornRenderer,
-        sphere: &SphereRenderer,
-        world_quad: &WorldQuadRenderer,
-        texture3d: &Texture3DRenderer,
-        radial_ring: &RadialRingRenderer,
-        line_strip: &LineStripRenderer,
-        fullscreen: &FullscreenOverlayRenderer,
+        primitives: &EffectPrimitiveRegistry,
     ) {
         if records.is_empty() {
             return;
@@ -190,21 +177,7 @@ impl EffectDispatcher {
             }
 
             if current_kind != Some(span.kind) || current_bucket != Some(span.bucket) {
-                let pipeline = pipeline_for(
-                    span.kind,
-                    span.bucket,
-                    sprite_renderer,
-                    frustum,
-                    cylinder,
-                    ground_disc,
-                    quad_horn,
-                    sphere,
-                    world_quad,
-                    texture3d,
-                    radial_ring,
-                    line_strip,
-                    fullscreen,
-                );
+                let pipeline = pipeline_for(span.kind, span.bucket, sprite_renderer, primitives);
                 pass.set_pipeline(pipeline);
                 current_kind = Some(span.kind);
                 current_bucket = Some(span.bucket);
@@ -224,80 +197,9 @@ fn pipeline_for<'a>(
     kind: PipelineKind,
     bucket: BlendBucket,
     sprite_renderer: &'a SpriteRenderer,
-    frustum: &'a FrustumRenderer,
-    cylinder: &'a CylinderRenderer,
-    ground_disc: &'a GroundDiscRenderer,
-    quad_horn: &'a QuadHornRenderer,
-    sphere: &'a SphereRenderer,
-    world_quad: &'a WorldQuadRenderer,
-    texture3d: &'a Texture3DRenderer,
-    radial_ring: &'a RadialRingRenderer,
-    line_strip: &'a LineStripRenderer,
-    fullscreen: &'a FullscreenOverlayRenderer,
+    primitives: &'a EffectPrimitiveRegistry,
 ) -> &'a wgpu::RenderPipeline {
-    let additive = matches!(bucket, BlendBucket::Additive | BlendBucket::AdditiveNoDepth)
-        || matches!(bucket, BlendBucket::Multiply);
     match kind {
-        PipelineKind::Frustum => {
-            if additive {
-                &frustum.pipeline_additive
-            } else {
-                &frustum.pipeline_alpha
-            }
-        }
-        PipelineKind::Cylinder => {
-            if additive {
-                &cylinder.pipeline_additive
-            } else {
-                &cylinder.pipeline_alpha
-            }
-        }
-        PipelineKind::GroundDisc => match bucket {
-            BlendBucket::AlphaNoDepth => &ground_disc.pipeline_alpha_no_depth,
-            BlendBucket::AdditiveNoDepth => &ground_disc.pipeline_additive_no_depth,
-            _ if additive => &ground_disc.pipeline_additive,
-            _ => &ground_disc.pipeline_alpha,
-        },
-        PipelineKind::QuadHorn => {
-            if additive {
-                &quad_horn.pipeline_additive
-            } else {
-                &quad_horn.pipeline_alpha
-            }
-        }
-        PipelineKind::Sphere => match bucket {
-            BlendBucket::AlphaNoDepth => &sphere.pipeline_alpha_no_depth,
-            BlendBucket::AdditiveNoDepth => &sphere.pipeline_additive_no_depth,
-            _ if additive => &sphere.pipeline_additive,
-            _ => &sphere.pipeline_alpha,
-        },
-        PipelineKind::WorldQuad => match bucket {
-            BlendBucket::Alpha => &world_quad.pipeline_alpha,
-            BlendBucket::AlphaNoDepth => &world_quad.pipeline_alpha_no_depth,
-            BlendBucket::AdditiveNoDepth => &world_quad.pipeline_additive_no_depth,
-            BlendBucket::Additive | BlendBucket::Multiply => &world_quad.pipeline_additive,
-        },
-        PipelineKind::Texture3D => {
-            if additive {
-                &texture3d.pipeline_additive
-            } else {
-                &texture3d.pipeline_alpha
-            }
-        }
-        PipelineKind::RadialRing => {
-            if additive {
-                &radial_ring.pipeline_additive
-            } else {
-                &radial_ring.pipeline_alpha
-            }
-        }
-        PipelineKind::LineStrip => {
-            if additive {
-                &line_strip.pipeline_additive
-            } else {
-                &line_strip.pipeline_alpha
-            }
-        }
         PipelineKind::Sprite => match bucket {
             BlendBucket::Alpha => &sprite_renderer.pipeline,
             BlendBucket::AlphaNoDepth => &sprite_renderer.pipeline_overlay,
@@ -305,12 +207,9 @@ fn pipeline_for<'a>(
             BlendBucket::AdditiveNoDepth => &sprite_renderer.pipeline_additive_overlay,
             BlendBucket::Multiply => &sprite_renderer.pipeline,
         },
-        PipelineKind::FullscreenOverlay => {
-            if additive {
-                &fullscreen.pipeline_additive
-            } else {
-                &fullscreen.pipeline_alpha
-            }
-        }
+        _ => primitives
+            .get(kind)
+            .expect("primitive renderer registered for kind")
+            .pipeline(bucket),
     }
 }

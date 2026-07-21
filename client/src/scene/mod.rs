@@ -11,7 +11,7 @@ use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{EffectFrameInputs, compose_effect_frame};
 use ragnarok_renderer::ui_renderer::UiVertex;
 use ragnarok_renderer::{
-    SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_clip_quad_scaled,
+    FrameInputs, SpriteBatch, UiDrawCall, UiTextureRef, build_clip_quad, build_clip_quad_scaled,
     scale_clip_vertices,
 };
 
@@ -22,7 +22,7 @@ impl App {
     /// Stealth-visibility relationship of the local player to `gid`: their own
     /// body, a party member's, or a stranger's.
     pub(crate) fn hidden_viewer_for(&self, gid: u32) -> HiddenViewer {
-        if self.game.entities.player_id() == Some(gid) {
+        if self.game.world.entities.player_id() == Some(gid) {
             return HiddenViewer::Own;
         }
         let is_ally = self
@@ -49,6 +49,7 @@ impl App {
         skill_level_calls: Vec<UiDrawCall>,
         ui_draw_calls: Vec<UiDrawCall>,
     ) {
+        ragnarok_profiling::profile_function!();
         let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
         // Flat feet-depth body silhouettes, stamped into depth after the colour
         // pass so effects occlude against the body (gradient `[0,0]` => uniform z).
@@ -56,9 +57,10 @@ impl App {
         let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
 
         // TODO refactor
-        if !self.game.freeze_shatters.is_empty() {
+        if !self.game.world.freeze_shatters.is_empty() {
             let anim = self
                 .game
+                .assets
                 .status_overlay_sprites
                 .get(&ailment::AilmentOverlay::Freeze)
                 .and_then(|(_, act)| {
@@ -74,13 +76,13 @@ impl App {
                 });
             match anim {
                 Some((delay_ms, motion_count)) if motion_count > 0 => {
-                    self.game.freeze_shatters.retain_mut(|s| {
+                    self.game.world.freeze_shatters.retain_mut(|s| {
                         let start = *s.started_at.get_or_insert(elapsed);
                         let frame = ((elapsed - start) * 1000.0 / delay_ms) as usize;
                         frame < motion_count
                     });
                 }
-                _ => self.game.freeze_shatters.clear(),
+                _ => self.game.world.freeze_shatters.clear(),
             }
         }
 
@@ -99,8 +101,8 @@ impl App {
             match entry.kind {
                 RenderEntryKind::Entity => {
                     if let (Some(sprite), Some(entity)) = (
-                        self.game.sprites.get(&entry.id),
-                        self.game.entities.get(entry.id),
+                        self.game.sprite_caches.sprites.get(&entry.id),
+                        self.game.world.entities.get(entry.id),
                     ) {
                         let render =
                             hidden_render(entity.effect_state, self.hidden_viewer_for(entry.id));
@@ -224,14 +226,14 @@ impl App {
                                 let (anchor, depth, scale, depth_gradient) = self
                                     .renderer
                                     .as_ref()
-                                    .zip(self.game.map_coords.as_ref())
+                                    .zip(self.game.session.map_coords.as_ref())
                                     .and_then(|(r, coords)| {
                                         let sw = r.device.surface_config.width as f32 / r.dpi_scale;
                                         let sh =
                                             r.device.surface_config.height as f32 / r.dpi_scale;
                                         crate::input::entity_screen_params(
                                             img.world_pos,
-                                            self.game.gat.as_ref(),
+                                            self.game.session.gat.as_ref(),
                                             coords,
                                             &r.camera,
                                             sw,
@@ -277,8 +279,8 @@ impl App {
                         // TODO Move emotion in dedicated place
                         if let (Some(emo), Some(emo_act), Some(emo_tex)) = (
                             &entity.emotion,
-                            &self.game.emotion_act,
-                            &self.game.emotion_textures,
+                            &self.game.assets.emotion_act,
+                            &self.game.assets.emotion_textures,
                         ) {
                             let action_idx =
                                 ragnarok_game::emotion::emote_sprite_action(emo.emotion_type);
@@ -326,8 +328,8 @@ impl App {
 
                         if let (Some(marker), Some(emo_act), Some(emo_tex)) = (
                             self.game.quest_markers.get(&entry.id),
-                            &self.game.emotion_act,
-                            &self.game.emotion_textures,
+                            &self.game.assets.emotion_act,
+                            &self.game.assets.emotion_textures,
                         ) {
                             let action_idx =
                                 ragnarok_game::quest::marker_sprite_action(marker.effect);
@@ -374,7 +376,7 @@ impl App {
                         for overlay in
                             ailment::ailment_overlays(entity.body_state, entity.health_state)
                         {
-                            let Some((tex, act)) = self.game.status_overlay_sprites.get(&overlay)
+                            let Some((tex, act)) = self.game.assets.status_overlay_sprites.get(&overlay)
                             else {
                                 continue;
                             };
@@ -426,12 +428,13 @@ impl App {
                         }
 
                         // TODO refactor and move this in another place
-                        for shatter in &self.game.freeze_shatters {
+                        for shatter in &self.game.world.freeze_shatters {
                             if shatter.gid != entry.id {
                                 continue;
                             }
                             let Some((tex, act)) = self
                                 .game
+                                .assets
                                 .status_overlay_sprites
                                 .get(&ailment::AilmentOverlay::Freeze)
                             else {
@@ -478,8 +481,8 @@ impl App {
                     }
                 }
                 RenderEntryKind::FloorItem => {
-                    if let Some(floor_item) = self.game.floor_items.get(&entry.id)
-                        && let Some((tex, act)) = self.game.floor_item_sprites.get(&entry.id)
+                    if let Some(floor_item) = self.game.world.floor_items.get(&entry.id)
+                        && let Some((tex, act)) = self.game.assets.floor_item_sprites.get(&entry.id)
                     {
                         let y_offset = if floor_item.is_falling {
                             let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
@@ -542,8 +545,8 @@ impl App {
                 }
                 RenderEntryKind::Cart => {
                     if let (Some(cart), Some(entity)) = (
-                        self.game.carts.get(&entry.id),
-                        self.game.entities.get(entry.id),
+                        self.game.sprite_caches.carts.get(&entry.id),
+                        self.game.world.entities.get(entry.id),
                     ) {
                         if is_hidden(entity.effect_state) {
                             continue;
@@ -583,8 +586,8 @@ impl App {
                 }
                 RenderEntryKind::Falcon => {
                     if let (Some(falcon), Some(entity)) = (
-                        self.game.falcons.get(&entry.id),
-                        self.game.entities.get(entry.id),
+                        self.game.sprite_caches.falcons.get(&entry.id),
+                        self.game.world.entities.get(entry.id),
                     ) {
                         if is_hidden(entity.effect_state) {
                             continue;
@@ -626,9 +629,9 @@ impl App {
 
         let mut inline_textures = Vec::new();
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
-        if let Some(center) = self.game.equipment_window.character_center()
-            && let Some(player_id) = self.game.entities.player_id()
-            && let Some(sprite) = self.game.sprites.get(&player_id)
+        if let Some(center) = self.windows.equipment_window.character_center()
+            && let Some(player_id) = self.game.world.entities.player_id()
+            && let Some(sprite) = self.game.sprite_caches.sprites.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
             let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, [0.0, 0.0]);
@@ -651,9 +654,9 @@ impl App {
             }
         }
 
-        if let Some(center) = self.game.equipment_window.cart_slot_center()
-            && let Some(player_id) = self.game.entities.player_id()
-            && let Some(cart) = self.game.carts.get(&player_id)
+        if let Some(center) = self.windows.equipment_window.cart_slot_center()
+            && let Some(player_id) = self.game.world.entities.player_id()
+            && let Some(cart) = self.game.sprite_caches.carts.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
             let batches =
@@ -679,8 +682,8 @@ impl App {
         }
 
         let mut cart_select_calls: Vec<UiDrawCall> = Vec::new();
-        for &(design, center) in self.game.cart_select_window.model_previews() {
-            let Some(sprite) = self.game.cart_preview_sprites.get(&design) else {
+        for &(design, center) in self.windows.cart_select_window.model_previews() {
+            let Some(sprite) = self.game.sprite_caches.cart_preview_sprites.get(&design) else {
                 continue;
             };
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
@@ -713,14 +716,14 @@ impl App {
         }
 
         let mut account_calls: Vec<UiDrawCall> = Vec::new();
-        match self.game.app_state {
+        match self.game.session.app_state {
             AppState::CharacterSelect => {
                 if let Some(win) = &self.char_select_window {
                     for view in win.visible_slot_views() {
                         let Some(ch) = win.characters.get(view.char_index) else {
                             continue;
                         };
-                        let Some(sprite) = self.game.sprites.get(&ch.gid) else {
+                        let Some(sprite) = self.game.sprite_caches.sprites.get(&ch.gid) else {
                             continue;
                         };
                         let Some(anim) = self.account_anims.get(&ch.gid) else {
@@ -751,7 +754,7 @@ impl App {
             AppState::CharacterCreate => {
                 if let (Some(win), Some(sprite), Some(anim)) = (
                     &self.char_create_window,
-                    self.game.sprites.get(&CREATE_PREVIEW_GID),
+                    self.game.sprite_caches.sprites.get(&CREATE_PREVIEW_GID),
                     self.account_anims.get(&CREATE_PREVIEW_GID),
                 ) {
                     let batches = sprite.build_batches(
@@ -786,10 +789,10 @@ impl App {
         }
 
         let mut guild_head_calls: Vec<UiDrawCall> = Vec::new();
-        if self.game.app_state == AppState::InGame && self.game.guild_window.is_open() {
+        if self.game.session.app_state == AppState::InGame && self.windows.guild_window.is_open() {
             let idle = ragnarok_formats::act::SpriteAnimationState::new(0);
-            for &(gid, center) in self.game.guild_window.member_head_slots() {
-                let Some(sprite) = self.game.guild_head_sprites.get(&gid) else {
+            for &(gid, center) in self.windows.guild_window.member_head_slots() {
+                let Some(sprite) = self.game.sprite_caches.guild_head_sprites.get(&gid) else {
                     continue;
                 };
                 for batch in sprite.build_head_batches(&idle, None, 0, center, 26.0, 0.0) {
@@ -814,7 +817,7 @@ impl App {
 
         let mut roulette_calls: Vec<UiDrawCall> = Vec::new();
         if let (Some(roulette), Some(act), Some(tex), Some(renderer)) = (
-            &self.game.pet_roulette,
+            &self.game.companions.pet_roulette,
             &self.roulette_act,
             &self.roulette_textures,
             &self.renderer,
@@ -856,7 +859,7 @@ impl App {
             };
             let entries: Vec<DamageNumberRenderEntry> = self
                 .game
-                .damage_numbers
+                .combat.damage_numbers
                 .numbers
                 .iter_mut()
                 .filter_map(|dmg| {
@@ -883,8 +886,8 @@ impl App {
                 })
                 .collect();
             if let (Some(num_tex), Some(num_act)) = (
-                &self.game.damage_number_textures,
-                &self.game.damage_number_act,
+                &self.game.assets.damage_number_textures,
+                &self.game.assets.damage_number_act,
             ) {
                 let quads = build_damage_number_quads(
                     &entries,
@@ -892,6 +895,7 @@ impl App {
                     &num_tex.sizes,
                     num_tex.indexed_count,
                     self.game
+                        .assets
                         .damage_msg_textures
                         .as_ref()
                         .map(|t| t.sizes.as_slice()),
@@ -899,14 +903,14 @@ impl App {
                 ragnarok_renderer::render_damage_number_quads(
                     &quads,
                     num_tex,
-                    self.game.damage_msg_textures.as_ref(),
+                    self.game.assets.damage_msg_textures.as_ref(),
                     &mut world_overlay_calls,
                     &mut inline_textures,
                 );
             }
         }
 
-        if let Some(cursor_tex) = &self.game.cursor_textures {
+        if let Some(cursor_tex) = &self.game.assets.cursor_textures {
             for (vertices, indices, tex_idx) in lock_cursor_clips {
                 cursor_batches.push(SpriteBatch {
                     vertices,
@@ -930,7 +934,7 @@ impl App {
         all_ui_calls.extend(ui_draw_calls);
 
         let paperdoll_abs = self
-            .game
+            .windows
             .equipment_window
             .paperdoll_insert_index()
             .map(|idx| (overlay_len + idx).min(all_ui_calls.len()));
@@ -943,7 +947,7 @@ impl App {
 
         let cart_len = cart_select_calls.len();
         let mut cart_abs: Option<usize> = None;
-        if let Some(insert_idx) = self.game.cart_select_window.preview_insert_index() {
+        if let Some(insert_idx) = self.windows.cart_select_window.preview_insert_index() {
             let mut abs_idx = (overlay_len + insert_idx).min(all_ui_calls.len());
             // The paperdoll insertion above shifts later indices forward.
             if paperdoll_abs.is_some_and(|pd| abs_idx >= pd) {
@@ -956,7 +960,7 @@ impl App {
             }
         }
 
-        if let Some(insert_idx) = self.game.guild_window.head_insert_index()
+        if let Some(insert_idx) = self.windows.guild_window.head_insert_index()
             && !guild_head_calls.is_empty()
         {
             let mut abs_idx = overlay_len + insert_idx;
@@ -972,7 +976,7 @@ impl App {
             }
         }
 
-        let account_insert_idx = match self.game.app_state {
+        let account_insert_idx = match self.game.session.app_state {
             AppState::CharacterSelect => self
                 .char_select_window
                 .as_ref()
@@ -995,6 +999,7 @@ impl App {
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
             let arrow_draws: Vec<EffectPrimitiveDraw> = self
                 .game
+                .world
                 .arrows
                 .iter()
                 .filter(|a| a.is_visible())
@@ -1010,10 +1015,10 @@ impl App {
                     no_depth: false,
                 })
                 .collect();
-            let zoom = self.game.map_coords.as_ref().map_or(10.0, |c| c.zoom());
-            let entities = &self.game.entities;
-            let gat = self.game.gat.as_ref();
-            let map_coords = self.game.map_coords.as_ref();
+            let zoom = self.game.session.map_coords.as_ref().map_or(10.0, |c| c.zoom());
+            let entities = &self.game.world.entities;
+            let gat = self.game.session.gat.as_ref();
+            let map_coords = self.game.session.map_coords.as_ref();
             let resolve_entity = |id: u32| {
                 let (gat, coords) = (gat?, map_coords?);
                 let (cx, cy) = entities.get(id)?.movement.position();
@@ -1035,13 +1040,13 @@ impl App {
 
             let custom = self.effect_holder.custom_count();
             if custom > 0 {
-                let frustums = frame
+                let _frustums = frame
                     .effect_draws
                     .primitives
                     .iter()
                     .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
                     .count();
-                let billboards = frame
+                let _billboards = frame
                     .effect_draws
                     .primitives
                     .iter()
@@ -1049,17 +1054,17 @@ impl App {
                     .count();
             }
 
-            renderer.render(
-                &all_ui_calls,
-                &frame.effect_batches,
-                &frame.effect_draws,
-                frame.sprite_particle_records,
-                &sprite_batches,
-                &silhouette_batches,
-                &cursor_batches,
-                &inline_textures,
+            renderer.render(FrameInputs {
+                ui_draw_calls: &all_ui_calls,
+                effect_sprite_batches: &frame.effect_batches,
+                effect_draws: &frame.effect_draws,
+                sprite_particle_records: frame.sprite_particle_records,
+                sprite_batches: &sprite_batches,
+                silhouette_batches: &silhouette_batches,
+                cursor_batches: &cursor_batches,
+                inline_textures: &inline_textures,
                 elapsed,
-            );
+            });
         }
     }
 }

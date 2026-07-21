@@ -1,5 +1,6 @@
 use crate::App;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::entity::{EntityState, EntityType};
@@ -14,55 +15,31 @@ use ragnarok_network::{
 
 impl App {
     pub(crate) fn handle_left_click(&mut self) {
-        // Capture roulette is modal: a click confirms the spinning attempt.
-        if let Some(roulette) = &mut self.game.pet_roulette {
-            if roulette.state == ragnarok_game::pet::RouletteState::Idle && !roulette.sent {
-                roulette.sent = true;
-                let gid = roulette.target_gid;
-                self.channel
-                    .send_packet(ragnarok_network::build_trycapture_packet(
-                        gid,
-                        self.config.packetver,
-                    ));
-            }
-            return;
-        }
-        // Capture targeting armed by ZC_START_CAPTURE: a click on a valid mob opens
-        // the roulette (players and the caster's own pet are not valid targets).
-        if self.game.capture_targeting {
-            if let Some(entity_id) = self.game.hovered_entity_id
-                && self.game.pet.gid != Some(entity_id)
-                && self
-                    .game
-                    .entities
-                    .get(entity_id)
-                    .is_some_and(|e| e.entity_type == EntityType::Monster && !e.is_pet)
-            {
-                self.open_capture_roulette(entity_id);
-            }
+        if self.try_pet_modal_click() {
             return;
         }
         tracing::info!(
             "handle_left_click: pending_companion={:?} hovered_entity={:?}",
-            self.game.pending_companion_skill.is_some(),
-            self.game.hovered_entity_id
+            self.game.pending_casts.pending_companion_skill.is_some(),
+            self.game.hover.hovered_entity_id
         );
-        if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
+        if self.windows.npc_dialog.dialog.is_open() || self.windows.npc_shop.shop.is_open() {
             return;
         }
-        if self.player_in_autocounter() {
+        if autocounter::player_in_autocounter(&self.game.world.entities) {
             self.dispel_autocounter();
             return;
         }
-        if let Some(entity) = self.game.entities.player()
+        if let Some(entity) = self.game.world.entities.player()
             && matches!(entity.state, EntityState::Casting | EntityState::SkillExec)
         {
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
-            && Some(entity_id) == self.game.entities.player_id()
+        if let Some(entity_id) = self.game.hover.target_id()
+            && Some(entity_id) == self.game.world.entities.player_id()
             && self
                 .game
+                .world
                 .entities
                 .get(entity_id)
                 .is_some_and(|e| e.vending_board.is_some())
@@ -70,12 +47,12 @@ impl App {
             self.close_own_shop();
             return;
         }
-        if let Some(room_id) = self.game.hovered_chat_room {
+        if let Some(room_id) = self.game.hover.hovered_chat_room {
             self.channel
                 .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
             return;
         }
-        if let Some(pending) = self.game.pending_companion_skill.take() {
+        if let Some(pending) = self.game.pending_casts.pending_companion_skill.take() {
             let reserved = self.input.shift_pressed;
             if pending.is_ground {
                 if let Some((cx, cy)) = self.hovered_cell() {
@@ -85,7 +62,7 @@ impl App {
                         reserved,
                     );
                 }
-            } else if let Some(target) = self.game.hovered_entity_id {
+            } else if let Some(target) = self.game.hover.hovered_entity_id {
                 self.push_owner_command_to(
                     pending.is_mercenary,
                     OwnerCommand::skill_object(pending.skill_id, pending.level as u8, target),
@@ -97,15 +74,15 @@ impl App {
         if self.is_local_player_incapacitated() {
             return;
         }
-        if let Some(pending) = self.game.pending_skill_target {
+        if let Some(pending) = self.game.pending_casts.pending_skill_target {
             if self.player_hidden() && !hide_allows_skill(pending.skill_id()) {
-                self.game.pending_skill_target = None;
+                self.game.pending_casts.pending_skill_target = None;
                 return;
             }
             if self.skill_on_cooldown(pending.skill_id()) {
                 return;
             }
-            self.game.pending_skill_target = None;
+            self.game.pending_casts.pending_skill_target = None;
             let mut skill_cast = false;
             match pending {
                 PendingSkillTarget::Entity { skill_id, level } => {
@@ -114,11 +91,11 @@ impl App {
                         .resolve_cast_skill(skill_id)
                         .map(|(target_type, _)| skill_target_class(target_type))
                         .unwrap_or(TargetClass::Offensive);
-                    let player_id = self.game.entities.player_id();
+                    let player_id = self.game.world.entities.player_id();
                     let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
-                    let valid_target = self.game.hovered_entity_id.filter(|&id| {
-                        self.game.entities.get(id).is_some_and(|e| {
-                            skill_target_allowed(class, e, &self.game.map_properties, player_id)
+                    let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
+                        self.game.world.entities.get(id).is_some_and(|e| {
+                            skill_target_allowed(class, e, &self.game.session.map_properties, player_id)
                                 || (potion_pitcher
                                     && matches!(
                                         e.entity_type,
@@ -129,12 +106,14 @@ impl App {
                     if let Some(entity_id) = valid_target {
                         let target_pos = self
                             .game
+                            .world
                             .entities
                             .get(entity_id)
                             .map(|e| e.movement.cell_position())
                             .unwrap_or((0, 0));
                         let (px, py) = self
                             .game
+                            .world
                             .entities
                             .player()
                             .map(|e| e.movement.cell_position())
@@ -155,16 +134,16 @@ impl App {
                                 self.config.packetver,
                             ));
                             if skill_id == SkillEnum::BsRepairweapon.id() as u16 {
-                                self.game.pending_repair_target = Some(entity_id);
+                                self.game.pending_casts.pending_repair_target = Some(entity_id);
                             }
                             skill_cast = true;
                         } else {
                             let dest_x = target_pos.0 as i32;
                             let dest_y = target_pos.1 as i32;
                             if self.try_move_toward(dest_x, dest_y, px, py, skill_range) {
-                                self.game.pending_skill_id = Some(skill_id);
-                                self.game.pending_skill_level = Some(level);
-                                self.game.attack_target_id = Some(entity_id);
+                                self.game.pending_casts.pending_skill_id = Some(skill_id);
+                                self.game.pending_casts.pending_skill_level = Some(level);
+                                self.game.combat.attack_target_id = Some(entity_id);
                             }
                         }
                     }
@@ -173,6 +152,7 @@ impl App {
                     if let Some((cx, cy)) = self.hovered_cell() {
                         let (px, py) = self
                             .game
+                            .world
                             .entities
                             .player()
                             .map(|e| e.movement.cell_position())
@@ -193,7 +173,7 @@ impl App {
                                 self.config.packetver,
                             ));
                         } else {
-                            self.game.pending_ground_cast =
+                            self.game.pending_casts.pending_ground_cast =
                                 Some((skill_id, level, cx as i16, cy as i16));
                             self.try_move_toward(cx as i32, cy as i32, px, py, skill_range);
                         }
@@ -202,19 +182,20 @@ impl App {
                 }
             }
             if skill_cast {
-                self.game.attack_target_id = None;
+                self.game.combat.attack_target_id = None;
             }
             return;
         }
-        if let Some(item_id) = self.game.hovered_floor_item_id {
+        if let Some(item_id) = self.game.hover.hovered_floor_item_id {
             if self.player_hidden() {
                 return;
             }
-            self.game.attack_target_id = None;
-            self.game.pending_pickup_item_id = None;
-            if let Some(floor_item) = self.game.floor_items.get(&item_id) {
+            self.game.combat.attack_target_id = None;
+            self.game.pending_casts.pending_pickup_item_id = None;
+            if let Some(floor_item) = self.game.world.floor_items.get(&item_id) {
                 let (px, py) = self
                     .game
+                    .world
                     .entities
                     .player()
                     .map(|e| e.movement.cell_position())
@@ -224,10 +205,10 @@ impl App {
                 if dx <= 1 && dy <= 1 {
                     self.channel
                         .send_packet(build_pickup_item_packet(item_id, self.config.packetver));
-                    if let Some(entity) = self.game.entities.player_mut() {
+                    if let Some(entity) = self.game.world.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
-                } else if let Some(gat) = &self.game.gat {
+                } else if let Some(gat) = &self.game.session.gat {
                     let dest_x = floor_item.x as i32;
                     let dest_y = floor_item.y as i32;
                     if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
@@ -236,16 +217,17 @@ impl App {
                             move_action.dest_y,
                             self.config.packetver,
                         ));
-                        self.game.pending_pickup_item_id = Some(item_id);
+                        self.game.pending_casts.pending_pickup_item_id = Some(item_id);
                     }
                 }
             }
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
-            && Some(entity_id) != self.game.entities.player_id()
+        if let Some(entity_id) = self.game.hover.target_id()
+            && Some(entity_id) != self.game.world.entities.player_id()
             && self
                 .game
+                .world
                 .entities
                 .get(entity_id)
                 .is_some_and(|e| e.vending_board.is_some())
@@ -254,8 +236,8 @@ impl App {
                 .send_packet(build_req_buy_frommc_packet(entity_id, self.config.packetver));
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
-            && let Some(entity) = self.game.entities.get(entity_id)
+        if let Some(entity_id) = self.game.hover.hovered_entity_id
+            && let Some(entity) = self.game.world.entities.get(entity_id)
             && entity.entity_type == EntityType::Npc
             && entity.job != 45
         {
@@ -263,17 +245,17 @@ impl App {
                 .send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
-            && let Some(entity) = self.game.entities.get(entity_id)
+        if let Some(entity_id) = self.game.hover.hovered_entity_id
+            && let Some(entity) = self.game.world.entities.get(entity_id)
         {
-            let player_id = self.game.entities.player_id();
+            let player_id = self.game.world.entities.player_id();
             let should_attack = match entity.entity_type {
                 EntityType::Monster => !self.input.shift_pressed && !entity.is_pet,
                 EntityType::Player => {
-                    can_attack(entity, &self.game.map_properties, player_id)
-                        && (!self.game.map_properties.no_lockon()
+                    can_attack(entity, &self.game.session.map_properties, player_id)
+                        && (!self.game.session.map_properties.no_lockon()
                             || self.input.shift_pressed
-                            || self.game.noshift_mode)
+                            || self.game.prefs.noshift_mode)
                 }
                 _ => false,
             };
@@ -282,21 +264,22 @@ impl App {
                 return;
             }
         }
-        self.game.attack_target_id = None;
-        self.game.pending_pickup_item_id = None;
-        self.game.pending_ground_cast = None;
+        self.game.combat.attack_target_id = None;
+        self.game.pending_casts.pending_pickup_item_id = None;
+        self.game.pending_casts.pending_ground_cast = None;
         // While running, the server auto-moves the character in a straight line and
         // rejects any client-issued move, which snaps the character back. Suppress
         // click-to-move (and the continuous-walk that routes through here) entirely.
         if self
             .game
+            .world
             .entities
             .player()
             .is_some_and(|e| e.is_running)
         {
             return;
         }
-        if self.game.entities.player().is_some_and(|e| e.is_move_locked()) {
+        if self.game.world.entities.player().is_some_and(|e| e.is_move_locked()) {
             return;
         }
         if self.player_hide_move_blocked() {
@@ -306,13 +289,14 @@ impl App {
             Some(c) => c,
             None => return,
         };
-        let gat = match &self.game.gat {
+        let gat = match &self.game.session.gat {
             Some(g) => g,
             None => return,
         };
 
         let (src_x, src_y) = self
             .game
+            .world
             .entities
             .player()
             .map(|e| e.movement.cell_position())

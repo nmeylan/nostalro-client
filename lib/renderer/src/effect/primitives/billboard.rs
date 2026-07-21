@@ -1,3 +1,24 @@
+//! Camera-facing billboards: the `Billboard`, `BillboardFlash`,
+//! `BillboardDepthAnchored`, `BillboardDisc` and `BillboardRing` draw variants.
+//!
+//! Geometry is built in screen space. We project the world `pos` to a
+//! screen-space anchor and lay out vertices in pixel units (world `size` and
+//! `radius` are multiplied by the projection's pixels-per-unit), so a quad
+//! always faces the camera and keeps a constant on-screen size for a given
+//! world size. `rotation` is a screen-space counter-clockwise angle in radians.
+//! `Billboard` is a rotatable quad, `BillboardDisc` a triangle fan, and
+//! `BillboardRing` a two-ring triangle strip. `BillboardFlash` and the
+//! disc/ring pin vertex Z to 0 so they draw as a near overlay; `Billboard` and
+//! `BillboardDepthAnchored` write a projected NDC depth into vertex Z.
+//!
+//! These records carry `PipelineKind::Sprite` because they share the sprite
+//! pipeline (which binds the group-0 sprite uniform). They are dispatched
+//! straight from `build_effect_records`, not through the primitive registry,
+//! and unlike the other primitives this builder needs the screen dimensions.
+//! Per-record blend comes from the draw's `BlendKind`. All of these are emitted
+//! by `EffectSpec::Custom` effects (for example Bash for the disc, Magnum Break
+//! for the ring).
+
 use crate::camera::Camera;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind};
 use crate::effect_sprite::{

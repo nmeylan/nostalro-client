@@ -3,9 +3,7 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_titlebar,
     text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -153,9 +151,10 @@ impl InGameWindow for CardInsertDialog {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.open {
             return vec![];
         }
@@ -333,6 +332,8 @@ impl InGameWindow for CardInsertDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -372,7 +373,7 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut ui = make_frame(&ctx, &mut state);
-        let events = dialog.build(&mut ui, &mut character, &data);
+        let events = dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         assert!(!dialog.is_open());
         assert!(events.iter().any(|e| matches!(e, GameEvent::DialogClosed)));
@@ -390,7 +391,7 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut ui = make_frame(&ctx, &mut state);
-        let events = dialog.build(&mut ui, &mut character, &data);
+        let events = dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         assert!(!dialog.is_open());
         assert!(events.iter().any(|e| matches!(
@@ -413,7 +414,7 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut ui = make_frame(&ctx, &mut state);
-        let events = dialog.build(&mut ui, &mut character, &data);
+        let events = dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         assert!(dialog.is_open());
         assert!(events.is_empty());
@@ -427,7 +428,7 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut ui = make_frame(&ctx, &mut state);
-        let events = dialog.build(&mut ui, &mut character, &data);
+        let events = dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
     }
 }

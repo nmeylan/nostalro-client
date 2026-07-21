@@ -1,6 +1,7 @@
 pub mod act;
 pub mod builtin_accessory_table;
 pub mod builtin_name_table;
+pub mod damage_number;
 pub mod fog_table;
 pub mod gat;
 pub mod gnd;
@@ -8,6 +9,7 @@ pub mod gr2;
 pub mod grf;
 pub mod imf;
 pub mod lua_table;
+pub mod map_coordinates;
 pub mod pettalk;
 mod mixcrypt;
 pub mod pal;

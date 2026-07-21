@@ -1,5 +1,3 @@
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -12,7 +10,7 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 
 pub const SKILL_WINDOW_ID: WidgetId = WidgetId(1200);
 const SKILL_CLOSE_BTN_ID: WidgetId = WidgetId(1201);
@@ -141,9 +139,10 @@ impl InGameWindow for SkillTreeWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         if !character.skills.is_open() {
             return vec![];
         }

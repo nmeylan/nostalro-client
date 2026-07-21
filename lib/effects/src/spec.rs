@@ -35,9 +35,7 @@ pub enum EffectSpec {
         duration_ms: u32,
         repeat: bool,
     },
-    Custom {
-        duration_ms: u32,
-    },
+    Custom,
     Spr {
         sprite: &'static str,
         duration_ms: u32,

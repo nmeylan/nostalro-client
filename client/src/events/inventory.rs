@@ -134,8 +134,8 @@ impl App {
         self.game.character.cart.clear();
         self.game.character.cart.close();
         self.game.character.cart_design = None;
-        if let Some(player_gid) = self.game.entities.player_id() {
-            if let Some(player) = self.game.entities.get_mut(player_gid) {
+        if let Some(player_gid) = self.game.world.entities.player_id() {
+            if let Some(player) = self.game.world.entities.get_mut(player_gid) {
                 player.cart_type = None;
             }
             self.despawn_cart_visual(player_gid);
@@ -159,7 +159,7 @@ impl App {
         if result != 0 {
             return;
         }
-        if let Some(player_gid) = self.game.entities.player_id() {
+        if let Some(player_gid) = self.game.world.entities.player_id() {
             self.effect_queue.spawn_on(EffectId::GetItem, player_gid);
         }
         let name = self
@@ -206,13 +206,13 @@ impl App {
                 )
             })
             .unwrap_or(name);
-        self.game
+        self.windows
             .chat_window
             .add_system(format!("Picked up {formatted_name} x{count}"));
         if let Some(path) = &icon_path {
             self.preload_item_icons(vec![path.clone()]);
         }
-        self.game
+        self.windows
             .item_pickup_notification
             .show(formatted_name, count, icon_path);
     }
@@ -245,9 +245,9 @@ impl App {
             if view_id != 0
                 && let Some(sprite_type) =
                     Entity::wear_location_to_sprite_type_for(wear_location, item_type)
-                && let Some(player_id) = self.game.entities.player_id()
+                && let Some(player_id) = self.game.world.entities.player_id()
             {
-                if let Some(entity) = self.game.entities.get_mut(player_id) {
+                if let Some(entity) = self.game.world.entities.get_mut(player_id) {
                     entity.apply_sprite_change(sprite_type, view_id);
                 }
                 self.reload_player_sprite(player_id);
@@ -277,9 +277,9 @@ impl App {
             self.game.character.inventory.clear_wear_state(index);
             if let Some(sprite_type) =
                 Entity::wear_location_to_sprite_type_for(wear_location, item_type)
-                && let Some(player_id) = self.game.entities.player_id()
+                && let Some(player_id) = self.game.world.entities.player_id()
             {
-                if let Some(entity) = self.game.entities.get_mut(player_id) {
+                if let Some(entity) = self.game.world.entities.get_mut(player_id) {
                     entity.apply_sprite_change(sprite_type, 0);
                 }
                 self.reload_player_sprite(player_id);
@@ -288,7 +288,7 @@ impl App {
     }
 
     pub(super) fn handle_card_insert_item_list(&mut self, equip_indices: Vec<u16>) {
-        let card_index = match self.game.pending_card_composition_index.take() {
+        let card_index = match self.game.pending_casts.pending_card_composition_index.take() {
             Some(idx) => idx,
             None => return,
         };
@@ -318,14 +318,14 @@ impl App {
             .unwrap_or_default();
         let mut dialog = CardInsertDialog::new();
         dialog.open(card_index, card_name, eligible);
-        dialog.has_grf_textures = self.game.card_insert_dialog_has_grf_textures;
+        dialog.has_grf_textures = self.windows.card_insert_dialog_has_grf_textures;
         if dialog.has_grf_textures
             && let Some(renderer) = &self.renderer
         {
             dialog.set_texture_sizes(&|name| renderer.texture_cache.texture_size(name));
         }
         let tex_paths = dialog.pending_texture_paths();
-        self.game.card_insert_dialog = Some(dialog);
+        self.windows.card_insert_dialog = Some(dialog);
         self.preload_item_icons(tex_paths);
     }
 
@@ -335,8 +335,8 @@ impl App {
         card_index: u16,
         result: u8,
     ) {
-        self.game.card_insert_dialog = None;
-        self.game.pending_card_composition_index = None;
+        self.windows.card_insert_dialog = None;
+        self.game.pending_casts.pending_card_composition_index = None;
         if result == 0 {
             let card_item_id = self
                 .game
@@ -356,7 +356,7 @@ impl App {
                     .insert_card(equip_index, card_item_id);
             }
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_system("Card insertion failed.".to_string());
         }

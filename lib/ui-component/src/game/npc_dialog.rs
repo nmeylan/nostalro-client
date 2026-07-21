@@ -1,9 +1,7 @@
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_dialog::{NpcDialogData, NpcDialogState};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
@@ -165,9 +163,10 @@ impl InGameWindow for NpcDialog {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.dialog.is_open() {
             return Vec::new();
         }
@@ -691,7 +690,7 @@ mod tests {
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = npc.build(&mut ui, &mut character, &data);
+        let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(events.len(), 1);
         assert!(matches!(
             events[0],
@@ -712,7 +711,7 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = npc.build(&mut ui, &mut character, &data);
+        let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
@@ -736,7 +735,7 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
 
-        let events = npc.build(&mut ui, &mut character, &data);
+        let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestNpcDealType { npc_id, deal_type } => {
@@ -760,7 +759,7 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
 
-        npc.build(&mut ui, &mut character, &data);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(npc.dialog.menu_scroll_offset, 0);
         assert_eq!(npc.dialog.selected_menu_index, 0);
 
@@ -769,7 +768,7 @@ mod tests {
         let mut ui2 = make_frame(&ctx2, &mut state);
 
         for _ in 0..6 {
-            npc.build(&mut ui2, &mut character, &data);
+            npc.build(&mut ui2, &mut crate::BuildCtx::test(&mut character, &data));
         }
         assert_eq!(npc.dialog.selected_menu_index, 6);
         assert_eq!(npc.dialog.menu_scroll_offset, 2);
@@ -787,7 +786,7 @@ mod tests {
 
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
-        npc.build(&mut ui, &mut character, &data);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(npc.dialog.menu_scroll_offset, 0);
 
         let mut ctx2 = UiContext::new(800.0, 600.0);
@@ -795,7 +794,7 @@ mod tests {
         ctx2.mouse_y = 400.0;
         ctx2.scroll_delta = -1.0; // scroll down
         let mut ui2 = make_frame(&ctx2, &mut state);
-        npc.build(&mut ui2, &mut character, &data);
+        npc.build(&mut ui2, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             npc.dialog.menu_scroll_offset, 1,
             "mouse wheel should scroll down"
@@ -803,7 +802,7 @@ mod tests {
 
         let ctx3 = UiContext::new(800.0, 600.0);
         let mut ui3 = make_frame(&ctx3, &mut state);
-        npc.build(&mut ui3, &mut character, &data);
+        npc.build(&mut ui3, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             npc.dialog.menu_scroll_offset, 1,
             "scroll offset must persist across frames"

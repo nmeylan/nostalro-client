@@ -7,6 +7,7 @@ pub mod effects;
 pub mod factory;
 pub mod projectile;
 pub mod radial_emitter;
+pub mod sfx;
 pub mod skill_effects;
 pub mod skill_units;
 pub mod spec;
@@ -25,7 +26,7 @@ pub use effect_trait::{
     Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
-pub use factory::{is_real_impl, make_effect};
+pub use factory::make_effect;
 pub use skill_effects::{
     CasterSkillEffects, CastingSkill, TargetSkillEffects, begin_cast_effect, beginspell_for_element,
     caster_cast_on_use, caster_skill_effects, casting_skill, derive_hit_effect, fire_glyph_effect,
@@ -41,11 +42,19 @@ pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;
 pub use status_buff::{StatusKind, StatusReaction, status_reaction};
 pub use str_aliases::str_aliases;
-pub use table::{effect_spec, spawn_camera_shake};
+pub use table::{custom_duration_ms, effect_spec, spawn_camera_shake};
 
 pub const ARROW_SPRITE: &str = "data/sprite/몬스터/skel_archer_arrow";
 
 pub const SPRITES: &[&str] = &[ARROW_SPRITE];
+
+pub fn effect_texture_path(name: &str) -> String {
+    if name.contains('/') {
+        format!("data/texture/{name}")
+    } else {
+        format!("data/texture/effect/{name}")
+    }
+}
 
 pub fn effect_texture_paths() -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
@@ -188,11 +197,7 @@ pub fn effect_texture_paths() -> Vec<String> {
     for list in texture_lists {
         for name in *list {
             for candidate in name.split('|') {
-                if candidate.contains('/') {
-                    seen.insert(format!("data/texture/{candidate}"));
-                } else {
-                    seen.insert(format!("data/texture/effect/{candidate}"));
-                }
+                seen.insert(effect_texture_path(candidate));
             }
         }
     }

@@ -4,8 +4,9 @@ use ragnarok_formats::gat::GatFile;
 use crate::entity_collection::EntityCollection;
 use crate::targeting::{MapProperties, TargetClass, hover_cursor};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CursorType {
+    #[default]
     Default = 0,
     Talk = 1,
     Click = 2,

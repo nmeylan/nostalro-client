@@ -2,7 +2,7 @@ use super::inventory_window::INV_WINDOW_ID;
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::text_color;
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
@@ -167,9 +167,10 @@ impl InGameWindow for MailboxWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         if !character.mail.window_open {
             self.clear_compose_inputs();
             return Vec::new();
@@ -619,7 +620,7 @@ mod tests {
         ctx.mouse_down = false;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
             events
@@ -644,7 +645,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
             events
@@ -673,7 +674,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestMailSend { .. })));
         assert!(!character.mail.send_pending);
@@ -682,7 +683,7 @@ mod tests {
         set_input(&mut win.title_input, "Subject".into());
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert_eq!(
             events
@@ -696,7 +697,7 @@ mod tests {
         // Latched: a second click does not re-send.
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestMailSend { .. })));
     }

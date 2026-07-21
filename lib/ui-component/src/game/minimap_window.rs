@@ -1,6 +1,4 @@
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -209,9 +207,10 @@ impl InGameWindow for MinimapWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let _character = &mut *ctx.character;
+        let _data = ctx.data;
         if self.visibility == MinimapVisibility::Hidden {
             return Vec::new();
         }

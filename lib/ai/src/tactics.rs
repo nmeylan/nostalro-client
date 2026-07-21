@@ -46,8 +46,6 @@ impl Default for SkillUse {
     }
 }
 
-/// One monster-class row (13 columns). `id` is the mob class id; row `0` is the
-/// non-deletable default and row `13` the treasure-chest special.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Tactic {
     pub id: u32,

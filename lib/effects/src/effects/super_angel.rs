@@ -28,7 +28,7 @@
 //!
 //! Sprites live under the Korean effect dir `data/sprite/이팩트/`; the
 //! English names (`angel`, `angelwings`, …) map to `천사`, `천사날개`,
-//! `천사날개깃털`, `한복천사(본체)`, `한복천사(날개)`. The classic GRF ships a
+//! `천사날개깃털`, `한복천사(본체)`, `한복천사(날개)`. The GRF ships a
 //! single feather sprite, so both feather layers share it.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};

@@ -26,9 +26,42 @@ impl Default for Camera {
     }
 }
 
+/// Indoor maps clamp the zoom to a narrow band and forbid rotation, matching the
+/// original client's fixed indoor camera.
+pub const INDOOR_MIN_DISTANCE: f32 = 150.0;
+pub const INDOOR_MAX_DISTANCE: f32 = 300.0;
+
 impl Camera {
     pub fn set_target(&mut self, x: f32, y: f32, z: f32) {
         self.target = glam::Vec3::new(x, y, z);
+    }
+
+    /// Snap the camera to the fixed indoor view: 45° rotation, zoom clamped into
+    /// the indoor band.
+    pub fn lock_indoor(&mut self) {
+        self.yaw = -std::f32::consts::FRAC_PI_4;
+        self.distance = self
+            .distance
+            .clamp(INDOOR_MIN_DISTANCE, INDOOR_MAX_DISTANCE);
+    }
+
+    pub fn apply_drag(&mut self, dx: f32, dy: f32, free_camera: bool, locked: bool) {
+        if locked {
+            return;
+        }
+        self.yaw += dx * 0.0175;
+        if free_camera {
+            self.pitch = (self.pitch - dy * 0.005).clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
+        }
+    }
+
+    pub fn apply_zoom(&mut self, scroll: f32, locked: bool) {
+        let (min, max) = if locked {
+            (INDOOR_MIN_DISTANCE, INDOOR_MAX_DISTANCE)
+        } else {
+            (50.0, 1500.0)
+        };
+        self.distance = (self.distance - scroll * 20.0).clamp(min, max);
     }
 
     pub fn eye(&self) -> glam::Vec3 {

@@ -22,11 +22,81 @@ use tracing::debug;
 
 use crate::helpers::{decode_pos, decode_pos2};
 
+fn server_info_from_addr(addr: &ServerAddr) -> ServerInfo {
+    ServerInfo {
+        ip: addr.ip,
+        port: addr.port,
+        name: addr.name.iter().take_while(|c| **c != '\0').collect(),
+        user_count: addr.user_count,
+    }
+}
+
+fn character_info_from_neo_union(info: &CharacterInfoNeoUnion, packetver: u32) -> CharacterInfo {
+    tracing::debug!(
+        "CharInfo raw: gid={} class={} level={} joblevel={} name_raw={:?} slot={} hp={}/{} sp={}/{} speed={}",
+        info.gid,
+        info.class,
+        info.level,
+        info.joblevel,
+        &info.name_raw[..16],
+        info.char_num,
+        info.hp,
+        info.maxhp,
+        info.sp,
+        info.maxsp,
+        info.speed,
+    );
+    let name: String = info.name.iter().take_while(|c| **c != '\0').collect();
+    let map: String = if packetver >= 20100720 {
+        info.last_map.iter().take_while(|c| **c != '\0').collect()
+    } else {
+        String::new()
+    };
+    let (hp, max_hp) = if packetver > 20081217 {
+        (info.hp, info.maxhp)
+    } else {
+        (info.hp_16 as u32, info.maxhp_16 as u32)
+    };
+    let sex = if packetver >= 20141016 { info.sex } else { 0 };
+
+    CharacterInfo {
+        gid: info.gid,
+        name,
+        class: info.class,
+        base_level: info.level,
+        base_exp: info.exp,
+        job_level: info.joblevel,
+        map,
+        slot: info.char_num,
+        head: info.head,
+        hair_color: info.hair_color,
+        weapon: info.weapon,
+        head_top: info.head_top,
+        head_mid: info.head_mid,
+        head_bottom: info.head_bottom,
+        shield: info.shield,
+        sex,
+        hp,
+        max_hp,
+        sp: info.sp,
+        max_sp: info.maxsp,
+        str: info.str,
+        agi: info.agi,
+        vit: info.vit,
+        int: info.int,
+        dex: info.dex,
+        luk: info.luk,
+        effect_state: info.effectstate,
+        zeny: info.money as i32,
+    }
+}
+
 pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
+    ragnarok_profiling::profile_function!();
     let any = packet.as_any();
 
     if let Some(p) = any.downcast_ref::<PacketAcAcceptLogin>() {
-        let servers = p.server_list.iter().map(ServerInfo::from).collect();
+        let servers = p.server_list.iter().map(server_info_from_addr).collect();
         return vec![GameEvent::LoginAccepted {
             account_id: p.aid,
             login_id1: p.auth_code,
@@ -49,7 +119,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let characters = p
             .char_info
             .iter()
-            .map(|c| CharacterInfo::from_neo_union(c, packetver))
+            .map(|c| character_info_from_neo_union(c, packetver))
             .collect();
         return vec![GameEvent::CharacterListReceived { characters }];
     }
@@ -58,7 +128,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .char_info
             .char_info
             .iter()
-            .map(|c| CharacterInfo::from_neo_union(c, packetver))
+            .map(|c| character_info_from_neo_union(c, packetver))
             .collect();
         return vec![GameEvent::CharacterListReceived { characters }];
     }
@@ -72,7 +142,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketHcAcceptMakecharNeoUnion>() {
-        let character = CharacterInfo::from_neo_union(&p.charinfo, packetver);
+        let character = character_info_from_neo_union(&p.charinfo, packetver);
         return vec![GameEvent::CharacterCreated { character }];
     }
     if let Some(p) = any.downcast_ref::<PacketHcRefuseMakechar>() {
@@ -1121,9 +1191,16 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcBanList>() {
-        return vec![GameEvent::GuildBanList {
-            entries: parse_ban_list(&p.raw),
-        }];
+        let entries = p
+            .ban_list
+            .iter()
+            .map(|b| GuildBanEntry {
+                char_name: raw_cstr(&b.charname_raw),
+                account: String::new(),
+                reason: raw_cstr(&b.reason_raw),
+            })
+            .collect();
+        return vec![GameEvent::GuildBanList { entries }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcGuildNotice>() {
         return vec![GameEvent::GuildNotice {
@@ -2524,29 +2601,6 @@ fn parse_ranking(name_raw: &[u8], point_raw: &[u8]) -> Vec<(String, i32)> {
             (!name.is_empty()).then_some((name, point))
         })
         .collect()
-}
-
-/// ZC_BAN_LIST (0x0163) elements for this packetver are `char_name[24] +
-/// message[40]`; the generated struct carries an extra account field, so parse
-/// the wire bytes directly.
-fn parse_ban_list(raw: &[u8]) -> Vec<GuildBanEntry> {
-    const ELEM: usize = 64;
-    let mut entries = Vec::new();
-    if raw.len() < 4 {
-        return entries;
-    }
-    let len = u16::from_le_bytes([raw[2], raw[3]]) as usize;
-    let end = len.min(raw.len());
-    let mut off = 4;
-    while off + ELEM <= end {
-        entries.push(GuildBanEntry {
-            char_name: raw_cstr(&raw[off..off + 24]),
-            account: String::new(),
-            reason: raw_cstr(&raw[off + 24..off + 64]),
-        });
-        off += ELEM;
-    }
-    entries
 }
 
 fn parse_skill_info_list(list: &[packets::packets::SKILLINFO]) -> Vec<SkillInfo> {
@@ -4326,6 +4380,8 @@ mod tests {
 
     #[test]
     fn guild_ban_list_decodes_charname_and_reason() {
+        let packetver = 20120307;
+
         let entry = |name: &str, reason: &str| {
             let mut buf = vec![0u8; 64];
             buf[..name.len()].copy_from_slice(name.as_bytes());
@@ -4335,15 +4391,20 @@ mod tests {
         let e0 = entry("Traitor", "Left mid-WoE");
         let e1 = entry("Spy", "Enemy alt");
         let mut raw = vec![0x63, 0x01];
-        let len = (4 + e0.len() + e1.len()) as u16;
+        let len = (4 + e0.len() + e1.len()) as i16;
         raw.extend_from_slice(&len.to_le_bytes());
         raw.extend_from_slice(&e0);
         raw.extend_from_slice(&e1);
 
-        let entries = parse_ban_list(&raw);
-        assert_eq!(entries.len(), 2);
-        assert_eq!((entries[0].char_name.as_str(), entries[0].reason.as_str()), ("Traitor", "Left mid-WoE"));
-        assert_eq!((entries[1].char_name.as_str(), entries[1].reason.as_str()), ("Spy", "Enemy alt"));
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        match &dispatch_packet(parsed.as_ref(), packetver)[..] {
+            [GameEvent::GuildBanList { entries }] => {
+                assert_eq!(entries.len(), 2);
+                assert_eq!((entries[0].char_name.as_str(), entries[0].reason.as_str()), ("Traitor", "Left mid-WoE"));
+                assert_eq!((entries[1].char_name.as_str(), entries[1].reason.as_str()), ("Spy", "Enemy alt"));
+            }
+            other => panic!("expected GuildBanList, got {other:?}"),
+        }
     }
 
     #[test]

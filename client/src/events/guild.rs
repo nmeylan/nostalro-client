@@ -1,4 +1,5 @@
 use crate::App;
+use ragnarok_game::event::GameEvent;
 use ragnarok_game::guild::{
     Guild, GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
@@ -62,7 +63,7 @@ impl App {
             guild.emblem_version = emblem_version;
             changed && emblem_version != 0
         };
-        if let Some(player) = self.game.entities.player_mut() {
+        if let Some(player) = self.game.world.entities.player_mut() {
             player.guild_id = gdid;
             player.guild_emblem_version = emblem_version;
         }
@@ -152,10 +153,10 @@ impl App {
         guild.notice_subject = subject.clone();
         guild.notice_body = body.clone();
         if !subject.is_empty() {
-            self.game.chat_window.add_system(format!("[Guild] {subject}"));
+            self.windows.chat_window.add_system(format!("[Guild] {subject}"));
         }
         if !body.is_empty() {
-            self.game.chat_window.add_system(body);
+            self.windows.chat_window.add_system(body);
         }
     }
 
@@ -229,7 +230,7 @@ impl App {
     ) {
         if gdid == 0 {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
+            self.game.sprite_caches.guild_head_sprites.clear();
             return;
         }
         let guild = self.guild_mut();
@@ -240,7 +241,7 @@ impl App {
         if !name.is_empty() {
             guild.name = name;
         }
-        if let Some(player) = self.game.entities.player_mut() {
+        if let Some(player) = self.game.world.entities.player_mut() {
             player.guild_id = gdid;
             player.guild_emblem_version = emblem_version;
         }
@@ -256,17 +257,17 @@ impl App {
             _ => "Failed to create guild.".to_string(),
         };
         if result == 0 {
-            self.game.guild_window.open();
+            self.windows.guild_window.open();
         }
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_guild_member_left(&mut self, name: String, reason: String) {
         let is_self = name == self.game.character.name;
         if is_self {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
-            self.game
+            self.game.sprite_caches.guild_head_sprites.clear();
+            self.windows
                 .chat_window
                 .add_system("You have left the guild.".to_string());
             return;
@@ -279,15 +280,15 @@ impl App {
         } else {
             format!("{name} has left the guild. ({reason})")
         };
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_guild_member_expelled(&mut self, name: String, reason: String) {
         let is_self = name == self.game.character.name;
         if is_self {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
-            self.game
+            self.game.sprite_caches.guild_head_sprites.clear();
+            self.windows
                 .chat_window
                 .add_system("You have been expelled from the guild.".to_string());
             return;
@@ -305,45 +306,33 @@ impl App {
         } else {
             format!("{name} has been expelled from the guild. ({reason})")
         };
-        self.game.chat_window.add_system(text);
+        self.windows.chat_window.add_system(text);
     }
 
     pub(super) fn handle_guild_disband_result(&mut self, reason: i32) {
         if reason == 0 {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
-            self.game
+            self.game.sprite_caches.guild_head_sprites.clear();
+            self.windows
                 .chat_window
                 .add_system("The guild has been disbanded.".to_string());
         } else {
-            self.game
+            self.windows
                 .chat_window
                 .add_system("Failed to disband the guild.".to_string());
         }
     }
 
     pub(super) fn handle_guild_invite_received(&mut self, gdid: u32, name: String) {
-        self.game.pending_guild_invite = Some(gdid);
-        self.game.guild_invite_result.set(None);
         let msg = format!("Join guild \"{name}\"?");
-        self.game.confirm_dialog.show_with_out(
-            &msg,
-            true,
-            self.game.guild_invite_result.clone(),
-            |_| {},
-        );
+        self.game
+            .arm_confirm(&mut self.windows, &msg, move |accept| Some(GameEvent::RespondGuildInvite { gdid, accept }));
     }
 
     pub(super) fn handle_guild_ally_request_received(&mut self, aid: u32, name: String) {
-        self.game.pending_guild_ally = Some(aid);
-        self.game.guild_ally_result.set(None);
         let msg = format!("Guild \"{name}\" requests an alliance. Accept?");
-        self.game.confirm_dialog.show_with_out(
-            &msg,
-            true,
-            self.game.guild_ally_result.clone(),
-            |_| {},
-        );
+        self.game
+            .arm_confirm(&mut self.windows, &msg, move |accept| Some(GameEvent::RespondGuildAlly { aid, accept }));
     }
 
     pub(super) fn handle_guild_join_result(&mut self, answer: u8) {
@@ -353,7 +342,7 @@ impl App {
             2 => return,
             _ => "The guild is full.",
         };
-        self.game.chat_window.add_system(msg.to_string());
+        self.windows.chat_window.add_system(msg.to_string());
     }
 
     pub(super) fn handle_guild_relation_deleted(&mut self, gdid: u32, relation: i32) {
@@ -387,7 +376,7 @@ impl App {
             2 => "This guild is already an antagonist.",
             _ => "Antagonist declarations are currently disabled.",
         };
-        self.game.chat_window.add_system(msg.to_string());
+        self.windows.chat_window.add_system(msg.to_string());
     }
 
     pub(super) fn handle_guild_ally_result(&mut self, answer: u8) {
@@ -399,6 +388,6 @@ impl App {
             4 => "Your guild has too many alliances.",
             _ => "Alliance requests are currently disabled.",
         };
-        self.game.chat_window.add_system(msg.to_string());
+        self.windows.chat_window.add_system(msg.to_string());
     }
 }

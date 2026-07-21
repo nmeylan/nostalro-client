@@ -8,9 +8,8 @@ use crate::helper::window_chrome::{
     text_color,
 };
 use super::inventory_window::{TAB_EQUIP_TEX, TAB_ETC_TEX, TAB_USABLE_TEX};
-use crate::{InGameWindow, Window};
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::InventoryTab;
@@ -174,9 +173,10 @@ impl InGameWindow for StorageWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let data = ctx.data;
         if !character.storage.is_open() {
             self.qty_dialog = None;
             return Vec::new();
@@ -458,6 +458,8 @@ impl InGameWindow for StorageWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use models::enums::item::ItemType;
     use ragnarok_game::item::Item;
     use ragnarok_renderer::font_atlas::FontAtlas;
@@ -504,7 +506,7 @@ mod tests {
         ctx.mouse_right_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
             events.iter().any(|e| matches!(
@@ -521,7 +523,7 @@ mod tests {
         ctx.mouse_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
-            win.build(&mut ui, &mut character, &data)
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
             events.iter().any(|e| matches!(e, GameEvent::RequestCloseStorage)),

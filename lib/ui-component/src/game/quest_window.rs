@@ -3,8 +3,7 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_footer, draw_sys_button,
     draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::quest::Quest;
@@ -130,7 +129,6 @@ pub struct QuestWindow {
     open: bool,
     has_grf_textures: bool,
     tab: QuestTab,
-    quests: Vec<Quest>,
     scroll: usize,
     selected: Option<u32>,
     pending_toggle: Option<(u32, bool)>,
@@ -148,7 +146,6 @@ impl QuestWindow {
             open: false,
             has_grf_textures: false,
             tab: QuestTab::On,
-            quests: Vec::new(),
             scroll: 0,
             selected: None,
             pending_toggle: None,
@@ -165,16 +162,6 @@ impl QuestWindow {
 
     pub fn close(&mut self) {
         self.open = false;
-    }
-
-    /// Refreshes the row snapshot from the live quest log each frame.
-    pub fn sync(&mut self, log: &QuestLog) {
-        self.quests = log.quests.clone();
-        if let Some(sel) = self.selected {
-            if !self.quests.iter().any(|q| q.id == sel) {
-                self.selected = None;
-            }
-        }
     }
 
     fn tab_strip(&mut self, ui: &mut UiFrame, x: f32, y: f32, grf: bool) {
@@ -210,10 +197,10 @@ impl QuestWindow {
         }
     }
 
-    fn list_panel(&mut self, ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, data: &DataTable) {
+    fn list_panel(&mut self, ui: &mut UiFrame, quest_log: &QuestLog, x: f32, y: f32, w: f32, h: f32, data: &DataTable) {
         fill(ui, x, y, w, h, PANEL_BG);
 
-        let ids: Vec<u32> = self
+        let ids: Vec<u32> = quest_log
             .quests
             .iter()
             .filter(|q| self.tab.matches(q))
@@ -276,7 +263,7 @@ impl QuestWindow {
             }
             if resp.right_clicked() {
                 self.selected = Some(id);
-                let active = self.quests.iter().find(|q| q.id == id).map(|q| q.active).unwrap_or(false);
+                let active = quest_log.quests.iter().find(|q| q.id == id).map(|q| q.active).unwrap_or(false);
                 self.pending_toggle = Some((id, !active));
             }
         }
@@ -320,11 +307,17 @@ impl InGameWindow for QuestWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let data = ctx.data;
+        let quest_log = ctx.quest_log;
         if !self.open {
             return Vec::new();
+        }
+        if let Some(sel) = self.selected
+            && !quest_log.quests.iter().any(|q| q.id == sel)
+        {
+            self.selected = None;
         }
         let mut events = Vec::new();
         let prev_grf = ui.has_grf_textures;
@@ -371,7 +364,7 @@ impl InGameWindow for QuestWindow {
         self.tab_strip(ui, x, body_y, grf);
         let list_x = x + TAB_STRIP_W;
         let list_w = WIN_W - TAB_STRIP_W;
-        self.list_panel(ui, list_x, body_y, list_w, body_h, data);
+        self.list_panel(ui, quest_log, list_x, body_y, list_w, body_h, data);
         fill(ui, x + TAB_STRIP_W, body_y, 1.0, body_h, BORDER);
 
         let footer_y = y + WIN_H - FOOTER_H;
@@ -402,7 +395,6 @@ pub struct QuestDetailWindow {
     open: bool,
     has_grf_textures: bool,
     quest_id: Option<u32>,
-    quest: Option<Quest>,
     wrapped_desc: Vec<String>,
     desc_source: u32,
 }
@@ -419,7 +411,6 @@ impl QuestDetailWindow {
             open: false,
             has_grf_textures: false,
             quest_id: None,
-            quest: None,
             wrapped_desc: Vec::new(),
             desc_source: u32::MAX,
         }
@@ -444,12 +435,6 @@ impl QuestDetailWindow {
         self.open = false;
     }
 
-    pub fn sync(&mut self, quest: Option<Quest>) {
-        if quest.is_none() {
-            self.open = false;
-        }
-        self.quest = quest;
-    }
 }
 
 impl Window for QuestDetailWindow {
@@ -471,13 +456,14 @@ impl InGameWindow for QuestDetailWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        _character: &mut Character,
-        data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let data = ctx.data;
         if !self.open {
             return Vec::new();
         }
-        let Some(quest) = self.quest.clone() else {
+        let Some(quest) = self.quest_id.and_then(|id| ctx.quest_log.get(id)) else {
+            self.open = false;
             return Vec::new();
         };
         let events = Vec::new();
@@ -595,6 +581,8 @@ fn format_end_time(end: u32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_game::quest::{QuestListEntry, QuestObjective};
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
@@ -624,7 +612,6 @@ mod tests {
 
         let mut win = QuestWindow::new();
         win.toggle();
-        win.sync(&log);
 
         let mut character = Character::new();
         let data = DataTable::new();
@@ -635,7 +622,9 @@ mod tests {
         ctx.mouse_y = 120.0 + TITLE_H + ROW_H / 2.0;
         ctx.mouse_right_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = win.build(&mut ui, &mut character, &data);
+        let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
+        build_ctx.quest_log = &log;
+        let events = win.build(&mut ui, &mut build_ctx);
 
         assert!(
             events.iter().any(|e| matches!(

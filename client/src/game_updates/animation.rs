@@ -25,7 +25,7 @@ fn emit_act_events(event_ids: &[i32], body_act: &ActFile, world_pos: Option<[f32
 
 impl App {
     pub(crate) fn update_entity_state(&mut self, delta: f32) {
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             entity.update_state(delta);
             if let Some(move_dir) = entity.movement.movement_direction() {
                 entity.direction = move_dir;
@@ -35,9 +35,9 @@ impl App {
 
     pub(crate) fn update_sprite_animation(&mut self, delta: f32) {
         let camera_dir = self.renderer.as_ref().map(|r| r.camera.direction_index());
-        let sprites = &self.game.sprites;
-        let gat = self.game.gat.as_ref();
-        let map_coords = self.game.map_coords.as_ref();
+        let sprites = &self.game.sprite_caches.sprites;
+        let gat = self.game.session.gat.as_ref();
+        let map_coords = self.game.session.map_coords.as_ref();
         let sound_queue = &mut self.sound_queue;
         let world_of = |cx: f32, cy: f32| match (gat, map_coords) {
             (Some(g), Some(c)) => {
@@ -46,7 +46,7 @@ impl App {
             }
             _ => None,
         };
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
                 if entity.state == EntityState::Dead
                     && entity.animation.action() == entity.action_index()
@@ -167,19 +167,19 @@ impl App {
     /// the death fade once the dead clip has played through (their sprite
     /// animation never ticks, so `update_fades` alone would never fire).
     pub(crate) fn update_gr2_models(&mut self, elapsed: f32) {
-        if self.game.gr2_models.is_empty() {
+        if self.game.sprite_caches.gr2_models.is_empty() {
             return;
         }
         let Some(renderer) = &self.renderer else {
             return;
         };
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };
         let queue = &renderer.device.queue;
-        for (gid, instance) in self.game.gr2_models.iter_mut() {
-            let Some(entity) = self.game.entities.get_mut(*gid) else {
+        for (gid, instance) in self.game.sprite_caches.gr2_models.iter_mut() {
+            let Some(entity) = self.game.world.entities.get_mut(*gid) else {
                 continue;
             };
             instance.set_action(Gr2Action::from_state(entity.state), elapsed);
@@ -213,7 +213,7 @@ impl App {
     }
 
     pub(crate) fn update_fades(&mut self, delta: f32) {
-        for entity in self.game.entities.iter_mut() {
+        for entity in self.game.world.entities.iter_mut() {
             if entity.state == EntityState::Dead
                 && entity.fade.is_none()
                 && entity.animation.is_finished()
@@ -233,6 +233,7 @@ impl App {
 
         let expired: Vec<u32> = self
             .game
+            .world
             .entities
             .iter()
             .filter(|e| e.should_remove())
@@ -240,8 +241,8 @@ impl App {
             .collect();
         for gid in expired {
             self.despawn_entity_effects(gid);
-            self.game.entities.remove(gid);
-            self.game.sprites.remove(&gid);
+            self.game.world.entities.remove(gid);
+            self.game.sprite_caches.sprites.remove(&gid);
             self.remove_gr2_model(gid);
         }
     }

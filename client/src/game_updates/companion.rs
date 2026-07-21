@@ -14,20 +14,21 @@ use ragnarok_network::{
 
 impl App {
     pub(crate) fn update_companion_ai(&mut self, delta: f32) {
-        if self.game.homunculus.is_none() && self.game.mercenary.is_none() {
+        if self.game.companions.homunculus.is_none() && self.game.companions.mercenary.is_none() {
             return;
         }
         self.adopt_companion_gid(EntityType::Homunculus);
         self.adopt_companion_gid(EntityType::Mercenary);
-        let Some(owner_gid) = self.game.entities.player_id() else {
+        let Some(owner_gid) = self.game.world.entities.player_id() else {
             return;
         };
-        let owner_pos = self.game.entities.player().map(|p| {
+        let owner_pos = self.game.world.entities.player().map(|p| {
             let (x, y) = p.movement.cell_position();
             (x as i32, y as i32)
         });
         let owner_motion = self
             .game
+            .world
             .entities
             .player()
             .map(|p| motion_from_state(p.state))
@@ -41,6 +42,7 @@ impl App {
         // a borrow of `entities` across the mutable AI tick).
         let actors: Vec<ActorView> = self
             .game
+            .world
             .entities
             .iter()
             .map(|e| {
@@ -74,8 +76,8 @@ impl App {
     /// ack has not landed yet, so the AI doesn't silently no-op waiting for it.
     fn adopt_companion_gid(&mut self, entity_type: EntityType) {
         let missing = match entity_type {
-            EntityType::Homunculus => self.game.homunculus.as_ref().is_some_and(|h| h.gid == 0),
-            EntityType::Mercenary => self.game.mercenary.as_ref().is_some_and(|m| m.gid == 0),
+            EntityType::Homunculus => self.game.companions.homunculus.as_ref().is_some_and(|h| h.gid == 0),
+            EntityType::Mercenary => self.game.companions.mercenary.as_ref().is_some_and(|m| m.gid == 0),
             _ => return,
         };
         if !missing {
@@ -83,6 +85,7 @@ impl App {
         }
         let Some(id) = self
             .game
+            .world
             .entities
             .iter()
             .find(|e| e.entity_type == entity_type)
@@ -92,12 +95,12 @@ impl App {
         };
         match entity_type {
             EntityType::Homunculus => {
-                if let Some(h) = self.game.homunculus.as_mut() {
+                if let Some(h) = self.game.companions.homunculus.as_mut() {
                     h.gid = id;
                 }
             }
             EntityType::Mercenary => {
-                if let Some(m) = self.game.mercenary.as_mut() {
+                if let Some(m) = self.game.companions.mercenary.as_mut() {
                     m.gid = id;
                 }
             }
@@ -107,15 +110,15 @@ impl App {
     }
 
     pub(crate) fn clear_homunculus(&mut self) {
-        self.game.homunculus = None;
-        self.game.homunculus_window.set_visible(false);
-        self.game.homun_skill_window.set_visible(false);
+        self.game.companions.homunculus = None;
+        self.windows.homunculus_window.set_visible(false);
+        self.windows.homun_skill_window.set_visible(false);
     }
 
     pub(crate) fn clear_mercenary(&mut self) {
-        self.game.mercenary = None;
-        self.game.mercenary_window.set_visible(false);
-        self.game.mercenary_skill_window.set_visible(false);
+        self.game.companions.mercenary = None;
+        self.windows.mercenary_window.set_visible(false);
+        self.windows.mercenary_skill_window.set_visible(false);
     }
 
     pub(crate) fn clear_companions(&mut self) {
@@ -132,29 +135,29 @@ impl App {
         actors: &[ActorView],
         delta: f32,
     ) -> Option<(u32, Vec<AiIntent>)> {
-        let homun = self.game.homunculus.as_mut()?;
+        let homun = self.game.companions.homunculus.as_mut()?;
         if homun.vaporized || homun.gid == 0 {
             return None;
         }
         let gid = homun.gid;
-        let entity = self.game.entities.get(gid)?;
+        let entity = self.game.world.entities.get(gid)?;
         let (mx, my) = entity.movement.cell_position();
         let motion = motion_from_state(entity.state);
         let job = entity.job;
         // (re-borrow homun mutably after the immutable entity read)
-        let homun = self.game.homunculus.as_mut()?;
+        let homun = self.game.companions.homunculus.as_mut()?;
         homun.job = job;
         let attack_range = homun.atk_range.max(1) as i32;
         let aspd_ms = homun.aspd.max(0) as u32;
         let (hp, max_hp, sp, max_sp) = (homun.hp, homun.max_hp, homun.sp, homun.max_sp);
         let skills = homun.skills.clone();
         let ai_skills = companion_skills(&skills);
-        let params = homun_params(&self.game.companion_ai.homunculus);
-        let tactics = TacticTable::from_rows(&self.game.companion_ai.homunculus_tactics);
-        let friends = &self.game.companion_ai.friends;
+        let params = homun_params(&self.game.companions.companion_ai.homunculus);
+        let tactics = TacticTable::from_rows(&self.game.companions.companion_ai.homunculus_tactics);
+        let friends = &self.game.companions.companion_ai.friends;
         let party_ids = self.party_member_ids();
         let friend_fn = |id: u32| friend_class_of(id, owner_gid, &party_ids, friends);
-        let homun = self.game.homunculus.as_mut()?;
+        let homun = self.game.companions.homunculus.as_mut()?;
         let ctx = AiContext {
             my_gid: gid,
             my_x: mx as i32,
@@ -178,7 +181,7 @@ impl App {
             skill_range: &|id| skill_range(&skills, id),
             params,
             tactics: &tactics,
-            pvp_tactics: &self.game.companion_ai.homunculus_pvp_tactics,
+            pvp_tactics: &self.game.companions.companion_ai.homunculus_pvp_tactics,
             friend_class: &friend_fn,
         };
         Some((gid, homun.ai.tick(delta, &ctx)))
@@ -193,13 +196,13 @@ impl App {
         actors: &[ActorView],
         delta: f32,
     ) -> Option<(u32, Vec<AiIntent>)> {
-        let merc = self.game.mercenary.as_mut()?;
+        let merc = self.game.companions.mercenary.as_mut()?;
         if merc.gid == 0 {
             return None;
         }
         let gid = merc.gid;
         let has_cmd = merc.ai.has_pending_command();
-        let Some(entity) = self.game.entities.get(gid) else {
+        let Some(entity) = self.game.world.entities.get(gid) else {
             if has_cmd {
                 tracing::info!("tick_mercenary: merc gid={gid} has a command but no entity in map");
             }
@@ -208,19 +211,19 @@ impl App {
         let (mx, my) = entity.movement.cell_position();
         let motion = motion_from_state(entity.state);
         let job = entity.job;
-        let merc = self.game.mercenary.as_mut()?;
+        let merc = self.game.companions.mercenary.as_mut()?;
         merc.job = job;
         let attack_range = merc.atk_range.max(1) as i32;
         let aspd_ms = merc.aspd.max(0) as u32;
         let (hp, max_hp, sp, max_sp) = (merc.hp, merc.max_hp, merc.sp, merc.max_sp);
         let skills = merc.skills.clone();
         let ai_skills = companion_skills(&skills);
-        let params = merc_params(&self.game.companion_ai.mercenary);
-        let tactics = TacticTable::from_rows(&self.game.companion_ai.mercenary_tactics);
-        let friends = &self.game.companion_ai.friends;
+        let params = merc_params(&self.game.companions.companion_ai.mercenary);
+        let tactics = TacticTable::from_rows(&self.game.companions.companion_ai.mercenary_tactics);
+        let friends = &self.game.companions.companion_ai.friends;
         let party_ids = self.party_member_ids();
         let friend_fn = |id: u32| friend_class_of(id, owner_gid, &party_ids, friends);
-        let merc = self.game.mercenary.as_mut()?;
+        let merc = self.game.companions.mercenary.as_mut()?;
         let ctx = AiContext {
             my_gid: gid,
             my_x: mx as i32,
@@ -244,7 +247,7 @@ impl App {
             skill_range: &|id| skill_range(&skills, id),
             params,
             tactics: &tactics,
-            pvp_tactics: &self.game.companion_ai.mercenary_pvp_tactics,
+            pvp_tactics: &self.game.companions.companion_ai.mercenary_pvp_tactics,
             friend_class: &friend_fn,
         };
         Some((gid, merc.ai.tick(delta, &ctx)))

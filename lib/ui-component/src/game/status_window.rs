@@ -1,9 +1,7 @@
 use crate::helper::window_chrome::{
     draw_sys_button, draw_textured_quad, draw_titlebar, text_color,
 };
-use crate::{InGameWindow, Window};
-use ragnarok_game::character::Character;
-use ragnarok_game::data_table::DataTable;
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -165,9 +163,10 @@ impl InGameWindow for StatusWindow {
     fn build(
         &mut self,
         ui: &mut UiFrame,
-        character: &mut Character,
-        _data: &DataTable,
+        ctx: &mut BuildCtx,
     ) -> Vec<GameEvent> {
+        let character = &mut *ctx.character;
+        let _data = ctx.data;
         if !self.visible {
             return Vec::new();
         }

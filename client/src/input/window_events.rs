@@ -15,7 +15,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 impl App {
     pub(crate) fn capture_window_state(&mut self) {
         let positions = self.ui_state_cache.extract_window_positions();
-        let open_collapsed = self.game.extract_window_state(&self.ui_state_cache);
+        let open_collapsed = self.game.extract_window_state(&self.windows, &self.ui_state_cache);
         let mut window_state = HashMap::new();
         for (id, pos) in &positions {
             let (open, collapsed) = open_collapsed.get(id).copied().unwrap_or((false, false));
@@ -46,7 +46,7 @@ impl App {
     }
 
     pub(crate) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
-        if self.game.app_state == AppState::InGame {
+        if self.game.session.app_state == AppState::InGame {
             match button {
                 MouseButton::Right => {
                     self.input.right_mouse_down = state == ElementState::Pressed;
@@ -54,13 +54,13 @@ impl App {
                         self.input.right_dragged = false;
                         // Picking clears the hovered ids while the button is held (rotate cursor),
                         // so capture the target now, before it's lost.
-                        self.input.right_press_entity = self.game.hovered_player_id;
-                        self.input.right_press_target = self.game.hovered_entity_id;
-                        self.game.pending_skill_target = None;
-                        self.game.pending_skill_id = None;
-                        self.game.pending_skill_level = None;
-                        self.game.capture_targeting = false;
-                        self.game.pet_roulette = None;
+                        self.input.right_press_entity = self.game.hover.hovered_player_id;
+                        self.input.right_press_target = self.game.hover.target_id();
+                        self.game.pending_casts.pending_skill_target = None;
+                        self.game.pending_casts.pending_skill_id = None;
+                        self.game.pending_casts.pending_skill_level = None;
+                        self.game.companions.capture_targeting = false;
+                        self.game.companions.pet_roulette = None;
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
@@ -92,7 +92,7 @@ impl App {
                         {
                             self.issue_owner_command(
                                 self.has_mercenary(),
-                                self.game.hovered_entity_id,
+                                self.game.hover.target_id(),
                             );
                         } else {
                             self.handle_left_click();
@@ -114,11 +114,13 @@ impl App {
         };
         let is_homun = self
             .game
+            .companions
             .homunculus
             .as_ref()
             .is_some_and(|h| !h.vaporized && h.gid == entity_id);
         let is_merc = self
             .game
+            .companions
             .mercenary
             .as_ref()
             .is_some_and(|m| m.gid == entity_id);
@@ -161,7 +163,7 @@ impl App {
                 },
             ]
         };
-        self.game.context_menu.open_at(mx as f32, my as f32, items);
+        self.windows.context_menu.open_at(mx as f32, my as f32, items);
         true
     }
 
@@ -169,11 +171,12 @@ impl App {
         let Some(entity_id) = entity_id else {
             return false;
         };
-        if self.game.pet.gid != Some(entity_id) {
+        if self.game.companions.pet.gid != Some(entity_id) {
             return false;
         }
         if !self
             .game
+            .world
             .entities
             .get(entity_id)
             .is_some_and(|e| e.is_pet)
@@ -203,7 +206,7 @@ impl App {
                 action: ContextMenuAction::PetCommand { csub: 3 },
             },
         ];
-        self.game.context_menu.open_at(mx as f32, my as f32, items);
+        self.windows.context_menu.open_at(mx as f32, my as f32, items);
         true
     }
 
@@ -211,10 +214,10 @@ impl App {
         let Some(entity_id) = entity_id else {
             return;
         };
-        if Some(entity_id) == self.game.entities.player_id() {
+        if Some(entity_id) == self.game.world.entities.player_id() {
             return;
         }
-        let Some(entity) = self.game.entities.get(entity_id) else {
+        let Some(entity) = self.game.world.entities.get(entity_id) else {
             return;
         };
         if entity.entity_type != EntityType::Player {
@@ -247,7 +250,7 @@ impl App {
         if let Some(g) = &self.game.guild {
             let local_gid = self
                 .game
-                .login_session
+                .session.login_session
                 .as_ref()
                 .map(|s| s.account_id)
                 .unwrap_or(0);
@@ -275,7 +278,7 @@ impl App {
                 });
             }
         }
-        self.game
+        self.windows
             .context_menu
             .open_at(mx as f32, my as f32, items);
     }
@@ -284,7 +287,7 @@ impl App {
         let dpi = self.renderer.as_ref().map_or(1.0, |r| r.dpi_scale) as f64;
         let logical_pos = (position.x / dpi, position.y / dpi);
         self.input.mouse_position = logical_pos;
-        if self.game.app_state == AppState::InGame && self.input.right_mouse_down {
+        if self.game.session.app_state == AppState::InGame && self.input.right_mouse_down {
             if let Some((lx, ly)) = self.input.last_mouse_pos {
                 let dx = (logical_pos.0 - lx) as f32;
                 let dy = (logical_pos.1 - ly) as f32;
@@ -292,12 +295,11 @@ impl App {
                     self.input.right_dragged = true;
                 }
                 if let Some(renderer) = &mut self.renderer {
-                    super::handle_camera_drag(
-                        &mut renderer.camera,
+                    renderer.camera.apply_drag(
                         dx,
                         dy,
                         self.config.free_camera,
-                        self.game.camera_locked,
+                        self.game.session.camera_locked,
                     );
                 }
             }
@@ -306,13 +308,13 @@ impl App {
     }
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if self.game.app_state == AppState::InGame && !self.input.ui_hovered {
+        if self.game.session.app_state == AppState::InGame && !self.input.ui_hovered {
             let scroll = match delta {
                 MouseScrollDelta::LineDelta(_, y) => y,
                 MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
             };
             if let Some(renderer) = &mut self.renderer {
-                super::handle_camera_zoom(&mut renderer.camera, scroll, self.game.camera_locked);
+                renderer.camera.apply_zoom(scroll, self.game.session.camera_locked);
             }
         }
     }
@@ -332,7 +334,7 @@ impl App {
             _ => None,
         };
 
-        if pressed && self.game.hotkey_config_window.is_capturing() {
+        if pressed && self.windows.hotkey_config_window.is_capturing() {
             if let Some(code) = code {
                 self.capture_hotkey(code);
             }
@@ -343,7 +345,7 @@ impl App {
             return;
         }
 
-        if !pressed || self.game.app_state != AppState::InGame {
+        if !pressed || self.game.session.app_state != AppState::InGame {
             return;
         }
         let Some(code) = code else {
@@ -360,11 +362,11 @@ impl App {
         // Minimap keeps its pre-gate slot: it cycles even while chatting or with
         // the system menu open.
         if action == Some(HotkeyAction::CycleMinimap) {
-            self.game.minimap_window.cycle_visibility();
+            self.windows.minimap_window.cycle_visibility();
             return;
         }
 
-        if self.game.chat_window.is_active() || self.game.system_menu.open {
+        if self.windows.chat_window.is_active() || self.windows.system_menu.open {
             return;
         }
 
@@ -379,6 +381,9 @@ impl App {
             }
             KeyCode::F10 => {
                 self.game.debug_overlay = !self.game.debug_overlay;
+            }
+            KeyCode::F9 => {
+                self.profiler.start();
             }
             KeyCode::Digit1 if self.input.alt_pressed => self.trigger_shortcut(0),
             KeyCode::Digit2 if self.input.alt_pressed => self.trigger_shortcut(1),
@@ -404,22 +409,23 @@ impl App {
     fn dispatch_action(&mut self, action: HotkeyAction) {
         match action {
             HotkeyAction::ToggleInventory => self.game.character.inventory.toggle(),
-            HotkeyAction::ToggleEquipment => self.game.equipment_window.toggle(),
+            HotkeyAction::ToggleEquipment => self.windows.equipment_window.toggle(),
             HotkeyAction::ToggleSkillTree => self.game.character.skills.toggle(),
-            HotkeyAction::ToggleStatus => self.game.status_window.toggle(),
+            HotkeyAction::ToggleStatus => self.windows.status_window.toggle(),
             HotkeyAction::ToggleShortcutList => {
-                if !self.game.shortcut_list_window.is_open() {
-                    self.game
+                if !self.windows.shortcut_list_window.is_open() {
+                    self.windows
                         .shortcut_list_window
                         .set_bindings(&self.config.shortcut_commands);
                 }
-                self.game.shortcut_list_window.toggle();
+                self.windows.shortcut_list_window.toggle();
             }
-            HotkeyAction::ToggleEmotion => self.game.emotion_window.toggle(),
-            HotkeyAction::ToggleQuest => self.game.quest_window.toggle(),
+            HotkeyAction::ToggleEmotion => self.windows.emotion_window.toggle(),
+            HotkeyAction::ToggleQuest => self.windows.quest_window.toggle(),
             HotkeyAction::ToggleCart => {
                 let has_cart = self
                     .game
+                    .world
                     .entities
                     .player()
                     .is_some_and(|p| p.cart_type.is_some());
@@ -429,39 +435,39 @@ impl App {
             }
             HotkeyAction::ToggleGuild => {
                 if self.game.guild.is_some() {
-                    self.game.guild_window.toggle();
+                    self.windows.guild_window.toggle();
                 } else {
-                    self.game
+                    self.windows
                         .chat_window
                         .add_system("You are not in a guild.".to_string());
                 }
             }
-            HotkeyAction::ToggleChatRoomCreate => self.game.chat_room_create_window.toggle(),
-            HotkeyAction::ToggleBasicInfo => self.game.basic_info_window.toggle(),
-            HotkeyAction::ToggleParty => self.game.party_friends_window.open_party_tab(),
-            HotkeyAction::ToggleFriends => self.game.party_friends_window.open_friend_tab(),
+            HotkeyAction::ToggleChatRoomCreate => self.windows.chat_room_create_window.toggle(),
+            HotkeyAction::ToggleBasicInfo => self.windows.basic_info_window.toggle(),
+            HotkeyAction::ToggleParty => self.windows.party_friends_window.open_party_tab(),
+            HotkeyAction::ToggleFriends => self.windows.party_friends_window.open_friend_tab(),
             HotkeyAction::TogglePet => {
-                if self.game.pet.gid.is_some() {
-                    self.game.pet_window.toggle();
+                if self.game.companions.pet.gid.is_some() {
+                    self.windows.pet_window.toggle();
                 }
             }
             HotkeyAction::ToggleSoundOptions => self.open_sound_options(),
             HotkeyAction::ToggleGraphicOptions => self.open_graphic_options(),
             HotkeyAction::ToggleHomunculus => {
-                if self.game.homunculus.is_some() {
-                    self.game.homunculus_window.toggle();
+                if self.game.companions.homunculus.is_some() {
+                    self.windows.homunculus_window.toggle();
                 }
             }
             HotkeyAction::ToggleMercenary => {
-                if self.game.mercenary.is_some() {
-                    self.game.mercenary_window.toggle();
+                if self.game.companions.mercenary.is_some() {
+                    self.windows.mercenary_window.toggle();
                 }
             }
             HotkeyAction::SitStand => {
                 if self.player_hidden() {
                     return;
                 }
-                if let Some(entity) = self.game.entities.player() {
+                if let Some(entity) = self.game.world.entities.player() {
                     let action = if entity.state == EntityState::Sitting {
                         3u8
                     } else {
@@ -474,7 +480,7 @@ impl App {
                     ));
                 }
             }
-            HotkeyAction::CycleMinimap => self.game.minimap_window.cycle_visibility(),
+            HotkeyAction::CycleMinimap => self.windows.minimap_window.cycle_visibility(),
             HotkeyAction::MercenaryFollow => {
                 if self.has_mercenary() {
                     self.push_owner_command_to(
@@ -489,7 +495,7 @@ impl App {
 
     fn capture_hotkey(&mut self, code: KeyCode) {
         if code == KeyCode::Escape {
-            self.game.hotkey_config_window.cancel_capture();
+            self.windows.hotkey_config_window.cancel_capture();
             return;
         }
         let name = format!("{code:?}");
@@ -502,7 +508,7 @@ impl App {
             self.input.ctrl_pressed,
             self.input.shift_pressed,
         );
-        self.game.hotkey_config_window.capture_key(chord);
+        self.windows.hotkey_config_window.capture_key(chord);
     }
 
     pub(crate) fn handle_modifiers_changed(&mut self, modifiers: Modifiers) {

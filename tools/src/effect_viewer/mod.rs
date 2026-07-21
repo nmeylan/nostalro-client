@@ -31,8 +31,8 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::spec::EffectAnchor;
 use ragnarok_game::effect::{
-    EffectQueue, EffectSpec, effect_spec, effect_texture_paths, is_count_point_effect,
-    is_link_effect, is_trail_effect, str_aliases,
+    EffectQueue, EffectSpec, custom_duration_ms, effect_spec, effect_texture_paths,
+    is_count_point_effect, is_link_effect, is_trail_effect, str_aliases,
 };
 
 use crate::sprite_viewer::browser::SpriteBrowser;
@@ -41,13 +41,13 @@ use crate::stress::{StressTick, stress_label};
 use ragnarok_game::effect::EffectRenderCtx as GameEffectRenderCtx;
 use ragnarok_renderer::effect::{
     EffectDrawList, EffectHolder, EffectRenderCtx, EffectUpdateCtx, ExternalCustomBackend,
-    SpawnStatus, StrEffectCache, StrEmitterInput, build_str_effect_batches,
+    PipelineKind, SpawnStatus, StrEffectCache, StrEmitterInput, build_str_effect_batches,
 };
 use ragnarok_renderer::effect_sprite::{
     EffectSpriteCache, SpriteEffectEmitter, build_emitter_batches, collect_sprite_effect_draws,
 };
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::{Camera, Renderer, UiDrawCall, UiTextureRef, block_on};
+use ragnarok_renderer::{Camera, FrameInputs, Renderer, UiDrawCall, UiTextureRef, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -598,7 +598,7 @@ fn demo_trail_endpoints(world: [f32; 3]) -> ([f32; 3], [f32; 3]) {
 
 fn effect_duration_ms(id: EffectId) -> Option<u32> {
     match effect_spec(id) {
-        Some(EffectSpec::Custom { duration_ms }) => Some(duration_ms),
+        Some(EffectSpec::Custom) => Some(custom_duration_ms(id)),
         Some(EffectSpec::Str { duration_ms, .. }) => Some(duration_ms),
         Some(EffectSpec::Spr { duration_ms, .. }) => Some(duration_ms),
         Some(EffectSpec::SprBurst { duration_ms, .. }) => Some(duration_ms),
@@ -1047,11 +1047,15 @@ impl App {
         } else {
             "DefaultStr"
         };
-        let impl_flag = if ragnarok_game::effect::is_real_impl(id) {
-            "yes"
-        } else {
-            "no"
-        };
+        let real_impl = ragnarok_game::effect::factory::make_effect(
+            id,
+            EffectAnchor::Point([0.0, 0.0, 0.0]),
+            None,
+            None,
+            None,
+        )
+        .is_some_and(|e| !e.is_placeholder());
+        let impl_flag = if real_impl { "yes" } else { "no" };
         let str_field = {
             let aliases = str_aliases(id);
             if aliases.is_empty() {
@@ -1061,7 +1065,7 @@ impl App {
             }
         };
         let dur_ms = match effect_spec(id) {
-            Some(EffectSpec::Custom { duration_ms }) => duration_ms.to_string(),
+            Some(EffectSpec::Custom) => custom_duration_ms(id).to_string(),
             Some(EffectSpec::Str { duration_ms, .. }) => duration_ms.to_string(),
             Some(EffectSpec::Spr { duration_ms, .. }) => duration_ms.to_string(),
             Some(EffectSpec::SprBurst { duration_ms, .. }) => duration_ms.to_string(),
@@ -1092,7 +1096,7 @@ impl App {
         match effect_spec(id) {
             Some(EffectSpec::Spr { sprite, .. }) => sprites.push(sprite),
             Some(EffectSpec::SprBurst { sprite, .. }) => sprites.push(sprite),
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 // Custom effects can also drive sprite billboards via
                 // SpriteParticle. Preload the aggregated paths so the
                 // first frame after spawn isn't silently empty.
@@ -1121,7 +1125,7 @@ impl App {
     fn ensure_str_loaded_for(&mut self, id: EffectId) {
         let file: &'static str = match effect_spec(id) {
             Some(EffectSpec::Str { file, .. }) => file,
-            Some(EffectSpec::Custom { .. }) => {
+            Some(EffectSpec::Custom) => {
                 let probe = ragnarok_game::effect::factory::make_effect(
                     id,
                     EffectAnchor::Point([0.0, 0.0, 0.0]),
@@ -1270,23 +1274,20 @@ impl App {
             let texture_bgl = &renderer.texture_cache.bind_group_layout;
             match target {
                 ShaderTarget::EffectFrustum => {
-                    renderer.effect_frustum_renderer.recreate_pipelines(
-                        device,
-                        surface_format,
-                        camera_bgl,
-                        texture_bgl,
-                        &source,
-                    );
-                    renderer.effect_quad_horn_renderer.recreate_pipelines(
-                        device,
-                        surface_format,
-                        camera_bgl,
-                        texture_bgl,
-                        &source,
-                    );
+                    for kind in [PipelineKind::Frustum, PipelineKind::QuadHorn] {
+                        renderer.effect_primitives.recreate(
+                            kind,
+                            device,
+                            surface_format,
+                            camera_bgl,
+                            texture_bgl,
+                            &source,
+                        );
+                    }
                 }
                 ShaderTarget::EffectGroundDisc => {
-                    renderer.effect_ground_disc_renderer.recreate_pipelines(
+                    renderer.effect_primitives.recreate(
+                        PipelineKind::GroundDisc,
                         device,
                         surface_format,
                         camera_bgl,
@@ -1459,7 +1460,7 @@ impl App {
         spr_inputs.extend(
             burst_snapshots
                 .iter()
-                .map(|b| SpriteEffectEmitter::Smoke3D {
+                .map(|b| SpriteEffectEmitter::ParticleBurst {
                     sprite_path: &b.sprite,
                     alpha_max: b.alpha_max,
                     color: [1.0, 1.0, 1.0, 1.0],
@@ -1566,17 +1567,17 @@ impl App {
             });
         }
 
-        renderer.render(
-            &ui_calls,
-            &effect_batches,
-            &effect_draws,
+        renderer.render(FrameInputs {
+            ui_draw_calls: &ui_calls,
+            effect_sprite_batches: &effect_batches,
+            effect_draws: &effect_draws,
             sprite_particle_records,
-            &[],
-            &[],
-            &[],
-            &[],
-            0.0,
-        );
+            sprite_batches: &[],
+            silhouette_batches: &[],
+            cursor_batches: &[],
+            inline_textures: &[],
+            elapsed: 0.0,
+        });
 
         // GIF capture path: after the surface frame is presented, render the
         // same simulation state into the offscreen capture target at 256x256
@@ -1620,15 +1621,17 @@ impl App {
                     gif_export::GIF_W,
                     gif_export::GIF_H,
                     wgpu::Color::BLACK,
-                    &[],
-                    &capture_batches,
-                    &effect_draws,
-                    sprite_particle_capture,
-                    &[],
-                    &[],
-                    &[],
-                    &[],
-                    0.0,
+                    FrameInputs {
+                        ui_draw_calls: &[],
+                        effect_sprite_batches: &capture_batches,
+                        effect_draws: &effect_draws,
+                        sprite_particle_records: sprite_particle_capture,
+                        sprite_batches: &[],
+                        silhouette_batches: &[],
+                        cursor_batches: &[],
+                        inline_textures: &[],
+                        elapsed: 0.0,
+                    },
                 );
                 session.write_current_frame(&renderer.device.device, &renderer.device.queue);
             }
