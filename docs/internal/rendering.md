@@ -9,7 +9,7 @@ It reflects the code as it stands after the refactor. When the code and this
 document disagree, the code is right and this document is stale; fix it.
 
 For the coordinate conventions used throughout (native RO axes, negative Y is
-up, camera placement. For the effect primitives named below, see the module docs under
+up, camera placement [read more at ragnarokresearchlab.github.io](https://ragnarokresearchlab.github.io/rendering/coordinate-systems/). For the effect primitives named below, see the module docs under
 `lib/renderer/src/effect/primitives/`. For how a world position becomes the
 screen anchor, depth, and gradient the sprite passes consume, see
 `sprite-projection.md`.
