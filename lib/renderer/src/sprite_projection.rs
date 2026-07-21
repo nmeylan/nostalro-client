@@ -1,6 +1,6 @@
 use crate::Camera;
 use ragnarok_formats::gat::GatFile;
-use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 
 fn depth_gradient(
     camera: &Camera,

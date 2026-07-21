@@ -7,6 +7,7 @@ pub mod effects;
 pub mod factory;
 pub mod projectile;
 pub mod radial_emitter;
+pub mod sfx;
 pub mod skill_effects;
 pub mod skill_units;
 pub mod spec;

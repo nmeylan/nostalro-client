@@ -11,7 +11,7 @@ use ragnarok_effects::{
     make_effect, spawn_camera_shake,
 };
 
-use ragnarok_game::sound::tables::{SfxSchedule, SfxTiming, WaveChoice, effect_sound};
+use ragnarok_effects::sfx::{SfxSchedule, effect_sound, emit};
 
 use crate::effect_sprite::BurstParticle;
 
@@ -194,14 +194,6 @@ struct HeldEffect {
     sfx_rng: u32,
 }
 
-fn next_rand(state: &mut u32) -> u32 {
-    // xorshift; seed is never zero at call time.
-    *state ^= *state << 13;
-    *state ^= *state >> 17;
-    *state ^= *state << 5;
-    *state
-}
-
 pub struct AfterimageSnapshot {
     entity_id: u32,
     pub anim: SpriteAnimationState,
@@ -254,52 +246,6 @@ pub struct EffectHolder {
     shake: ShakeController,
     afterimages: Vec<AfterimageSnapshot>,
     pending_sfx: Vec<(String, [f32; 3])>,
-}
-
-fn pick_wave(w: &WaveChoice, rng: &mut u32) -> String {
-    match w {
-        WaveChoice::Fixed(s) => (*s).to_string(),
-        WaveChoice::Randomized { pattern, count } => {
-            let n = 1 + (next_rand(rng) % (*count as u32).max(1));
-            pattern.replace("{}", &n.to_string())
-        }
-    }
-}
-
-fn emit_cue(
-    cue: &ragnarok_game::sound::tables::SfxCue,
-    prev: i32,
-    cur: i32,
-    rng: &mut u32,
-    pos: [f32; 3],
-    out: &mut Vec<(String, [f32; 3])>,
-) {
-    match cue.timing {
-        SfxTiming::AtFrames(frames) => {
-            for &f in frames {
-                let f = f as i32;
-                if f > prev && f <= cur {
-                    out.push((pick_wave(&cue.wave, rng), pos));
-                }
-            }
-        }
-        SfxTiming::EveryFrames(n) => {
-            let n = n as i32;
-            if n > 0 {
-                for f in (prev + 1)..=cur {
-                    if f > 0 && f % n == 0 {
-                        out.push((pick_wave(&cue.wave, rng), pos));
-                    }
-                }
-            }
-        }
-        SfxTiming::AtFrameChance { frame, one_in } => {
-            let f = frame as i32;
-            if f > prev && f <= cur && one_in > 0 && next_rand(rng) % one_in as u32 == 0 {
-                out.push((pick_wave(&cue.wave, rng), pos));
-            }
-        }
-    }
 }
 
 impl EffectHolder {
@@ -669,9 +615,7 @@ impl EffectHolder {
                 let cur_frame = (e.age * 60.0) as i32;
                 if cur_frame > e.sfx_last_frame {
                     if let Some(pos) = resolve_position(&attach, resolve_entity_pos) {
-                        for cue in sched {
-                            emit_cue(cue, e.sfx_last_frame, cur_frame, &mut e.sfx_rng, pos, &mut sfx_out);
-                        }
+                        emit(sched, e.sfx_last_frame, cur_frame, &mut e.sfx_rng, pos, &mut sfx_out);
                     }
                     e.sfx_last_frame = cur_frame;
                 }

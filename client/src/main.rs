@@ -2860,7 +2860,7 @@ impl App {
         &self,
     ) -> Option<(
         &Renderer,
-        &ragnarok_game::map_coordinates::MapCoordinates,
+        &ragnarok_formats::map_coordinates::MapCoordinates,
         f32,
         f32,
     )> {

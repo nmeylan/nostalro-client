@@ -29,7 +29,7 @@ use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::pet::PetState;
 use ragnarok_game::quest::{QuestLog, QuestMarker};
-use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::party::Party;
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_game::targeting::MapProperties;

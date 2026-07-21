@@ -1,4 +1,4 @@
-use ragnarok_game::damage_number::{DamageNumberQuad, TextureSource};
+use ragnarok_formats::damage_number::{DamageNumberQuad, TextureSource};
 
 use crate::sprite::SpriteTextures;
 use crate::ui_renderer::UiVertex;

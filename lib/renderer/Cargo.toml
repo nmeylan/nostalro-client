@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 ragnarok-formats = { workspace = true }
-ragnarok-game = { workspace = true }
 ragnarok-effects = { workspace = true }
 models = { workspace = true }
 tracing = { workspace = true }

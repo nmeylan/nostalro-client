@@ -18,7 +18,7 @@ use ragnarok_game::effect::{
     EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_link_effect,
     is_trail_effect, str_aliases,
 };
-use ragnarok_game::map_coordinates::MapCoordinates;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;

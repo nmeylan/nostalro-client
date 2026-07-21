@@ -6,7 +6,7 @@ use ragnarok_formats::rsw::RswFile;
 
 use crate::data_table::fog_table::fog_table;
 use crate::data_table::indoor_table::indoor_table;
-use crate::map_coordinates::MapCoordinates;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 
 pub struct MapData {
     pub rsw: RswFile,
