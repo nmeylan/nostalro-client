@@ -25,7 +25,7 @@ impl App {
             (1.0, 0.0),
             (1.0, 1.0),
         ];
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };
@@ -70,7 +70,7 @@ impl App {
     }
 
     pub(crate) fn process_continuous_walk(&mut self, delta: f32) {
-        if !self.input.left_mouse_down || self.game.app_state != AppState::InGame {
+        if !self.input.left_mouse_down || self.game.session.app_state != AppState::InGame {
             return;
         }
         if self.input.ui_dragging {

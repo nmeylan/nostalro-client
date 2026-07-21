@@ -25,7 +25,7 @@ impl App {
         tracing::info!("Received {} character(s)", characters.len());
         // Per-character sex is only sent from packetver 20141016; before that every
         // character on the account shares the account sex.
-        let account_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+        let account_sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
         for ch in &mut characters {
             ch.sex = account_sex;
         }
@@ -40,7 +40,7 @@ impl App {
             preload_window(&mut char_win, renderer, grf);
         }
         self.char_select_window = Some(char_win);
-        self.game.app_state = AppState::CharacterSelect;
+        self.game.session.app_state = AppState::CharacterSelect;
     }
 
     pub(crate) fn handle_character_created(
@@ -48,13 +48,13 @@ impl App {
         mut character: ragnarok_game::event::CharacterInfo,
     ) {
         tracing::info!("Character '{}' created in slot {}", character.name, character.slot);
-        character.sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+        character.sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
         self.load_char_select_sprite(&character);
         if let Some(win) = &mut self.char_select_window {
             win.characters.push(character);
         }
         self.char_create_window = None;
-        self.game.app_state = AppState::CharacterSelect;
+        self.game.session.app_state = AppState::CharacterSelect;
     }
 
     fn load_char_select_sprite(&mut self, ch: &ragnarok_game::event::CharacterInfo) {
@@ -83,13 +83,13 @@ impl App {
         ip: u32,
         port: i16,
     ) {
-        if let Some(session) = &mut self.game.login_session {
+        if let Some(session) = &mut self.game.session.login_session {
             session.store_zone_info(char_id, map_name);
         }
         let addr = format!("{}:{}", ip_u32_to_string(ip), port);
         self.channel.send_cmd(NetworkCommand::Disconnect);
         self.channel.send_cmd(NetworkCommand::Connect(addr));
-        if let Some(session) = &self.game.login_session {
+        if let Some(session) = &self.game.session.login_session {
             self.channel.send_packet(build_zone_enter_packet(session));
         }
         self.channel
@@ -133,9 +133,9 @@ impl App {
         self.game.guild = None;
         self.game.guild_head_sprites.clear();
         self.game.guild_window.open = false;
-        self.game.current_map = None;
-        self.game.map_coords = None;
-        self.game.gat = None;
+        self.game.session.current_map = None;
+        self.game.session.map_coords = None;
+        self.game.session.gat = None;
         self.effect_holder.clear();
         self.effect_queue = EffectQueue::new();
         self.game.ambient_effects = ragnarok_game::effects::AmbientEffectScheduler::empty();
@@ -160,7 +160,7 @@ impl App {
     }
 
     pub(super) fn handle_map_entered(&mut self, x: u16, y: u16, dir: u8) {
-        let map_name = self.game.login_session.as_ref().map(|s| {
+        let map_name = self.game.session.login_session.as_ref().map(|s| {
             s.map_name
                 .strip_suffix(".gat")
                 .unwrap_or(&s.map_name)
@@ -169,13 +169,13 @@ impl App {
         if let Some(map_name) = &map_name {
             tracing::info!("Entering map: {map_name}");
             self.load_map(map_name);
-            self.game.current_map = Some(map_name.clone());
+            self.game.session.current_map = Some(map_name.clone());
         }
 
-        let session_sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
+        let session_sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
         let account_id = self
             .game
-            .login_session
+            .session.login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
@@ -192,7 +192,7 @@ impl App {
             effect_state,
         ) = self
             .game
-            .selected_character
+            .session.selected_character
             .as_ref()
             .map(|c| {
                 let sex = if self.config.packetver >= 20141016 {
@@ -323,7 +323,7 @@ impl App {
 
             renderer.preload_textures(&vending_board::grf_texture_paths(), grf);
 
-            if let Some(current_map) = &self.game.current_map {
+            if let Some(current_map) = &self.game.session.current_map {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
                     self.game.minimap_window.set_map_texture(Some(minimap_path));
@@ -334,12 +334,12 @@ impl App {
             }
         }
 
-        if let Some(info) = &self.game.selected_character {
+        if let Some(info) = &self.game.session.selected_character {
             self.game.character.init_from_info(info);
         }
         self.refresh_level_aura(account_id);
 
-        self.game.app_state = AppState::InGame;
+        self.game.session.app_state = AppState::InGame;
         if !self.window_state_restored {
             self.game.apply_window_state(&self.config.window_state);
             self.window_state_restored = true;
@@ -382,7 +382,7 @@ impl App {
         self.game.character.trade.reset();
         self.game.trade_window.reset_input();
         self.game.pending_confirms.pending_trade_partner = None;
-        self.game.map_properties = MapProperties::default();
+        self.game.session.map_properties = MapProperties::default();
         self.game.combat.damage_numbers.combat_hidden = false;
         self.game.pending_casts.pending_skill_target = None;
         self.game.pending_casts.pending_skill_id = None;
@@ -395,12 +395,12 @@ impl App {
             .to_string();
         tracing::info!(
             "MapChanged: {map_name} ({x},{y}) current={:?}",
-            self.game.current_map
+            self.game.session.current_map
         );
-        if self.game.current_map.as_deref() != Some(&map_name) {
+        if self.game.session.current_map.as_deref() != Some(&map_name) {
             tracing::info!("Different map, clearing entities");
             self.load_map(&map_name);
-            self.game.current_map = Some(map_name.clone());
+            self.game.session.current_map = Some(map_name.clone());
             let player_sprite = self
                 .game
                 .entities
@@ -433,11 +433,11 @@ impl App {
             }
             self.game.minimap_window.on_map_changed();
         }
-        if self.game.player_dead {
+        if self.game.session.player_dead {
             if let Some(entity) = self.game.entities.player_mut() {
                 entity.revive();
             }
-            self.game.player_dead = false;
+            self.game.session.player_dead = false;
             self.game.system_menu.close_dead();
         }
         if let Some(entity) = self.game.entities.player_mut() {
@@ -475,9 +475,9 @@ impl App {
             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
-        if !already_moving_to_dest && let Some(gat) = &self.game.gat {
+        if !already_moving_to_dest && let Some(gat) = &self.game.session.gat {
             let path = ragnarok_game::path::path_search(gat, start_x, start_y, dest_x, dest_y);
             // Start at local now, not the server tick: fast-forwarding jumps the
             // player forward by one round-trip at each segment seam.
@@ -494,14 +494,14 @@ impl App {
     pub(super) fn handle_server_tick(&mut self, server_tick: u32, local_send_time_ms: u32) {
         let local_now_ms = self.start_time.elapsed().as_millis() as u32;
         if self.config.enhanced_lag_compensation {
-            self.game.server_time.on_server_tick_enhanced(
+            self.game.session.server_time.on_server_tick_enhanced(
                 server_tick,
                 local_now_ms,
                 local_send_time_ms,
             );
         } else {
             self.game
-                .server_time
+                .session.server_time
                 .on_server_tick(server_tick, local_now_ms, local_send_time_ms);
         }
     }
@@ -522,9 +522,9 @@ impl App {
     pub(super) fn handle_disconnected(&mut self, reason: String, event_loop: &ActiveEventLoop) {
         if reason == "User exit" {
             event_loop.exit();
-        } else if self.game.app_state == AppState::InGame {
+        } else if self.game.session.app_state == AppState::InGame {
             let reason_clone = reason.clone();
-            self.game.disconnect_dialog_shown = true;
+            self.game.session.disconnect_dialog_shown = true;
             self.game.confirm_dialog.show(
                 &format!("Disconnected from server: {reason_clone}"),
                 false,

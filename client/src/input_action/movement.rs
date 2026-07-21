@@ -68,7 +68,7 @@ impl App {
             let entity = self.game.entities.get(gid)?;
             let attackable = match entity.entity_type {
                 EntityType::Monster => true,
-                EntityType::Player => can_attack(entity, &self.game.map_properties, player_id),
+                EntityType::Player => can_attack(entity, &self.game.session.map_properties, player_id),
                 _ => false,
             };
             attackable.then_some(gid)
@@ -177,7 +177,7 @@ impl App {
         {
             return false;
         }
-        let gat = match &self.game.gat {
+        let gat = match &self.game.session.gat {
             Some(g) => g,
             None => return false,
         };

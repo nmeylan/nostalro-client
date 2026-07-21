@@ -55,8 +55,8 @@ impl App {
 
     /// Player world position — the audio listener (not the camera).
     fn listener_pos(&self) -> Option<[f32; 3]> {
-        let gat = self.game.gat.as_ref()?;
-        let coords = self.game.map_coords.as_ref()?;
+        let gat = self.game.session.gat.as_ref()?;
+        let coords = self.game.session.map_coords.as_ref()?;
         let pid = self.game.entities.player_id()?;
         let (cx, cy) = self.game.entities.get(pid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);

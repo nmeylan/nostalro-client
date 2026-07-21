@@ -16,7 +16,7 @@ pub(crate) const CREATE_PREVIEW_GID: u32 = u32::MAX;
 
 impl App {
     fn update_account_sprites(&mut self, _delta: f32, elapsed: f32) {
-        if self.game.app_state != AppState::CharacterCreate {
+        if self.game.session.app_state != AppState::CharacterCreate {
             return;
         }
         let appearance = match &self.char_create_window {
@@ -24,7 +24,7 @@ impl App {
             None => return,
         };
         if self.char_create_built_appearance != Some(appearance) {
-            let sex = self.game.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+            let sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
             self.load_player_sprite(
                 CREATE_PREVIEW_GID,
                 0,
@@ -96,8 +96,8 @@ impl App {
                 .get(id)
                 .map(|e| e.direction as f32 * (std::f32::consts::TAU / 8.0))
         };
-        let gat = self.game.gat.as_ref();
-        let map_coords = self.game.map_coords.as_ref();
+        let gat = self.game.session.gat.as_ref();
+        let map_coords = self.game.session.map_coords.as_ref();
         let resolve_entity_pos = |id: u32| {
             let (gat, coords) = (gat?, map_coords?);
             let (cx, cy) = entities.get(id)?.movement.position();
@@ -168,7 +168,7 @@ impl App {
         }
         let scale_factor = self
             .game
-            .map_coords
+            .session.map_coords
             .as_ref()
             .map(|c| c.zoom() / 10.0)
             .unwrap_or(1.0);

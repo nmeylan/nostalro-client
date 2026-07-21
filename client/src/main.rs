@@ -269,17 +269,17 @@ impl App {
         };
 
         self.game.map_missing_window.hide();
-        self.game.map_coords = map_data.coordinates;
-        self.game.gat = map_data.gat;
-        let was_locked = self.game.camera_locked;
-        self.game.camera_locked = map_data.indoor;
+        self.game.session.map_coords = map_data.coordinates;
+        self.game.session.gat = map_data.gat;
+        let was_locked = self.game.session.camera_locked;
+        self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {
             if map_data.indoor {
                 if !was_locked {
-                    self.game.saved_camera_yaw = Some(renderer.camera.yaw);
+                    self.game.session.saved_camera_yaw = Some(renderer.camera.yaw);
                 }
                 renderer.camera.lock_indoor();
-            } else if was_locked && let Some(yaw) = self.game.saved_camera_yaw.take() {
+            } else if was_locked && let Some(yaw) = self.game.session.saved_camera_yaw.take() {
                 renderer.camera.yaw = yaw;
             }
         }
@@ -359,7 +359,7 @@ impl App {
         }
 
         if let Some(renderer) = &mut self.renderer
-            && let Some(gat) = &self.game.gat
+            && let Some(gat) = &self.game.session.gat
         {
             let mut grid = GridSelectorRenderer::new(
                 &renderer.device.device,
@@ -385,10 +385,10 @@ impl App {
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
-        if let (Some(coords), Some(renderer)) = (&self.game.map_coords, &mut self.renderer) {
+        if let (Some(coords), Some(renderer)) = (&self.game.session.map_coords, &mut self.renderer) {
             input::position_camera_at(
                 &mut renderer.camera,
-                self.game.gat.as_ref(),
+                self.game.session.gat.as_ref(),
                 coords,
                 cell_x,
                 cell_y,
@@ -404,7 +404,7 @@ impl App {
             screen_w,
             screen_h,
             coords,
-            self.game.gat.as_ref(),
+            self.game.session.gat.as_ref(),
         )
     }
 
@@ -469,6 +469,7 @@ impl App {
         let cell_y = y as f32 + sub_y as f32 / 16.0;
         let ground_y = self
             .game
+            .session
             .gat
             .as_ref()
             .map(|gat| gat.get_height(cell_x + 0.5, cell_y + 0.5))
@@ -537,7 +538,7 @@ impl App {
                         let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
                         self.channel.send_cmd(NetworkCommand::Disconnect);
                         self.channel.send_cmd(NetworkCommand::Connect(addr.clone()));
-                        if let Some(session) = &mut self.game.login_session {
+                        if let Some(session) = &mut self.game.session.login_session {
                             session.char_server_addr = Some(addr);
                             self.channel.send_packet(build_char_enter_packet(session));
                             self.channel.send_cmd(NetworkCommand::SetKeepalive(
@@ -551,7 +552,7 @@ impl App {
                 GameEvent::RequestSelectCharacter { slot } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     if let Some(char_win) = &self.char_select_window {
-                        self.game.selected_character = char_win
+                        self.game.session.selected_character = char_win
                             .characters
                             .iter()
                             .find(|c| c.slot == slot as i8)
@@ -580,7 +581,7 @@ impl App {
                     }
                     self.char_create_window = Some(win);
                     self.char_create_built_appearance = None;
-                    self.game.app_state = AppState::CharacterCreate;
+                    self.game.session.app_state = AppState::CharacterCreate;
                 }
                 GameEvent::RequestMakeCharacter {
                     name,
@@ -612,7 +613,7 @@ impl App {
                 }
                 GameEvent::CancelCreateCharacter => {
                     self.char_create_window = None;
-                    self.game.app_state = AppState::CharacterSelect;
+                    self.game.session.app_state = AppState::CharacterSelect;
                 }
                 GameEvent::RequestDeleteCharacterReserve { gid } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
@@ -633,7 +634,7 @@ impl App {
                         .send_packet(build_delete_char_cancel_packet(gid, self.config.packetver));
                 }
                 GameEvent::BackToServerSelect => {
-                    self.game.app_state = AppState::ServerSelect;
+                    self.game.session.app_state = AppState::ServerSelect;
                     self.char_select_window = None;
                     self.char_create_window = None;
                     self.account_anims.clear();
@@ -641,12 +642,12 @@ impl App {
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
                 GameEvent::BackToLogin => {
-                    self.game.app_state = AppState::Login;
+                    self.game.session.app_state = AppState::Login;
                     self.server_list_window = None;
                     self.char_select_window = None;
                     self.char_create_window = None;
                     self.account_anims.clear();
-                    self.game.login_session = None;
+                    self.game.session.login_session = None;
                     self.game.system_menu.open = false;
                     self.channel.send_cmd(NetworkCommand::Disconnect);
                 }
@@ -668,7 +669,7 @@ impl App {
                 GameEvent::RequestMapRecoveryWarp => {
                     let char_name = self
                         .game
-                        .selected_character
+                        .session.selected_character
                         .as_ref()
                         .map(|c| c.name.as_str())
                         .unwrap_or("Unknown");
@@ -896,7 +897,7 @@ impl App {
                     }
                     let account_id = self
                         .game
-                        .login_session
+                        .session.login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -1536,7 +1537,7 @@ impl App {
                         // wait for the create ack — sending it now would be dropped.
                         let party_name = self
                             .game
-                            .selected_character
+                            .session.selected_character
                             .as_ref()
                             .map(|c| c.name.clone())
                             .unwrap_or_else(|| "Party".to_string());
@@ -1602,7 +1603,7 @@ impl App {
                 GameEvent::ShowPartyHelper { mode } => {
                     let local_aid = self
                         .game
-                        .login_session
+                        .session.login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -1663,7 +1664,7 @@ impl App {
                     };
                     let local_gid = self
                         .game
-                        .login_session
+                        .session.login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -1739,7 +1740,7 @@ impl App {
                     if let Some(g) = &self.game.guild {
                         let aid = self
                             .game
-                            .login_session
+                            .session.login_session
                             .as_ref()
                             .map(|s| s.account_id)
                             .unwrap_or(0) as i32;
@@ -1915,7 +1916,7 @@ impl App {
         if self.channel.cmd_tx.is_none() {
             return false;
         }
-        let Some(session) = &self.game.login_session else {
+        let Some(session) = &self.game.session.login_session else {
             return false;
         };
         let Some(addr) = &session.char_server_addr else {
@@ -1928,14 +1929,14 @@ impl App {
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
                 account_id: session.account_id,
             }));
-        self.game.app_state = AppState::CharacterSelect;
+        self.game.session.app_state = AppState::CharacterSelect;
         true
     }
 
     fn local_aid_gid(&self) -> (u32, u32) {
         let aid = self
             .game
-            .login_session
+            .session.login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
@@ -2129,7 +2130,7 @@ impl App {
             } else {
                 let char_name = self
                     .game
-                    .selected_character
+                    .session.selected_character
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("Unknown");
@@ -2145,7 +2146,7 @@ impl App {
             } else {
                 let char_name = self
                     .game
-                    .selected_character
+                    .session.selected_character
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("Unknown");
@@ -2156,7 +2157,7 @@ impl App {
         } else {
             let char_name = self
                 .game
-                .selected_character
+                .session.selected_character
                 .as_ref()
                 .map(|c| c.name.as_str())
                 .unwrap_or("Unknown");
@@ -2220,7 +2221,7 @@ impl App {
             ChatCommand::BingBing => self.turn_body(1),
             ChatCommand::BangBang => self.turn_body(7),
             ChatCommand::Where => {
-                match (self.game.current_map.as_ref(), self.game.entities.player()) {
+                match (self.game.session.current_map.as_ref(), self.game.entities.player()) {
                     (Some(map_name), Some(player)) => {
                         let (x, y) = player.movement.cell_position();
                         let message = format!("{map_name}.gat ({x}, {y})");
@@ -2283,7 +2284,7 @@ impl App {
                     .any(|i| i.item_id == EMPERIUM_ITEM_ID);
                 let gid = self
                     .game
-                    .login_session
+                    .session.login_session
                     .as_ref()
                     .map(|s| s.account_id)
                     .unwrap_or(0);
@@ -2534,7 +2535,7 @@ impl App {
                 } else {
                     let char_name = self
                         .game
-                        .selected_character
+                        .session.selected_character
                         .as_ref()
                         .map(|c| c.name.as_str())
                         .unwrap_or("Unknown");
@@ -2656,7 +2657,7 @@ impl App {
         if let Some(ui_ctx) = &mut self.ui_context {
             ui_ctx.now_ms = now_ms;
         }
-        match self.game.app_state {
+        match self.game.session.app_state {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
@@ -2773,7 +2774,7 @@ impl App {
 
                     if self.game.debug_overlay {
                         let local_ms = self.start_time.elapsed().as_millis() as u32;
-                        let st = &self.game.server_time;
+                        let st = &self.game.session.server_time;
                         let est = st.estimated_server_tick(local_ms);
                         let offset = est as i64 - local_ms as i64;
                         let color = [0.5, 1.0, 0.6, 1.0];
@@ -2799,15 +2800,15 @@ impl App {
     }
 
     fn update_grid_hover(&mut self) -> Option<(i32, i32)> {
-        let hovered = if self.game.app_state == AppState::InGame {
+        let hovered = if self.game.session.app_state == AppState::InGame {
             self.hovered_cell()
         } else {
             None
         };
 
         let hover_corners = hovered.and_then(|(cx, cy)| {
-            let coords = self.game.map_coords.as_ref()?;
-            let gat = self.game.gat.as_ref()?;
+            let coords = self.game.session.map_coords.as_ref()?;
+            let gat = self.game.session.gat.as_ref()?;
             Some(coords.cell_corners_world(gat, cx, cy))
         });
 
@@ -2870,7 +2871,7 @@ impl App {
         f32,
     )> {
         let renderer = self.renderer.as_ref()?;
-        let coords = self.game.map_coords.as_ref()?;
+        let coords = self.game.session.map_coords.as_ref()?;
         let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
         let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
         Some((renderer, coords, screen_w, screen_h))
@@ -2910,7 +2911,7 @@ impl App {
             for entity in self.game.entities.iter() {
                 let projected = input::entity_screen_params(
                     entity.movement.position(),
-                    self.game.gat.as_ref(),
+                    self.game.session.gat.as_ref(),
                     coords,
                     &renderer.camera,
                     screen_w,
@@ -2918,7 +2919,7 @@ impl App {
                 );
                 let flat_depth_gradient = input::entity_ground_gradient(
                     entity.movement.position(),
-                    self.game.gat.as_ref(),
+                    self.game.session.gat.as_ref(),
                     coords,
                     &renderer.camera,
                     screen_w,
@@ -2991,7 +2992,7 @@ impl App {
                 );
                 let projected = input::entity_screen_params(
                     cart_pos,
-                    self.game.gat.as_ref(),
+                    self.game.session.gat.as_ref(),
                     coords,
                     &renderer.camera,
                     screen_w,
@@ -3042,7 +3043,7 @@ impl App {
             for floor_item in self.game.floor_items.values() {
                 let projected = input::entity_screen_params(
                     floor_item.world_position(),
-                    self.game.gat.as_ref(),
+                    self.game.session.gat.as_ref(),
                     coords,
                     &renderer.camera,
                     screen_w,
@@ -3098,7 +3099,7 @@ impl App {
         let companion_target_armed =
             self.game.companions.companion_attack_target.iter().any(Option::is_some);
         self.game.hover.hovered_chat_room = None;
-        let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
+        let (cursor, hovered_entity_id) = if self.game.session.app_state == AppState::InGame {
             if self.input.right_mouse_down {
                 (CursorType::Rotate, None)
             } else if ui_any_interactive_hovered {
@@ -3118,7 +3119,7 @@ impl App {
                         self.input.mouse_position,
                         &self.game.entities,
                         render_list,
-                        &self.game.map_properties,
+                        &self.game.session.map_properties,
                         None,
                     );
                     (CursorType::Lock, hovered.map(|(_, id)| id))
@@ -3128,7 +3129,7 @@ impl App {
                     self.input.mouse_position,
                     &self.game.entities,
                     render_list,
-                    &self.game.map_properties,
+                    &self.game.session.map_properties,
                     Some(TargetClass::Offensive),
                 );
                 (CursorType::Lock, hovered.map(|(_, id)| id))
@@ -3146,7 +3147,7 @@ impl App {
                             self.input.mouse_position,
                             &self.game.entities,
                             render_list,
-                            &self.game.map_properties,
+                            &self.game.session.map_properties,
                             Some(class),
                         );
                         (CursorType::Lock, hovered.map(|(_, id)| id))
@@ -3162,11 +3163,11 @@ impl App {
                 self.input.mouse_position,
                 &self.game.entities,
                 render_list,
-                &self.game.map_properties,
+                &self.game.session.map_properties,
                 None,
             ) {
                 (entity_cursor, Some(entity_id))
-            } else if let Some(gat) = &self.game.gat {
+            } else if let Some(gat) = &self.game.session.gat {
                 (cursor_type_for_cell(gat, hovered), None)
             } else {
                 (CursorType::Default, None)
@@ -3307,7 +3308,7 @@ impl ApplicationHandler for App {
                 queued.extend(ui_events);
                 self.handle_ui_events(queued, event_loop);
 
-                if self.game.pending_disconnect_exit {
+                if self.game.session.pending_disconnect_exit {
                     event_loop.exit();
                 }
                 let now = Instant::now();

@@ -207,7 +207,7 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
         let already_moving_to_dest = self
             .game
@@ -219,7 +219,7 @@ impl App {
         if already_moving_to_dest {
             return;
         }
-        if let Some(gat) = &self.game.gat {
+        if let Some(gat) = &self.game.session.gat {
             let (sx, sy) = self
                 .game
                 .entities
@@ -265,7 +265,7 @@ impl App {
                     if let Some(pos) = self.entity_world_pos(gid) {
                         self.effect_queue.spawn_at(EffectId::Devil, pos);
                     }
-                    self.game.player_dead = true;
+                    self.game.session.player_dead = true;
                     self.game.system_menu.open_dead();
                 }
             }
@@ -317,11 +317,11 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
         let action_start = self
             .game
-            .server_time
+            .session.server_time
             .server_to_local_secs_clamped(start_time, local_ms);
         let local_now = local_ms as f32 / 1000.0;
         let age = (local_now - action_start).max(0.0);
@@ -442,7 +442,7 @@ impl App {
         attack_mt: i32,
         count: u16,
     ) {
-        let (Some(gat), Some(coords)) = (&self.game.gat, &self.game.map_coords) else {
+        let (Some(gat), Some(coords)) = (&self.game.session.gat, &self.game.session.map_coords) else {
             return;
         };
         let cell_world = |x: u16, y: u16| {
@@ -1095,7 +1095,7 @@ impl App {
     }
 
     pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
-        let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
+        let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
         let (cx, cy) = self.game.entities.get(gid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
@@ -1151,7 +1151,7 @@ impl App {
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
         if self.game.entities.player_id() == Some(gid) {
-            self.game.player_dead = false;
+            self.game.session.player_dead = false;
             self.game.system_menu.close_dead();
         }
     }
@@ -1169,7 +1169,7 @@ impl App {
         unit_id: u8,
         is_visible: bool,
     ) {
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };

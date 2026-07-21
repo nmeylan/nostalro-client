@@ -16,14 +16,14 @@ impl App {
         tracing::info!("Login accepted, {} server(s)", servers.len());
         let mut session = Session::new(self.config.packetver);
         session.store_login(account_id, login_id1, login_id2, sex);
-        self.game.login_session = Some(session);
+        self.game.session.login_session = Some(session);
         let mut server_win = ServerListWindow::new(servers);
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
             preload_window(&mut server_win, renderer, grf);
         }
         self.server_list_window = Some(server_win);
         self.account_dialog.dismiss();
-        self.game.app_state = AppState::ServerSelect;
+        self.game.session.app_state = AppState::ServerSelect;
     }
 
     pub(super) fn handle_login_refused(&mut self, error_code: u8) {

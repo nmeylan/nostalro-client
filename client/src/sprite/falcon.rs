@@ -122,7 +122,7 @@ pub struct FalconVisual {
 
 impl App {
     fn falcon_orbit_target(&self, owner_gid: u32) -> Option<[f32; 3]> {
-        let coords = self.game.map_coords.as_ref()?;
+        let coords = self.game.session.map_coords.as_ref()?;
         let entity = self.game.entities.get(owner_gid)?;
         let (px, py) = entity.movement.position();
         let (ox, oy) = direction_offset(entity.direction);
@@ -133,6 +133,7 @@ impl App {
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         let ground = self
             .game
+            .session
             .gat
             .as_ref()
             .map_or(0.0, |gat| gat.get_height(cx + 0.5, cy + 0.5));

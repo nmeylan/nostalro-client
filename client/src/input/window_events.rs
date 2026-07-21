@@ -46,7 +46,7 @@ impl App {
     }
 
     pub(crate) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
-        if self.game.app_state == AppState::InGame {
+        if self.game.session.app_state == AppState::InGame {
             match button {
                 MouseButton::Right => {
                     self.input.right_mouse_down = state == ElementState::Pressed;
@@ -249,7 +249,7 @@ impl App {
         if let Some(g) = &self.game.guild {
             let local_gid = self
                 .game
-                .login_session
+                .session.login_session
                 .as_ref()
                 .map(|s| s.account_id)
                 .unwrap_or(0);
@@ -286,7 +286,7 @@ impl App {
         let dpi = self.renderer.as_ref().map_or(1.0, |r| r.dpi_scale) as f64;
         let logical_pos = (position.x / dpi, position.y / dpi);
         self.input.mouse_position = logical_pos;
-        if self.game.app_state == AppState::InGame && self.input.right_mouse_down {
+        if self.game.session.app_state == AppState::InGame && self.input.right_mouse_down {
             if let Some((lx, ly)) = self.input.last_mouse_pos {
                 let dx = (logical_pos.0 - lx) as f32;
                 let dy = (logical_pos.1 - ly) as f32;
@@ -298,7 +298,7 @@ impl App {
                         dx,
                         dy,
                         self.config.free_camera,
-                        self.game.camera_locked,
+                        self.game.session.camera_locked,
                     );
                 }
             }
@@ -307,13 +307,13 @@ impl App {
     }
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if self.game.app_state == AppState::InGame && !self.input.ui_hovered {
+        if self.game.session.app_state == AppState::InGame && !self.input.ui_hovered {
             let scroll = match delta {
                 MouseScrollDelta::LineDelta(_, y) => y,
                 MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
             };
             if let Some(renderer) = &mut self.renderer {
-                renderer.camera.apply_zoom(scroll, self.game.camera_locked);
+                renderer.camera.apply_zoom(scroll, self.game.session.camera_locked);
             }
         }
     }
@@ -344,7 +344,7 @@ impl App {
             return;
         }
 
-        if !pressed || self.game.app_state != AppState::InGame {
+        if !pressed || self.game.session.app_state != AppState::InGame {
             return;
         }
         let Some(code) = code else {

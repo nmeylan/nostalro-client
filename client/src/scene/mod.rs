@@ -224,14 +224,14 @@ impl App {
                                 let (anchor, depth, scale, depth_gradient) = self
                                     .renderer
                                     .as_ref()
-                                    .zip(self.game.map_coords.as_ref())
+                                    .zip(self.game.session.map_coords.as_ref())
                                     .and_then(|(r, coords)| {
                                         let sw = r.device.surface_config.width as f32 / r.dpi_scale;
                                         let sh =
                                             r.device.surface_config.height as f32 / r.dpi_scale;
                                         crate::input::entity_screen_params(
                                             img.world_pos,
-                                            self.game.gat.as_ref(),
+                                            self.game.session.gat.as_ref(),
                                             coords,
                                             &r.camera,
                                             sw,
@@ -713,7 +713,7 @@ impl App {
         }
 
         let mut account_calls: Vec<UiDrawCall> = Vec::new();
-        match self.game.app_state {
+        match self.game.session.app_state {
             AppState::CharacterSelect => {
                 if let Some(win) = &self.char_select_window {
                     for view in win.visible_slot_views() {
@@ -786,7 +786,7 @@ impl App {
         }
 
         let mut guild_head_calls: Vec<UiDrawCall> = Vec::new();
-        if self.game.app_state == AppState::InGame && self.game.guild_window.is_open() {
+        if self.game.session.app_state == AppState::InGame && self.game.guild_window.is_open() {
             let idle = ragnarok_formats::act::SpriteAnimationState::new(0);
             for &(gid, center) in self.game.guild_window.member_head_slots() {
                 let Some(sprite) = self.game.guild_head_sprites.get(&gid) else {
@@ -972,7 +972,7 @@ impl App {
             }
         }
 
-        let account_insert_idx = match self.game.app_state {
+        let account_insert_idx = match self.game.session.app_state {
             AppState::CharacterSelect => self
                 .char_select_window
                 .as_ref()
@@ -1010,10 +1010,10 @@ impl App {
                     no_depth: false,
                 })
                 .collect();
-            let zoom = self.game.map_coords.as_ref().map_or(10.0, |c| c.zoom());
+            let zoom = self.game.session.map_coords.as_ref().map_or(10.0, |c| c.zoom());
             let entities = &self.game.entities;
-            let gat = self.game.gat.as_ref();
-            let map_coords = self.game.map_coords.as_ref();
+            let gat = self.game.session.gat.as_ref();
+            let map_coords = self.game.session.map_coords.as_ref();
             let resolve_entity = |id: u32| {
                 let (gat, coords) = (gat?, map_coords?);
                 let (cx, cy) = entities.get(id)?.movement.position();

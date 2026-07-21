@@ -124,7 +124,7 @@ impl App {
                 }
                 GameEvent::MapPropertyChanged(properties) => {
                     self.game.combat.damage_numbers.combat_hidden = properties.is_siege();
-                    self.game.map_properties = properties;
+                    self.game.session.map_properties = properties;
                 }
                 GameEvent::PlayerMoved {
                     start_x,
@@ -928,7 +928,7 @@ impl App {
                             SkillEnum::from_id(skill_id as u32),
                             SkillEnum::HtDetecting | SkillEnum::SnSight
                         ) {
-                        match (self.game.map_coords.as_ref(), self.game.gat.as_ref()) {
+                        match (self.game.session.map_coords.as_ref(), self.game.session.gat.as_ref()) {
                             (Some(coords), Some(gat)) => {
                                 let (wx, _, wz) =
                                     coords.cell_to_world(x as f32 + 0.5, y as f32 + 0.5);

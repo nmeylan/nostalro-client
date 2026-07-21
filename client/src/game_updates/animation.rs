@@ -36,8 +36,8 @@ impl App {
     pub(crate) fn update_sprite_animation(&mut self, delta: f32) {
         let camera_dir = self.renderer.as_ref().map(|r| r.camera.direction_index());
         let sprites = &self.game.sprites;
-        let gat = self.game.gat.as_ref();
-        let map_coords = self.game.map_coords.as_ref();
+        let gat = self.game.session.gat.as_ref();
+        let map_coords = self.game.session.map_coords.as_ref();
         let sound_queue = &mut self.sound_queue;
         let world_of = |cx: f32, cy: f32| match (gat, map_coords) {
             (Some(g), Some(c)) => {
@@ -173,7 +173,7 @@ impl App {
         let Some(renderer) = &self.renderer else {
             return;
         };
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };

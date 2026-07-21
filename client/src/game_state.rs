@@ -241,20 +241,53 @@ pub struct Companions {
     pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
 }
 
-pub struct GameState {
+pub struct SessionState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
     pub selected_character: Option<CharacterInfo>,
     pub current_map: Option<String>,
     pub map_properties: MapProperties,
-    pub player_dead: bool,
-    pub requested_guild_emblems: HashSet<(u32, i32)>,
     pub map_coords: Option<MapCoordinates>,
     pub gat: Option<GatFile>,
+    pub player_dead: bool,
     /// Set on indoor maps; locks the camera rotation to the fixed indoor angle.
     pub camera_locked: bool,
     /// Camera yaw captured when entering an indoor map, restored on exit.
     pub saved_camera_yaw: Option<f32>,
+    pub server_time: ServerTimeClock,
+    pub disconnect_dialog_shown: bool,
+    pub pending_disconnect_exit: bool,
+}
+
+impl Default for SessionState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SessionState {
+    pub fn new() -> Self {
+        Self {
+            app_state: AppState::Login,
+            login_session: None,
+            selected_character: None,
+            current_map: None,
+            map_properties: MapProperties::default(),
+            map_coords: None,
+            gat: None,
+            player_dead: false,
+            camera_locked: false,
+            saved_camera_yaw: None,
+            server_time: ServerTimeClock::new(),
+            disconnect_dialog_shown: false,
+            pending_disconnect_exit: false,
+        }
+    }
+}
+
+pub struct GameState {
+    pub session: SessionState,
+    pub requested_guild_emblems: HashSet<(u32, i32)>,
     pub entities: EntityCollection,
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     /// Animation state of GR2 model entities (emperium, guardians…) keyed by
@@ -318,7 +351,6 @@ pub struct GameState {
     pub map_missing_window: MapMissingWindow,
     pub hover: HoverState,
     pub failed_sprite_loads: HashSet<u32>,
-    pub server_time: ServerTimeClock,
     pub floor_items: HashMap<u32, FloorItem>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
     pub arrows: Vec<ArrowProjectile>,
@@ -380,8 +412,6 @@ pub struct GameState {
     pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
     pub effect_keys: EffectKeys,
     pub day_night: DayNightState,
-    pub disconnect_dialog_shown: bool,
-    pub pending_disconnect_exit: bool,
     pub self_config: SelfConfig,
 }
 
@@ -485,11 +515,11 @@ impl GameState {
             self.minimap_window.player_position = Some(player.movement.position());
             self.minimap_window.player_direction = player.direction;
         }
-        if let Some(coords) = &self.map_coords {
+        if let Some(coords) = &self.session.map_coords {
             self.minimap_window.map_width = coords.gat_width();
             self.minimap_window.map_height = coords.gat_height();
         }
-        self.minimap_window.map_name = self.current_map.clone();
+        self.minimap_window.map_name = self.session.current_map.clone();
         self.minimap_window.entity_markers.clear();
         for entity in self.entities.iter() {
             if Some(entity.id) == self.entities.player_id() {
@@ -511,11 +541,11 @@ impl GameState {
         }
         if let Some(party) = &self.party {
             let local_aid = self
-                .login_session
+                .session.login_session
                 .as_ref()
                 .map(|s| s.account_id)
                 .unwrap_or(0);
-            let current_map = self.current_map.as_deref().unwrap_or("");
+            let current_map = self.session.current_map.as_deref().unwrap_or("");
             for member in &party.members {
                 if member.aid == local_aid || !member.online || member.map != current_map {
                     continue;
@@ -529,7 +559,7 @@ impl GameState {
         }
         if let Some(guild) = &self.guild {
             let local_aid = self
-                .login_session
+                .session.login_session
                 .as_ref()
                 .map(|s| s.account_id)
                 .unwrap_or(0);
@@ -597,8 +627,8 @@ impl GameState {
         }
         self.system_menu.allow_escape_toggle = allow_escape;
         self.system_menu.can_resurrect = self.system_menu.dead
-            && !self.map_properties.enable_pk()
-            && !self.map_properties.is_siege()
+            && !self.session.map_properties.enable_pk()
+            && !self.session.map_properties.is_siege()
             && self
                 .character
                 .inventory
@@ -621,11 +651,11 @@ impl GameState {
         ));
 
         let had_disconnect_dialog =
-            self.disconnect_dialog_shown && self.confirm_dialog.state.is_some();
+            self.session.disconnect_dialog_shown && self.confirm_dialog.state.is_some();
         self.confirm_dialog.build(ui);
         if had_disconnect_dialog && self.confirm_dialog.state.is_none() {
-            self.pending_disconnect_exit = true;
-            self.disconnect_dialog_shown = false;
+            self.session.pending_disconnect_exit = true;
+            self.session.disconnect_dialog_shown = false;
         }
 
         if let Some(grid) = self.pending_confirms.pending_party_invite
@@ -1025,7 +1055,7 @@ impl GameState {
             }
             PARTY_FRIENDS_WINDOW_ID => {
                 let local_aid = self
-                    .login_session
+                    .session.login_session
                     .as_ref()
                     .map(|s| s.account_id)
                     .unwrap_or(0);
@@ -1065,7 +1095,7 @@ impl GameState {
             }
             GUILD_WINDOW_ID => {
                 let local_gid = self
-                    .login_session
+                    .session.login_session
                     .as_ref()
                     .map(|s| s.account_id)
                     .unwrap_or(0);
@@ -1214,17 +1244,8 @@ impl GameState {
 
     pub fn new() -> Self {
         Self {
-            app_state: AppState::Login,
-            login_session: None,
-            selected_character: None,
-            current_map: None,
-            map_properties: MapProperties::default(),
-            player_dead: false,
+            session: SessionState::new(),
             requested_guild_emblems: HashSet::new(),
-            map_coords: None,
-            gat: None,
-            camera_locked: false,
-            saved_camera_yaw: None,
             entities: EntityCollection::new(),
             sprites: HashMap::new(),
             gr2_models: HashMap::new(),
@@ -1280,7 +1301,6 @@ impl GameState {
             map_missing_window: MapMissingWindow::new(),
             hover: HoverState::default(),
             failed_sprite_loads: HashSet::new(),
-            server_time: ServerTimeClock::new(),
             floor_items: HashMap::new(),
             floor_item_sprites: HashMap::new(),
             arrows: Vec::new(),
@@ -1339,8 +1359,6 @@ impl GameState {
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
             context_menu: ContextMenu::new(),
-            disconnect_dialog_shown: false,
-            pending_disconnect_exit: false,
             self_config: SelfConfig::default(),
             damage_number_textures: None,
             damage_number_act: None,

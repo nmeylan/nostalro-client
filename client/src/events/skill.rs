@@ -61,13 +61,13 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .server_time
+            .session.server_time
             .observe_server_tick(start_time, local_ms);
         // Server timeline anchor (in the past by ~half-RTT): all skill timings derive from
         // when the cast actually resolved on the server, not from the late arrival here.
         let now = self
             .game
-            .server_time
+            .session.server_time
             .server_to_local_secs_clamped(start_time, local_ms);
         let local_now = local_ms as f32 / 1000.0;
         let age = (local_now - now).max(0.0);
@@ -414,7 +414,7 @@ impl App {
     const PROJECTILE_CHEST_LIFT: f32 = 10.0;
 
     fn skill_trail_endpoints(&self, src_gid: u32, target_gid: u32) -> Option<([f32; 3], [f32; 3])> {
-        let (gat, coords) = (self.game.gat.as_ref()?, self.game.map_coords.as_ref()?);
+        let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
         let cell_world = |gid: u32| {
             let (cx, cy) = self.game.entities.get(gid)?.movement.cell_position();
             let (wx, _, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
@@ -671,7 +671,7 @@ impl App {
         if effects.is_empty() {
             return;
         }
-        let (Some(gat), Some(coords)) = (self.game.gat.as_ref(), self.game.map_coords.as_ref())
+        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
         else {
             return;
         };

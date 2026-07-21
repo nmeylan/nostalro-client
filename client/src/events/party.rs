@@ -62,7 +62,7 @@ impl App {
     pub(super) fn handle_party_member_removed(&mut self, aid: u32, _name: String, _result: u8) {
         let own_aid = self
             .game
-            .login_session
+            .session.login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);

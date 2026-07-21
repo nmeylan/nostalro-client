@@ -94,7 +94,7 @@ impl App {
                     let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
                     let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
                         self.game.entities.get(id).is_some_and(|e| {
-                            skill_target_allowed(class, e, &self.game.map_properties, player_id)
+                            skill_target_allowed(class, e, &self.game.session.map_properties, player_id)
                                 || (potion_pitcher
                                     && matches!(
                                         e.entity_type,
@@ -203,7 +203,7 @@ impl App {
                     if let Some(entity) = self.game.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
-                } else if let Some(gat) = &self.game.gat {
+                } else if let Some(gat) = &self.game.session.gat {
                     let dest_x = floor_item.x as i32;
                     let dest_y = floor_item.y as i32;
                     if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
@@ -246,8 +246,8 @@ impl App {
             let should_attack = match entity.entity_type {
                 EntityType::Monster => !self.input.shift_pressed && !entity.is_pet,
                 EntityType::Player => {
-                    can_attack(entity, &self.game.map_properties, player_id)
-                        && (!self.game.map_properties.no_lockon()
+                    can_attack(entity, &self.game.session.map_properties, player_id)
+                        && (!self.game.session.map_properties.no_lockon()
                             || self.input.shift_pressed
                             || self.game.noshift_mode)
                 }
@@ -282,7 +282,7 @@ impl App {
             Some(c) => c,
             None => return,
         };
-        let gat = match &self.game.gat {
+        let gat = match &self.game.session.gat {
             Some(g) => g,
             None => return,
         };

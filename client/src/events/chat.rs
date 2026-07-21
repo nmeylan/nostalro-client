@@ -46,7 +46,7 @@ impl App {
         }
         let is_own = self
             .game
-            .selected_character
+            .session.selected_character
             .as_ref()
             .zip(message.split_once(" : "))
             .is_some_and(|(c, (sender, _))| sender == c.name);
