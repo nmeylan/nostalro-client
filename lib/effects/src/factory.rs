@@ -132,25 +132,16 @@ pub fn make_effect(
             effects::magic_bolt::FIRE_ARROW,
         )),
         EffectId::Fireball => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::fireball::FireballEffect::new(from, to))
         }
         EffectId::Yufitel => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::yupitel::YupitelEffect::new(from, to))
         }
         EffectId::Blitzbeat => Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point())),
         EffectId::Waterball => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::waterball::WaterballEffect::new(from, to))
         }
         EffectId::Waterfall => Box::new(effects::waterfall::WaterfallEffect::new(
@@ -235,10 +226,7 @@ pub fn make_effect(
             effects::cloud::CLOUD8,
         )),
         EffectId::Fireivy => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::fireivy::FireivyEffect::new(from, to))
         }
         EffectId::Detecting => Box::new(effects::detecting::DetectingEffect::new(anchor.point())),
@@ -458,10 +446,7 @@ pub fn make_effect(
         | EffectId::Foot4
         | EffectId::Foot5
         | EffectId::Foot6 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             let params = match id {
                 EffectId::Foot => effects::foot::FOOT,
                 EffectId::Foot2 => effects::foot::FOOT2,
@@ -486,10 +471,7 @@ pub fn make_effect(
             effects::teihit::TEIHIT3,
         )),
         EffectId::Teihit2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::teihit::TeiHit2Effect::new(
                 from,
                 to,
@@ -497,10 +479,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Backstap => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::teihit::TeiHit2Effect::new(
                 from,
                 to,
@@ -706,10 +685,7 @@ pub fn make_effect(
         }
 
         EffectId::Tripleattack | EffectId::Tripleattack2 | EffectId::Tripleattack3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             let params = match id {
                 EffectId::Tripleattack => effects::tripleattack::TRIPLEATTACK,
                 EffectId::Tripleattack2 => effects::tripleattack::TRIPLEATTACK2,
@@ -753,10 +729,7 @@ pub fn make_effect(
         }
 
         EffectId::Frostdiver => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 from,
                 to,
@@ -772,10 +745,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Grimtooth => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::frost_diver::FrostDiverEffect::new(
                 from,
                 to,
@@ -791,10 +761,7 @@ pub fn make_effect(
         )),
         EffectId::Electric => Box::new(effects::electric::ElectricEffect::new_ring(anchor.point())),
         EffectId::Electric2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::electric::ElectricEffect::new_aimed(from, to))
         }
         EffectId::Hitline | EffectId::Hitline2 => {
@@ -814,10 +781,7 @@ pub fn make_effect(
         | EffectId::Hitline5
         | EffectId::Hitline6
         | EffectId::Hitline7 => {
-            let (anchor_pos, aim) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (anchor_pos, aim) = anchor.trail();
             let params = match id {
                 EffectId::Hitline3 => effects::hit_line::HITLINE3,
                 EffectId::Hitline4 => effects::hit_line::HITLINE4,
@@ -835,10 +799,7 @@ pub fn make_effect(
         )),
         EffectId::Icewall => Box::new(effects::icewall::IceWallEffect::new(anchor.point())),
         EffectId::Soulstrike => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::soul_strike::SoulStrikeEffect::new(
                 from,
                 to,
@@ -846,10 +807,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Soulstrike2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::soul_strike::SoulStrikeEffect::with_sprite(
                 from,
                 to,
@@ -858,10 +816,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Soulbreaker => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::soul_breaker::SoulBreakerEffect::new_directed(
                 from, to,
             ))
@@ -870,10 +825,7 @@ pub fn make_effect(
             anchor.point(),
         )),
         EffectId::Blooddrain => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -881,10 +833,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Energydrain => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -892,10 +841,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Energydrain2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -903,10 +849,7 @@ pub fn make_effect(
             ))
         }
         EffectId::Energydrain3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::energy_drain::DrainEffect::new(
                 from,
                 to,
@@ -928,10 +871,7 @@ pub fn make_effect(
         // Potion / Slim Potion Pitcher throw a level-dependent potion icon; the
         // caller passes the potion index through `hit_count`.
         EffectId::Throwitem2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::throw_item as ti;
             let params = ti::potion_throw_params(hit_count.unwrap_or(1));
             Box::new(ti::ThrowItemEffect::new(from, to, &[params]))
@@ -946,10 +886,7 @@ pub fn make_effect(
         | EffectId::Throwitem8
         | EffectId::Throwitem9
         | EffectId::Throwitem10 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::throw_item as ti;
             let variants: &[ti::ThrowItemParams] = match id {
                 EffectId::Throwitem => &[ti::THROW_BOTTLES],
@@ -985,10 +922,7 @@ pub fn make_effect(
         | EffectId::Shieldboomerang
         | EffectId::Shieldboomerang2
         | EffectId::Shieldboomerang3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::cloud_projectile as cp;
             if id == EffectId::Shieldboomerang3 {
                 return Some(Box::new(cp::CloudProjectileEffect::new_spray(
@@ -1045,10 +979,7 @@ pub fn make_effect(
         | EffectId::Smatk2
         | EffectId::Smatk3
         | EffectId::Smatk4 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::chemical as ch;
             let params = match id {
                 EffectId::Chemical2 => ch::CHEMICAL2,
@@ -1064,10 +995,7 @@ pub fn make_effect(
         }
 
         EffectId::Stin | EffectId::Stin2 | EffectId::Stin4 | EffectId::Stin5 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             use effects::stin as st;
             let params = match id {
                 EffectId::Stin => st::STIN,
@@ -1079,10 +1007,7 @@ pub fn make_effect(
         }
 
         EffectId::Sma | EffectId::Stin3 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             let kind = if matches!(id, EffectId::Stin3) {
                 effects::sma::SmaKind::Particles
             } else {
@@ -1156,10 +1081,7 @@ pub fn make_effect(
             effects::hit5_6::HIT6,
         )),
         EffectId::Sonicblowhit => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::sonicblowhit::SonicBlowHitEffect::new_with_trail(
                 from, to,
             ))
@@ -1183,17 +1105,11 @@ pub fn make_effect(
             Box::new(effects::hitdark::HitDarkEffect::new(anchor.point()))
         }
         EffectId::Spearbmr => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::spearbmr::SpearBmrEffect::new(from, to))
         }
         EffectId::Waterball2 => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::waterball2::WaterBall2Effect::new(from, to))
         }
 
@@ -1837,10 +1753,7 @@ pub fn make_effect(
         )),
         EffectId::Revive => Box::new(effects::revive::ReviveEffect::new(anchor.point())),
         EffectId::Pierce => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::pierce::PierceEffect::new_with_level(
                 from,
                 to,
@@ -1862,17 +1775,11 @@ pub fn make_effect(
         )),
 
         EffectId::Bowlingbash => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::bowling_bash::BowlingBashEffect::new_with_direction(from, to))
         }
         EffectId::Dragonsmoke => {
-            let (from, to) = match anchor {
-                EffectAnchor::Trail { from, to } => (from, to),
-                EffectAnchor::Point(p) => (p, p),
-            };
+            let (from, to) = anchor.trail();
             Box::new(effects::dragonsmoke::DragonsmokeEffect::new(from, to))
         }
 
