@@ -2174,7 +2174,7 @@ name = "movement"
 version = "0.1.0"
 source = "git+https://github.com/nmeylan/rust-ro.git?rev=e21ca287#e21ca28743f6f8ec24c8578485d527d8aff9089b"
 dependencies = [
- "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=e21ca287)",
+ "packets",
  "tracing",
 ]
 
@@ -2738,15 +2738,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "packets"
-version = "0.1.0"
-source = "git+https://github.com/nmeylan/rust-ro.git?rev=e227bc5c#e227bc5cf77cba58e19c824c85d535727fb48971"
-dependencies = [
- "byteorder",
- "json-flat-parser",
-]
-
-[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3103,7 +3094,7 @@ name = "ragnarok-network"
 version = "0.1.0"
 dependencies = [
  "models",
- "packets 0.1.0 (git+https://github.com/nmeylan/rust-ro.git?rev=e227bc5c)",
+ "packets",
  "ragnarok-game",
  "ragnarok-profiling",
  "tokio",
