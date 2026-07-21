@@ -102,7 +102,7 @@ impl App {
         // Capture targeting armed by ZC_START_CAPTURE: a click on a valid mob opens
         // the roulette (players and the caster's own pet are not valid targets).
         if self.game.capture_targeting {
-            if let Some(entity_id) = self.game.hovered_entity_id
+            if let Some(entity_id) = self.game.hover.hovered_entity_id
                 && self.game.pet.gid != Some(entity_id)
                 && self
                     .game

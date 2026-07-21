@@ -54,8 +54,8 @@ impl App {
                         self.input.right_dragged = false;
                         // Picking clears the hovered ids while the button is held (rotate cursor),
                         // so capture the target now, before it's lost.
-                        self.input.right_press_entity = self.game.hovered_player_id;
-                        self.input.right_press_target = self.game.hovered_entity_id;
+                        self.input.right_press_entity = self.game.hover.hovered_player_id;
+                        self.input.right_press_target = self.game.hover.hovered_entity_id;
                         self.game.pending_skill_target = None;
                         self.game.pending_skill_id = None;
                         self.game.pending_skill_level = None;
@@ -92,7 +92,7 @@ impl App {
                         {
                             self.issue_owner_command(
                                 self.has_mercenary(),
-                                self.game.hovered_entity_id,
+                                self.game.hover.hovered_entity_id,
                             );
                         } else {
                             self.handle_left_click();

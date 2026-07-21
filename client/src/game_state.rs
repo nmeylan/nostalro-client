@@ -199,6 +199,14 @@ pub struct EffectKeys {
     pub weather_keys: HashMap<EffectId, u32>,
 }
 
+#[derive(Default)]
+pub struct HoverState {
+    pub hovered_entity_id: Option<u32>,
+    pub hovered_player_id: Option<u32>,
+    pub hovered_floor_item_id: Option<u32>,
+    pub hovered_chat_room: Option<u32>,
+}
+
 pub struct GameState {
     pub app_state: AppState,
     pub login_session: Option<Session>,
@@ -265,7 +273,6 @@ pub struct GameState {
     pub confirm_dialog: ConfirmDialog,
     pub npc_shop: NpcShop,
     pub chat_rooms: ChatRoomRegistry,
-    pub hovered_chat_room: Option<u32>,
     pub chat_room_create_window: ChatRoomCreateWindow,
     pub chat_room_member_window: ChatRoomMemberWindow,
     pub emotion_window: EmotionWindow,
@@ -275,9 +282,7 @@ pub struct GameState {
     pub pending_chat_room: Option<(String, i16, bool)>,
     pub system_menu: SystemMenu,
     pub map_missing_window: MapMissingWindow,
-    pub hovered_entity_id: Option<u32>,
-    pub hovered_player_id: Option<u32>,
-    pub hovered_floor_item_id: Option<u32>,
+    pub hover: HoverState,
     pub failed_sprite_loads: HashSet<u32>,
     pub server_time: ServerTimeClock,
     pub floor_items: HashMap<u32, FloorItem>,
@@ -1255,7 +1260,6 @@ impl GameState {
             confirm_dialog: ConfirmDialog::new(),
             npc_shop: NpcShop::new(),
             chat_rooms: ChatRoomRegistry::new(),
-            hovered_chat_room: None,
             chat_room_create_window: ChatRoomCreateWindow::new(),
             chat_room_member_window: ChatRoomMemberWindow::new(),
             emotion_window: EmotionWindow::new(),
@@ -1265,9 +1269,7 @@ impl GameState {
             pending_chat_room: None,
             system_menu: SystemMenu::new(),
             map_missing_window: MapMissingWindow::new(),
-            hovered_entity_id: None,
-            hovered_player_id: None,
-            hovered_floor_item_id: None,
+            hover: HoverState::default(),
             failed_sprite_loads: HashSet::new(),
             server_time: ServerTimeClock::new(),
             floor_items: HashMap::new(),

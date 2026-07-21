@@ -3095,7 +3095,7 @@ impl App {
         }
         let companion_target_armed =
             self.game.companion_attack_target.iter().any(Option::is_some);
-        self.game.hovered_chat_room = None;
+        self.game.hover.hovered_chat_room = None;
         let (cursor, hovered_entity_id) = if self.game.app_state == AppState::InGame {
             if self.input.right_mouse_down {
                 (CursorType::Rotate, None)
@@ -3152,7 +3152,7 @@ impl App {
                     PendingSkillTarget::Ground { .. } => (CursorType::Lock, None),
                 }
             } else if let Some(room_id) = self.hovered_chat_room(render_list) {
-                self.game.hovered_chat_room = Some(room_id);
+                self.game.hover.hovered_chat_room = Some(room_id);
                 (CursorType::Click, None)
             } else if let Some(vendor_id) = self.hovered_vending_board(render_list) {
                 (CursorType::Click, Some(vendor_id))
@@ -3339,13 +3339,13 @@ impl ApplicationHandler for App {
                     ui_any_interactive,
                     &pick_render_list,
                 );
-                self.game.hovered_entity_id = hovered_entity_id;
-                self.game.hovered_player_id = ragnarok_game::cursor::hovered_player(
+                self.game.hover.hovered_entity_id = hovered_entity_id;
+                self.game.hover.hovered_player_id = ragnarok_game::cursor::hovered_player(
                     self.input.mouse_position,
                     &self.game.entities,
                     &pick_render_list,
                 );
-                let hovered_named_id = hovered_entity_id.or(self.game.hovered_player_id);
+                let hovered_named_id = hovered_entity_id.or(self.game.hover.hovered_player_id);
                 if let Some(entity_id) = hovered_named_id
                     && let Some(entity) = self.game.entities.get_mut(entity_id)
                     && !entity.name_requested
@@ -3374,7 +3374,7 @@ impl ApplicationHandler for App {
                 } else {
                     None
                 };
-                self.game.hovered_floor_item_id = hovered_floor_item_id;
+                self.game.hover.hovered_floor_item_id = hovered_floor_item_id;
                 if hovered_floor_item_id.is_some() {
                     self.game.cursor_animation.set_cursor_type(CursorType::Pick);
                 }

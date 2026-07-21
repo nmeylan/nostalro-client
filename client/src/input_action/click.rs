@@ -21,7 +21,7 @@ impl App {
         tracing::info!(
             "handle_left_click: pending_companion={:?} hovered_entity={:?}",
             self.game.pending_companion_skill.is_some(),
-            self.game.hovered_entity_id
+            self.game.hover.hovered_entity_id
         );
         if self.game.npc_dialog.dialog.is_open() || self.game.npc_shop.shop.is_open() {
             return;
@@ -35,7 +35,7 @@ impl App {
         {
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
+        if let Some(entity_id) = self.game.hover.hovered_entity_id
             && Some(entity_id) == self.game.entities.player_id()
             && self
                 .game
@@ -46,7 +46,7 @@ impl App {
             self.close_own_shop();
             return;
         }
-        if let Some(room_id) = self.game.hovered_chat_room {
+        if let Some(room_id) = self.game.hover.hovered_chat_room {
             self.channel
                 .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
             return;
@@ -61,7 +61,7 @@ impl App {
                         reserved,
                     );
                 }
-            } else if let Some(target) = self.game.hovered_entity_id {
+            } else if let Some(target) = self.game.hover.hovered_entity_id {
                 self.push_owner_command_to(
                     pending.is_mercenary,
                     OwnerCommand::skill_object(pending.skill_id, pending.level as u8, target),
@@ -92,7 +92,7 @@ impl App {
                         .unwrap_or(TargetClass::Offensive);
                     let player_id = self.game.entities.player_id();
                     let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
-                    let valid_target = self.game.hovered_entity_id.filter(|&id| {
+                    let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
                         self.game.entities.get(id).is_some_and(|e| {
                             skill_target_allowed(class, e, &self.game.map_properties, player_id)
                                 || (potion_pitcher
@@ -182,7 +182,7 @@ impl App {
             }
             return;
         }
-        if let Some(item_id) = self.game.hovered_floor_item_id {
+        if let Some(item_id) = self.game.hover.hovered_floor_item_id {
             if self.player_hidden() {
                 return;
             }
@@ -218,7 +218,7 @@ impl App {
             }
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
+        if let Some(entity_id) = self.game.hover.hovered_entity_id
             && Some(entity_id) != self.game.entities.player_id()
             && self
                 .game
@@ -230,7 +230,7 @@ impl App {
                 .send_packet(build_req_buy_frommc_packet(entity_id, self.config.packetver));
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
+        if let Some(entity_id) = self.game.hover.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
             && entity.entity_type == EntityType::Npc
             && entity.job != 45
@@ -239,7 +239,7 @@ impl App {
                 .send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
             return;
         }
-        if let Some(entity_id) = self.game.hovered_entity_id
+        if let Some(entity_id) = self.game.hover.hovered_entity_id
             && let Some(entity) = self.game.entities.get(entity_id)
         {
             let player_id = self.game.entities.player_id();
