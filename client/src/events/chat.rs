@@ -50,7 +50,7 @@ impl App {
             .as_ref()
             .zip(message.split_once(" : "))
             .is_some_and(|(c, (sender, _))| sender == c.name);
-        if is_own || !self.game.hide_public_chat {
+        if is_own || !self.game.prefs.hide_public_chat {
             self.game.chat_window.add_chat(message);
         }
     }
@@ -110,7 +110,7 @@ impl App {
         is_quest: bool,
     ) {
         tracing::debug!(aid, amount, is_base, is_quest, "exp gained");
-        if !self.game.show_exp {
+        if !self.game.prefs.show_exp {
             return;
         }
         let message = if is_base {

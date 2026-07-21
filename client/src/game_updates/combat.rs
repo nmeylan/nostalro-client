@@ -415,7 +415,7 @@ impl App {
             DamageMessage::AttackedMultiHit { total_damage } => total_damage == 0,
             _ => hit.damage == 0,
         };
-        if is_miss && !self.game.show_miss {
+        if is_miss && !self.game.prefs.show_miss {
             return;
         }
 

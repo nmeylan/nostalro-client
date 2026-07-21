@@ -255,7 +255,7 @@ impl App {
                     can_attack(entity, &self.game.session.map_properties, player_id)
                         && (!self.game.session.map_properties.no_lockon()
                             || self.input.shift_pressed
-                            || self.game.noshift_mode)
+                            || self.game.prefs.noshift_mode)
                 }
                 _ => false,
             };

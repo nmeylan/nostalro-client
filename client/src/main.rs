@@ -212,7 +212,7 @@ impl App {
             config.bgm_enabled,
             config.sfx_enabled,
         );
-        game.self_config.refuse_party_invite = config.refuse_party_invite;
+        game.prefs.self_config.refuse_party_invite = config.refuse_party_invite;
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);
         let sound =
@@ -2081,7 +2081,7 @@ impl App {
         self.config.display = display;
         self.config.refuse_trade = refuse_trade;
         self.config.refuse_party_invite = refuse_party_invite;
-        self.game.self_config.refuse_party_invite = refuse_party_invite;
+        self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;
 
         if let Some(window) = &self.window {
             if fullscreen_changed {
@@ -2413,15 +2413,15 @@ impl App {
                     .add_system(format!("Refuse party invites: {status}"));
             }
             ChatCommand::ToggleNoShift => {
-                self.game.noshift_mode = !self.game.noshift_mode;
-                let status = if self.game.noshift_mode { "ON" } else { "OFF" };
+                self.game.prefs.noshift_mode = !self.game.prefs.noshift_mode;
+                let status = if self.game.prefs.noshift_mode { "ON" } else { "OFF" };
                 self.game
                     .chat_window
                     .add_system(format!("No-shift mode: {status}"));
             }
             ChatCommand::ToggleNoCtrl => {
-                self.game.noctrl_mode = !self.game.noctrl_mode;
-                let status = if self.game.noctrl_mode { "ON" } else { "OFF" };
+                self.game.prefs.noctrl_mode = !self.game.prefs.noctrl_mode;
+                let status = if self.game.prefs.noctrl_mode { "ON" } else { "OFF" };
                 self.game
                     .chat_window
                     .add_system(format!("No-ctrl mode: {status}"));
@@ -2473,15 +2473,15 @@ impl App {
                     .add_system(format!("Sound volume: {vol}"));
             }
             ChatCommand::ToggleShowExp => {
-                self.game.show_exp = !self.game.show_exp;
-                let status = if self.game.show_exp { "ON" } else { "OFF" };
+                self.game.prefs.show_exp = !self.game.prefs.show_exp;
+                let status = if self.game.prefs.show_exp { "ON" } else { "OFF" };
                 self.game
                     .chat_window
                     .add_system(format!("Experience messages: {status}"));
             }
             ChatCommand::ToggleHidePublicChat => {
-                self.game.hide_public_chat = !self.game.hide_public_chat;
-                let status = if self.game.hide_public_chat { "OFF" } else { "ON" };
+                self.game.prefs.hide_public_chat = !self.game.prefs.hide_public_chat;
+                let status = if self.game.prefs.hide_public_chat { "OFF" } else { "ON" };
                 self.game
                     .chat_window
                     .add_system(format!("Public chat: {status}"));
@@ -2507,21 +2507,21 @@ impl App {
                 self.channel.send_packet(packet);
             }
             ChatCommand::ToggleMiss => {
-                self.game.show_miss = !self.game.show_miss;
-                let status = if self.game.show_miss { "ON" } else { "OFF" };
+                self.game.prefs.show_miss = !self.game.prefs.show_miss;
+                let status = if self.game.prefs.show_miss { "ON" } else { "OFF" };
                 self.game
                     .chat_window
                     .add_system(format!("Miss text: {status}"));
             }
             ChatCommand::ToggleEqOpen => {
                 const CONFIG_OPEN_EQUIPMENT_WINDOW: i32 = 0;
-                self.game.equip_open = !self.game.equip_open;
+                self.game.prefs.equip_open = !self.game.prefs.equip_open;
                 self.channel.send_packet(build_config_packet(
                     CONFIG_OPEN_EQUIPMENT_WINDOW,
-                    self.game.equip_open as i32,
+                    self.game.prefs.equip_open as i32,
                     pv,
                 ));
-                let status = if self.game.equip_open { "ON" } else { "OFF" };
+                let status = if self.game.prefs.equip_open { "ON" } else { "OFF" };
                 self.game
                     .chat_window
                     .add_system(format!("Equipment visible to others: {status}"));
@@ -2581,9 +2581,9 @@ impl App {
                 } else {
                     self.channel
                         .send_packet(build_setting_whisper_pc_packet(&name, block, pv));
-                    self.game.blocked_whispers.retain(|n| n != &name);
+                    self.game.prefs.blocked_whispers.retain(|n| n != &name);
                     if block {
-                        self.game.blocked_whispers.push(name.clone());
+                        self.game.prefs.blocked_whispers.push(name.clone());
                     }
                     let verb = if block { "Blocked" } else { "Unblocked" };
                     self.game
@@ -2602,12 +2602,12 @@ impl App {
                 self.game.chat_window.add_system(msg.to_string());
             }
             ChatCommand::WhisperListBlocked => {
-                if self.game.blocked_whispers.is_empty() {
+                if self.game.prefs.blocked_whispers.is_empty() {
                     self.game
                         .chat_window
                         .add_system("No blocked players.".to_string());
                 } else {
-                    let list = self.game.blocked_whispers.join(", ");
+                    let list = self.game.prefs.blocked_whispers.join(", ");
                     self.game
                         .chat_window
                         .add_system(format!("Blocked: {list}"));

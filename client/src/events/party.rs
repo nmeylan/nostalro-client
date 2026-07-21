@@ -95,7 +95,7 @@ impl App {
     }
 
     pub(super) fn handle_party_invite_received(&mut self, party_grid: u32, party_name: String) {
-        if self.game.self_config.refuse_party_invite {
+        if self.game.prefs.self_config.refuse_party_invite {
             self.channel
                 .send_packet(ragnarok_network::build_join_party_reply_packet(
                     party_grid,

@@ -375,6 +375,38 @@ impl Broadcast {
     }
 }
 
+pub struct Prefs {
+    pub noshift_mode: bool,
+    pub noctrl_mode: bool,
+    pub show_exp: bool,
+    pub hide_public_chat: bool,
+    pub show_miss: bool,
+    pub equip_open: bool,
+    pub blocked_whispers: Vec<String>,
+    pub self_config: SelfConfig,
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Prefs {
+    pub fn new() -> Self {
+        Self {
+            noshift_mode: false,
+            noctrl_mode: true,
+            show_exp: true,
+            hide_public_chat: false,
+            show_miss: true,
+            equip_open: false,
+            blocked_whispers: Vec::new(),
+            self_config: SelfConfig::default(),
+        }
+    }
+}
+
 pub struct GameState {
     pub session: SessionState,
     pub requested_guild_emblems: HashSet<(u32, i32)>,
@@ -424,13 +456,7 @@ pub struct GameState {
     pub card_insert_dialog_has_grf_textures: bool,
     pub pending_casts: PendingCasts,
     pub combat: CombatState,
-    pub noshift_mode: bool,
-    pub noctrl_mode: bool,
-    pub show_exp: bool,
-    pub hide_public_chat: bool,
-    pub show_miss: bool,
-    pub equip_open: bool,
-    pub blocked_whispers: Vec<String>,
+    pub prefs: Prefs,
     pub item_info_window: ItemInfoWindow,
     pub book_window: BookWindow,
     pub sound_options: SoundOptionsWindow,
@@ -468,7 +494,6 @@ pub struct GameState {
     pub debug_overlay: bool,
     pub schedulers: Schedulers,
     pub effect_keys: EffectKeys,
-    pub self_config: SelfConfig,
 }
 
 pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
@@ -1347,13 +1372,7 @@ impl GameState {
             card_insert_dialog_has_grf_textures: false,
             pending_casts: PendingCasts::default(),
             combat: CombatState::new(),
-            noshift_mode: false,
-            noctrl_mode: true,
-            show_exp: true,
-            hide_public_chat: false,
-            show_miss: true,
-            equip_open: false,
-            blocked_whispers: Vec::new(),
+            prefs: Prefs::new(),
             basic_info_window: BasicInfoWindow::new(),
             status_window: StatusWindow::new(),
             item_info_window: ItemInfoWindow::new(),
@@ -1395,7 +1414,6 @@ impl GameState {
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
             context_menu: ContextMenu::new(),
-            self_config: SelfConfig::default(),
             debug_show_pick_bounds: false,
             debug_overlay: false,
             schedulers: Schedulers::new(),
