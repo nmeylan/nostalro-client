@@ -29,7 +29,7 @@ impl App {
         for ch in &mut characters {
             ch.sex = account_sex;
         }
-        self.game.sprites.clear();
+        self.game.sprite_caches.sprites.clear();
         self.account_anims.clear();
         for ch in &characters {
             self.load_char_select_sprite(ch);
@@ -103,12 +103,12 @@ impl App {
         self.char_select_window = None;
         self.game.character.clear();
         self.game.world.entities.clear();
-        self.game.sprites.clear();
-        self.game.gr2_models.clear();
+        self.game.sprite_caches.sprites.clear();
+        self.game.sprite_caches.gr2_models.clear();
         if let Some(renderer) = &mut self.renderer {
             renderer.gr2_models.clear();
         }
-        self.game.sprite_cache.clear();
+        self.game.sprite_caches.sprite_cache.clear();
         self.game.world.floor_items.clear();
         self.game.floor_item_sprites.clear();
         self.game.chat_rooms.clear();
@@ -131,7 +131,7 @@ impl App {
         self.game.homunculus_window.set_visible(false);
         self.game.mercenary_window.set_visible(false);
         self.game.guild = None;
-        self.game.guild_head_sprites.clear();
+        self.game.sprite_caches.guild_head_sprites.clear();
         self.game.guild_window.open = false;
         self.game.session.current_map = None;
         self.game.session.map_coords = None;
@@ -406,22 +406,22 @@ impl App {
                 .world
                 .entities
                 .player_id()
-                .and_then(|pid| self.game.sprites.remove(&pid));
-            self.game.sprites.clear();
+                .and_then(|pid| self.game.sprite_caches.sprites.remove(&pid));
+            self.game.sprite_caches.sprites.clear();
             // Renderer-side gr2 models were already dropped by load_map.
-            self.game.gr2_models.clear();
-            self.game.sprite_cache.clear();
+            self.game.sprite_caches.gr2_models.clear();
+            self.game.sprite_caches.sprite_cache.clear();
             self.game.world.entities.clear_non_player();
             self.game.companions.pet.clear_entity();
             self.game.quest_markers.clear();
-            self.game.failed_sprite_loads.clear();
+            self.game.sprite_caches.failed_sprite_loads.clear();
             self.game.world.floor_items.clear();
             self.game.floor_item_sprites.clear();
             if let Some(guild) = &mut self.game.guild {
                 guild.clear_live_positions();
             }
             if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite) {
-                self.game.sprites.insert(pid, sprite);
+                self.game.sprite_caches.sprites.insert(pid, sprite);
             }
 
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {

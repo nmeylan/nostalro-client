@@ -2936,7 +2936,7 @@ impl App {
                     Some(flat_depth_gradient),
                     None,
                     |screen_anchor, depth, camera_dir, sprite_scale| {
-                        match self.game.sprites.get(&entity.id) {
+                        match self.game.sprite_caches.sprites.get(&entity.id) {
                             Some(sprite) => (
                                 sprite.compute_pick_bounds(
                                     &entity.animation,
@@ -2984,7 +2984,7 @@ impl App {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for entity in self.game.world.entities.iter() {
-                if entity.cart_type.is_none() || !self.game.carts.contains_key(&entity.id) {
+                if entity.cart_type.is_none() || !self.game.sprite_caches.carts.contains_key(&entity.id) {
                     continue;
                 }
                 let (px, py) = entity.movement.position();
@@ -3018,7 +3018,7 @@ impl App {
     fn compute_falcon_render_list(&self) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
-            for (gid, falcon) in self.game.falcons.iter() {
+            for (gid, falcon) in self.game.sprite_caches.falcons.iter() {
                 let projected = input::project_world_screen(
                     falcon.motion.pos,
                     coords,

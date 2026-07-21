@@ -88,7 +88,7 @@ impl App {
         // A hunter/sniper's falcon darts at the struck target on Blitz Beat and
         // Falcon Assault. Auto Blitz Beat arrives through this same packet, so it
         // is covered without extra wiring.
-        if self.game.falcons.contains_key(&src_gid)
+        if self.game.sprite_caches.falcons.contains_key(&src_gid)
             && matches!(
                 SkillEnum::from_id(skill_id as u32),
                 SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
@@ -187,7 +187,7 @@ impl App {
         // Blitz Beat / Falcon Assault have no flying trail effect — the falcon
         // itself is the projectile, so hold the hit until the bird reaches the
         // target (the falcon flight was launched at the top of this handler).
-        let falcon_flight = if self.game.falcons.contains_key(&src_gid)
+        let falcon_flight = if self.game.sprite_caches.falcons.contains_key(&src_gid)
             && matches!(
                 SkillEnum::from_id(skill_id as u32),
                 SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
@@ -375,7 +375,7 @@ impl App {
     /// its swing connects — the `atk` keyframe. Defaults to mid-animation when
     /// the caster sprite or action is unavailable.
     fn atk_keyframe_fraction(&self, caster_gid: u32, base_action: usize, direction: u8) -> f32 {
-        let Some(sprite) = self.game.sprites.get(&caster_gid) else {
+        let Some(sprite) = self.game.sprite_caches.sprites.get(&caster_gid) else {
             return 0.5;
         };
         let act = &sprite.body_act;

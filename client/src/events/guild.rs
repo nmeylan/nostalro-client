@@ -229,7 +229,7 @@ impl App {
     ) {
         if gdid == 0 {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
+            self.game.sprite_caches.guild_head_sprites.clear();
             return;
         }
         let guild = self.guild_mut();
@@ -265,7 +265,7 @@ impl App {
         let is_self = name == self.game.character.name;
         if is_self {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
+            self.game.sprite_caches.guild_head_sprites.clear();
             self.game
                 .chat_window
                 .add_system("You have left the guild.".to_string());
@@ -286,7 +286,7 @@ impl App {
         let is_self = name == self.game.character.name;
         if is_self {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
+            self.game.sprite_caches.guild_head_sprites.clear();
             self.game
                 .chat_window
                 .add_system("You have been expelled from the guild.".to_string());
@@ -311,7 +311,7 @@ impl App {
     pub(super) fn handle_guild_disband_result(&mut self, reason: i32) {
         if reason == 0 {
             self.game.guild = None;
-            self.game.guild_head_sprites.clear();
+            self.game.sprite_caches.guild_head_sprites.clear();
             self.game
                 .chat_window
                 .add_system("The guild has been disbanded.".to_string());

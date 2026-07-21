@@ -99,7 +99,7 @@ impl App {
             match entry.kind {
                 RenderEntryKind::Entity => {
                     if let (Some(sprite), Some(entity)) = (
-                        self.game.sprites.get(&entry.id),
+                        self.game.sprite_caches.sprites.get(&entry.id),
                         self.game.world.entities.get(entry.id),
                     ) {
                         let render =
@@ -542,7 +542,7 @@ impl App {
                 }
                 RenderEntryKind::Cart => {
                     if let (Some(cart), Some(entity)) = (
-                        self.game.carts.get(&entry.id),
+                        self.game.sprite_caches.carts.get(&entry.id),
                         self.game.world.entities.get(entry.id),
                     ) {
                         if is_hidden(entity.effect_state) {
@@ -583,7 +583,7 @@ impl App {
                 }
                 RenderEntryKind::Falcon => {
                     if let (Some(falcon), Some(entity)) = (
-                        self.game.falcons.get(&entry.id),
+                        self.game.sprite_caches.falcons.get(&entry.id),
                         self.game.world.entities.get(entry.id),
                     ) {
                         if is_hidden(entity.effect_state) {
@@ -628,7 +628,7 @@ impl App {
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
         if let Some(center) = self.game.equipment_window.character_center()
             && let Some(player_id) = self.game.world.entities.player_id()
-            && let Some(sprite) = self.game.sprites.get(&player_id)
+            && let Some(sprite) = self.game.sprite_caches.sprites.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
             let batches = sprite.build_batches(&idle_anim, None, 0, center, 0.0, 1.0, [0.0, 0.0]);
@@ -653,7 +653,7 @@ impl App {
 
         if let Some(center) = self.game.equipment_window.cart_slot_center()
             && let Some(player_id) = self.game.world.entities.player_id()
-            && let Some(cart) = self.game.carts.get(&player_id)
+            && let Some(cart) = self.game.sprite_caches.carts.get(&player_id)
         {
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
             let batches =
@@ -680,7 +680,7 @@ impl App {
 
         let mut cart_select_calls: Vec<UiDrawCall> = Vec::new();
         for &(design, center) in self.game.cart_select_window.model_previews() {
-            let Some(sprite) = self.game.cart_preview_sprites.get(&design) else {
+            let Some(sprite) = self.game.sprite_caches.cart_preview_sprites.get(&design) else {
                 continue;
             };
             let idle_anim = ragnarok_formats::act::SpriteAnimationState::new(0);
@@ -720,7 +720,7 @@ impl App {
                         let Some(ch) = win.characters.get(view.char_index) else {
                             continue;
                         };
-                        let Some(sprite) = self.game.sprites.get(&ch.gid) else {
+                        let Some(sprite) = self.game.sprite_caches.sprites.get(&ch.gid) else {
                             continue;
                         };
                         let Some(anim) = self.account_anims.get(&ch.gid) else {
@@ -751,7 +751,7 @@ impl App {
             AppState::CharacterCreate => {
                 if let (Some(win), Some(sprite), Some(anim)) = (
                     &self.char_create_window,
-                    self.game.sprites.get(&CREATE_PREVIEW_GID),
+                    self.game.sprite_caches.sprites.get(&CREATE_PREVIEW_GID),
                     self.account_anims.get(&CREATE_PREVIEW_GID),
                 ) {
                     let batches = sprite.build_batches(
@@ -789,7 +789,7 @@ impl App {
         if self.game.session.app_state == AppState::InGame && self.game.guild_window.is_open() {
             let idle = ragnarok_formats::act::SpriteAnimationState::new(0);
             for &(gid, center) in self.game.guild_window.member_head_slots() {
-                let Some(sprite) = self.game.guild_head_sprites.get(&gid) else {
+                let Some(sprite) = self.game.sprite_caches.guild_head_sprites.get(&gid) else {
                     continue;
                 };
                 for batch in sprite.build_head_batches(&idle, None, 0, center, 26.0, 0.0) {

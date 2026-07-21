@@ -96,7 +96,7 @@ impl App {
         if stale {
             self.despawn_entity_effects(gid);
             self.game.world.entities.remove(gid);
-            self.game.sprites.remove(&gid);
+            self.game.sprite_caches.sprites.remove(&gid);
             self.remove_gr2_model(gid);
         } else if let Some(existing) = self.game.world.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
@@ -300,7 +300,7 @@ impl App {
                 }
                 self.despawn_entity_effects(gid);
                 let r1 = self.game.world.entities.remove(gid).is_some();
-                let r2 = self.game.sprites.remove(&gid).is_some();
+                let r2 = self.game.sprite_caches.sprites.remove(&gid).is_some();
                 self.remove_gr2_model(gid);
                 tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
             }

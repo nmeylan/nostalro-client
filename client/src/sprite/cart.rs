@@ -35,6 +35,7 @@ impl App {
     pub(crate) fn spawn_cart_visual(&mut self, owner_gid: u32, design: u8) {
         if self
             .game
+            .sprite_caches
             .carts
             .get(&owner_gid)
             .is_some_and(|c| c.design == design)
@@ -78,7 +79,7 @@ impl App {
             .get(owner_gid)
             .map(|e| e.direction)
             .unwrap_or(0);
-        self.game.carts.insert(
+        self.game.sprite_caches.carts.insert(
             owner_gid,
             CartVisual {
                 sprite,
@@ -89,7 +90,7 @@ impl App {
     }
 
     pub(crate) fn despawn_cart_visual(&mut self, owner_gid: u32) {
-        self.game.carts.remove(&owner_gid);
+        self.game.sprite_caches.carts.remove(&owner_gid);
     }
 
     pub(crate) fn preload_cart_previews(&mut self, designs: &[u8]) {
@@ -98,7 +99,7 @@ impl App {
             _ => return,
         };
         for &design in designs {
-            if self.game.cart_preview_sprites.contains_key(&design) {
+            if self.game.sprite_caches.cart_preview_sprites.contains_key(&design) {
                 continue;
             }
             let base = cart_sprite_path(design);
@@ -123,7 +124,7 @@ impl App {
                 None,
                 None,
             ));
-            self.game.cart_preview_sprites.insert(design, sprite);
+            self.game.sprite_caches.cart_preview_sprites.insert(design, sprite);
         }
     }
 
@@ -133,10 +134,10 @@ impl App {
             .as_ref()
             .map(|r| r.camera.direction_index())
             .unwrap_or(0);
-        let owners: Vec<u32> = self.game.carts.keys().copied().collect();
+        let owners: Vec<u32> = self.game.sprite_caches.carts.keys().copied().collect();
         for gid in owners {
             let Some(entity) = self.game.world.entities.get(gid) else {
-                self.game.carts.remove(&gid);
+                self.game.sprite_caches.carts.remove(&gid);
                 continue;
             };
             let (action, motion) = if entity.state == EntityState::Moving {
@@ -145,7 +146,7 @@ impl App {
                 (CART_ACTION_IDLE, MotionType::Static)
             };
             let direction = entity.direction;
-            if let Some(cart) = self.game.carts.get_mut(&gid) {
+            if let Some(cart) = self.game.sprite_caches.carts.get_mut(&gid) {
                 cart.animation
                     .set_action_clamped(action, motion, &cart.sprite.body_act);
                 cart.animation.set_direction(direction);

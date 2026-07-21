@@ -925,7 +925,7 @@ impl App {
                         .entities
                         .apply_ground_skill(skill_id, src_gid, x, y);
                     self.spawn_ground_skill_effects(skill_id, src_gid, level, x, y);
-                    let falcon_target = if self.game.falcons.contains_key(&src_gid)
+                    let falcon_target = if self.game.sprite_caches.falcons.contains_key(&src_gid)
                         && matches!(
                             SkillEnum::from_id(skill_id as u32),
                             SkillEnum::HtDetecting | SkillEnum::SnSight

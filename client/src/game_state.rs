@@ -299,10 +299,8 @@ pub struct World {
     pub freeze_shatters: Vec<FreezeShatter>,
 }
 
-pub struct GameState {
-    pub session: SessionState,
-    pub requested_guild_emblems: HashSet<(u32, i32)>,
-    pub world: World,
+#[derive(Default)]
+pub struct SpriteCaches {
     pub sprites: HashMap<u32, Rc<EntitySprite>>,
     /// Animation state of GR2 model entities (emperium, guardians…) keyed by
     /// gid; the matching draw resources live in `Renderer::gr2_models`.
@@ -312,6 +310,14 @@ pub struct GameState {
     pub carts: HashMap<u32, crate::sprite::CartVisual>,
     pub falcons: HashMap<u32, crate::sprite::FalconVisual>,
     pub cart_preview_sprites: HashMap<u8, Rc<EntitySprite>>,
+    pub failed_sprite_loads: HashSet<u32>,
+}
+
+pub struct GameState {
+    pub session: SessionState,
+    pub requested_guild_emblems: HashSet<(u32, i32)>,
+    pub world: World,
+    pub sprite_caches: SpriteCaches,
     pub character: Character,
     pub data_table: DataTable,
     pub cursor_textures: Option<SpriteTextures>,
@@ -357,7 +363,6 @@ pub struct GameState {
     pub system_menu: SystemMenu,
     pub map_missing_window: MapMissingWindow,
     pub hover: HoverState,
-    pub failed_sprite_loads: HashSet<u32>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
@@ -1252,13 +1257,7 @@ impl GameState {
             session: SessionState::new(),
             requested_guild_emblems: HashSet::new(),
             world: World::default(),
-            sprites: HashMap::new(),
-            gr2_models: HashMap::new(),
-            guild_head_sprites: HashMap::new(),
-            carts: HashMap::new(),
-            falcons: HashMap::new(),
-            cart_preview_sprites: HashMap::new(),
-            sprite_cache: HashMap::new(),
+            sprite_caches: SpriteCaches::default(),
             character: Character::new(),
             data_table: DataTable::new(),
             cursor_textures: None,
@@ -1302,7 +1301,6 @@ impl GameState {
             system_menu: SystemMenu::new(),
             map_missing_window: MapMissingWindow::new(),
             hover: HoverState::default(),
-            failed_sprite_loads: HashSet::new(),
             floor_item_sprites: HashMap::new(),
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,

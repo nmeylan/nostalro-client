@@ -95,7 +95,7 @@ impl App {
             job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom,
             shield_id, orc_face,
         ) {
-            self.game.sprites.insert(gid, sprite);
+            self.game.sprite_caches.sprites.insert(gid, sprite);
         } else {
             tracing::warn!("load_player_sprite: failed to load sprite data for gid={gid} job={job}");
         }
@@ -162,7 +162,7 @@ impl App {
     /// cache keyed by member GID, for the face icons in the guild roster. Kept
     /// separate from `game.sprites` so it never collides with on-screen entities.
     pub(crate) fn load_guild_member_sprites(&mut self) {
-        self.game.guild_head_sprites.clear();
+        self.game.sprite_caches.guild_head_sprites.clear();
         let members: Vec<(u32, u16, u8, u16, u16)> = match &self.game.guild {
             Some(g) => g
                 .members
@@ -191,7 +191,7 @@ impl App {
             if let Some(sprite) = self
                 .build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false)
             {
-                self.game.guild_head_sprites.insert(gid, sprite);
+                self.game.sprite_caches.guild_head_sprites.insert(gid, sprite);
             }
         }
     }
@@ -226,7 +226,7 @@ impl App {
             data.shield,
             data.shadow,
         ));
-        self.game.sprites.insert(gid, sprite);
+        self.game.sprite_caches.sprites.insert(gid, sprite);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -294,8 +294,8 @@ impl App {
                     }
                 };
 
-                if let Some(cached) = self.game.sprite_cache.get(&cache_key) {
-                    self.game.sprites.insert(gid, Rc::clone(cached));
+                if let Some(cached) = self.game.sprite_caches.sprite_cache.get(&cache_key) {
+                    self.game.sprite_caches.sprites.insert(gid, Rc::clone(cached));
                     return;
                 }
 
@@ -317,8 +317,8 @@ impl App {
                     None,
                     data.shadow,
                 ));
-                self.game.sprite_cache.insert(cache_key, Rc::clone(&sprite));
-                self.game.sprites.insert(gid, sprite);
+                self.game.sprite_caches.sprite_cache.insert(cache_key, Rc::clone(&sprite));
+                self.game.sprite_caches.sprites.insert(gid, sprite);
             }
         }
     }
@@ -335,9 +335,9 @@ impl App {
             load_plain(self);
             return;
         };
-        if let Some(cached) = self.game.sprite_cache.get(act_path) {
+        if let Some(cached) = self.game.sprite_caches.sprite_cache.get(act_path) {
             let cached = Rc::clone(cached);
-            self.game.sprites.insert(gid, cached);
+            self.game.sprite_caches.sprites.insert(gid, cached);
             return;
         }
         let base_path = self
@@ -374,9 +374,10 @@ impl App {
             None,
         ));
         self.game
+            .sprite_caches
             .sprite_cache
             .insert(act_path.to_string(), Rc::clone(&sprite));
-        self.game.sprites.insert(gid, sprite);
+        self.game.sprite_caches.sprites.insert(gid, sprite);
     }
 
     /// Load a `.gr2` name-table entity (emperium, guardian, guild flag…) as an
@@ -426,13 +427,14 @@ impl App {
         };
         renderer.gr2_models.insert(gid, model_renderer);
         self.game
+            .sprite_caches
             .gr2_models
             .insert(gid, Gr2ModelInstance::new(pose, clips));
         tracing::info!("Loaded gr2 model {path} for gid={gid}");
     }
 
     pub(crate) fn remove_gr2_model(&mut self, gid: u32) {
-        self.game.gr2_models.remove(&gid);
+        self.game.sprite_caches.gr2_models.remove(&gid);
         if let Some(renderer) = &mut self.renderer {
             renderer.gr2_models.remove(&gid);
         }
@@ -446,9 +448,9 @@ impl App {
             .iter()
             .filter(|e| {
                 self.game.world.entities.player_id() != Some(e.id)
-                    && !self.game.sprites.contains_key(&e.id)
-                    && !self.game.gr2_models.contains_key(&e.id)
-                    && !self.game.failed_sprite_loads.contains(&e.id)
+                    && !self.game.sprite_caches.sprites.contains_key(&e.id)
+                    && !self.game.sprite_caches.gr2_models.contains_key(&e.id)
+                    && !self.game.sprite_caches.failed_sprite_loads.contains(&e.id)
             })
             .map(|e| {
                 (
@@ -497,8 +499,8 @@ impl App {
                 *hair_color,
                 *direction,
             );
-            if !self.game.sprites.contains_key(gid) && !self.game.gr2_models.contains_key(gid) {
-                self.game.failed_sprite_loads.insert(*gid);
+            if !self.game.sprite_caches.sprites.contains_key(gid) && !self.game.sprite_caches.gr2_models.contains_key(gid) {
+                self.game.sprite_caches.failed_sprite_loads.insert(*gid);
             }
         }
     }
