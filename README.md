@@ -1,139 +1,244 @@
-The goal is to have a playable client to retrieve the classic ro experience (2004-2008) for nostalgic
+The goal is to have a playable client to retrieve the classic RO experience (2004-2008) for nostalgic players.
 
-It reuses many part of [rust-ro](https://github.com/nmeylan/rust-ro): packets, data structure, proc-macro.
+It reuses many parts of [rust-ro](https://github.com/nmeylan/rust-ro): packets, data structures, proc-macros.
 
 **This repository does not and will not provide any game assets**.
 
 # Progress
-see [features](docs/Features.md)
+See [TODO](docs/TODO.md). Architecture is documented in [docs/internal/architecture.md](docs/internal/architecture.md) and [docs/internal/rendering.md](docs/internal/rendering.md).
 
 # Why yet another client?
-I wanted to be able to run the game as it was in 2005~2008, but original client from this time does not handle well high dpi screen. It is also very painful to find right game resources and right exe diff to make it works with a server.
+We wanted to run the game as it was in 2005~2008, but the original client from that period does not handle high dpi screens well. It is also painful to find the right game resources and the right exe diff to make it work with a server.
 
-Other implementations are not focusing on this version of the client or do not aim for an exact match.
+Other implementations either do not focus on this version of the client, or do not aim for an exact match.
 
-I also wanted to have a clear view on what is implemented and what is not implemented.
-
+We also wanted a clear view on what is implemented and what is not.
 
 # Principles
-- Support any game resources until EP 12 (included)
-- Support any packet version until 20120307 (reason is that rust-ro was implemented with this packet version support first)
+- Support any game resources up to EP 12 (included)
+- Support all packet versions up to 20120307 without recompiling
 - Support **ALL** visual effects accurately
 - Do not alter original game resources: render actual resources with high dpi support
-- Runnable on windows and linux
-- We use a "mini framework" for the UI, in immediate mode, inspired by `egui`
+- Runnable on Windows and Linux
+- Use a "mini framework" for the UI, in immediate mode, inspired by `egui`
 
-# Divergence from original client
+# Prerequisites
 
-## AI
-Instead of using lua file from player directory to implement AI, I made the decision to implement and highly configured AI in the client directly, inspired by the famous: https://github.com/SpenceKonde/AzzyAI
+A newcomer needs four things before running anything.
 
-Reason are:
-- I don't want to add LUA support, as sources are available there is no need to allow an external system in order to customize the client: change can happen directly in the rust code, a plugin system will be added later
-- Based on my experience many lua script for homunculus where buggy and suboptimal, newbie player had to use the default AI scripts which where bad, while experienced player had advanced script for their homunculus
+- **Rust toolchain.** The workspace pins Rust `1.92.0` through a `rust-toolchain.toml` file. Install [rustup](https://rustup.rs) and the correct toolchain is selected automatically when we build from the repository root.
+- **`cargo-watch`** (only for the hot-reload development tools). Install it with `cargo install cargo-watch`. The game client and the standalone viewers do not need it.
+- **A running server.** The client is a network client: it connects to a login server. We use [rathena](https://github.com/rathena/rathena) (referenced as `../rathena`), and it can also talk to [rust-ro](https://github.com/nmeylan/rust-ro). Nothing but the map and sprite viewers work without a server to log into.
+- **Game resources.** We provide none. See the next section.
+
+# Game resources we need to supply
+
+None of the resource files are committed (they are git-ignored). We place them under `data/` at the repository root before building or running.
+
+```
+classic-client/
+  data/
+    data.grf        # required: single GRF archive with maps, sprites, effects, textures
+    BGM/            # optional: background music files (.mp3 / .wav)
+    emblem/         # optional: guild emblem .bmp files (24-bit, 24x24)
+```
+
+The GRF archive holds everything the renderer reads: maps (GAT/RSW/GND), sprites (SPR/ACT), effects (STR), 3D models (RSM/GR2), and textures. The client and every tool read resources by their Korean names, exactly as they are stored in the archive; we do not rename or repack them.
+
+The runtime picture looks like this.
+
+```mermaid
+flowchart LR
+    grf[data/data.grf] -->|maps, sprites, effects, textures| client[ragnarok-client]
+    bgm[data/BGM] -->|music| client
+    emblem[data/emblem] -->|guild emblems| client
+    config[config.json] -->|settings| client
+    client <-->|packets, packetver| server[login/char/map server]
+```
+
+# Build
+
+Build every crate from the repository root.
+
+```bash
+cargo build            # debug build of the whole workspace
+cargo build --release  # optimized build
+cargo test             # run all tests
+```
+
+The workspace depends on the server `models`, `movement`, and `packets` crates. By default `Cargo.toml` pulls them from the `rust-ro` git repository at a pinned revision, so a plain `cargo build` works with no extra checkout. If we are developing the server side in parallel, a commented `[patch]` block at the bottom of `Cargo.toml` can be uncommented to point those three crates at a local `../rust-ragnarok-server` checkout.
+
+# Configure
+
+Settings live in `config.json` at the repository root. The client reads it on start and writes it back on quit (and when settings change in game), so most fields are managed at runtime. The file is parsed with serde; any missing field falls back to its default, so a partial file is valid.
+
+The fields a newcomer sets by hand:
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `packetver` | number | `20120307` | Packet protocol version to speak. Any value up to 20120307 works without recompiling. Must match the server. |
+| `login_ip` | string | `127.0.0.1` | Login server address. |
+| `login_port` | number | `6900` | Login server port. |
+| `grf_paths` | string[] | `["data/data.grf"]` | GRF archives to load, in order. Later archives override earlier ones. |
+| `bgm_path` | string | `BGM` | Folder holding background music. `config.json` ships with `data/BGM`. |
+| `emblem_path` | string | `emblem` | Folder holding guild emblem `.bmp` files. `config.json` ships with `data/emblem`. |
+| `screen_width` / `screen_height` | number | `1024` / `768` | Initial window size. |
+| `fullscreen` | bool | `false` | Start in fullscreen. |
+| `dpi_scale` | number | `125.0` | UI scale in percent. This is the high dpi support: raise it on high resolution screens. |
+| `bgm_volume` / `sfx_volume` | number | `0.8` | Volume, `0.0` to `1.0`. |
+| `bgm_enabled` / `sfx_enabled` | bool | `true` | Sound toggles. |
+| `keep_login_id` | bool | `false` | Remember the last login id (never the password) and pre-fill it. |
+| `map_recovery_command` | string | `@go prontera` | Chat command sent by the recovery window when a map cannot load because its data is missing from the GRF. |
+| `trace_packets_send` / `trace_packets_recv` | bool | `false` | Log sent / received packets. Useful when investigating network issues. |
+
+The remaining fields (`window_state`, `keybindings`, `shortcut_commands`, `emotion_keys`, `display`, `last_char_slot`, and other in-game toggles) are written by the client as we play and rebind keys. We rarely edit them by hand.
 
 # Run
-Place a single game resource file at `data/data.grf`
 
+With `data/data.grf` in place and a server running:
+
+```bash
+cargo run --bin ragnarok-client
 ```
-run --package ragnarok-client --bin ragnarok-client
-```
+
+The client reads `config.json` from the current directory, so we run it from the repository root.
 
 # Development tools
 
-For faster feedback loop following tools are available
+Every tool reads the same code paths as the game, so what a tool shows is what the game renders. All of them take a `--grf` argument that defaults to `data/data.grf`. The hot-reload tools (the `tools/*-dev.sh` scripts) rebuild and reload on source change and need `cargo-watch`; the plain `cargo run` tools do not.
 
-## Sprite Viewer
+## Sprite viewer
 
-Standalone tool to browse and preview SPR/ACT sprites from GRF archives.
+Browse and preview SPR/ACT sprites from a GRF. Needs a GRF only.
 
 ```bash
-# Open with GRF file picker (scans current directory for .grf files)
+# Open with a GRF file picker (scans the current directory for .grf files)
 cargo run --bin sprite-viewer
 
 # Open a specific GRF
-cargo run --bin sprite-viewer -- --grf data.grf
+cargo run --bin sprite-viewer -- --grf data/data.grf
 ```
 
-## Grf editor
+## GRF editor
+
+Inspect and edit GRF archives. Needs a GRF only.
 
 Features:
-
-- Render bmp,tga,spr(act),str,rsw
-- Grid mode (view all elements in grid to ease finding of resources)
-- Export element
-- Add element
-- Play sound
+- Render bmp, tga, spr (act), str, rsw
+- Grid mode: view all elements in a grid to ease finding resources
+- Export an element
+- Add an element
+- Play a sound
 
 ```bash
 cargo run --bin ragnarok-grf-editor
 ```
 
-## Ui component hot reload
-Creation of UI is something that can takes lot of iteration, for this reason it was designed from scratch to be hot reloadable
+## Effect viewer (hot reload)
+
+Effects need a large number of iterations to get right. This viewer reloads on change so feedback is almost immediate. Needs a GRF and `cargo-watch`. Edit anything under `lib/effects/src`, `lib/renderer/src/effect/`, or `tools/effect-viewer-hot/src`.
+
 ```bash
-# In game UI
-tools/ui-component-dev.sh game
-# Login/char select UI
-tools/ui-component-dev.sh account
-# Homunculus/Mercenary/Pet
-tools/ui-component-dev.sh companion
-# Guild
-tools/ui-component-dev.sh guild
-# Social: guild, party, vending board, emotion, mailbox, trade
-tools/ui-component-dev.sh social
-# Chat: chat, chat room create/member/board
-tools/ui-component-dev.sh chat
+tools/effect-viewer-dev.sh                 # uses data/data.grf
+tools/effect-viewer-dev.sh path/to/data.grf
 ```
 
-## Effect viewer hot reload
-Effect implementation also requires huge amount of iteration to get them right, effect viewer support hot reload so effect rendering can be tune and feedback is almost immediate
+## Unified viewer (hot reload)
+
+Renders a scene plus a sprite plus an effect in the same tool. This validates effect rendering against actual entity rendering: effect size (beginspell), entity alteration (body tint, body size change), and effect alpha / additive behavior. Needs a GRF and `cargo-watch`.
+
 ```bash
-tools/effect-viewer-dev.sh
+tools/viewer-dev.sh                             # prontera, default GRF
+tools/viewer-dev.sh --map geffen                # different map
+tools/viewer-dev.sh --grf path/to/data.grf      # explicit GRF
+tools/viewer-dev.sh --map prontera --effect 42  # spawn an effect at startup
 ```
 
-## (Game) Viewer tool
-This tool provide rendering of scene + sprite + effect in same tool, this allows to validate effect rendering with actual entity rendering: allow to validate effect size (beginspell), validate entity alteration (body tint, body size change), effect alpha and additive properties
+Controls: `B` cycles the background, right-drag orbits, scroll (or `+`/`-`) zooms, `C` resets the camera, `Space` pauses, arrow keys change action/direction, `N`/`P` cycle the effect preset and `F` replays it.
+
+## Map (RSW) viewer (hot reload)
+
+Preview a map with camera, overlays, and an info panel. Needs a GRF and `cargo-watch`. Edit `tools/rsw-viewer-hot/src/lib.rs`.
+
 ```bash
-tools/viewer-dev.sh
+tools/rsw-viewer-dev.sh                          # default GRF
+tools/rsw-viewer-dev.sh path/to/data.grf geffen  # explicit GRF and map
 ```
 
-## GR 2 viewer
+## Rendering viewer (hot reload)
+
+Iterate on isolated rendering pieces such as damage numbers. Needs a GRF and `cargo-watch`. Edit `lib/game/src/damage_number.rs` or `tools/rendering-viewer-hot/src`.
+
+```bash
+tools/rendering-viewer-dev.sh
+tools/rendering-viewer-dev.sh path/to/data.grf
+```
+
+## UI component viewer (hot reload)
+
+Building UI takes many iterations, so the UI was designed from scratch to be hot reloadable. This runs a single window example or a category of windows and reloads on change. Needs `cargo-watch` (and a GRF for windows that show sprites).
+
+```bash
+# A single window example
+tools/ui-component-dev.sh inventory
+tools/ui-component-dev.sh npc_shop --grf data/data.grf
+
+# A category (several windows at once)
+tools/ui-component-dev.sh game       # inventory, npc_shop, npc_dialog, equipment, system_menu, confirm_dialog, chat
+tools/ui-component-dev.sh account    # login, server_list, char_select
+tools/ui-component-dev.sh companion  # homunculus, mercenary, pet
+tools/ui-component-dev.sh guild      # guild
+tools/ui-component-dev.sh social     # guild, party, vending board, emotion, mailbox, trade
+tools/ui-component-dev.sh chat       # chat, chat room create/member/board
+tools/ui-component-dev.sh shop       # cart, vending_setup, my_shop, vending_buy
+```
+
+## GR2 viewer
+
+Render Granny (GR2) 3D models: guild flags, guardians, the Emperium. Needs a GRF, and an emblem `.bmp` when rendering a guild flag.
 
 ```bash
 # guild flag with emblem
-cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf guildflag90_1.gr2 --emblem /home/nmeylan/dev/ragnarok/classic-client/data/emblem/emblem_0013.bmp
+cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf guildflag90_1.gr2 --emblem data/emblem/emblem_0013.bmp
 
-# Archer guardian
-cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf aguardian90_8.gr2
+# archer guardian
+cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf aguardian90_8.gr2
 
-# Knight guardian
-cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf data/model/3dmob/kguardian90_7.gr2
+# knight guardian
+cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf data/model/3dmob/kguardian90_7.gr2
 
 # Emperium
-cargo run -p ragnarok-tools --bin gr2-viewer --   --grf data/data.grf data/model/3dmob/empelium90_0.gr2
+cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf data/model/3dmob/empelium90_0.gr2
 ```
 
+# Divergence from original client
+
+## AI
+Instead of using Lua files from the player directory to implement AI, we implement a highly configurable AI in the client directly, inspired by [AzzyAI](https://github.com/SpenceKonde/AzzyAI).
+
+Reasons:
+- We do not want to add Lua support. As the sources are available, there is no need for an external system to customize the client: changes happen directly in the Rust code, and a plugin system will be added later.
+- In our experience many Lua scripts for homunculus were buggy and suboptimal. Newbie players had to use the default AI scripts, which were bad, while experienced players had advanced scripts for their homunculus.
+
 # AI usage
-This project leverage AI to allow a faster development, as my time is very limited. AI is being used for:
-- Fix network packet handling: investigate raw packet trace
-- Helping to implement rendering (wgpu and wsgl api): when i started this project my knowledge on wgpu and wsgl was almost 0
+This project leverages AI to allow faster development, as our time is limited. AI is used for:
+- Fixing network packet handling: investigating raw packet traces
+- Helping to implement rendering (wgpu and wgsl API): our knowledge of wgpu and wgsl was almost zero when we started
 - Game resource format handling
 - Refactoring tasks
-- Write tools
-- Effects analysis (from gif) and implementation
-
+- Writing tools
+- Effect analysis (from gif) and implementation
 
 # Resources
-Without below resources, my memories alone where not enough to implement visual parity with original game
+Without the resources below, our memories alone were not enough to reach visual parity with the original game.
 
-ALL effects have been implemented this would not have been possible without following resources:
+ALL effects have been implemented; this would not have been possible without:
 - **Waken** youtube channel https://www.youtube.com/@wakenragnadev6265
 - https://casual-ragnarok.github.io/ro-effects/
 
-Various gameplay/effect/ui rendering
-- https://www.youtube.com/@lordknightnecri1603 <- effects
-- https://www.youtube.com/watch?v=-XCxB3hem-A&list=PLbEyWK1BqG7oYWWnTg9ENpIB_XESvml8P&index=28 <- effects
-- https://www.youtube.com/watch?v=P__GwtWu6pQ <- marionette dolls
-- http://guidesragnarok.free.fr/guides/guildes.php <- guild
-- https://www.youtube.com/watch?v=BuEU4GeoUPQ <- chat room
+Various gameplay / effect / UI rendering references:
+- https://www.youtube.com/@lordknightnecri1603 (effects)
+- https://www.youtube.com/watch?v=-XCxB3hem-A&list=PLbEyWK1BqG7oYWWnTg9ENpIB_XESvml8P&index=28 (effects)
+- https://www.youtube.com/watch?v=P__GwtWu6pQ (marionette dolls)
+- http://guidesragnarok.free.fr/guides/guildes.php (guild)
+- https://www.youtube.com/watch?v=BuEU4GeoUPQ (chat room)

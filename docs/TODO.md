@@ -94,7 +94,7 @@ TODO:
 ~~- Item refining~~
 ~~- Cart system~~
 - ~~Storage/warehouse~~
-- Bank
+- ~~Bank~~
 
 # Social
 - ~~Party (create, join, leave, exp/item share settings)~~
