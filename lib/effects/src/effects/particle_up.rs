@@ -51,8 +51,8 @@ const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
 
 pub const HPTIME: ParticleUpParams = p("pok1.tga", (220, 250, 220));
 pub const HEAL_MOTE: ParticleUpParams = ParticleUpParams {
-    base_dist: 9.0,
-    dist_rand: 0.0,
+    base_dist: 2.83,
+    dist_rand: 1.41,
     spawn_end: 50,
     spread: 6.0,
     rise_base: 0.3,
