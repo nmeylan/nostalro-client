@@ -364,6 +364,7 @@ impl App {
             self.refresh_level_aura(gid);
             self.refresh_boss_aura(gid);
             self.refresh_detect_aura(gid);
+            self.refresh_warp_portal(gid);
         }
 
         self.game.character.inventory.clear();

@@ -101,6 +101,10 @@ impl App {
             self.remove_gr2_model(gid);
         } else if let Some(existing) = self.game.world.entities.get_mut(gid) {
             existing.movement.set_speed(speed);
+            // A re-declared entity is back in sight: cancel any out-of-sight fade
+            // so it is not removed mid-frame, which would strip its keyed effects
+            // (e.g. a warp portal) that the server will not re-send.
+            existing.fade = None;
             // A fresh spawn for an already-visible entity re-declares its cell: on
             // a same-map teleport the master's companion is re-sent here rather
             // than vanished, so honour the new position instead of stranding it.
@@ -875,6 +879,22 @@ impl App {
     pub(crate) fn despawn_boss_aura(&mut self, gid: u32) {
         if let Some(key) = self.game.effect_keys.boss_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
+        }
+    }
+
+    /// Re-establish the portal swirl for a warp NPC whose effect was dropped
+    /// while the entity itself survived — e.g. a same-map move that resets the
+    /// effect holder but keeps the entity, where the server only re-declares it
+    /// via the already-visible path that never re-runs the spawn gate.
+    pub(super) fn refresh_warp_portal(&mut self, gid: u32) {
+        let is_warp = self
+            .game
+            .world
+            .entities
+            .get(gid)
+            .is_some_and(|e| e.entity_type == EntityType::Npc && e.job == JT_WARPNPC);
+        if is_warp {
+            self.spawn_warp_portal(gid);
         }
     }
 
