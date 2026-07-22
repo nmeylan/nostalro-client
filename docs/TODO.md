@@ -83,7 +83,7 @@ TODO:
 - ~~HP/SP bars~~
 - ~~Death~~ + respawn
 - ~~Sit/stand actions~~ 
-- hide/cloak
+- ~~hide/cloak~~
 
 # Items & equipment
 - ~~Inventory management (pickup, drop, use, equip)~~
@@ -99,7 +99,7 @@ TODO:
 # Social
 - ~~Party (create, join, leave, exp/item share settings)~~
 - ~~Guild (create, manage, skills, emblem)~~
-- War of emperium: no name, no damage number, emblem above head
+- ~~War of emperium: no name, no damage number, emblem above head~~
 - ~~Friend list + whisper~~
 - ~~Chat rooms~~
 - ~~Trade~~
@@ -113,16 +113,16 @@ TODO:
 - ~~Team chat~~ 
 - ~~Combat packets (attack, skill use, damage)~~
 - ~~Item packets (pickup, drop, use, equip, unequip)~~
-~~- Skill packets (cast, execute, ground target)~~
+- ~~Skill packets (cast, execute, ground target)~~
 - ~~NPC packets (dialog, menu, shop, close)~~
 - ~~Entity spawn/despawn/update packets~~ (done — full spawn/move/vanish/act handling)
 - ~~Status change packets~~
 - ~~Party/guild packets~~
-~~- Trade/vending packets~~
+- ~~Trade/vending packets~~
 - ~~Quest packets~~
 - ~~Pet/homunculus/mercenary packets~~
 - ~~Mail packets~~
-~~- Effect wiring~~
+- ~~Effect wiring~~
 
 # Audio
 - ~~BGM playback (map-specific music)~~
@@ -135,9 +135,9 @@ TODO:
 - ~~Weather per map~~
 
 # Input
-- Slash commands (/sit, /emotion, /where, etc.) https://irowiki.org/classic/Basic_Game_Control
+- ~~Slash commands~~ (/sit, /emotion, /where, etc.) https://irowiki.org/classic/Basic_Game_Control
 - ~~Keyboard shortcuts~~
-- Hotkey configuration
+- ~~Hotkey configuration~~
 - ~~Battle mode (keyboard skill activation)~~
 
 # Tools
