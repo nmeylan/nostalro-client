@@ -69,7 +69,7 @@ impl App {
         if let Some(emote) = ragnarok_game::pet_tables::pet_emotion(hunger, friendly, act) {
             self.channel.send_packet(ragnarok_network::build_pet_act_packet(
                 emote as i32,
-                self.config.packetver,
+                self.active_packetver,
             ));
         }
     }
@@ -95,7 +95,7 @@ impl App {
                 self.channel
                     .send_packet(ragnarok_network::build_trycapture_packet(
                         gid,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
             }
             return true;

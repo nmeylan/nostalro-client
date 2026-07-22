@@ -26,12 +26,34 @@ impl Default for WindowStateEntry {
 pub use ragnarok_game::display::DisplayOptions;
 pub use ragnarok_game::keybinding::{EmotionKeys, KeyBindings};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginServer {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    /// Overrides the top-level `packetver` while this server is selected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packetver: Option<u32>,
+}
+
+impl Default for LoginServer {
+    fn default() -> Self {
+        Self {
+            name: "Local".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 6900,
+            packetver: None,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub packetver: u32,
-    pub login_ip: String,
-    pub login_port: u16,
+    /// Selectable connection (login) servers. The first is used by default; when
+    /// more than one is present the client shows a selection screen before login.
+    pub login_servers: Vec<LoginServer>,
     /// When true, the last login ID is stored in `saved_username` and pre-filled
     /// on the login screen (never the password).
     pub keep_login_id: bool,
@@ -47,6 +69,10 @@ pub struct Config {
     pub free_camera: bool,
     pub dpi_scale: f32,
     pub grf_paths: Vec<String>,
+    /// Optional directory of files extracted from a GRF. Its contents mirror the
+    /// inside of the archive's `data/` folder (e.g. `sprite/…`, `texture/…`) and
+    /// take priority over every entry in `grf_paths`.
+    pub data_dir: Option<String>,
     pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
     pub trace_packets_send: bool,
@@ -89,8 +115,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             packetver: 20120307,
-            login_ip: "127.0.0.1".to_string(),
-            login_port: 6900,
+            login_servers: vec![LoginServer::default()],
             keep_login_id: false,
             saved_username: String::new(),
             screen_width: 1024,
@@ -104,6 +129,7 @@ impl Default for Config {
             free_camera: false,
             dpi_scale: 125.0,
             grf_paths: vec!["data/data.grf".to_string()],
+            data_dir: None,
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,
             trace_packets_send: false,
@@ -178,9 +204,24 @@ mod tests {
         let json = serde_json::to_string_pretty(&config).unwrap();
         let parsed: Config = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.packetver, 20120307);
-        assert_eq!(parsed.login_port, 6900);
+        assert_eq!(parsed.login_servers.len(), 1);
+        assert_eq!(parsed.login_servers[0].host, "127.0.0.1");
+        assert_eq!(parsed.login_servers[0].port, 6900);
         assert_eq!(parsed.screen_width, 1024);
         assert_eq!(parsed.grf_paths, vec!["data/data.grf"]);
+    }
+
+    #[test]
+    fn per_server_packetver_parses_and_defaults_to_none() {
+        let json = r#"{"login_servers":[
+            {"name":"Live","host":"live.example.com","port":6900},
+            {"name":"Old","host":"10.0.0.1","port":6901,"packetver":20040101}
+        ]}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.login_servers.len(), 2);
+        assert_eq!(config.login_servers[0].packetver, None);
+        assert_eq!(config.login_servers[1].packetver, Some(20040101));
+        assert_eq!(config.login_servers[1].host, "10.0.0.1");
     }
 
     #[test]
@@ -242,7 +283,8 @@ mod tests {
         let json = r#"{"packetver": 20200401}"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.packetver, 20200401);
-        assert_eq!(config.login_port, 6900);
+        assert_eq!(config.login_servers.len(), 1);
+        assert_eq!(config.login_servers[0].port, 6900);
         assert_eq!(config.screen_width, 1024);
     }
 

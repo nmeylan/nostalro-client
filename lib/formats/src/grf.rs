@@ -36,6 +36,51 @@ pub struct GrfArchive {
     path: PathBuf,
     file_data_end_offset: u64,
     writable: bool,
+    data_dir: Option<DataDirIndex>,
+    overlays: Vec<GrfArchive>,
+}
+
+/// Extracted files on disk, keyed by their normalized path relative to the
+/// directory. A resource name resolves against this by dropping its leading
+/// `data/` component, so a directory holding `sprite/foo.spr` overrides the
+/// archive entry `data/sprite/foo.spr`.
+struct DataDirIndex {
+    files: HashMap<String, PathBuf>,
+}
+
+impl DataDirIndex {
+    fn build(dir: &Path) -> DataDirIndex {
+        let mut files = HashMap::new();
+        index_dir(dir, dir, &mut files);
+        DataDirIndex { files }
+    }
+
+    fn lookup(&self, name: &str) -> Option<&PathBuf> {
+        self.files.get(&data_dir_key(name))
+    }
+}
+
+fn data_dir_key(name: &str) -> String {
+    let normalized = name.to_lowercase().replace('\\', "/");
+    normalized
+        .strip_prefix("data/")
+        .unwrap_or(&normalized)
+        .to_string()
+}
+
+fn index_dir(root: &Path, dir: &Path, out: &mut HashMap<String, PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            index_dir(root, &path, out);
+        } else if let Ok(relative) = path.strip_prefix(root) {
+            let key = relative.to_string_lossy().to_lowercase().replace('\\', "/");
+            out.insert(key, path);
+        }
+    }
 }
 
 fn parse_grf(file: &mut File) -> Result<(HashMap<String, GrfEntry>, u64), FormatError> {
@@ -83,7 +128,41 @@ impl GrfArchive {
             path: path.to_path_buf(),
             file_data_end_offset,
             writable: false,
+            data_dir: None,
+            overlays: Vec::new(),
         })
+    }
+
+    /// Open a priority-ordered stack of archives plus an optional directory of
+    /// extracted files. `grf_paths[0]` is the primary archive; later paths only
+    /// provide files the earlier ones lack. `data_dir`, when present, overrides
+    /// every archive.
+    pub fn open_layered(grf_paths: &[String], data_dir: Option<&Path>) -> Result<Self, FormatError> {
+        let (first, rest) = grf_paths
+            .split_first()
+            .ok_or(FormatError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "grf_paths is empty",
+            )))?;
+
+        let mut archive = GrfArchive::open(Path::new(first))?;
+
+        for path in rest {
+            match GrfArchive::open(Path::new(path)) {
+                Ok(overlay) => archive.overlays.push(overlay),
+                Err(e) => tracing::error!("Failed to open overlay GRF {path}: {e}"),
+            }
+        }
+
+        if let Some(dir) = data_dir {
+            if dir.is_dir() {
+                archive.data_dir = Some(DataDirIndex::build(dir));
+            } else {
+                tracing::warn!("data_dir {} is not a directory, ignoring", dir.display());
+            }
+        }
+
+        Ok(archive)
     }
 
     pub fn open_rw(path: &Path) -> Result<Self, FormatError> {
@@ -100,6 +179,8 @@ impl GrfArchive {
             path: path.to_path_buf(),
             file_data_end_offset,
             writable: true,
+            data_dir: None,
+            overlays: Vec::new(),
         })
     }
 
@@ -132,6 +213,8 @@ impl GrfArchive {
             path: path.to_path_buf(),
             file_data_end_offset: HEADER_SIZE as u64,
             writable: true,
+            data_dir: None,
+            overlays: Vec::new(),
         })
     }
 
@@ -140,14 +223,22 @@ impl GrfArchive {
     }
 
     pub fn read_file(&self, name: &str) -> Result<Vec<u8>, FormatError> {
+        if let Some(path) = self.data_dir.as_ref().and_then(|d| d.lookup(name)) {
+            return std::fs::read(path).map_err(FormatError::Io);
+        }
+
         let name_lower = name.to_lowercase().replace('\\', "/");
-        let entry = self
-            .entries
-            .get(&name_lower)
-            .ok_or(FormatError::Io(std::io::Error::new(
+        let Some(entry) = self.entries.get(&name_lower) else {
+            for overlay in &self.overlays {
+                if overlay.entries.contains_key(&name_lower) {
+                    return overlay.read_file(name);
+                }
+            }
+            return Err(FormatError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("file not found in archive: {name}"),
-            )))?;
+            )));
+        };
 
         let position = entry.offset as u64 + HEADER_SIZE as u64;
         let mut compressed = vec![0u8; entry.compressed_size_aligned as usize];
@@ -276,10 +367,19 @@ impl GrfArchive {
     }
 
     pub fn file_exists(&self, name: &str) -> bool {
+        if self.data_dir.as_ref().and_then(|d| d.lookup(name)).is_some() {
+            return true;
+        }
         let name_lower = name.to_lowercase().replace('\\', "/");
         self.entries.contains_key(&name_lower)
+            || self
+                .overlays
+                .iter()
+                .any(|o| o.entries.contains_key(&name_lower))
     }
 
+    /// Counts only the primary archive; overlays and `data_dir` are not
+    /// included. The same holds for the other listing methods below.
     pub fn file_count(&self) -> usize {
         self.entries.len()
     }

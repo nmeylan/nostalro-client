@@ -138,7 +138,7 @@ impl App {
             .session.selected_character
             .as_ref()
             .map(|c| {
-                let sex = if self.config.packetver >= 20141016 {
+                let sex = if self.active_packetver >= 20141016 {
                     c.sex
                 } else {
                     session_sex
@@ -298,7 +298,7 @@ impl App {
 
         self.game.character.inventory.clear();
         self.channel
-            .send_packet(build_map_loaded_packet(self.config.packetver));
+            .send_packet(build_map_loaded_packet(self.active_packetver));
     }
 
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
@@ -369,7 +369,7 @@ impl App {
 
         self.game.character.inventory.clear();
         self.channel
-            .send_packet(build_map_loaded_packet(self.config.packetver));
+            .send_packet(build_map_loaded_packet(self.active_packetver));
     }
 
     pub(super) fn handle_player_moved(

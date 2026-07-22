@@ -184,7 +184,7 @@ impl App {
                 skill_id,
                 level,
                 target_id,
-                self.config.packetver,
+                self.active_packetver,
             ));
             self.game.pending_casts.pending_skill_id = None;
             self.game.pending_casts.pending_skill_level = None;
@@ -253,7 +253,7 @@ impl App {
                 level,
                 x,
                 y,
-                self.config.packetver,
+                self.active_packetver,
             ));
             self.game.pending_casts.pending_ground_cast = None;
         } else {
@@ -282,7 +282,7 @@ impl App {
         let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
         if dx <= 1 && dy <= 1 {
             self.channel
-                .send_packet(build_pickup_item_packet(item_id, self.config.packetver));
+                .send_packet(build_pickup_item_packet(item_id, self.active_packetver));
             if let Some(entity) = self.game.world.entities.player_mut() {
                 entity.movement.stop();
                 entity.enter_pickup(0.5);

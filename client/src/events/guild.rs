@@ -70,7 +70,7 @@ impl App {
         if request_emblem {
             self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
                 gdid,
-                self.config.packetver,
+                self.active_packetver,
             ));
         }
     }
@@ -184,7 +184,7 @@ impl App {
         }
         self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
             gdid,
-            self.config.packetver,
+            self.active_packetver,
         ));
     }
 

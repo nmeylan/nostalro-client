@@ -99,6 +99,9 @@ impl App {
                 GameEvent::LoginRefused { error_code } => {
                     self.handle_login_refused(error_code);
                 }
+                GameEvent::CharServerConnectRefused { error_code } => {
+                    self.handle_char_server_connect_refused(error_code);
+                }
                 GameEvent::CharacterListReceived { characters } => {
                     self.handle_character_list_received(characters);
                 }
@@ -352,7 +355,7 @@ impl App {
                         self.windows.npc_dialog.dialog.close();
                         self.game.npc_cutins = [None, None, None];
                         self.channel
-                            .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
+                            .send_packet(build_npc_close_packet(npc_id, self.active_packetver));
                     }
                 }
                 GameEvent::NpcDialogMenu { npc_id, items } => {

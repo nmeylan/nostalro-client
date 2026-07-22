@@ -113,7 +113,7 @@ impl App {
                 .send_packet(ragnarok_network::build_join_party_reply_packet(
                     party_grid,
                     false,
-                    self.config.packetver,
+                    self.active_packetver,
                 ));
             return;
         }
@@ -145,7 +145,7 @@ impl App {
             // while waiting for this ack.
             if let Some(aid) = self.game.pending_confirms.pending_invite_aid.take() {
                 self.channel.send_packet(
-                    ragnarok_network::build_req_join_party_packet(aid, self.config.packetver),
+                    ragnarok_network::build_req_join_party_packet(aid, self.active_packetver),
                 );
             }
         } else {

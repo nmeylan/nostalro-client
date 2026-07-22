@@ -49,7 +49,7 @@ impl App {
         }
         if let Some(room_id) = self.game.hover.hovered_chat_room {
             self.channel
-                .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
+                .send_packet(build_req_enter_room_packet(room_id, self.active_packetver));
             return;
         }
         if let Some(pending) = self.game.pending_casts.pending_companion_skill.take() {
@@ -131,7 +131,7 @@ impl App {
                                 skill_id,
                                 level,
                                 entity_id,
-                                self.config.packetver,
+                                self.active_packetver,
                             ));
                             if skill_id == SkillEnum::BsRepairweapon.id() as u16 {
                                 self.game.pending_casts.pending_repair_target = Some(entity_id);
@@ -170,7 +170,7 @@ impl App {
                                 level,
                                 cx as i16,
                                 cy as i16,
-                                self.config.packetver,
+                                self.active_packetver,
                             ));
                         } else {
                             self.game.pending_casts.pending_ground_cast =
@@ -204,7 +204,7 @@ impl App {
                 let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
                 if dx <= 1 && dy <= 1 {
                     self.channel
-                        .send_packet(build_pickup_item_packet(item_id, self.config.packetver));
+                        .send_packet(build_pickup_item_packet(item_id, self.active_packetver));
                     if let Some(entity) = self.game.world.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
@@ -215,7 +215,7 @@ impl App {
                         self.channel.send_packet(build_request_move_packet(
                             move_action.dest_x,
                             move_action.dest_y,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                         self.game.pending_casts.pending_pickup_item_id = Some(item_id);
                     }
@@ -233,7 +233,7 @@ impl App {
                 .is_some_and(|e| e.vending_board.is_some())
         {
             self.channel
-                .send_packet(build_req_buy_frommc_packet(entity_id, self.config.packetver));
+                .send_packet(build_req_buy_frommc_packet(entity_id, self.active_packetver));
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
@@ -242,7 +242,7 @@ impl App {
             && entity.job != 45
         {
             self.channel
-                .send_packet(build_contact_npc_packet(entity_id, self.config.packetver));
+                .send_packet(build_contact_npc_packet(entity_id, self.active_packetver));
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
@@ -310,7 +310,7 @@ impl App {
         self.channel.send_packet(build_request_move_packet(
             move_action.dest_x,
             move_action.dest_y,
-            self.config.packetver,
+            self.active_packetver,
         ));
     }
 }

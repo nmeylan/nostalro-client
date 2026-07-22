@@ -254,7 +254,7 @@ impl App {
     }
 
     fn dispatch_companion_intents(&mut self, gid: u32, intents: &[AiIntent]) {
-        let pv = self.config.packetver;
+        let pv = self.active_packetver;
         for intent in intents {
             match *intent {
                 AiIntent::MoveTo { x, y } => {

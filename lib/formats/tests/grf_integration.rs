@@ -108,6 +108,79 @@ impl Drop for CleanupFile {
     }
 }
 
+struct CleanupDir(PathBuf);
+impl Drop for CleanupDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn write_grf(path: &Path, files: &[(&str, &[u8])]) {
+    let mut grf = GrfArchive::create(path).unwrap();
+    for (name, data) in files {
+        grf.add_file(name, data).unwrap();
+    }
+    grf.save().unwrap();
+}
+
+#[test]
+fn open_layered_first_archive_wins() {
+    let primary = temp_grf_path("layer_primary");
+    let overlay = temp_grf_path("layer_overlay");
+    let _c1 = CleanupFile(primary.clone());
+    let _c2 = CleanupFile(overlay.clone());
+
+    write_grf(
+        &primary,
+        &[("data/shared.txt", b"primary"), ("data/only_primary.txt", b"P")],
+    );
+    write_grf(
+        &overlay,
+        &[("data/shared.txt", b"overlay"), ("data/only_overlay.txt", b"O")],
+    );
+
+    let grf = GrfArchive::open_layered(
+        &[
+            primary.to_string_lossy().into_owned(),
+            overlay.to_string_lossy().into_owned(),
+        ],
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(grf.read_file("data/shared.txt").unwrap(), b"primary");
+    assert_eq!(grf.read_file("data/only_overlay.txt").unwrap(), b"O");
+    assert_eq!(grf.read_file("data/only_primary.txt").unwrap(), b"P");
+    assert!(grf.file_exists("data/only_overlay.txt"));
+}
+
+#[test]
+fn open_layered_data_dir_overrides_archives() {
+    let primary = temp_grf_path("datadir_primary");
+    let dir = std::env::temp_dir().join(format!("test_grf_{}_datadir", std::process::id()));
+    let _c1 = CleanupFile(primary.clone());
+    let _c2 = CleanupDir(dir.clone());
+
+    write_grf(
+        &primary,
+        &[("data/sub/shared.txt", b"from_grf"), ("data/only_grf.txt", b"G")],
+    );
+
+    std::fs::create_dir_all(dir.join("Sub")).unwrap();
+    std::fs::write(dir.join("Sub/Shared.txt"), b"from_disk").unwrap();
+
+    let grf = GrfArchive::open_layered(
+        &[primary.to_string_lossy().into_owned()],
+        Some(&dir),
+    )
+    .unwrap();
+
+    // Disk file wins over the archive, matched case-insensitively without the data/ prefix.
+    assert_eq!(grf.read_file("data/sub/shared.txt").unwrap(), b"from_disk");
+    assert_eq!(grf.read_file("data/only_grf.txt").unwrap(), b"G");
+    assert!(grf.file_exists("data/sub/shared.txt"));
+}
+
 #[test]
 fn create_and_add_files_roundtrip() {
     let path = temp_grf_path("create_roundtrip");

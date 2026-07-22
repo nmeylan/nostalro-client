@@ -10,7 +10,7 @@ impl App {
             mail.window_open = true;
             mail.mode = MailboxMode::Inbox;
             self.channel
-                .send_packet(build_mail_get_list_packet(self.config.packetver));
+                .send_packet(build_mail_get_list_packet(self.active_packetver));
         } else {
             self.game.character.mail.clear();
         }
@@ -92,7 +92,7 @@ impl App {
             mail.switch_to_inbox();
             self.windows.chat_window.add_system("Mail sent.".to_string());
             self.channel
-                .send_packet(build_mail_get_list_packet(self.config.packetver));
+                .send_packet(build_mail_get_list_packet(self.active_packetver));
         } else {
             self.windows
                 .chat_window
@@ -108,7 +108,7 @@ impl App {
         let mail = &self.game.character.mail;
         if mail.window_open && mail.mode == MailboxMode::Inbox {
             self.channel
-                .send_packet(build_mail_get_list_packet(self.config.packetver));
+                .send_packet(build_mail_get_list_packet(self.active_packetver));
         }
     }
 
@@ -122,7 +122,7 @@ impl App {
                 mail.read_open = false;
             }
             self.channel
-                .send_packet(build_mail_get_list_packet(self.config.packetver));
+                .send_packet(build_mail_get_list_packet(self.active_packetver));
         } else {
             self.windows
                 .chat_window

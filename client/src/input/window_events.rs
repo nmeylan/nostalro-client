@@ -473,7 +473,7 @@ impl App {
                     self.channel.send_packet(build_action_request_packet(
                         0,
                         action,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
             }

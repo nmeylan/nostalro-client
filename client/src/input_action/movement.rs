@@ -158,7 +158,7 @@ impl App {
         self.channel.send_packet(build_action_request_packet(
             target_id,
             ActionType::AttackRepeat.value() as u8,
-            self.config.packetver,
+            self.active_packetver,
         ));
     }
 
@@ -203,7 +203,7 @@ impl App {
                     self.channel.send_packet(build_request_move_packet(
                         move_action.dest_x,
                         move_action.dest_y,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 return true;
@@ -211,7 +211,7 @@ impl App {
             self.channel.send_packet(build_request_move_packet(
                 move_action.dest_x,
                 move_action.dest_y,
-                self.config.packetver,
+                self.active_packetver,
             ));
             true
         } else {

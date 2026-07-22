@@ -7,6 +7,7 @@ use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui_component::Window;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
+use ragnarok_ui_component::account::login_server_list_window::LoginServerListWindow;
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
@@ -144,7 +145,7 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "shortcut_list",
 ];
 const ACCOUNT_COMPONENTS: &[&str] =
-    &["login", "server_list", "char_select", "char_create"];
+    &["login", "login_server_list", "server_list", "char_select", "char_create"];
 const SHOP_COMPONENTS: &[&str] =
     &["cart", "vending_setup", "my_shop", "vending_buy"];
 const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
@@ -169,6 +170,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "chat" => ChatWindow::grf_texture_paths(),
         "npc_dialog" => NpcDialog::grf_texture_paths(),
         "confirm_dialog" => ConfirmDialog::grf_texture_paths(),
+        "login_server_list" => LoginServerListWindow::grf_texture_paths(),
         "server_list" => ServerListWindow::grf_texture_paths(),
         "equipment" => EquipmentWindow::grf_texture_paths(),
         "system_menu" => SystemMenu::grf_texture_paths(),

@@ -89,7 +89,7 @@ use ragnarok_network::{
     build_use_skill_packet, build_req_itemidentify_packet, build_req_makingarrow_packet,
     build_req_makingitem_packet, build_req_weaponrefine_packet, build_req_itemrepair_packet,
     build_select_autospell_packet, build_req_openstore2_packet, build_req_cancel_openstore_packet,
-    build_req_buy_frommc_packet, build_purchase_frommc2_packet, ip_u32_to_string, network_loop,
+    build_req_buy_frommc_packet, build_purchase_frommc_dispatch, ip_u32_to_string, network_loop,
     build_companion_move_packet, build_companion_attack_packet,
     build_companion_move_to_owner_packet, build_homun_menu_packet,
     build_mercenary_command_packet, build_rename_homun_packet, build_config_packet,
@@ -113,6 +113,9 @@ use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
 use ragnarok_ui_component::game::party_helper_window::MODE_CREATE;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::account::login_server_list_window::{
+    LoginServerEntry, LoginServerListWindow,
+};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use std::collections::HashMap;
 use std::path::Path;
@@ -179,6 +182,9 @@ struct App {
     ui_state_cache: StateCache,
     login_window: LoginWindow,
     account_dialog: ConfirmDialog,
+    login_server_list_window: Option<LoginServerListWindow>,
+    selected_login_server: usize,
+    active_packetver: u32,
     server_list_window: Option<ServerListWindow>,
     char_select_window: Option<CharSelectWindow>,
     char_create_window: Option<CharCreateWindow>,
@@ -223,6 +229,11 @@ impl App {
         effect_queue.set_effects_enabled(config.show_skill_effects);
         let sound =
             SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
+        let active_packetver = config
+            .login_servers
+            .first()
+            .and_then(|s| s.packetver)
+            .unwrap_or(config.packetver);
         Self {
             config,
             saved_window_positions,
@@ -240,6 +251,9 @@ impl App {
             ui_state_cache: StateCache::new(),
             login_window: LoginWindow::new(),
             account_dialog: ConfirmDialog::new(),
+            login_server_list_window: None,
+            selected_login_server: 0,
+            active_packetver,
             server_list_window: None,
             char_select_window: None,
             char_create_window: None,
@@ -260,6 +274,41 @@ impl App {
             next_frame: Instant::now(),
             pending_events: Vec::new(),
             profiler: ragnarok_profiling::Profiler::default(),
+        }
+    }
+
+    /// Show the connection-server selection screen when more than one server is
+    /// configured; otherwise go straight to the login screen with the sole server.
+    fn setup_initial_screen(&mut self) {
+        self.select_login_server(0);
+        if self.config.login_servers.len() <= 1 {
+            self.game.session.app_state = AppState::Login;
+            return;
+        }
+        let entries = self
+            .config
+            .login_servers
+            .iter()
+            .map(|s| LoginServerEntry {
+                name: s.name.clone(),
+                detail: format!("{}:{}", s.host, s.port),
+            })
+            .collect();
+        let mut win = LoginServerListWindow::new(entries);
+        if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+            events::preload_window(&mut win, renderer, grf);
+        }
+        self.login_server_list_window = Some(win);
+        self.game.session.app_state = AppState::LoginServerSelect;
+    }
+
+    /// Adopt the connection server at `index`, resolving the packetver it speaks.
+    fn select_login_server(&mut self, index: usize) {
+        if let Some(server) = self.config.login_servers.get(index) {
+            self.selected_login_server = index;
+            self.active_packetver = server.packetver.unwrap_or(self.config.packetver);
+            self.channel
+                .send_cmd(NetworkCommand::SetPacketver(self.active_packetver));
         }
     }
 
@@ -423,7 +472,7 @@ impl App {
         self.channel.cmd_tx = Some(cmd_tx);
         self.channel.event_rx = Some(event_rx);
 
-        let packetver = self.config.packetver;
+        let packetver = self.active_packetver;
         let debug_delay_ms = self.config.debug_network_delay_ms;
         let trace_packets_send = self.config.trace_packets_send;
         let trace_packets_recv = self.config.trace_packets_recv;
@@ -534,14 +583,24 @@ impl App {
                     };
                     self.config.save("config.json");
                     self.account_dialog.show_message("Please wait...");
-                    let addr = format!("{}:{}", self.config.login_ip, self.config.login_port);
+                    let Some(server) = self.config.login_servers.get(self.selected_login_server)
+                    else {
+                        continue;
+                    };
+                    let addr = format!("{}:{}", server.host, server.port);
                     self.channel.send_cmd(NetworkCommand::Connect { addr, expect_aid: false });
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel.send_packet(build_login_packet(
                         &username,
                         &password,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
+                }
+                GameEvent::SelectLoginServer { index } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.select_login_server(index);
+                    self.login_server_list_window = None;
+                    self.game.session.app_state = AppState::Login;
                 }
                 GameEvent::RequestSelectServer { index } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
@@ -576,11 +635,11 @@ impl App {
                         self.config.save("config.json");
                     }
                     self.channel
-                        .send_packet(build_select_char_packet(slot, self.config.packetver));
+                        .send_packet(build_select_char_packet(slot, self.active_packetver));
                 }
                 GameEvent::RequestCreateCharacter { slot } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
-                    let with_stats = self.config.packetver < 20120307;
+                    let with_stats = self.active_packetver < 20120307;
                     let mut win = CharCreateWindow::new(slot, with_stats);
                     if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                         let loaded = renderer.preload_textures(&win.layout_texture_paths(), grf);
@@ -604,13 +663,13 @@ impl App {
                     stats,
                 } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
-                    let packet = if self.config.packetver >= 20120307 {
+                    let packet = if self.active_packetver >= 20120307 {
                         build_make_char_packet(
                             &name,
                             slot,
                             hair_style,
                             hair_color,
-                            self.config.packetver,
+                            self.active_packetver,
                         )
                     } else {
                         build_make_char_with_stats_packet(
@@ -619,7 +678,7 @@ impl App {
                             slot,
                             hair_style,
                             hair_color,
-                            self.config.packetver,
+                            self.active_packetver,
                         )
                     };
                     self.channel.send_packet(packet);
@@ -631,20 +690,20 @@ impl App {
                 GameEvent::RequestDeleteCharacterReserve { gid } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel
-                        .send_packet(build_delete_char_reserve_packet(gid, self.config.packetver));
+                        .send_packet(build_delete_char_reserve_packet(gid, self.active_packetver));
                 }
                 GameEvent::RequestDeleteCharacterConfirm { gid, birthdate } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel.send_packet(build_delete_char_confirm_packet(
                         gid,
                         &birthdate,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestDeleteCharacterCancel { gid } => {
                     self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel
-                        .send_packet(build_delete_char_cancel_packet(gid, self.config.packetver));
+                        .send_packet(build_delete_char_cancel_packet(gid, self.active_packetver));
                 }
                 GameEvent::BackToServerSelect => {
                     self.game.session.app_state = AppState::ServerSelect;
@@ -669,15 +728,15 @@ impl App {
                     self.windows.map_missing_window.hide();
                     self.clear_companions();
                     self.channel
-                        .send_packet(build_restart_packet(self.config.packetver));
+                        .send_packet(build_restart_packet(self.active_packetver));
                 }
                 GameEvent::ReturnToSavePoint => {
                     self.channel
-                        .send_packet(build_return_savepoint_packet(self.config.packetver));
+                        .send_packet(build_return_savepoint_packet(self.active_packetver));
                 }
                 GameEvent::RequestStandingResurrection => {
                     self.channel
-                        .send_packet(build_standing_resurrection_packet(self.config.packetver));
+                        .send_packet(build_standing_resurrection_packet(self.active_packetver));
                 }
                 GameEvent::RequestMapRecoveryWarp => {
                     let char_name = self
@@ -688,25 +747,25 @@ impl App {
                         .unwrap_or("Unknown");
                     let full_msg = format!("{char_name} : {}", self.config.map_recovery_command);
                     self.channel
-                        .send_packet(build_chat_packet(&full_msg, self.config.packetver));
+                        .send_packet(build_chat_packet(&full_msg, self.active_packetver));
                 }
                 GameEvent::QuitGame => {
                     self.windows.system_menu.open = false;
                     self.channel
-                        .send_packet(build_req_disconnect_packet(self.config.packetver));
+                        .send_packet(build_req_disconnect_packet(self.active_packetver));
                 }
                 GameEvent::RequestNpcContact { npc_id } => {
                     self.channel
-                        .send_packet(build_contact_npc_packet(npc_id, self.config.packetver));
+                        .send_packet(build_contact_npc_packet(npc_id, self.active_packetver));
                 }
                 GameEvent::RequestNpcNext { npc_id } => {
                     self.channel
-                        .send_packet(build_npc_next_packet(npc_id, self.config.packetver));
+                        .send_packet(build_npc_next_packet(npc_id, self.active_packetver));
                 }
                 GameEvent::RequestNpcClose { npc_id } => {
                     self.game.npc_cutins = [None, None, None];
                     self.channel
-                        .send_packet(build_npc_close_packet(npc_id, self.config.packetver));
+                        .send_packet(build_npc_close_packet(npc_id, self.active_packetver));
                 }
                 GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
                     if choice == 255 {
@@ -715,12 +774,12 @@ impl App {
                     self.channel.send_packet(build_npc_menu_select_packet(
                         npc_id,
                         choice,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestJoinChatRoom { room_id } => {
                     self.channel
-                        .send_packet(build_req_enter_room_packet(room_id, self.config.packetver));
+                        .send_packet(build_req_enter_room_packet(room_id, self.active_packetver));
                 }
                 GameEvent::ToggleChatRoomCreate => {
                     self.windows.chat_room_create_window.toggle();
@@ -737,7 +796,7 @@ impl App {
                         limit,
                         public,
                         &password,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestChangeChatRoom {
@@ -751,12 +810,12 @@ impl App {
                         limit,
                         public,
                         &password,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestLeaveChatRoom => {
                     self.channel
-                        .send_packet(build_exit_room_packet(self.config.packetver));
+                        .send_packet(build_exit_room_packet(self.active_packetver));
                     self.windows.chat_room_member_window.close();
                 }
                 GameEvent::RequestEditChatRoomSettings => {
@@ -769,12 +828,12 @@ impl App {
                 }
                 GameEvent::RequestKickChatMember { name } => {
                     self.channel
-                        .send_packet(build_expel_chat_member_packet(&name, self.config.packetver));
+                        .send_packet(build_expel_chat_member_packet(&name, self.active_packetver));
                 }
                 GameEvent::RequestChangeChatOwner { name } => {
                     self.channel.send_packet(build_change_chat_owner_packet(
                         &name,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestOpenChatMemberMenu { name, x, y } => {
@@ -797,52 +856,52 @@ impl App {
                     self.channel.send_packet(build_select_warppoint_packet(
                         skill_id,
                         &map_name,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestNpcInputNumber { npc_id, value } => {
                     self.channel.send_packet(build_npc_input_number_packet(
                         npc_id,
                         value,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestNpcInputString { npc_id, text } => {
                     self.channel.send_packet(build_npc_input_string_packet(
                         npc_id,
                         &text,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestNpcDealType { npc_id, deal_type } => {
                     self.channel.send_packet(build_npc_deal_type_packet(
                         npc_id,
                         deal_type,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestNpcShopBuy { items } => {
                     self.channel.send_packet(build_purchase_item_list_packet(
                         &items,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestNpcShopSell { items } => {
                     self.channel
-                        .send_packet(build_sell_item_list_packet(&items, self.config.packetver));
+                        .send_packet(build_sell_item_list_packet(&items, self.active_packetver));
                 }
                 GameEvent::RequestNpcShopClose => {
                     match self.windows.npc_shop.shop.mode {
                         Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
                             self.channel.send_packet(build_purchase_item_list_packet(
                                 &[],
-                                self.config.packetver,
+                                self.active_packetver,
                             ));
                         }
                         Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
                             self.channel.send_packet(build_sell_item_list_packet(
                                 &[],
-                                self.config.packetver,
+                                self.active_packetver,
                             ));
                         }
                         None => {}
@@ -921,37 +980,37 @@ impl App {
                     self.channel.send_packet(build_use_item_packet(
                         index,
                         account_id,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestEquipItem { index, location } => {
                     self.channel.send_packet(build_equip_item_packet(
                         index,
                         location,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestUnequipItem { index } => {
                     self.channel
-                        .send_packet(build_unequip_item_packet(index, self.config.packetver));
+                        .send_packet(build_unequip_item_packet(index, self.active_packetver));
                 }
                 GameEvent::RequestDropItem { index, count } => {
                     self.channel.send_packet(build_drop_item_packet(
                         index,
                         count,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestRemoveOption => {
                     self.channel
-                        .send_packet(build_remove_option_packet(self.config.packetver));
+                        .send_packet(build_remove_option_packet(self.active_packetver));
                 }
                 GameEvent::RequestMoveItemBodyToCart { index, count } => {
                     self.channel
                         .send_packet(build_move_item_body_to_cart_packet(
                             index,
                             count,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::RequestMoveItemCartToBody { index, count } => {
@@ -959,7 +1018,7 @@ impl App {
                         .send_packet(build_move_item_cart_to_body_packet(
                             index,
                             count,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::RequestMoveItemStoreToCart { index, count } => {
@@ -967,7 +1026,7 @@ impl App {
                         .send_packet(build_move_item_store_to_cart_packet(
                             index,
                             count,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::RequestMoveItemCartToStore { index, count } => {
@@ -975,7 +1034,7 @@ impl App {
                         .send_packet(build_move_item_cart_to_store_packet(
                             index,
                             count,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::RequestMoveItemBodyToStore { index, count } => {
@@ -983,7 +1042,7 @@ impl App {
                         .send_packet(build_move_item_body_to_store_packet(
                             index,
                             count,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::RequestMoveItemStoreToBody { index, count } => {
@@ -991,12 +1050,12 @@ impl App {
                         .send_packet(build_move_item_store_to_body_packet(
                             index,
                             count,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::RequestCloseStorage => {
                     self.channel
-                        .send_packet(build_close_store_packet(self.config.packetver));
+                        .send_packet(build_close_store_packet(self.active_packetver));
                 }
                 GameEvent::RequestExchangeItem { target_aid } => {
                     let name = self
@@ -1008,52 +1067,52 @@ impl App {
                         .unwrap_or_default();
                     self.game.pending_confirms.pending_trade_partner = Some((target_aid, name));
                     self.channel
-                        .send_packet(build_req_exchange_item_packet(target_aid, self.config.packetver));
+                        .send_packet(build_req_exchange_item_packet(target_aid, self.active_packetver));
                 }
                 GameEvent::RespondExchangeRequest { accept } => {
                     self.respond_exchange_request(accept);
                 }
                 GameEvent::RequestAddExchangeItem { index, count } => {
                     self.channel
-                        .send_packet(build_add_exchange_item_packet(index, count, self.config.packetver));
+                        .send_packet(build_add_exchange_item_packet(index, count, self.active_packetver));
                 }
                 GameEvent::RequestConcludeExchange => {
                     self.channel
-                        .send_packet(build_conclude_exchange_item_packet(self.config.packetver));
+                        .send_packet(build_conclude_exchange_item_packet(self.active_packetver));
                 }
                 GameEvent::RequestCancelExchange => {
                     self.channel
-                        .send_packet(build_cancel_exchange_item_packet(self.config.packetver));
+                        .send_packet(build_cancel_exchange_item_packet(self.active_packetver));
                 }
                 GameEvent::RequestExecExchange => {
                     self.channel
-                        .send_packet(build_exec_exchange_item_packet(self.config.packetver));
+                        .send_packet(build_exec_exchange_item_packet(self.active_packetver));
                 }
                 GameEvent::RequestMailList => {
                     self.channel
-                        .send_packet(build_mail_get_list_packet(self.config.packetver));
+                        .send_packet(build_mail_get_list_packet(self.active_packetver));
                 }
                 GameEvent::RequestMailOpen { mail_id } => {
                     self.channel
-                        .send_packet(build_mail_open_packet(mail_id, self.config.packetver));
+                        .send_packet(build_mail_open_packet(mail_id, self.active_packetver));
                 }
                 GameEvent::RequestMailDelete { mail_id } => {
                     self.channel
-                        .send_packet(build_mail_delete_packet(mail_id, self.config.packetver));
+                        .send_packet(build_mail_delete_packet(mail_id, self.active_packetver));
                 }
                 GameEvent::RequestMailGetItem { mail_id } => {
                     self.channel
-                        .send_packet(build_mail_get_item_packet(mail_id, self.config.packetver));
+                        .send_packet(build_mail_get_item_packet(mail_id, self.active_packetver));
                 }
                 GameEvent::RequestMailResetItem { ty } => {
                     self.channel
-                        .send_packet(build_mail_reset_item_packet(ty, self.config.packetver));
+                        .send_packet(build_mail_reset_item_packet(ty, self.active_packetver));
                 }
                 GameEvent::RequestMailAddItem { index, amount } => {
                     self.channel.send_packet(build_mail_add_item_packet(
                         index,
                         amount,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestMailSend { to, title, body } => {
@@ -1061,23 +1120,23 @@ impl App {
                         &to,
                         &title,
                         &body,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestMailReturn { mail_id, sender } => {
                     self.channel.send_packet(build_req_mail_return_packet(
                         mail_id,
                         &sender,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestCartOff => {
                     self.channel
-                        .send_packet(build_cartoff_packet(self.config.packetver));
+                        .send_packet(build_cartoff_packet(self.active_packetver));
                 }
                 GameEvent::RequestChangeCart { num } => {
                     self.channel
-                        .send_packet(build_change_cart_packet(num, self.config.packetver));
+                        .send_packet(build_change_cart_packet(num, self.active_packetver));
                 }
                 GameEvent::RequestSetCartPick { .. } => {}
                 GameEvent::ToggleCart => {
@@ -1085,13 +1144,13 @@ impl App {
                 }
                 GameEvent::RequestSkillLevelUp { skill_id } => {
                     self.channel
-                        .send_packet(build_upgrade_skill_packet(skill_id, self.config.packetver));
+                        .send_packet(build_upgrade_skill_packet(skill_id, self.active_packetver));
                 }
                 GameEvent::RequestStatChange { status_id, amount } => {
                     self.channel.send_packet(build_stat_change_packet(
                         status_id,
                         amount,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestCompanionMove { gid, x, y } => {
@@ -1099,32 +1158,32 @@ impl App {
                         gid,
                         x as u16,
                         y as u16,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestCompanionAttack { gid, target_gid } => {
                     self.channel.send_packet(build_companion_attack_packet(
                         gid,
                         target_gid,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestCompanionMoveToOwner { gid } => {
                     self.channel.send_packet(build_companion_move_to_owner_packet(
                         gid,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestSetConfig { kind, enabled } => {
                     self.channel.send_packet(build_config_packet(
                         kind.config_id(),
                         enabled as i32,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestHomunMenu { command } => {
                     self.channel
-                        .send_packet(build_homun_menu_packet(command as i8, self.config.packetver));
+                        .send_packet(build_homun_menu_packet(command as i8, self.active_packetver));
                     if command == 2 {
                         self.clear_homunculus();
                     }
@@ -1137,7 +1196,7 @@ impl App {
                             skill_id,
                             1,
                             target_id,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                     }
                 }
@@ -1158,7 +1217,7 @@ impl App {
                 GameEvent::RequestMercenaryCommand { command } => {
                     self.channel.send_packet(build_mercenary_command_packet(
                         command,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                     if command == 2 {
                         self.clear_mercenary();
@@ -1166,7 +1225,7 @@ impl App {
                 }
                 GameEvent::RequestRenameHomun { name } => {
                     self.channel
-                        .send_packet(build_rename_homun_packet(&name, self.config.packetver));
+                        .send_packet(build_rename_homun_packet(&name, self.active_packetver));
                 }
                 GameEvent::ToggleHomunculusWindow => {
                     self.windows.homunculus_window.toggle();
@@ -1226,7 +1285,7 @@ impl App {
                         is_skill_i8,
                         id,
                         count,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestUseSkill { skill_id, level } => {
@@ -1258,7 +1317,7 @@ impl App {
                                     skill_id,
                                     level,
                                     target_id,
-                                    self.config.packetver,
+                                    self.active_packetver,
                                 ));
                             }
                         }
@@ -1335,7 +1394,7 @@ impl App {
                 }
                 GameEvent::RequestPickupItem { id } => {
                     self.channel
-                        .send_packet(build_pickup_item_packet(id, self.config.packetver));
+                        .send_packet(build_pickup_item_packet(id, self.active_packetver));
                     if let Some(entity) = self.game.world.entities.player_mut() {
                         entity.enter_pickup(0.5);
                     }
@@ -1344,7 +1403,7 @@ impl App {
                     self.game.pending_casts.pending_card_composition_index = Some(card_index);
                     self.channel.send_packet(build_card_composition_list_packet(
                         card_index,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestCardInsert {
@@ -1354,28 +1413,28 @@ impl App {
                     self.channel.send_packet(build_card_composition_packet(
                         card_index,
                         equip_index,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                     self.game.pending_casts.pending_card_composition_index = None;
                 }
                 GameEvent::RequestIdentifyItem { index } => {
                     self.channel
-                        .send_packet(build_req_itemidentify_packet(index, self.config.packetver));
+                        .send_packet(build_req_itemidentify_packet(index, self.active_packetver));
                 }
                 GameEvent::RequestMakingArrow { item_id } => {
                     self.channel
-                        .send_packet(build_req_makingarrow_packet(item_id, self.config.packetver));
+                        .send_packet(build_req_makingarrow_packet(item_id, self.active_packetver));
                 }
                 GameEvent::RequestMakingItem { item_id, materials } => {
                     self.channel.send_packet(build_req_makingitem_packet(
                         item_id,
                         materials,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestWeaponRefine { index } => {
                     self.channel
-                        .send_packet(build_req_weaponrefine_packet(index, self.config.packetver));
+                        .send_packet(build_req_weaponrefine_packet(index, self.active_packetver));
                 }
                 GameEvent::RequestRepairItem {
                     index,
@@ -1388,42 +1447,42 @@ impl App {
                         item_id,
                         refine,
                         cards,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestSelectAutoSpell { skill_id } => {
                     self.channel
-                        .send_packet(build_select_autospell_packet(skill_id, self.config.packetver));
+                        .send_packet(build_select_autospell_packet(skill_id, self.active_packetver));
                 }
                 GameEvent::RequestOpenStore { shop_name, items } => {
                     self.channel.send_packet(build_req_openstore2_packet(
                         &shop_name,
                         &items,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                     self.game.pending_casts.pending_shop_name = Some(shop_name);
                 }
                 GameEvent::RequestCancelVendingSetup => {
                     self.channel
-                        .send_packet(build_req_cancel_openstore_packet(self.config.packetver));
+                        .send_packet(build_req_cancel_openstore_packet(self.active_packetver));
                 }
                 GameEvent::RequestCloseStore => {
                     self.close_own_shop();
                 }
                 GameEvent::RequestBuyFromVendor { aid } => {
                     self.channel
-                        .send_packet(build_req_buy_frommc_packet(aid, self.config.packetver));
+                        .send_packet(build_req_buy_frommc_packet(aid, self.active_packetver));
                 }
                 GameEvent::RequestPurchaseFromVendor {
                     aid,
                     unique_id,
                     items,
                 } => {
-                    self.channel.send_packet(build_purchase_frommc2_packet(
+                    self.channel.send_packet(build_purchase_frommc_dispatch(
                         aid,
                         unique_id,
                         &items,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestSendChat { message } => {
@@ -1431,7 +1490,7 @@ impl App {
                 }
                 GameEvent::RequestSendWhisper { name, message } => {
                     self.channel
-                        .send_packet(build_whisper_packet(&name, &message, self.config.packetver));
+                        .send_packet(build_whisper_packet(&name, &message, self.active_packetver));
                     self.windows.chat_window.add_whisper_out(name, message);
                 }
                 GameEvent::ToggleShortcutList => {
@@ -1455,7 +1514,7 @@ impl App {
                     self.channel.send_packet(ragnarok_network::build_active_quest_packet(
                         quest_id,
                         active,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
@@ -1476,7 +1535,7 @@ impl App {
                 }
                 GameEvent::RequestEmotion { emote_type } => {
                     self.channel
-                        .send_packet(build_emotion_packet(emote_type, self.config.packetver));
+                        .send_packet(build_emotion_packet(emote_type, self.active_packetver));
                 }
                 GameEvent::ToggleStatusWindow => {
                     self.windows.status_window.toggle();
@@ -1545,7 +1604,7 @@ impl App {
                     self.windows.party_friends_window.open_friend_tab();
                 }
                 GameEvent::RequestPartyInvite { target_aid } => {
-                    let pv = self.config.packetver;
+                    let pv = self.active_packetver;
                     if self.game.party.is_none() {
                         // The party is created asynchronously server-side, so the invite must
                         // wait for the create ack — sending it now would be dropped.
@@ -1567,12 +1626,12 @@ impl App {
                     self.channel.send_packet(build_join_party_reply_packet(
                         party_grid,
                         accept,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestAdoption { target_aid } => {
                     self.channel
-                        .send_packet(build_adopt_request_packet(target_aid, self.config.packetver));
+                        .send_packet(build_adopt_request_packet(target_aid, self.active_packetver));
                 }
                 GameEvent::RespondAdoptionRequest { accept } => {
                     if let Some((father_aid, mother_aid)) = self.game.pending_confirms.pending_adopt_request.take() {
@@ -1580,39 +1639,39 @@ impl App {
                             father_aid,
                             mother_aid,
                             accept,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                     }
                 }
                 GameEvent::RespondGuildInvite { gdid, accept } => {
                     self.channel
-                        .send_packet(build_ans_join_guild(gdid, accept, self.config.packetver));
+                        .send_packet(build_ans_join_guild(gdid, accept, self.active_packetver));
                 }
                 GameEvent::RespondGuildAlly { aid, accept } => {
                     self.channel
-                        .send_packet(build_ally_guild(aid, accept, self.config.packetver));
+                        .send_packet(build_ally_guild(aid, accept, self.active_packetver));
                 }
                 GameEvent::RequestLeaveParty => {
                     self.channel
-                        .send_packet(build_leave_party_packet(self.config.packetver));
+                        .send_packet(build_leave_party_packet(self.active_packetver));
                 }
                 GameEvent::RequestExpelMember { aid, name } => {
                     self.channel.send_packet(build_expel_party_member_packet(
                         aid,
                         &name,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestPartyExpOption { exp_share } => {
                     self.channel
                         .send_packet(build_change_party_exp_option_packet(
                             exp_share as u32,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                 }
                 GameEvent::SendPartyChat { message } => {
                     self.channel
-                        .send_packet(build_party_chat_packet(&message, self.config.packetver));
+                        .send_packet(build_party_chat_packet(&message, self.active_packetver));
                 }
                 GameEvent::ShowPartyHelper { mode } => {
                     let local_aid = self
@@ -1648,21 +1707,21 @@ impl App {
                         &name,
                         item_pickup_rule,
                         item_division_rule,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestPartyInviteByName { name } => {
                     self.channel.send_packet(build_party_invite_by_name_packet(
                         &name,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestChangePartyLeader { aid } => {
                     self.channel
-                        .send_packet(build_change_party_leader_packet(aid, self.config.packetver));
+                        .send_packet(build_change_party_leader_packet(aid, self.active_packetver));
                 }
                 GameEvent::RequestGuildInfoBurst => {
-                    let pv = self.config.packetver;
+                    let pv = self.active_packetver;
                     self.channel.send_packet(build_req_guild_menuinterface(pv));
                     for atype in 0..=4 {
                         self.channel.send_packet(build_req_guild_menu(atype, pv));
@@ -1670,7 +1729,7 @@ impl App {
                 }
                 GameEvent::RequestGuildMenu { atype } => {
                     self.channel
-                        .send_packet(build_req_guild_menu(atype, self.config.packetver));
+                        .send_packet(build_req_guild_menu(atype, self.active_packetver));
                 }
                 GameEvent::ShowGuildMemberMenu { aid, gid, name, x, y } => {
                     use ragnarok_ui_component::game::context_menu::{
@@ -1726,7 +1785,7 @@ impl App {
                             gdid,
                             &subject,
                             &body,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                     }
                 }
@@ -1759,7 +1818,7 @@ impl App {
                             aid,
                             aid,
                             "",
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                     }
                 }
@@ -1770,7 +1829,7 @@ impl App {
                             aid as i32,
                             gid as i32,
                             &reason,
-                            self.config.packetver,
+                            self.active_packetver,
                         ));
                     }
                 }
@@ -1779,18 +1838,18 @@ impl App {
                         aid as i32,
                         gid as i32,
                         position_id,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestChangePositionInfo { positions } => {
                     self.channel.send_packet(build_reg_change_guild_positioninfo(
                         &positions,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestUpgradeGuildSkill { skid } => {
                     self.channel
-                        .send_packet(build_upgrade_skill_packet(skid, self.config.packetver));
+                        .send_packet(build_upgrade_skill_packet(skid, self.active_packetver));
                 }
                 GameEvent::RequestGuildInvite { target_aid } => {
                     let (my_aid, my_gid) = self.local_aid_gid();
@@ -1798,7 +1857,7 @@ impl App {
                         target_aid,
                         my_aid,
                         my_gid,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestGuildAlly { target_aid } => {
@@ -1807,12 +1866,12 @@ impl App {
                         target_aid,
                         my_aid,
                         my_gid,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestGuildHostile { target_aid } => {
                     self.channel
-                        .send_packet(build_req_hostile_guild(target_aid, self.config.packetver));
+                        .send_packet(build_req_hostile_guild(target_aid, self.active_packetver));
                 }
                 GameEvent::RequestDeleteGuildRelation { gdid, relation } => {
                     let msg = if relation == 0 {
@@ -1828,7 +1887,7 @@ impl App {
                     self.channel.send_packet(build_req_delete_related_guild(
                         gdid,
                         relation,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestSelectEmblem => {
@@ -1839,11 +1898,11 @@ impl App {
                 }
                 GameEvent::RequestAddFriend { name } => {
                     self.channel
-                        .send_packet(build_add_friend_packet(&name, self.config.packetver));
+                        .send_packet(build_add_friend_packet(&name, self.active_packetver));
                 }
                 GameEvent::RequestDeleteFriend { aid, gid } => {
                     self.channel
-                        .send_packet(build_delete_friend_packet(aid, gid, self.config.packetver));
+                        .send_packet(build_delete_friend_packet(aid, gid, self.active_packetver));
                 }
                 GameEvent::RespondFriendRequest {
                     req_aid,
@@ -1854,7 +1913,7 @@ impl App {
                         req_aid,
                         req_gid,
                         accept,
-                        self.config.packetver,
+                        self.active_packetver,
                     ));
                 }
                 GameEvent::RequestWhisper { name } => {
@@ -1863,11 +1922,11 @@ impl App {
 
                 GameEvent::RequestTryCapture { gid } => {
                     self.channel
-                        .send_packet(build_trycapture_packet(gid, self.config.packetver));
+                        .send_packet(build_trycapture_packet(gid, self.active_packetver));
                 }
                 GameEvent::RequestPetCommand { csub } => {
                     self.channel
-                        .send_packet(build_command_pet_packet(csub, self.config.packetver));
+                        .send_packet(build_command_pet_packet(csub, self.active_packetver));
                     // The window opens on this explicit request, not on the
                     // incoming property packet (which also arrives unsolicited).
                     if csub == 0 {
@@ -1886,17 +1945,17 @@ impl App {
                 }
                 GameEvent::RequestRenamePet { name } => {
                     self.channel
-                        .send_packet(build_rename_pet_packet(&name, self.config.packetver));
+                        .send_packet(build_rename_pet_packet(&name, self.active_packetver));
                 }
                 GameEvent::RequestSelectPetEgg { index } => {
                     self.channel
-                        .send_packet(build_select_petegg_packet(index, self.config.packetver));
+                        .send_packet(build_select_petegg_packet(index, self.active_packetver));
                     self.game.companions.pet.egg_index = Some(index);
                     self.game.character.inventory.set_item_damaged(index, true);
                 }
                 GameEvent::RequestPetAct { data } => {
                     self.channel
-                        .send_packet(build_pet_act_packet(data, self.config.packetver));
+                        .send_packet(build_pet_act_packet(data, self.active_packetver));
                 }
                 GameEvent::RequestPetFeed => {
                     self.game.arm_confirm(&mut self.windows,
@@ -2022,11 +2081,11 @@ impl App {
         }
         let compressed = ragnarok_formats::zlib_compress(&bmp);
         self.channel
-            .send_packet(build_register_guild_emblem(compressed, self.config.packetver));
+            .send_packet(build_register_guild_emblem(compressed, self.active_packetver));
         if let Some(guild) = &self.game.guild {
             self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
                 guild.gdid,
-                self.config.packetver,
+                self.active_packetver,
             ));
         }
     }
@@ -2136,7 +2195,7 @@ impl App {
                     .unwrap_or("Unknown");
                 let full_msg = format!("{char_name} : {}", party_msg.trim_start());
                 self.channel
-                    .send_packet(build_party_chat_packet(&full_msg, self.config.packetver));
+                    .send_packet(build_party_chat_packet(&full_msg, self.active_packetver));
             }
         } else if let Some(guild_msg) = message.strip_prefix('$') {
             if self.game.guild.is_none() {
@@ -2152,7 +2211,7 @@ impl App {
                     .unwrap_or("Unknown");
                 let full_msg = format!("{char_name} : {}", guild_msg.trim_start());
                 self.channel
-                    .send_packet(build_guild_chat_packet(&full_msg, self.config.packetver));
+                    .send_packet(build_guild_chat_packet(&full_msg, self.active_packetver));
             }
         } else {
             let char_name = self
@@ -2163,12 +2222,12 @@ impl App {
                 .unwrap_or("Unknown");
             let full_msg = format!("{char_name} : {message}");
             self.channel
-                .send_packet(build_chat_packet(&full_msg, self.config.packetver));
+                .send_packet(build_chat_packet(&full_msg, self.active_packetver));
         }
     }
 
     fn turn_body(&mut self, step: u8) {
-        let pv = self.config.packetver;
+        let pv = self.active_packetver;
         if let Some(entity) = self.game.world.entities.player_mut() {
             entity.direction = (entity.direction + step) % 8;
             entity.head_dir = 0;
@@ -2180,7 +2239,7 @@ impl App {
 
     fn handle_slash_command(&mut self, command: &str) {
         use ragnarok_game::chat_command::{ChatCommand, parse_chat_command};
-        let pv = self.config.packetver;
+        let pv = self.active_packetver;
         match parse_chat_command(command) {
             ChatCommand::Sit => {
                 if self.player_hidden() {
@@ -2683,6 +2742,33 @@ impl App {
             ui_ctx.now_ms = now_ms;
         }
         match self.game.session.app_state {
+            AppState::LoginServerSelect => {
+                if let (Some(ui_ctx), Some(renderer), Some(server_win)) = (
+                    &self.ui_context,
+                    &self.renderer,
+                    &mut self.login_server_list_window,
+                ) {
+                    let mut ui = UiFrame::new(
+                        ui_ctx,
+                        &renderer.font_atlas,
+                        &mut self.ui_state_cache,
+                        elapsed,
+                        server_win.has_grf_textures,
+                        None,
+                        &self.saved_window_positions,
+                    );
+                    if self.account_dialog.state.is_some() {
+                        ui.block_keyboard();
+                    }
+                    let events = server_win.build(&mut ui);
+                    self.account_dialog.build(&mut ui);
+                    let any_hovered = ui.any_hovered;
+                    let any_interactive = ui.any_interactive_hovered;
+                    (ui.draw_calls, events, any_hovered, any_interactive)
+                } else {
+                    (Vec::new(), Vec::new(), false, false)
+                }
+            }
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
@@ -3273,10 +3359,17 @@ impl ApplicationHandler for App {
         ui_ctx.dpi_scale = dpi_scale;
         self.ui_context = Some(ui_ctx);
 
-        if let Some(grf_path) = self.config.grf_paths.first() {
-            match GrfArchive::open(Path::new(grf_path)) {
+        if !self.config.grf_paths.is_empty() {
+            let data_dir = self.config.data_dir.as_deref().map(Path::new);
+            match GrfArchive::open_layered(&self.config.grf_paths, data_dir) {
                 Ok(grf) => {
-                    println!("GRF loaded: {} ({} files)", grf_path, grf.file_count());
+                    println!(
+                        "GRF loaded: {} ({} files, {} overlay archive(s), data_dir: {})",
+                        self.config.grf_paths[0],
+                        grf.file_count(),
+                        self.config.grf_paths.len() - 1,
+                        self.config.data_dir.as_deref().unwrap_or("none"),
+                    );
 
                     if let Some(renderer) = &mut self.renderer {
                         renderer.try_load_grf_font(&grf);
@@ -3321,11 +3414,12 @@ impl ApplicationHandler for App {
                     self.grf = Some(grf);
                 }
                 Err(e) => {
-                    tracing::error!("Failed to open GRF {grf_path}: {e}");
+                    tracing::error!("Failed to open GRF {}: {e}", self.config.grf_paths[0]);
                 }
             }
         }
 
+        self.setup_initial_screen();
         self.spawn_network();
         self.play_bgm_track("01.mp3");
     }
@@ -3441,7 +3535,7 @@ impl ApplicationHandler for App {
                 {
                     entity.name_requested = true;
                     self.channel
-                        .send_packet(build_reqname_packet(entity_id, self.config.packetver));
+                        .send_packet(build_reqname_packet(entity_id, self.active_packetver));
                 }
 
                 let cursor_clips = self.build_cursor_sprite_clips(delta);

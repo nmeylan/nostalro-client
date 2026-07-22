@@ -115,6 +115,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             error_code: p.error_code as u8,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketHcRefuseEnter>() {
+        return vec![GameEvent::CharServerConnectRefused {
+            error_code: p.error_code,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketHcAcceptEnterNeoUnion>() {
         let characters = p
             .char_info
@@ -414,6 +419,163 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         ];
     }
 
+    macro_rules! standentry_spawn {
+        ($t:ty) => {
+            if let Some(p) = any.downcast_ref::<$t>() {
+                let (x, y, dir) = decode_pos(&p.pos_dir);
+                return vec![GameEvent::EntitySpawned {
+                    gid: p.gid,
+                    aid: p.gid,
+                    job: p.job as u16,
+                    speed: p.speed as u16,
+                    sex: p.sex,
+                    head: p.head as u16,
+                    weapon: p.weapon as u16,
+                    shield: 0,
+                    head_top: p.accessory2 as u16,
+                    head_mid: p.accessory3 as u16,
+                    head_bottom: p.accessory as u16,
+                    hair_color: p.headpalette as u16,
+                    x,
+                    y,
+                    direction: dir,
+                    body_state: p.body_state,
+                    health_state: p.health_state,
+                    effect_state: p.effect_state as i32,
+                    base_level: p.clevel,
+                    is_boss: false,
+                    posture: p.state,
+                    guild_id: p.guid,
+                    guild_emblem_version: p.gemblem_ver as i32,
+                    is_new_entry: false,
+                }];
+            }
+        };
+    }
+    standentry_spawn!(PacketZcNotifyStandentry2);
+    standentry_spawn!(PacketZcNotifyStandentry3);
+    standentry_spawn!(PacketZcNotifyStandentry4);
+    standentry_spawn!(PacketZcNotifyStandentry5);
+
+    macro_rules! newentry_spawn {
+        ($t:ty) => {
+            if let Some(p) = any.downcast_ref::<$t>() {
+                let (x, y, dir) = decode_pos(&p.pos_dir);
+                return vec![GameEvent::EntitySpawned {
+                    gid: p.gid,
+                    aid: p.gid,
+                    job: p.job as u16,
+                    speed: p.speed as u16,
+                    sex: p.sex,
+                    head: p.head as u16,
+                    weapon: p.weapon as u16,
+                    shield: 0,
+                    head_top: p.accessory2 as u16,
+                    head_mid: p.accessory3 as u16,
+                    head_bottom: p.accessory as u16,
+                    hair_color: p.headpalette as u16,
+                    x,
+                    y,
+                    direction: dir,
+                    body_state: p.body_state,
+                    health_state: p.health_state,
+                    effect_state: p.effect_state as i32,
+                    base_level: p.clevel,
+                    is_boss: false,
+                    posture: 0,
+                    guild_id: p.guid,
+                    guild_emblem_version: p.gemblem_ver as i32,
+                    is_new_entry: true,
+                }];
+            }
+        };
+    }
+    newentry_spawn!(PacketZcNotifyNewentry2);
+    newentry_spawn!(PacketZcNotifyNewentry3);
+    newentry_spawn!(PacketZcNotifyNewentry4);
+    newentry_spawn!(PacketZcNotifyNewentry5);
+
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyStandentry6>() {
+        let (x, y, dir) = decode_pos(&p.pos_dir);
+        return vec![GameEvent::EntitySpawned {
+            gid: p.gid,
+            aid: p.aid,
+            job: p.job as u16,
+            speed: p.speed as u16,
+            sex: p.sex,
+            head: p.head as u16,
+            weapon: p.weapon as u16,
+            shield: p.shield as u16,
+            head_top: p.accessory2,
+            head_mid: p.accessory3,
+            head_bottom: p.accessory,
+            hair_color: p.headpalette,
+            x,
+            y,
+            direction: dir,
+            body_state: p.body_state,
+            health_state: p.health_state,
+            effect_state: p.effect_state,
+            base_level: p.clevel,
+            is_boss: p.is_boss,
+            posture: p.state,
+            guild_id: p.guid,
+            guild_emblem_version: p.gemblem_ver as i32,
+            is_new_entry: false,
+        }];
+    }
+
+    macro_rules! moveentry_spawn {
+        ($t:ty) => {
+            if let Some(p) = any.downcast_ref::<$t>() {
+                let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
+                let direction =
+                    ragnarok_game::movement::direction_from_positions(x1, y1, x2, y2).unwrap_or(0);
+                return vec![
+                    GameEvent::EntitySpawned {
+                        gid: p.gid,
+                        aid: p.gid,
+                        job: p.job as u16,
+                        speed: p.speed as u16,
+                        sex: p.sex,
+                        head: p.head as u16,
+                        weapon: p.weapon as u16,
+                        shield: 0,
+                        head_top: p.accessory2 as u16,
+                        head_mid: p.accessory3 as u16,
+                        head_bottom: p.accessory as u16,
+                        hair_color: p.headpalette as u16,
+                        x: x1,
+                        y: y1,
+                        direction,
+                        body_state: p.body_state,
+                        health_state: p.health_state,
+                        effect_state: p.effect_state as i32,
+                        base_level: p.clevel,
+                        is_boss: false,
+                        posture: 0,
+                        guild_id: p.guid,
+                        guild_emblem_version: p.gemblem_ver as i32,
+                        is_new_entry: false,
+                    },
+                    GameEvent::EntityMoved {
+                        gid: p.gid,
+                        start_x: x1,
+                        start_y: y1,
+                        dest_x: x2,
+                        dest_y: y2,
+                        start_time: p.move_start_time,
+                    },
+                ];
+            }
+        };
+    }
+    moveentry_spawn!(PacketZcNotifyMoveentry);
+    moveentry_spawn!(PacketZcNotifyMoveentry2);
+    moveentry_spawn!(PacketZcNotifyMoveentry3);
+    moveentry_spawn!(PacketZcNotifyMoveentry4);
+    moveentry_spawn!(PacketZcNotifyMoveentry7);
+
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMove>() {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
         return vec![GameEvent::EntityMoved {
@@ -539,6 +701,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcAckReqname>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::EntityNameReceived { gid: p.aid, name }];
+    }
+
+    if let Some(p) = any.downcast_ref::<PacketZcAckReqnameBygid>() {
+        let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::EntityNameReceived { gid: p.gid, name }];
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcAckReqnameall>() {
@@ -696,6 +863,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             sprite_type: p.atype,
             value: p.value,
             value2: p.value2,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSpriteChange>() {
+        return vec![GameEvent::EntitySpriteChanged {
+            gid: p.gid,
+            sprite_type: p.atype,
+            value: p.value as u16,
+            value2: 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNpcspriteChange>() {
@@ -1800,6 +1975,27 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .collect();
         return vec![GameEvent::StorageNormalItems { items }];
     }
+    macro_rules! store_normal_items {
+        ($t:ty) => {
+            if let Some(p) = any.downcast_ref::<$t>() {
+                let items = p
+                    .item_info
+                    .iter()
+                    .map(|i| NormalItemData {
+                        index: i.index,
+                        item_id: i.itid,
+                        item_type: i.atype,
+                        is_identified: i.is_identified,
+                        count: i.count,
+                        wear_state: i.wear_state,
+                    })
+                    .collect();
+                return vec![GameEvent::StorageNormalItems { items }];
+            }
+        };
+    }
+    store_normal_items!(PacketZcStoreNormalItemlist);
+    store_normal_items!(PacketZcStoreNormalItemlist2);
     if let Some(p) = any.downcast_ref::<PacketZcStoreEquipmentItemlist3>() {
         let items = p
             .item_info
@@ -1818,6 +2014,30 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .collect();
         return vec![GameEvent::StorageEquipItems { items }];
     }
+    macro_rules! store_equip_items {
+        ($t:ty) => {
+            if let Some(p) = any.downcast_ref::<$t>() {
+                let items = p
+                    .item_info
+                    .iter()
+                    .map(|i| EquipmentItemData {
+                        index: i.index,
+                        item_id: i.itid,
+                        item_type: i.atype,
+                        is_identified: i.is_identified,
+                        location: i.location,
+                        wear_state: i.wear_state,
+                        is_damaged: i.is_damaged,
+                        refining_level: i.refining_level,
+                        slot: [i.slot.card1, i.slot.card2, i.slot.card3, i.slot.card4],
+                    })
+                    .collect();
+                return vec![GameEvent::StorageEquipItems { items }];
+            }
+        };
+    }
+    store_equip_items!(PacketZcStoreEquipmentItemlist);
+    store_equip_items!(PacketZcStoreEquipmentItemlist2);
     if let Some(p) = any.downcast_ref::<PacketZcNotifyStoreitemCountinfo>() {
         return vec![GameEvent::StorageOpened {
             cur: p.cur_count,
@@ -1866,16 +2086,41 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             level: p.level,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcReqExchangeItem>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::ExchangeRequested {
+            name,
+            gid: 0,
+            level: 0,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcAckExchangeItem2>() {
         return vec![GameEvent::ExchangeAckResult {
             result: p.result,
             level: p.level,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcAckExchangeItem>() {
+        return vec![GameEvent::ExchangeAckResult {
+            result: p.result,
+            level: 0,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcAddExchangeItem2>() {
         return vec![GameEvent::ExchangeItemAdded {
             item_id: p.itid,
             item_type: p.atype,
+            count: p.count,
+            is_identified: p.is_identified,
+            is_damaged: p.is_damaged,
+            refining_level: p.refining_level,
+            slot: [p.slot.card1, p.slot.card2, p.slot.card3, p.slot.card4],
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAddExchangeItem>() {
+        return vec![GameEvent::ExchangeItemAdded {
+            item_id: p.itid,
+            item_type: 0,
             count: p.count,
             is_identified: p.is_identified,
             is_damaged: p.is_damaged,
@@ -3290,6 +3535,20 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_char_server_refuse_enter_returns_error_code() {
+        let packetver = 20120307;
+        let mut pkt = PacketHcRefuseEnter::new(packetver);
+        pkt.set_error_code(0);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::CharServerConnectRefused { error_code } => assert_eq!(*error_code, 0),
+            other => panic!("expected CharServerConnectRefused, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn dispatch_refuse_login_r2_returns_error_code() {
         let packetver = 20120307;
         let mut pkt = PacketAcRefuseLoginR2::new(packetver);
@@ -3667,6 +3926,28 @@ mod tests {
             GameEvent::EntityNameReceived { gid, name } => {
                 assert_eq!(*gid, 42);
                 assert_eq!(name, "Poring");
+            }
+            other => panic!("expected EntityNameReceived, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_ack_reqname_bygid_returns_entity_name_received() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAckReqnameBygid::new(packetver);
+        pkt.set_gid(77);
+        let mut name = ['\0'; 24];
+        for (i, c) in "Lidia".chars().enumerate() {
+            name[i] = c;
+        }
+        pkt.set_cname(name);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::EntityNameReceived { gid, name } => {
+                assert_eq!(*gid, 77);
+                assert_eq!(name, "Lidia");
             }
             other => panic!("expected EntityNameReceived, got {other:?}"),
         }
@@ -4729,6 +5010,130 @@ mod tests {
         assert!(matches!(
             dispatch_packet(&divorce, packetver).as_slice(),
             [GameEvent::Divorced { name }] if name == "Romeo"
+        ));
+    }
+
+    #[test]
+    fn dispatch_lower_version_stand_and_new_entries_spawn() {
+        let packetver = 20120307;
+        let pos = [0x12u8, 0x34, 0x56];
+        let (ex, ey, edir) = crate::helpers::decode_pos(&pos);
+
+        let mut stand = PacketZcNotifyStandentry2::new(packetver);
+        stand.set_gid(4242);
+        stand.set_pos_dir(pos);
+        stand.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&stand, packetver).as_slice(),
+            [GameEvent::EntitySpawned { gid: 4242, aid: 4242, x, y, direction, is_new_entry: false, .. }]
+                if *x == ex && *y == ey && *direction == edir
+        ));
+
+        let mut new = PacketZcNotifyNewentry2::new(packetver);
+        new.set_gid(99);
+        new.set_pos_dir(pos);
+        new.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&new, packetver).as_slice(),
+            [GameEvent::EntitySpawned { gid: 99, is_new_entry: true, .. }]
+        ));
+    }
+
+    #[test]
+    fn dispatch_lower_version_moveentry_reconstructs_position() {
+        let packetver = 20120307;
+        let bytes = [0x12u8, 0x34, 0x56, 0x78, 0x9a, 0xbc];
+        let (sx, sy, dx, dy) = crate::helpers::decode_pos2(&bytes);
+
+        let mut mv = PacketZcNotifyMoveentry2::new(packetver);
+        mv.set_gid(4242);
+        mv.set_move_data(bytes);
+        mv.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&mv, packetver).as_slice(),
+            [
+                GameEvent::EntitySpawned { gid: 4242, x, y, is_new_entry: false, .. },
+                GameEvent::EntityMoved { gid: 4242, start_x, start_y, dest_x, dest_y, .. },
+            ] if *x == sx && *y == sy && *start_x == sx && *start_y == sy && *dest_x == dx && *dest_y == dy
+        ));
+    }
+
+    #[test]
+    fn dispatch_lower_version_trade_and_sprite() {
+        let packetver = 20120307;
+        let name24 = |n: &str| {
+            let mut buf = ['\0'; 24];
+            for (i, c) in n.chars().take(23).enumerate() {
+                buf[i] = c;
+            }
+            buf
+        };
+
+        let mut req = PacketZcReqExchangeItem::new(packetver);
+        req.set_name(name24("Juliet"));
+        req.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&req, packetver).as_slice(),
+            [GameEvent::ExchangeRequested { name, gid: 0, level: 0 }] if name == "Juliet"
+        ));
+
+        let mut ack = PacketZcAckExchangeItem::new(packetver);
+        ack.set_result(3);
+        ack.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&ack, packetver).as_slice(),
+            [GameEvent::ExchangeAckResult { result: 3, level: 0 }]
+        ));
+
+        let mut add = PacketZcAddExchangeItem::new(packetver);
+        add.set_itid(501);
+        add.set_count(7);
+        add.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&add, packetver).as_slice(),
+            [GameEvent::ExchangeItemAdded { item_id: 501, item_type: 0, count: 7, .. }]
+        ));
+
+        let mut sprite = PacketZcSpriteChange::new(packetver);
+        sprite.set_gid(88);
+        sprite.set_atype(2);
+        sprite.set_value(9);
+        sprite.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&sprite, packetver).as_slice(),
+            [GameEvent::EntitySpriteChanged { gid: 88, sprite_type: 2, value: 9, value2: 0 }]
+        ));
+    }
+
+    #[test]
+    fn dispatch_lower_version_storage_lists() {
+        let packetver = 20120307;
+
+        let mut normal_info = NormalitemExtrainfo::new(packetver);
+        normal_info.set_index(5);
+        normal_info.set_itid(909);
+        normal_info.set_count(3);
+        normal_info.fill_raw();
+        let mut normal = PacketZcStoreNormalItemlist::new(packetver);
+        normal.set_item_info(vec![normal_info]);
+        normal.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&normal, packetver).as_slice(),
+            [GameEvent::StorageNormalItems { items }]
+                if items.len() == 1 && items[0].item_id == 909 && items[0].index == 5
+        ));
+
+        let mut equip_info = EquipmentitemExtrainfo::new(packetver);
+        equip_info.set_index(2);
+        equip_info.set_itid(1201);
+        equip_info.fill_raw();
+        let mut equip = PacketZcStoreEquipmentItemlist::new(packetver);
+        equip.set_item_info(vec![equip_info]);
+        equip.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&equip, packetver).as_slice(),
+            [GameEvent::StorageEquipItems { items }]
+                if items.len() == 1 && items[0].item_id == 1201 && items[0].index == 2
         ));
     }
 }

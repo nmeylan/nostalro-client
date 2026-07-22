@@ -637,7 +637,7 @@ impl App {
             && let Some(dir) = self.game.world.entities.player().map(|e| e.direction)
         {
             self.channel
-                .send_packet(build_change_direction_packet(0, dir, self.config.packetver));
+                .send_packet(build_change_direction_packet(0, dir, self.active_packetver));
         }
     }
 

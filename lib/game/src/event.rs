@@ -20,6 +20,9 @@ pub enum GameEvent {
     LoginRefused {
         error_code: u8,
     },
+    CharServerConnectRefused {
+        error_code: u8,
+    },
     CharacterListReceived {
         characters: Vec<CharacterInfo>,
     },
@@ -49,6 +52,9 @@ pub enum GameEvent {
     RequestLogin {
         username: String,
         password: String,
+    },
+    SelectLoginServer {
+        index: usize,
     },
     RequestSelectServer {
         index: usize,

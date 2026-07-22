@@ -102,7 +102,7 @@ impl App {
             skill_id,
             level,
             target_id,
-            self.config.packetver,
+            self.active_packetver,
         ));
     }
 
@@ -289,7 +289,7 @@ impl App {
 
     pub(crate) fn close_own_shop(&mut self) {
         self.channel.send_packet(ragnarok_network::build_req_closestore_packet(
-            self.config.packetver,
+            self.active_packetver,
         ));
         self.game.pending_casts.pending_shop_name = None;
         self.windows.my_shop_window.close();

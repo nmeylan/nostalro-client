@@ -14,7 +14,7 @@ impl App {
         servers: Vec<ragnarok_game::event::ServerInfo>,
     ) {
         tracing::info!("Login accepted, {} server(s)", servers.len());
-        let mut session = Session::new(self.config.packetver);
+        let mut session = Session::new(self.active_packetver);
         session.store_login(account_id, login_id1, login_id2, sex);
         self.game.session.login_session = Some(session);
         let mut server_win = ServerListWindow::new(servers);
@@ -38,5 +38,15 @@ impl App {
             _ => "Unknown error",
         };
         self.account_dialog.show(msg, false, |_| {});
+    }
+
+    pub(super) fn handle_char_server_connect_refused(&mut self, error_code: u8) {
+        let msg = match error_code {
+            0 => "Rejected from server",
+            1 => "ID mismatch",
+            _ => "Cannot connect to character server",
+        };
+        self.account_dialog.show(msg, false, |_| {});
+        self.game.session.app_state = AppState::ServerSelect;
     }
 }

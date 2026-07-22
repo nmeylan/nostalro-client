@@ -38,18 +38,24 @@ None of the resource files are committed (they are git-ignored). We place them u
 ```
 classic-client/
   data/
-    data.grf        # required: single GRF archive with maps, sprites, effects, textures
+    data.grf        # required: GRF archive with maps, sprites, effects, textures
     BGM/            # optional: background music files (.mp3 / .wav)
     emblem/         # optional: guild emblem .bmp files (24-bit, 24x24)
+    extracted/      # optional: loose files that override the archive (see data_dir)
+      sprite/
+      texture/
 ```
 
 The GRF archive holds everything the renderer reads: maps (GAT/RSW/GND), sprites (SPR/ACT), effects (STR), 3D models (RSM/GR2), and textures. The client and every tool read resources by their Korean names, exactly as they are stored in the archive; we do not rename or repack them.
+
+Resources are resolved by priority. `data_dir` (loose extracted files) is checked first, then each archive in `grf_paths` in order, so the first archive wins over the later ones. This lets a second GRF, or a folder of extracted files, override individual resources without touching the base archive. The layout inside `data_dir` mirrors the archive's `data/` folder: to override `data/sprite/foo.spr`, place the file at `<data_dir>/sprite/foo.spr`.
 
 The runtime picture looks like this.
 
 ```mermaid
 flowchart LR
-    grf[data/data.grf] -->|maps, sprites, effects, textures| client[ragnarok-client]
+    datadir[data_dir: extracted files] -->|highest priority| client[ragnarok-client]
+    grf[grf_paths: data.grf, …] -->|maps, sprites, effects, textures| client
     bgm[data/BGM] -->|music| client
     emblem[data/emblem] -->|guild emblems| client
     config[config.json] -->|settings| client
@@ -76,10 +82,10 @@ The fields a newcomer sets by hand:
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `packetver` | number | `20120307` | Packet protocol version to speak. Any value up to 20120307 works without recompiling. Must match the server. |
-| `login_ip` | string | `127.0.0.1` | Login server address. |
-| `login_port` | number | `6900` | Login server port. |
-| `grf_paths` | string[] | `["data/data.grf"]` | GRF archives to load, in order. Later archives override earlier ones. |
+| `packetver` | number | `20120307` | Default packet protocol version to speak. Any value up to 20120307 works without recompiling. Must match the server. Overridden per server by `login_servers[].packetver`. |
+| `login_servers` | object[] | `[{ "name": "Local", "host": "127.0.0.1", "port": 6900 }]` | Connection (login) servers to choose from. Each has a `name`, `host`, `port`, and an optional `packetver` overriding the top-level one while selected. When more than one is listed the client shows a selection screen before login; a single server is used directly. |
+| `grf_paths` | string[] | `["data/data.grf"]` | GRF archives to load, in priority order. The first archive wins on conflict; each later archive only supplies files the earlier ones lack. |
+| `data_dir` | string | *(unset)* | Optional directory of files extracted from a GRF. Its files override every archive in `grf_paths`, so it is the way to swap individual resources without repacking. Contents mirror the inside of the archive's `data/` folder (e.g. `sprite/…`, `texture/…`); matching is case-insensitive. |
 | `bgm_path` | string | `BGM` | Folder holding background music. `config.json` ships with `data/BGM`. |
 | `emblem_path` | string | `emblem` | Folder holding guild emblem `.bmp` files. `config.json` ships with `data/emblem`. |
 | `screen_width` / `screen_height` | number | `1024` / `768` | Initial window size. |

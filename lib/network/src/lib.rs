@@ -3,6 +3,10 @@ pub mod handler;
 pub mod helpers;
 pub mod sender;
 pub mod session;
+#[cfg(test)]
+mod packet_version_regression;
+#[cfg(test)]
+mod zc_coverage_audit;
 
 use connection::{Connection, ConnectionError};
 use handler::dispatch_packet;
@@ -40,6 +44,7 @@ pub use sender::{
     build_remove_option_packet, build_req_disconnect_packet, build_req_enter_room_packet,
     build_reqname_packet,
     build_request_move_packet, build_restart_packet, build_return_savepoint_packet,
+    build_solve_char_name_packet,
     build_standing_resurrection_packet, build_select_char_packet,
     build_select_warppoint_packet, build_sell_item_list_packet, build_shortcut_key_change_packet,
     build_stat_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
@@ -49,7 +54,7 @@ pub use sender::{
     build_req_weaponrefine_packet, build_req_itemrepair_packet, build_select_autospell_packet,
     build_req_openstore2_packet, build_req_cancel_openstore_packet, build_req_closestore_packet,
     build_req_buy_frommc_packet,
-    build_purchase_frommc2_packet,
+    build_purchase_frommc2_packet, build_purchase_frommc_packet, build_purchase_frommc_dispatch,
     build_companion_move_packet, build_companion_attack_packet,
     build_companion_move_to_owner_packet, build_homun_menu_packet,
     build_mercenary_command_packet, build_rename_homun_packet, build_config_packet,
@@ -85,6 +90,7 @@ pub enum NetworkCommand {
     SendPacket(Vec<u8>),
     Disconnect,
     SetKeepalive(KeepaliveMode),
+    SetPacketver(u32),
 }
 
 pub async fn network_loop(
@@ -256,6 +262,9 @@ pub async fn network_loop(
                             keepalive = mode;
                             keepalive_interval.reset();
                         }
+                        Some(NetworkCommand::SetPacketver(ver)) => {
+                            session.packetver = ver;
+                        }
                         None => {
                             return;
                         }
@@ -283,6 +292,9 @@ pub async fn network_loop(
                 Some(NetworkCommand::SetKeepalive(mode)) => {
                     keepalive = mode;
                     keepalive_interval.reset();
+                }
+                Some(NetworkCommand::SetPacketver(ver)) => {
+                    session.packetver = ver;
                 }
                 None => return,
             }

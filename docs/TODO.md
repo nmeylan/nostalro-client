@@ -20,6 +20,7 @@ TODO:
 - ~~Name above entities~~ (done — text with outline rendered above sprites)
 - ~~HP bar above entities~~ (done — green/yellow/red bar below name, on hover + always for player)
 - ~~Shadow under entities~~ (done — shadow size table for 200+ jobs)
+- GM sprite based on account id + yellow text color + yellow name
 
 # Rendering
 - ~~STR effects (skill/buff visuals, 200 effect types)~~
@@ -146,3 +147,6 @@ TODO:
 # Performance
 - Profile memory
 - Profile CPU
+
+# To valide
+- THQ: don't rembmer if there is packet specific

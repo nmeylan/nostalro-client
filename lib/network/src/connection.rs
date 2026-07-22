@@ -49,10 +49,15 @@ impl Connection {
 
     pub async fn send_packet(&mut self, data: &[u8], packetver: u32) -> io::Result<()> {
         if self.trace_packets_send {
-            let result = panic::catch_unwind(|| packets_parser::parse(data, packetver));
-            if let Ok(packet) = result {
-                tracing::info!("send packet: {:?}", packet.name());
-            }
+            let name = panic::catch_unwind(|| packets_parser::parse(data, packetver).name().to_string())
+                .unwrap_or_else(|_| "<parse panic>".to_string());
+            let preview: Vec<String> = data.iter().take(16).map(|b| format!("{b:02x}")).collect();
+            tracing::info!(
+                "send packet: {} ({} bytes) [{}]",
+                name,
+                data.len(),
+                preview.join(" ")
+            );
         }
         self.writer.write_all(data).await
     }

@@ -23,7 +23,7 @@ impl App {
         self.channel
             .send_packet(ragnarok_network::build_ack_exchange_item_packet(
                 result,
-                self.config.packetver,
+                self.active_packetver,
             ));
     }
 
