@@ -26,7 +26,7 @@ pub const FREEZING: SparkleColumnParams = SparkleColumnParams {
     sprite_radius: 0.8,
     rise_speed: 6.0,
     count: 16,
-    scatter: 0.5,
+    scatter: 3.5,
 };
 
 pub const WHITELIGHT: SparkleColumnParams = SparkleColumnParams {

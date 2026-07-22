@@ -71,6 +71,18 @@ pub enum EffectPrimitiveDraw {
         color: [f32; 4],
         blend: BlendKind,
     },
+    /// Camera-facing textured disc with planar UV (samples the texture's
+    /// inscribed circle), depth-anchored like [`Billboard`]. Round silhouette,
+    /// never a rectangle. `size` is the diameter; `rotation` spins in screen space.
+    BillboardSpriteDisc {
+        pos: [f32; 3],
+        size: [f32; 2],
+        segments: u32,
+        rotation: f32,
+        texture: &'static str,
+        color: [f32; 4],
+        blend: BlendKind,
+    },
     /// Camera-facing filled disc with polar UV mapping (V=1 centre, V=0 rim).
     BillboardDisc {
         pos: [f32; 3],

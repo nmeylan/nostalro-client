@@ -3,12 +3,12 @@
   "login_ip": "127.0.0.1",
   "login_port": 6900,
   "keep_login_id": true,
-  "saved_username": "test1",
+  "saved_username": "test2",
   "screen_width": 1024,
   "screen_height": 768,
   "bgm_volume": 0.18214396,
   "sfx_volume": 0.19224812,
-  "bgm_enabled": true,
+  "bgm_enabled": false,
   "sfx_enabled": true,
   "bgm_path": "data/BGM",
   "emblem_path": "data/emblem",
@@ -22,34 +22,18 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "2000": {
+    "4133": {
       "position": [
-        60.0,
-        60.0
+        520.0,
+        667.0
       ],
       "open": false,
       "collapsed": false
     },
-    "10": {
+    "110": {
       "position": [
-        402.6667,
-        344.66666
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "1300": {
-      "position": [
-        476.6667,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "210": {
-      "position": [
-        342.0,
-        346.0
+        490.0,
+        568.0
       ],
       "open": false,
       "collapsed": false
@@ -62,10 +46,10 @@
       "open": true,
       "collapsed": false
     },
-    "110": {
+    "210": {
       "position": [
-        490.0,
-        568.0
+        342.0,
+        346.0
       ],
       "open": false,
       "collapsed": false
@@ -74,6 +58,38 @@
       "position": [
         0.0,
         0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        476.6667,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        402.6667,
+        344.66666
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "4100": {
+      "position": [
+        300.0,
+        100.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "2800": {
+      "position": [
+        500.6667,
+        620.0
       ],
       "open": false,
       "collapsed": false
@@ -115,8 +131,26 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleBasicInfo": {
-      "key": "KeyV",
+    "ToggleChatRoomCreate": {
+      "key": "KeyC",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleStatus": {
+      "key": "KeyA",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleSkillTree": {
+      "key": "KeyS",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleGraphicOptions": {
+      "key": "KeyD",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -133,14 +167,26 @@
       "ctrl": false,
       "shift": false
     },
+    "ToggleFriends": {
+      "key": "KeyH",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleBasicInfo": {
+      "key": "KeyV",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
     "ToggleGuild": {
       "key": "KeyG",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleSkillTree": {
-      "key": "KeyS",
+    "ToggleEmotion": {
+      "key": "KeyL",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -148,6 +194,42 @@
     "TogglePet": {
       "key": "KeyJ",
       "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "MercenaryFollow": {
+      "key": "KeyT",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
+    "ToggleSoundOptions": {
+      "key": "KeyO",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleParty": {
+      "key": "KeyZ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleQuest": {
+      "key": "KeyU",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleEquipment": {
+      "key": "KeyQ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "SitStand": {
+      "key": "Insert",
+      "alt": false,
       "ctrl": false,
       "shift": false
     },
@@ -163,74 +245,8 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleStatus": {
-      "key": "KeyA",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
     "CycleMinimap": {
       "key": "Tab",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleEmotion": {
-      "key": "KeyL",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleParty": {
-      "key": "KeyZ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleGraphicOptions": {
-      "key": "KeyD",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleQuest": {
-      "key": "KeyU",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleChatRoomCreate": {
-      "key": "KeyC",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleSoundOptions": {
-      "key": "KeyO",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "SitStand": {
-      "key": "Insert",
-      "alt": false,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleEquipment": {
-      "key": "KeyQ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleFriends": {
-      "key": "KeyH",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "MercenaryFollow": {
-      "key": "KeyT",
       "alt": false,
       "ctrl": true,
       "shift": false

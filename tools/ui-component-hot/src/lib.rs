@@ -2560,7 +2560,32 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             character,
             data,
         } => {
-            win.build(ui, &mut d.ctx(character, data));
+            use ragnarok_game::trade::{CONCLUDE_ME, CONCLUDE_OTHER, TRADE_ZENY_INDEX};
+            // No trade server here, so stand in for the add/conclude acks that
+            // normally reflect our side and lock the panes.
+            let trade_events = win.build(ui, &mut d.ctx(character, data));
+            for event in trade_events {
+                match event {
+                    GameEvent::RequestAddExchangeItem { .. } => {
+                        if let Some((idx, cnt)) = character.trade.take_pending_add() {
+                            if idx == TRADE_ZENY_INDEX {
+                                character.trade.add_my_zeny(cnt as i64);
+                                character.inventory.zeny =
+                                    (character.inventory.zeny - cnt).max(0);
+                            } else if let Some(src) = character.inventory.get_item(idx) {
+                                let mut item = src.clone();
+                                item.count = cnt as i16;
+                                character.trade.add_my_item(item);
+                            }
+                        }
+                    }
+                    GameEvent::RequestConcludeExchange => {
+                        character.trade.lock(CONCLUDE_ME);
+                        character.trade.lock(CONCLUDE_OTHER);
+                    }
+                    _ => {}
+                }
+            }
         }
         State::Mailbox {
             win,

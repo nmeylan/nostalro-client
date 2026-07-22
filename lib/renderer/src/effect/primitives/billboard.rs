@@ -41,6 +41,65 @@ pub fn prepare_billboard_records<'tex>(
 ) -> Vec<DrawRecord<'tex>> {
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     for (emission, prim) in list.primitives.iter().enumerate() {
+        if let EffectPrimitiveDraw::BillboardSpriteDisc {
+            pos,
+            size,
+            segments,
+            rotation,
+            texture,
+            color,
+            blend,
+        } = prim
+        {
+            let Some((anchor, ndc_z, ppu)) =
+                project_billboard_biased(camera, *pos, screen_w, screen_h)
+            else {
+                continue;
+            };
+            let r = size[0] * ppu * 0.5;
+            let n = (*segments).max(8);
+            let (sin_r, cos_r) = rotation.sin_cos();
+            let z = ndc_z;
+            let mut vertices: Vec<SpriteVertex> = Vec::with_capacity(n as usize + 2);
+            vertices.push(SpriteVertex {
+                position: [anchor[0], anchor[1], z],
+                tex_coord: [0.5, 0.5],
+                color: *color,
+            });
+            for s in 0..=n {
+                let theta = (s as f32 / n as f32) * std::f32::consts::TAU;
+                let (sin_t, cos_t) = theta.sin_cos();
+                let dx = r * cos_t;
+                let dy = r * sin_t;
+                vertices.push(SpriteVertex {
+                    position: [
+                        anchor[0] + dx * cos_r - dy * sin_r,
+                        anchor[1] + dx * sin_r + dy * cos_r,
+                        z,
+                    ],
+                    tex_coord: [0.5 + 0.5 * cos_t, 0.5 + 0.5 * sin_t],
+                    color: *color,
+                });
+            }
+            let mut indices: Vec<u32> = Vec::with_capacity(n as usize * 3);
+            for s in 0..n {
+                indices.push(0);
+                indices.push(1 + s);
+                indices.push(2 + s);
+            }
+            let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
+            records.push(DrawRecord::new(
+                super::super::queue::view_z(camera, *pos),
+                emission as u32,
+                BlendBucket::from_blend_kind(*blend),
+                PipelineKind::Sprite,
+                vertices,
+                indices,
+                texture_bg,
+            ));
+            continue;
+        }
+
         if let EffectPrimitiveDraw::BillboardDisc {
             pos,
             radius,

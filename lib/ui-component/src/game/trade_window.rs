@@ -18,7 +18,6 @@ const LOCK_BTN_ID: WidgetId = WidgetId(4101);
 const TRADE_BTN_ID: WidgetId = WidgetId(4102);
 const CANCEL_BTN_ID: WidgetId = WidgetId(4103);
 const ZENY_INPUT_ID: WidgetId = WidgetId(4105);
-const ZENY_ADD_BTN_ID: WidgetId = WidgetId(4106);
 const MY_ROW_BASE: u32 = 4110;
 const OTHER_ROW_BASE: u32 = 4120;
 const NUM_DIALOG_BASE: u32 = 4130;
@@ -46,8 +45,8 @@ const CANCEL_BTN: ButtonTextures = ButtonTextures {
 
 const WIN_W: f32 = 500.0;
 const TITLE_H: f32 = 16.0;
-const HEADER_H: f32 = 18.0;
-const ROW_H: f32 = 26.0;
+const HEADER_H: f32 = 3.0;
+const ROW_H: f32 = 28.0;
 const ICON: f32 = 24.0;
 const ZENY_H: f32 = 26.0;
 const FOOTER_H: f32 = 30.0;
@@ -56,8 +55,16 @@ const BTN_W: f32 = 42.0;
 const BTN_H: f32 = 20.0;
 const NAME_MAX_CHARS: usize = 22;
 
-const LOCK_COLOR: [f32; 4] = [0.15, 0.55, 0.15, 1.0];
 const GREY: [f32; 4] = [0.5, 0.5, 0.5, 1.0];
+const LOCKED_BG: [f32; 4] = [0.78, 0.78, 0.78, 1.0];
+
+fn encode_gid(gid: u32) -> String {
+    const TABLE: &[u8; 10] = b"ROHUTNASEW";
+    gid.to_string()
+        .bytes()
+        .map(|b| TABLE[(b - b'0') as usize] as char)
+        .collect()
+}
 
 fn win_h() -> f32 {
     TITLE_H + HEADER_H + TRADE_MAX_SLOTS as f32 * ROW_H + ZENY_H + FOOTER_H
@@ -117,20 +124,35 @@ impl TradeWindow {
         data: &DataTable,
         grf: bool,
         tc: [f32; 4],
+        locked: bool,
     ) {
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();
+        if locked {
+            let (v, i) = draw::quad_vertices(
+                col_x + 2.0,
+                top_y,
+                COL_W - 4.0,
+                TRADE_MAX_SLOTS as f32 * ROW_H,
+                LOCKED_BG,
+            );
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+        }
         for row in 0..TRADE_MAX_SLOTS {
             let ry = top_y + row as f32 * ROW_H;
             let icon_y = ry + (ROW_H - ICON) / 2.0;
-            if grf {
+            if !locked && grf {
                 let (v, i) = draw::quad_vertices(col_x + 2.0, icon_y, ICON, ICON, [1.0; 4]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
                     texture: TextureRef::Named(BOX_TEX.to_string()),
                 });
-            } else {
+            } else if !locked {
                 crate::helper::fallback::slot_cell(ui, col_x + 2.0, icon_y, ICON, ICON);
             }
             let Some(item) = items.get(row) else {
@@ -248,11 +270,16 @@ impl InGameWindow for TradeWindow {
         ui.interact(TRADE_WINDOW_ID, Rect::new(x, y, WIN_W, h));
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        let title = format!("Trade : {}", character.trade.partner_name());
-        ui.text(x + 17.0, y + TITLE_H - 3.0, &title, tc);
+        let title = format!(
+            "Trade : {}  Lv{} ({})",
+            character.trade.partner_name(),
+            character.trade.partner_level(),
+            encode_gid(character.trade.partner_aid())
+        );
+        ui.text(x + 15.0, y + TITLE_H - 4.0, &title, tc);
 
         let body_y = y + TITLE_H;
-        let body_h = HEADER_H + TRADE_MAX_SLOTS as f32 * ROW_H + ZENY_H;
+        let body_h = HEADER_H + TRADE_MAX_SLOTS as f32 * ROW_H + ZENY_H + FOOTER_H;
         if grf {
             let (v, i) = draw::quad_vertices(x, body_y, WIN_W, body_h, [1.0; 4]);
             ui.draw_calls.push(DrawCall {
@@ -264,31 +291,16 @@ impl InGameWindow for TradeWindow {
             draw_container(ui, x, body_y, WIN_W, body_h, grf);
         }
 
-        // --- Headers (my side left, partner right) ---
         let right_x = x + COL_W;
         let my_locked = character.trade.my_locked();
         let other_locked = character.trade.other_locked();
-        let my_head = format!("{} (Lv {})", character.name, character.trade.my_level());
-        let other_head = format!(
-            "{} (Lv {})",
-            character.trade.partner_name(),
-            character.trade.partner_level()
-        );
-        ui.text(x + 4.0, body_y + 12.0, &my_head, if my_locked { LOCK_COLOR } else { tc });
-        ui.text(right_x + 4.0, body_y + 12.0, &other_head, if other_locked { LOCK_COLOR } else { tc });
-        if my_locked {
-            ui.text(x + COL_W - 48.0, body_y + 12.0, "LOCKED", LOCK_COLOR);
-        }
-        if other_locked {
-            ui.text(x + WIN_W - 48.0, body_y + 12.0, "LOCKED", LOCK_COLOR);
-        }
 
         // --- Item columns ---
         let items_top = body_y + HEADER_H;
         let my_items: Vec<Item> = character.trade.my_items().to_vec();
         let other_items: Vec<Item> = character.trade.other_items().to_vec();
-        self.draw_item_column(ui, &my_items, x, items_top, MY_ROW_BASE, data, grf, tc);
-        self.draw_item_column(ui, &other_items, right_x, items_top, OTHER_ROW_BASE, data, grf, tc);
+        self.draw_item_column(ui, &my_items, x, items_top, MY_ROW_BASE, data, grf, tc, my_locked);
+        self.draw_item_column(ui, &other_items, right_x, items_top, OTHER_ROW_BASE, data, grf, tc, other_locked);
 
         // --- Add items from inventory onto my column (drop zone) ---
         let my_col_rect = Rect::new(x, items_top, COL_W, TRADE_MAX_SLOTS as f32 * ROW_H);
@@ -311,51 +323,48 @@ impl InGameWindow for TradeWindow {
             }
         }
 
-        // --- Zeny row ---
-        let zeny_y = items_top + TRADE_MAX_SLOTS as f32 * ROW_H;
-        ui.text(x + 4.0, zeny_y + 16.0, "Zeny:", tc);
-        let input_rect = Rect::new(x + 44.0, zeny_y + 5.0, 96.0, 16.0);
-        if !my_locked {
+        // --- Zeny (last row of each column; committed on Lock) ---
+        let zeny_y = items_top + (1 + TRADE_MAX_SLOTS) as f32 * ROW_H;
+        let baseline = zeny_y - 2.0;
+        if my_locked {
+            let my_zeny_txt = format!("{}z", character.trade.my_zeny());
+            let mw = ui.atlas.measure_text(&my_zeny_txt);
+            ui.text(x + COL_W - 36.0 - mw, baseline, &my_zeny_txt, tc);
+        } else {
+            let input_rect = Rect::new(x + COL_W / 2.0 - 32.0, zeny_y + -18.0 , COL_W / 2.0 , 18.0);
             ui.text_input(ZENY_INPUT_ID, input_rect, &mut self.zeny_input, TextInputBg::Gray);
-            let add_rect = Rect::new(x + 144.0, zeny_y + 4.0, 24.0, 18.0);
-            let add = ui.button(ZENY_ADD_BTN_ID, add_rect, &LOCK_BTN, "+");
-            if add.clicked() {
-                let amount: i64 = self
-                    .zeny_input
-                    .text
-                    .chars()
-                    .filter(|c| c.is_ascii_digit())
-                    .collect::<String>()
-                    .parse()
-                    .unwrap_or(0);
-                let capped = amount.min(character.inventory.zeny as i64).max(0);
-                if capped > 0 {
-                    character.trade.set_pending_add(TRADE_ZENY_INDEX, capped as i32);
-                    events.push(GameEvent::RequestAddExchangeItem {
-                        index: TRADE_ZENY_INDEX,
-                        count: capped as i32,
-                    });
-                }
-                self.zeny_input.text.clear();
-                self.zeny_input.cursor_pos = 0;
-            }
         }
-        let my_zeny_txt = format!("{}z", character.trade.my_zeny());
-        ui.text(x + 176.0, zeny_y + 16.0, &my_zeny_txt, tc);
-        let other_zeny_txt = format!("Zeny: {}z", character.trade.other_zeny());
-        ui.text(right_x + 4.0, zeny_y + 16.0, &other_zeny_txt, tc);
+        let other_zeny_txt = format!("{}z", character.trade.other_zeny());
+        let ow = ui.atlas.measure_text(&other_zeny_txt);
+        ui.text(x + WIN_W - ow - 36.0, baseline, &other_zeny_txt, tc);
 
         // --- Footer buttons ---
-        let footer_y = body_y + body_h;
-        let by = footer_y + (FOOTER_H - BTN_H) / 2.0;
+        let footer_y = body_y + body_h - FOOTER_H;
+        let by = footer_y + (FOOTER_H - BTN_H) / 2.0 + 2.0;
         let lock_rect = Rect::new(x + 6.0, by, BTN_W, BTN_H);
         if my_locked {
             draw_disabled(ui, lock_rect, LOCK_BTN_DIS, "Lock", grf, tc);
         } else if ui.button(LOCK_BTN_ID, lock_rect, &LOCK_BTN, "Lock").clicked() {
+            let amount: i64 = self
+                .zeny_input
+                .text
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>()
+                .parse()
+                .unwrap_or(0);
+            let capped = amount.min(character.inventory.zeny as i64).max(0);
+            if capped > 0 {
+                character.trade.set_pending_add(TRADE_ZENY_INDEX, capped as i32);
+                events.push(GameEvent::RequestAddExchangeItem {
+                    index: TRADE_ZENY_INDEX,
+                    count: capped as i32,
+                });
+            }
             events.push(GameEvent::RequestConcludeExchange);
         }
 
-        let trade_rect = Rect::new(x + 6.0 + BTN_W + 6.0, by, BTN_W, BTN_H);
+        let trade_rect = Rect::new(x + (WIN_W - BTN_W) / 2.0, by, BTN_W, BTN_H);
         if character.trade.both_locked() {
             if ui.button(TRADE_BTN_ID, trade_rect, &TRADE_BTN, "Trade").clicked() {
                 events.push(GameEvent::RequestExecExchange);

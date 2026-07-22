@@ -5,7 +5,6 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const SPAWN_PERIOD: u32 = 4;
-const Y_OFFSET: f32 = -6.0; // −Y is up.
 
 fn rgb(r: u8, g: u8, b: u8) -> [f32; 3] {
     [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0]
@@ -23,6 +22,8 @@ pub struct ParticleUpParams {
     pub dist_rand: f32,
     pub rise_base: f32,
     pub rise_rand: f32,
+    /// Spawn height above the anchor; −Y is up.
+    pub y_offset: f32,
     pub stagger_start: bool,
     pub glow_scale: f32,
     /// `false` keeps motes axis-aligned; spinning smears the star texture.
@@ -41,6 +42,7 @@ const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
         dist_rand: 1.5,
         rise_base: 0.2,
         rise_rand: 0.2,
+        y_offset: -6.0,
         stagger_start: false,
         glow_scale: 0.0,
         spin: true,
@@ -49,12 +51,13 @@ const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
 
 pub const HPTIME: ParticleUpParams = p("pok1.tga", (220, 250, 220));
 pub const HEAL_MOTE: ParticleUpParams = ParticleUpParams {
-    base_dist: 0.9,
-    dist_rand: 0.5,
+    base_dist: 9.0,
+    dist_rand: 0.0,
     spawn_end: 50,
     spread: 6.0,
-    rise_base: 0.25,
-    rise_rand: 0.2,
+    rise_base: 0.3,
+    rise_rand: 0.4,
+    y_offset: 0.0,
     spin: false,
     ..p("pok1.tga", (220, 250, 220))
 };
@@ -160,7 +163,7 @@ impl ParticleUpEffect {
             self.particles.push(Particle {
                 pos: [
                     self.center[0] + self.rng.range(-self.params.spread, self.params.spread),
-                    self.center[1] + Y_OFFSET,
+                    self.center[1] + self.params.y_offset,
                     self.center[2] + self.rng.range(-self.params.spread, self.params.spread),
                 ],
                 size: self.params.base_dist + self.rng.range(0.0, self.params.dist_rand),
@@ -187,7 +190,9 @@ impl ParticleUpEffect {
             pt.process += 1;
             if pt.process > 0 {
                 pt.pos[1] -= pt.rise; // native -Y = up
-                pt.rotation -= 5.0_f32.to_radians();
+                if self.params.spin {
+                    pt.rotation -= 5.0_f32.to_radians();
+                }
                 if pt.process <= 10 {
                     pt.alpha = (pt.alpha + 15.0 / 255.0).min(150.0 / 255.0);
                 } else {
@@ -238,20 +243,20 @@ impl Effect for ParticleUpEffect {
             }
             if self.params.glow_scale > 0.0 {
                 let glow = pt.size * self.params.glow_scale;
-                out.push(EffectPrimitiveDraw::Billboard {
+                out.push(EffectPrimitiveDraw::BillboardSpriteDisc {
                     pos: pt.pos,
                     size: [glow, glow],
-                    uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                    segments: 20,
                     rotation: pt.rotation,
                     texture: self.params.texture,
                     color: [tint[0], tint[1], tint[2], pt.alpha * 0.4],
                     blend: BlendKind::Additive,
                 });
             }
-            out.push(EffectPrimitiveDraw::Billboard {
+            out.push(EffectPrimitiveDraw::BillboardSpriteDisc {
                 pos: pt.pos,
                 size: [pt.size, pt.size],
-                uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                segments: 20,
                 rotation: pt.rotation,
                 texture: self.params.texture,
                 color: [tint[0], tint[1], tint[2], pt.alpha],
@@ -291,13 +296,13 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard {
+                EffectPrimitiveDraw::BillboardSpriteDisc {
                     pos,
                     color,
                     blend: BlendKind::Additive,
                     ..
                 } => (*pos, *color),
-                _ => panic!("expected additive Billboard sparkles"),
+                _ => panic!("expected additive disc sparkles"),
             })
             .collect()
     }

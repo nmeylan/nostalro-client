@@ -9,8 +9,8 @@ pub fn level_aura_visible(entity_type: EntityType, base_level: i16, effect_state
         && !is_hidden(effect_state)
 }
 
-pub fn boss_aura_visible(entity_type: EntityType, is_boss: bool, effect_state: i32) -> bool {
-    entity_type == EntityType::Monster && is_boss && !is_hidden(effect_state)
+pub fn boss_aura_visible(entity_type: EntityType, is_boss: bool, level: i16, effect_state: i32) -> bool {
+    entity_type == EntityType::Monster && is_boss && !is_hidden(effect_state) && level >= LEVEL_AURA_THRESHOLD
 }
 
 #[cfg(test)]
@@ -30,10 +30,11 @@ mod tests {
 
     #[test]
     fn boss_aura_is_monster_only_and_hidden_when_cloaked() {
-        assert!(boss_aura_visible(EntityType::Monster, true, 0));
-        assert!(!boss_aura_visible(EntityType::Monster, false, 0));
-        assert!(!boss_aura_visible(EntityType::Player, true, 0));
-        assert!(!boss_aura_visible(EntityType::Npc, true, 0));
-        assert!(!boss_aura_visible(EntityType::Monster, true, OPTION_CLOAK));
+        assert!(boss_aura_visible(EntityType::Monster, true, 99, 0));
+        assert!(!boss_aura_visible(EntityType::Monster, false, 99, 0));
+        assert!(!boss_aura_visible(EntityType::Monster, true, 98, 0));
+        assert!(!boss_aura_visible(EntityType::Player, true, 99,0));
+        assert!(!boss_aura_visible(EntityType::Npc, true, 99, 0));
+        assert!(!boss_aura_visible(EntityType::Monster, true, 99, OPTION_CLOAK));
     }
 }

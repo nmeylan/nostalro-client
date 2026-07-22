@@ -846,18 +846,18 @@ impl App {
     }
 
     pub(super) fn refresh_boss_aura(&mut self, gid: u32) {
-        let Some((entity_type, is_boss, effect_state, alive)) = self
+        let Some((entity_type, is_boss, effect_state, level, alive)) = self
             .game
             .world
             .entities
             .get(gid)
-            .map(|e| (e.entity_type, e.is_boss, e.effect_state, e.is_alive()))
+            .map(|e| (e.entity_type, e.is_boss, e.effect_state, e.base_level, e.is_alive()))
         else {
             return;
         };
         let want = alive
             && self.config.display.show_level_aura
-            && level_aura::boss_aura_visible(entity_type, is_boss, effect_state);
+            && level_aura::boss_aura_visible(entity_type, is_boss, level, effect_state);
         let have = self.game.effect_keys.boss_aura_keys.contains_key(&gid);
         match (want, have) {
             (true, false) => {
