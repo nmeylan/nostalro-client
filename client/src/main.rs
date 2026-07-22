@@ -2359,6 +2359,15 @@ impl App {
                 let status = if fog { "ON" } else { "OFF" };
                 self.windows.chat_window.add_system(format!("Fog: {status}"));
             }
+            ChatCommand::ToggleLightmap => {
+                if let Some(renderer) = &mut self.renderer {
+                    let enabled = renderer.toggle_lightmap();
+                    let status = if enabled { "ON" } else { "OFF" };
+                    self.windows
+                        .chat_window
+                        .add_system(format!("Lightmap: {status}"));
+                }
+            }
             ChatCommand::ToggleAura => {
                 let mut display = self.config.display.clone();
                 display.show_level_aura = !display.show_level_aura;

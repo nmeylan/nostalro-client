@@ -41,6 +41,8 @@ pub struct GroundRenderer {
     index_buffer: wgpu::Buffer,
     batches: Vec<DrawBatch>,
     lightmap_bind_group: wgpu::BindGroup,
+    lightmap_off_bind_group: wgpu::BindGroup,
+    lightmap_enabled: bool,
 }
 
 impl GroundRenderer {
@@ -63,6 +65,16 @@ impl GroundRenderer {
             device,
             queue,
             &texture_cache.bind_group_layout,
+        );
+
+        // Disabled lightmap: black color map (adds nothing) with full alpha (no shadow).
+        let off_img = image::RgbaImage::from_raw(1, 1, vec![0, 0, 0, 255]).unwrap();
+        let lightmap_off_bind_group = texture::create_texture_bind_group(
+            device,
+            queue,
+            &off_img,
+            &texture_cache.bind_group_layout,
+            "lightmap_off",
         );
 
         let atlas_dim = lightmap_atlas_dim(gnd.lightmaps.len());
@@ -94,7 +106,13 @@ impl GroundRenderer {
             index_buffer,
             batches,
             lightmap_bind_group,
+            lightmap_off_bind_group,
+            lightmap_enabled: true,
         }
+    }
+
+    pub fn set_lightmap_enabled(&mut self, enabled: bool) {
+        self.lightmap_enabled = enabled;
     }
 
     pub fn render<'a>(
@@ -103,9 +121,15 @@ impl GroundRenderer {
         global_uniforms: &'a GlobalUniforms,
         texture_cache: &'a TextureCache,
     ) {
+        let lightmap = if self.lightmap_enabled {
+            &self.lightmap_bind_group
+        } else {
+            &self.lightmap_off_bind_group
+        };
+
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &global_uniforms.bind_group, &[]);
-        pass.set_bind_group(2, &self.lightmap_bind_group, &[]);
+        pass.set_bind_group(2, lightmap, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
@@ -377,12 +401,21 @@ fn compute_quad_normal(positions: &[[f32; 3]; 4]) -> [f32; 3] {
     [n.x, n.y, n.z]
 }
 
+const LIGHTMAP_CELL: u32 = 8;
+const LIGHTMAP_BORDER: u32 = 1;
+const LIGHTMAP_STRIDE: u32 = LIGHTMAP_CELL + 2 * LIGHTMAP_BORDER;
+const LIGHTMAP_POSTERIZE: u8 = 16;
+
 fn lightmap_atlas_dim(lightmap_count: usize) -> u32 {
     if lightmap_count == 0 {
         return 1;
     }
     let grid = (lightmap_count as f64).sqrt().ceil() as u32;
     grid.max(1)
+}
+
+fn lightmap_atlas_pixel_size(grid: u32) -> u32 {
+    (grid * LIGHTMAP_STRIDE).max(1)
 }
 
 fn lightmap_uvs(lightmap_id: i16, atlas_grid: u32) -> [[f32; 2]; 4] {
@@ -392,17 +425,50 @@ fn lightmap_uvs(lightmap_id: i16, atlas_grid: u32) -> [[f32; 2]; 4] {
     let id = lightmap_id as u32;
     let gx = id % atlas_grid;
     let gy = id / atlas_grid;
-    let cell_size = 1.0 / atlas_grid as f32;
-    // Half-pixel inset to avoid bleeding
-    let atlas_pixel_size = atlas_grid * 8;
-    let half_texel = 0.5 / atlas_pixel_size as f32;
+    let atlas_px = lightmap_atlas_pixel_size(atlas_grid) as f32;
 
-    let u0 = gx as f32 * cell_size + half_texel;
-    let v0 = gy as f32 * cell_size + half_texel;
-    let u1 = (gx + 1) as f32 * cell_size - half_texel;
-    let v1 = (gy + 1) as f32 * cell_size - half_texel;
+    let ox = (gx * LIGHTMAP_STRIDE + LIGHTMAP_BORDER) as f32;
+    let oy = (gy * LIGHTMAP_STRIDE + LIGHTMAP_BORDER) as f32;
+
+    let u0 = (ox + 0.5) / atlas_px;
+    let v0 = (oy + 0.5) / atlas_px;
+    let u1 = (ox + LIGHTMAP_CELL as f32 - 0.5) / atlas_px;
+    let v1 = (oy + LIGHTMAP_CELL as f32 - 0.5) / atlas_px;
 
     [[u0, v0], [u1, v0], [u0, v1], [u1, v1]]
+}
+
+fn posterize(c: u8) -> u8 {
+    (c / LIGHTMAP_POSTERIZE) * LIGHTMAP_POSTERIZE
+}
+
+fn pack_lightmap_atlas(lightmaps: &[Lightmap], grid: u32, atlas_size: u32) -> Vec<u8> {
+    let mut pixels = vec![255u8; (atlas_size * atlas_size * 4) as usize];
+
+    for (i, lm) in lightmaps.iter().enumerate() {
+        let cx = (i as u32 % grid) * LIGHTMAP_STRIDE;
+        let cy = (i as u32 / grid) * LIGHTMAP_STRIDE;
+
+        for by in 0..LIGHTMAP_STRIDE {
+            for bx in 0..LIGHTMAP_STRIDE {
+                let sx = (bx as i32 - LIGHTMAP_BORDER as i32)
+                    .clamp(0, LIGHTMAP_CELL as i32 - 1) as usize;
+                let sy = (by as i32 - LIGHTMAP_BORDER as i32)
+                    .clamp(0, LIGHTMAP_CELL as i32 - 1) as usize;
+                let lm_idx = sy * LIGHTMAP_CELL as usize + sx;
+
+                let px = cx + bx;
+                let py = cy + by;
+                let offset = ((py * atlas_size + px) * 4) as usize;
+                pixels[offset] = posterize(lm.color[lm_idx * 3]);
+                pixels[offset + 1] = posterize(lm.color[lm_idx * 3 + 1]);
+                pixels[offset + 2] = posterize(lm.color[lm_idx * 3 + 2]);
+                pixels[offset + 3] = lm.shadow[lm_idx];
+            }
+        }
+    }
+
+    pixels
 }
 
 fn build_lightmap_atlas(
@@ -412,35 +478,9 @@ fn build_lightmap_atlas(
     bind_group_layout: &wgpu::BindGroupLayout,
 ) -> wgpu::BindGroup {
     let grid = lightmap_atlas_dim(lightmaps.len());
-    let atlas_size = (grid * 8).max(1);
+    let atlas_size = lightmap_atlas_pixel_size(grid);
 
-    let mut pixels = vec![255u8; (atlas_size * atlas_size * 4) as usize];
-
-    for (i, lm) in lightmaps.iter().enumerate() {
-        let gx = (i as u32 % grid) * 8;
-        let gy = (i as u32 / grid) * 8;
-
-        for ly in 0..8u32 {
-            for lx in 0..8u32 {
-                let lm_idx = (ly * 8 + lx) as usize;
-                let intensity = lm.intensity[lm_idx];
-                let spec_r = lm.specular[lm_idx * 3];
-                let spec_g = lm.specular[lm_idx * 3 + 1];
-                let spec_b = lm.specular[lm_idx * 3 + 2];
-
-                let px = gx + lx;
-                let py = gy + ly;
-                let offset = ((py * atlas_size + px) * 4) as usize;
-                // Intensity is the shadow/brightness map
-                // Specular RGB is a color tint (often white = 255,255,255)
-                // Use max(specular, intensity) to avoid zeroing out
-                pixels[offset] = spec_r.max(intensity);
-                pixels[offset + 1] = spec_g.max(intensity);
-                pixels[offset + 2] = spec_b.max(intensity);
-                pixels[offset + 3] = 255;
-            }
-        }
-    }
+    let pixels = pack_lightmap_atlas(lightmaps, grid, atlas_size);
 
     let img = image::RgbaImage::from_raw(atlas_size, atlas_size, pixels).unwrap();
     texture::create_texture_bind_group(device, queue, &img, bind_group_layout, "lightmap_atlas")
@@ -551,6 +591,30 @@ mod tests {
         let uvs = lightmap_uvs(15, 4);
         assert!(uvs[3][0] > 0.7);
         assert!(uvs[3][1] > 0.7);
+    }
+
+    #[test]
+    fn pack_lightmap_atlas_splits_channels_posterizes_and_borders() {
+        let mut color = [0u8; 192];
+        let mut shadow = [0u8; 64];
+        color[0] = 200; // r
+        color[1] = 100; // g
+        color[2] = 50; // b
+        shadow[0] = 255;
+        let lightmaps = vec![Lightmap { shadow, color }];
+
+        let atlas_size = lightmap_atlas_pixel_size(1);
+        let pixels = pack_lightmap_atlas(&lightmaps, 1, atlas_size);
+        let at = |x: u32, y: u32| {
+            let o = ((y * atlas_size + x) * 4) as usize;
+            [pixels[o], pixels[o + 1], pixels[o + 2], pixels[o + 3]]
+        };
+
+        // color map -> RGB (posterized to 16 levels), shadow -> alpha
+        assert_eq!(at(1, 1), [192, 96, 48, 255]);
+        // 1px border replicates the nearest interior texel
+        assert_eq!(at(0, 0), [192, 96, 48, 255]);
+        assert_eq!(at(0, 1), [192, 96, 48, 255]);
     }
 
     #[test]

@@ -16,7 +16,7 @@ impl Default for LightUniform {
             light_dir: [0.0, -1.0, 0.0, 0.0],
             diffuse_color: [1.0, 1.0, 1.0, 1.0],
             ambient_color: [0.3, 0.3, 0.3, 1.0],
-            shadow_strength: 0.5,
+            shadow_strength: 1.0,
             _pad: [0.0; 3],
         }
     }

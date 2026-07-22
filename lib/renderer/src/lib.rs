@@ -133,6 +133,7 @@ pub struct Renderer {
     /// World-unit scale of the loaded map (240 * gnd zoom), needed to convert
     /// fog-table near/far into world distances when fog is toggled at runtime.
     fog_scale: f32,
+    lightmap_enabled: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -273,6 +274,7 @@ impl Renderer {
             background_mode: BackgroundMode::default(),
             base_light: LightUniform::default(),
             fog_scale: 240.0,
+            lightmap_enabled: true,
         }
     }
 
@@ -287,6 +289,25 @@ impl Renderer {
             .update_light(&self.device.queue, &light);
         self.sprite_renderer
             .set_world_light(&self.device.queue, sprite_light);
+    }
+
+    pub fn toggle_lightmap(&mut self) -> bool {
+        self.set_lightmap_enabled(!self.lightmap_enabled);
+        self.lightmap_enabled
+    }
+
+    pub fn set_lightmap_enabled(&mut self, enabled: bool) {
+        self.lightmap_enabled = enabled;
+        if let Some(ground) = &mut self.ground_renderer {
+            ground.set_lightmap_enabled(enabled);
+        }
+        let mut light = self.base_light;
+        if !enabled {
+            for c in light.ambient_color.iter_mut().take(3) {
+                *c = (*c * 1.5).min(1.0);
+            }
+        }
+        self.global_uniforms.update_light(&self.device.queue, &light);
     }
 
     pub fn set_fog(&mut self, fog: Option<FogEntry>) {
@@ -382,6 +403,7 @@ impl Renderer {
             self.device.surface_format,
         );
         self.ground_renderer = Some(ground_renderer);
+        self.set_lightmap_enabled(self.lightmap_enabled);
 
         self.model_renderer = ModelRenderer::from_rsw(
             rsw,

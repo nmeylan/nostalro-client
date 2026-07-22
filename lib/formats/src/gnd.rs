@@ -5,8 +5,8 @@ use byteorder::{LittleEndian as LE, ReadBytesExt};
 use crate::{FormatError, read_string, version_at_least};
 
 pub struct Lightmap {
-    pub intensity: [u8; 64],
-    pub specular: [u8; 192],
+    pub shadow: [u8; 64],
+    pub color: [u8; 192],
 }
 
 pub struct GndSurface {
@@ -72,26 +72,23 @@ impl GndFile {
         let lmap_pixel_count = (lmap_width * lmap_height) as usize;
         for _ in 0..lightmap_count {
             if version_at_least(version, 1, 7) {
-                let mut intensity = [0u8; 64];
-                let mut specular = [0u8; 192];
+                let mut shadow = [0u8; 64];
+                let mut color = [0u8; 192];
                 let skip_count = lmap_pixel_count * 4 - 64 - 192;
-                r.read_exact(&mut intensity)?;
-                r.read_exact(&mut specular)?;
+                r.read_exact(&mut shadow)?;
+                r.read_exact(&mut color)?;
                 if skip_count > 0 {
                     let mut skip = vec![0u8; skip_count];
                     r.read_exact(&mut skip)?;
                 }
-                lightmaps.push(Lightmap {
-                    intensity,
-                    specular,
-                });
+                lightmaps.push(Lightmap { shadow, color });
             } else {
                 let skip_count = lmap_pixel_count * 4;
                 let mut skip = vec![0u8; skip_count];
                 r.read_exact(&mut skip)?;
                 lightmaps.push(Lightmap {
-                    intensity: [0; 64],
-                    specular: [0; 192],
+                    shadow: [0; 64],
+                    color: [0; 192],
                 });
             }
         }

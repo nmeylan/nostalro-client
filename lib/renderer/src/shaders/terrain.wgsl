@@ -12,11 +12,6 @@ struct LightUniforms {
     shadow_strength: f32,
 };
 
-struct PointLight {
-    position: vec4<f32>,
-    color_range: vec4<f32>,
-};
-
 struct FogUniforms {
     color: vec4<f32>,
     near: f32,
@@ -27,7 +22,6 @@ struct FogUniforms {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<uniform> light: LightUniforms;
-@group(0) @binding(2) var<storage, read> point_lights: array<PointLight>;
 @group(0) @binding(3) var<uniform> fog: FogUniforms;
 @group(1) @binding(0) var ground_texture: texture_2d<f32>;
 @group(1) @binding(1) var ground_sampler: sampler;
@@ -41,30 +35,6 @@ fn apply_fog(color: vec3<f32>, view_z: f32) -> vec3<f32> {
     let depth = abs(view_z);
     let fog_amount = smoothstep(fog.near, fog.far, depth);
     return mix(color, fog.color.rgb, fog_amount);
-}
-
-fn point_light_attenuation(d: f32, r: f32) -> f32 {
-    let n = min(d, r) / (r + 1e-4);
-    let a = saturate(1.0 - n * n);
-    return a * a;
-}
-
-fn point_light_contribution(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    var acc = vec3<f32>(0.0);
-    let count = arrayLength(&point_lights);
-    for (var i: u32 = 0u; i < count; i = i + 1u) {
-        let lp = point_lights[i].position.xyz;
-        let lc = point_lights[i].color_range.rgb;
-        let lr = point_lights[i].color_range.a;
-        if (lr <= 0.0) { continue; }
-        let to_frag = world_pos - lp;
-        let d = length(to_frag);
-        if (d >= lr) { continue; }
-        let dir = to_frag / max(d, 1e-4);
-        let lambert = max(-dot(dir, normal), 0.0);
-        acc += lc * lambert * point_light_attenuation(d, lr);
-    }
-    return acc;
 }
 
 struct VertexInput {
@@ -104,14 +74,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(ground_texture, ground_sampler, in.tex_coord);
     let lightmap = textureSample(lightmap_texture, lightmap_sampler, in.lightmap_coord);
 
+    let sunlight = light.diffuse_color.rgb;
+    let ambient = light.ambient_color.rgb;
+
     let n_dot_l = max(dot(normalize(in.normal), normalize(light.light_dir.xyz)), 0.0);
-    let diffuse = light.diffuse_color.rgb * n_dot_l;
+    let shadow = mix(1.0, lightmap.a, light.shadow_strength);
+    let combined_light = (sunlight * n_dot_l + ambient) * shadow;
 
-    var color = tex_color.rgb * lightmap.rgb * diffuse * in.color.rgb;
-    color += tex_color.rgb * light.ambient_color.rgb * in.color.rgb;
+    let contrast_correction = clamp(ambient + sunlight - sunlight * ambient, vec3<f32>(0.0), vec3<f32>(1.0));
 
-    let pl = point_light_contribution(in.world_position, normalize(in.normal));
-    color += tex_color.rgb * pl * in.color.rgb;
+    var color = clamp(
+        in.color.rgb * contrast_correction * combined_light * tex_color.rgb + lightmap.rgb,
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
 
     color = apply_fog(color, in.view_z);
 
