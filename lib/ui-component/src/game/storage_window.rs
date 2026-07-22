@@ -301,11 +301,14 @@ impl InGameWindow for StorageWindow {
             let name = format_equipment_display_name(item, slot_count_table, card_name_table);
             let name_color = if !item.is_identified { GREY } else { tc };
             ui.text(list_x + ICON + 6.0, ry + ROW_H / 2.0 + 4.0, &name, name_color);
-            if item.count > 1 {
-                let count_str = item.count.to_string();
-                let cw = ui.atlas.measure_text(&count_str);
-                ui.text(list_x + list_w - cw - 4.0, ry + ROW_H / 2.0 + 4.0, &count_str, tc);
-            }
+            let count_str = item.count.to_string();
+            let cw = ui.atlas.measure_text(&count_str);
+            ui.text(
+                list_x + 2.0 + ICON - cw + 2.0,
+                icon_y + ICON - 2.0,
+                &count_str,
+                [0.0, 0.0, 0.0, 1.0],
+            );
 
             if resp.hovered() {
                 let tooltip = if item.count > 1 {

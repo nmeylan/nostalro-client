@@ -175,11 +175,14 @@ impl TradeWindow {
             let short: String = name.chars().take(NAME_MAX_CHARS).collect();
             let name_color = if item.is_identified { tc } else { GREY };
             ui.text(col_x + ICON + 5.0, ry + ROW_H / 2.0 + 4.0, &short, name_color);
-            if item.count > 1 {
-                let cnt = item.count.to_string();
-                let cw = ui.atlas.measure_text(&cnt);
-                ui.text(col_x + COL_W - cw - 4.0, ry + ROW_H / 2.0 + 4.0, &cnt, tc);
-            }
+            let cnt = item.count.to_string();
+            let cw = ui.atlas.measure_text(&cnt);
+            ui.text(
+                col_x + 2.0 + ICON - cw + 2.0,
+                icon_y + ICON - 2.0,
+                &cnt,
+                [0.0, 0.0, 0.0, 1.0],
+            );
             if resp.hovered() {
                 let tip = if item.count > 1 {
                     format!("{name} {} ea", item.count)
