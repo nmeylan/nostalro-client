@@ -12,8 +12,8 @@ use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::day_night::EFST_SKE;
 use ragnarok_game::effect::{
-    StatusKind, UNT_USED_TRAPS, skill_unit_effect, status_reaction, trap_model_name,
-    trap_trigger_effect,
+    StatusKind, UNT_USED_TRAPS, skill_unit_effect, skill_unit_entry_sound, status_reaction,
+    trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::level_aura;
@@ -1221,6 +1221,11 @@ impl App {
         eprintln!(
             "[song-unit] SPAWN      unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
         );
+        if let Some(sfx) = skill_unit_entry_sound(unit_id)
+            && (sfx.one_in <= 1 || self.next_sfx_rand() % sfx.one_in as u32 == 0)
+        {
+            self.sound_queue.world(sfx.wave.to_string(), world);
+        }
         self.effect_queue.spawn_at_keyed(effect, world, aid);
     }
 

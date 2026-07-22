@@ -112,6 +112,31 @@ pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
     })
 }
 
+/// A positional one-shot a ground skill unit plays when it enters view.
+/// `one_in` is a 1-in-N chance gate (1 = always).
+pub struct SkillUnitEntrySound {
+    pub wave: &'static str,
+    pub one_in: u8,
+}
+
+pub fn skill_unit_entry_sound(unit_id: u8) -> Option<SkillUnitEntrySound> {
+    Some(match unit_id {
+        UNT_WARP_WAITING | UNT_WARP_ACTIVE => SkillUnitEntrySound {
+            wave: "effect\\EF_Portal.wav",
+            one_in: 1,
+        },
+        UNT_FIREWALL => SkillUnitEntrySound {
+            wave: "effect\\EF_FireWall.wav",
+            one_in: 1,
+        },
+        UNT_KAEN => SkillUnitEntrySound {
+            wave: "effect\\hawaii.wav",
+            one_in: 8,
+        },
+        _ => return None,
+    })
+}
+
 /// The RSM model a deployed trap shows on the ground (path relative to
 /// `data\model\`), or `None` for a non-trap unit. The trigger burst (freeze,
 /// blast, …) fires separately via [`trap_trigger_effect`].
@@ -207,5 +232,22 @@ mod tests {
         assert_eq!(trap_trigger_effect(UNT_BLASTMINE), Some(EffectId::Blastminebomb));
         assert_eq!(trap_trigger_effect(UNT_ANKLESNARE), None);
         assert_eq!(trap_trigger_effect(UNT_SKIDTRAP), None);
+    }
+
+    #[test]
+    fn warp_and_firewall_play_on_entry_kaen_is_chance_gated() {
+        let warp = skill_unit_entry_sound(UNT_WARP_ACTIVE).expect("warp entry sound");
+        assert_eq!(warp.wave, "effect\\EF_Portal.wav");
+        assert_eq!(warp.one_in, 1);
+        assert_eq!(
+            skill_unit_entry_sound(UNT_WARP_WAITING).map(|s| s.wave),
+            Some("effect\\EF_Portal.wav")
+        );
+        assert_eq!(
+            skill_unit_entry_sound(UNT_FIREWALL).map(|s| s.wave),
+            Some("effect\\EF_FireWall.wav")
+        );
+        assert_eq!(skill_unit_entry_sound(UNT_KAEN).map(|s| s.one_in), Some(8));
+        assert!(skill_unit_entry_sound(UNT_ICEWALL).is_none());
     }
 }

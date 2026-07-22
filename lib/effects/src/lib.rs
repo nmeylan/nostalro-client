@@ -34,8 +34,8 @@ pub use skill_effects::{
     potion_throw_index, target_skill_effects,
 };
 pub use skill_units::{
-    UNT_USED_TRAPS, skill_unit_effect, skill_unit_sprite_paths, trap_model_name,
-    trap_trigger_effect,
+    SkillUnitEntrySound, UNT_USED_TRAPS, skill_unit_effect, skill_unit_entry_sound,
+    skill_unit_sprite_paths, trap_model_name, trap_trigger_effect,
 };
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
