@@ -102,15 +102,15 @@ TODO:
 - War of emperium: no name, no damage number, emblem above head
 - ~~Friend list + whisper~~
 - ~~Chat rooms~~
-- Trade
+- ~~Trade~~
 ~~- Vending/merchant shop~~
 - ~~Marriage/couples~~
 
 # Network
 - ~~Chat packets~~ (done — multi-channel chat)
-- Guild chat
-- Whisper
-- Team chat 
+- ~~Guild chat~~
+- ~~Whisper~~
+- ~~Team chat~~ 
 - ~~Combat packets (attack, skill use, damage)~~
 - ~~Item packets (pickup, drop, use, equip, unequip)~~
 ~~- Skill packets (cast, execute, ground target)~~
@@ -121,7 +121,7 @@ TODO:
 ~~- Trade/vending packets~~
 - ~~Quest packets~~
 - ~~Pet/homunculus/mercenary packets~~
-- Mail packets
+- ~~Mail packets~~
 ~~- Effect wiring~~
 
 # Audio
@@ -132,7 +132,7 @@ TODO:
 # World
 - ~~Portal/warp transitions~~ (done — MapChanged event with full map reload)
 ~~- Map type properties (PvP zones, no-teleport, no-skill zones)~~
-- Weather per map
+- ~~Weather per map~~
 
 # Input
 - Slash commands (/sit, /emotion, /where, etc.) https://irowiki.org/classic/Basic_Game_Control

@@ -13,8 +13,8 @@ pub const TOTAL_DURATION_MS: u32 = 99990;
 const TOTAL_FRAMES: f32 = (TOTAL_DURATION_MS as f32) * FRAMES_PER_SECOND / 1000.0;
 
 const STATE1_START_FRAME: f32 = 1.0;
-const HEAL_SIDES: u32 = 20;
-const PORTAL_SIDES: u32 = 20;
+const HEAL_SIDES: u32 = 48;
+const PORTAL_SIDES: u32 = 48;
 const HEAL_INITIAL_ROT_DEG: [f32; 3] = [0.0, 137.0, 251.0];
 
 #[derive(Clone, Copy)]
@@ -307,6 +307,7 @@ fn push_portal_slot_draw(
     let top = s.distance + cos_rise * h_now;
     let vert = sin_rise * h_now;
     let base = [world_pos[0], world_pos[1] + PORTAL_VY_OFFSET, world_pos[2]];
+    let uv_repeat = (bottom.max(top) * 0.35).round().max(2.0);
     out.push(EffectPrimitiveDraw::Frustum {
         base_alpha: 1.0,
         base,
@@ -316,7 +317,7 @@ fn push_portal_slot_draw(
         sides: PORTAL_SIDES,
         arc_angle_deg: 360.0,
         rotation: s.rot_start_deg.to_radians(),
-        uv_repeat: 1.0,
+        uv_repeat,
         uv_scroll: [0.0, 0.0],
         wave_amplitude: 0.0,
         wave_frequency: 1.0,
