@@ -151,7 +151,11 @@ impl ConfirmDialog {
             texture: TextureRef::White,
         });
 
-        let (dialog_w, dialog_h) = self.win_size;
+        let (dialog_w, base_h) = self.win_size;
+        let text_w = dialog_w - PADDING * 2.0;
+        let lines = draw::word_wrap(&state.message, text_w, |t| ui.atlas.measure_text(t), false);
+        let extra_lines = lines.len().saturating_sub(1) as f32;
+        let dialog_h = base_h + extra_lines * ui.atlas.line_height;
         let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
         let dy = ((ui.ctx.screen_height - dialog_h) / 2.0).floor();
 
@@ -189,17 +193,19 @@ impl ConfirmDialog {
         let container = Rect::new(dx, dy, dialog_w, dialog_h);
 
         if state.no_buttons {
-            let (text_y, text_x) = container.text_dialog_alignment(
-                PADDING,
-                dy + dialog_h - PADDING,
-                ui.atlas.line_height,
-            );
             let text_color = if self.has_grf_textures {
                 [0.0, 0.0, 0.0, 1.0]
             } else {
                 [1.0, 1.0, 1.0, 1.0]
             };
-            ui.text(text_x, text_y, &state.message, text_color);
+            draw_wrapped_lines(
+                ui,
+                &container,
+                &lines,
+                PADDING,
+                dy + dialog_h - PADDING,
+                text_color,
+            );
             return;
         }
 
@@ -213,14 +219,12 @@ impl ConfirmDialog {
             BTN_SPACING,
         );
 
-        let (text_y, text_x) =
-            container.text_dialog_alignment(PADDING, btns[0].y, ui.atlas.line_height);
         let text_color = if self.has_grf_textures {
             [0.0, 0.0, 0.0, 1.0]
         } else {
             [1.0, 1.0, 1.0, 1.0]
         };
-        ui.text(text_x, text_y, &state.message, text_color);
+        draw_wrapped_lines(ui, &container, &lines, PADDING, btns[0].y, text_color);
 
         let mut callback = state.onclose.take();
         let deliver_result = state.deliver_result;
@@ -258,6 +262,24 @@ impl ConfirmDialog {
         }
 
         state.onclose = callback;
+    }
+}
+
+fn draw_wrapped_lines(
+    ui: &mut UiFrame,
+    container: &Rect,
+    lines: &[String],
+    padding: f32,
+    bottom_y: f32,
+    color: [f32; 4],
+) {
+    let lh = ui.atlas.line_height;
+    let top = container.y + padding;
+    let block_h = lines.len() as f32 * lh;
+    let mut y = top + ((bottom_y - top - block_h) / 2.0).max(0.0);
+    for line in lines {
+        ui.text(container.x + padding, y, line, color);
+        y += lh;
     }
 }
 
@@ -354,6 +376,27 @@ mod tests {
         }
         assert_eq!(*callback_result.borrow(), Some(ConfirmResult::Ok));
         assert!(dialog.state.is_none());
+    }
+
+    fn font_atlas_draw_calls(ui: &UiFrame) -> usize {
+        ui.draw_calls
+            .iter()
+            .filter(|c| matches!(c.texture, TextureRef::FontAtlas))
+            .count()
+    }
+
+    #[test]
+    fn long_message_wraps_into_multiple_lines() {
+        let long = "This is a fairly long confirmation message that should not fit on a single line inside the dialog box and therefore must wrap.";
+        let mut dialog = ConfirmDialog::new();
+        dialog.show_message(long);
+
+        let mut state = StateCache::new();
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+        dialog.build(&mut ui);
+
+        assert!(font_atlas_draw_calls(&ui) > 1);
     }
 
     #[test]
