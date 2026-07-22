@@ -87,7 +87,7 @@ impl TradeWindow {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
-            zeny_input: TextInput::new(10, false),
+            zeny_input: TextInput::new(10, false).with_numeric_only(true),
             container: DialogContainer::new(),
             qty_dialog: None,
         }

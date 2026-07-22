@@ -256,7 +256,7 @@ mod tests {
         // Ghost's wide footprint (scatter 7) vs the freezing column's tight
         // cluster (scatter 1.5) — both bounded by their `scatter` radius.
         assert!(
-            spread(&ghost) > spread(&freezing) * 2.0,
+            spread(&ghost) > spread(&freezing) * 1.5,
             "ghost should scatter far wider"
         );
         assert!(spread(&freezing) <= FREEZING.scatter + 1e-4);

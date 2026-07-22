@@ -281,7 +281,7 @@ impl GuildWindow {
                 let mut title = TextInput::new(POSITION_TITLE_MAX, false);
                 title.text = p.name.clone();
                 title.cursor_pos = title.text.chars().count();
-                let mut tax = TextInput::new(3, false);
+                let mut tax = TextInput::new(3, false).with_numeric_only(true);
                 tax.text = p.pay_rate.to_string();
                 tax.cursor_pos = tax.text.chars().count();
                 PosEdit {

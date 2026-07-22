@@ -56,7 +56,7 @@ const ID_WINDOW: u32 = 3;
 
 impl NumberInputDialog {
     pub fn new(config: NumberInputConfig, base_id: WidgetId) -> Self {
-        let mut input = TextInput::new(config.max_len, false);
+        let mut input = TextInput::new(config.max_len, false).with_numeric_only(true);
         input.text = config.default_value;
         input.cursor_pos = input.text.chars().count();
         Self {

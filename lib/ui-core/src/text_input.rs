@@ -5,6 +5,7 @@ pub struct TextInput {
     pub cursor_pos: usize,
     pub max_len: usize,
     pub is_password: bool,
+    pub numeric_only: bool,
 }
 
 impl TextInput {
@@ -14,11 +15,20 @@ impl TextInput {
             cursor_pos: 0,
             max_len,
             is_password,
+            numeric_only: false,
         }
+    }
+
+    pub fn with_numeric_only(mut self, numeric_only: bool) -> Self {
+        self.numeric_only = numeric_only;
+        self
     }
 
     pub fn process_keys(&mut self, ctx: &UiContext) {
         for &ch in &ctx.typed_chars {
+            if self.numeric_only && !ch.is_ascii_digit() {
+                continue;
+            }
             if self.text.len() < self.max_len {
                 let byte_pos = self.byte_offset(self.cursor_pos);
                 self.text.insert(byte_pos, ch);
@@ -130,6 +140,17 @@ mod tests {
 
         input.process_keys(&ctx);
         assert_eq!(input.text, "abc");
+        assert_eq!(input.cursor_pos, 3);
+    }
+
+    #[test]
+    fn numeric_only_rejects_non_digits() {
+        let mut input = TextInput::new(10, false).with_numeric_only(true);
+        let mut ctx = make_ctx();
+        ctx.typed_chars = vec!['1', 'a', '2', '-', '3', ' '];
+
+        input.process_keys(&ctx);
+        assert_eq!(input.text, "123");
         assert_eq!(input.cursor_pos, 3);
     }
 

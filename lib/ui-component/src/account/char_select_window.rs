@@ -174,7 +174,7 @@ impl CharSelectWindow {
         self.delete_status = None;
         self.delete_dialog = Some(DeleteDialog {
             gid,
-            birthdate: TextInput::new(BIRTHDATE_MAX_LEN, false),
+            birthdate: TextInput::new(BIRTHDATE_MAX_LEN, false).with_numeric_only(true),
             error: None,
         });
     }

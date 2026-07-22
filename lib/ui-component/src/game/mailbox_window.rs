@@ -116,7 +116,7 @@ impl MailboxWindow {
             to_input: TextInput::new(MAIL_TO_MAX, false),
             title_input: TextInput::new(MAIL_TITLE_MAX, false),
             body_input: TextInput::new(MAIL_BODY_MAX, false),
-            zeny_input: TextInput::new(9, false),
+            zeny_input: TextInput::new(9, false).with_numeric_only(true),
             container: DialogContainer::new(),
             amount_dialog: None,
             last_mode: MailboxMode::Inbox,

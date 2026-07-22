@@ -119,7 +119,7 @@ impl VendingSetupWindow {
         self.slots = (0..self.max_items)
             .map(|_| SetupSlot {
                 item: None,
-                price: TextInput::new(13, false),
+                price: TextInput::new(13, false).with_numeric_only(true),
             })
             .collect();
         self.title.text.clear();
