@@ -113,6 +113,9 @@ impl App {
                 } => {
                     self.handle_zone_server_connect_info(char_id, map_name, ip, port);
                 }
+                GameEvent::AccessibleMapsReceived { maps } => {
+                    self.handle_accessible_maps_received(maps);
+                }
                 GameEvent::RestartAck => {
                     self.handle_restart_ack();
                 }

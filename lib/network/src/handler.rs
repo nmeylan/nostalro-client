@@ -7,8 +7,8 @@ use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::banner::BannerKind;
 use ragnarok_game::event::{
-    CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo, PartyMemberData,
-    PetProperty, SelfConfigKind, ServerInfo, SkillInfo,
+    AccessibleMap, CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo,
+    PartyMemberData, PetProperty, SelfConfigKind, ServerInfo, SkillInfo,
 };
 use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::guild::{
@@ -145,6 +145,17 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             ip: p.addr.ip,
             port: p.addr.port,
         }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketHcNotifyAccessibleMapname>() {
+        let maps = p
+            .maps
+            .iter()
+            .map(|m| AccessibleMap {
+                status: m.status,
+                name: m.map_name.iter().take_while(|c| **c != '\0').collect(),
+            })
+            .collect();
+        return vec![GameEvent::AccessibleMapsReceived { maps }];
     }
     if let Some(p) = any.downcast_ref::<PacketHcAcceptMakecharNeoUnion>() {
         let character = character_info_from_neo_union(&p.charinfo, packetver);
@@ -5134,6 +5145,62 @@ mod tests {
             dispatch_packet(&equip, packetver).as_slice(),
             [GameEvent::StorageEquipItems { items }]
                 if items.len() == 1 && items[0].item_id == 1201 && items[0].index == 2
+        ));
+    }
+
+    #[test]
+    fn dispatch_accessible_maps_and_select_round_trip() {
+        let packetver = 20120307;
+        let map_entry = |status: u32, name: &str| {
+            let mut e = status.to_le_bytes().to_vec();
+            let mut m = [0u8; 16];
+            m[..name.len()].copy_from_slice(name.as_bytes());
+            e.extend_from_slice(&m);
+            e
+        };
+        let entries = [map_entry(1, "moc_fild18.gat"), map_entry(0, "prontera.gat")];
+        let len = 4 + entries.iter().map(Vec::len).sum::<usize>();
+        let mut buf: Vec<u8> = vec![0x40, 0x08];
+        buf.extend_from_slice(&(len as u16).to_le_bytes());
+        for e in &entries {
+            buf.extend_from_slice(e);
+        }
+        let pkt = packets::packets_parser::parse(&buf, packetver);
+        let maps = match &dispatch_packet(pkt.as_ref(), packetver)[..] {
+            [GameEvent::AccessibleMapsReceived { maps }] => maps.clone(),
+            other => panic!("expected AccessibleMapsReceived, got {other:?}"),
+        };
+        assert_eq!(maps.len(), 2);
+        assert_eq!(maps[1].status, 0);
+        assert_eq!(maps[1].name, "prontera.gat");
+
+        let index = maps.iter().position(|m| m.status == 0).unwrap();
+        let raw = crate::sender::build_select_accessible_map_packet(3, index as u8, packetver);
+        let parsed = packets::packets_parser::parse(&raw, packetver);
+        let sel = parsed
+            .as_any()
+            .downcast_ref::<PacketChSelectAccessibleMapname>()
+            .unwrap();
+        assert_eq!(sel.char_num, 3);
+        assert_eq!(sel.map_list_num, 1);
+    }
+
+    #[test]
+    fn spawn_entry_lengths_stay_aligned_pre_20120221() {
+        let packetver = 20111102;
+        assert_eq!(PacketZcNotifyStandentry5::base_len(packetver), 65);
+        assert_eq!(PacketZcNotifyNewentry5::base_len(packetver), 64);
+        assert_eq!(PacketZcNotifyMoveentry7::base_len(packetver), 71);
+
+        let mut buf = vec![0u8; 65];
+        buf[0..2].copy_from_slice(&[0x57, 0x08]);
+        buf[2..4].copy_from_slice(&65u16.to_le_bytes());
+        buf[5..9].copy_from_slice(&4242u32.to_le_bytes());
+        let pkt = packets::packets_parser::parse(&buf, packetver);
+        assert_eq!(pkt.raw().len(), 65);
+        assert!(matches!(
+            dispatch_packet(pkt.as_ref(), packetver).as_slice(),
+            [GameEvent::EntitySpawned { gid: 4242, is_new_entry: false, .. }]
         ));
     }
 }

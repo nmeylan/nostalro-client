@@ -1,4 +1,4 @@
 [toolchain]
-channel = "1.92.0"
+channel = "1.97.1"
 # components for development
 components = ["rust-src", "rust-analyzer"]

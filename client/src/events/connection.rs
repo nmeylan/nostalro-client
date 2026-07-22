@@ -5,8 +5,8 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::Entity;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
 use ragnarok_network::{
-    KeepaliveMode, NetworkCommand, build_map_loaded_packet, build_zone_enter_packet,
-    ip_u32_to_string,
+    KeepaliveMode, NetworkCommand, build_map_loaded_packet, build_select_accessible_map_packet,
+    build_zone_enter_packet, ip_u32_to_string,
 };
 use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
@@ -93,6 +93,30 @@ impl App {
         }
         self.channel
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
+    }
+
+    pub(super) fn handle_accessible_maps_received(
+        &mut self,
+        maps: Vec<ragnarok_game::event::AccessibleMap>,
+    ) {
+        let Some(index) = maps.iter().position(|m| m.status == 0) else {
+            tracing::warn!("No accessible map-server available for character");
+            return;
+        };
+        let slot = self
+            .config
+            .last_char_slot
+            .or_else(|| self.game.session.selected_character.as_ref().map(|c| c.slot as u8));
+        let Some(slot) = slot else {
+            tracing::warn!("Received accessible maps with no selected character slot");
+            return;
+        };
+        tracing::info!("Redirecting character to accessible map '{}'", maps[index].name);
+        self.channel.send_packet(build_select_accessible_map_packet(
+            slot,
+            index as u8,
+            self.active_packetver,
+        ));
     }
 
     pub(crate) fn handle_restart_ack(&mut self) {

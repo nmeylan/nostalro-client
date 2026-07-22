@@ -32,6 +32,9 @@ pub enum GameEvent {
         ip: u32,
         port: i16,
     },
+    AccessibleMapsReceived {
+        maps: Vec<AccessibleMap>,
+    },
     MapEntered {
         x: u16,
         y: u16,
@@ -1692,6 +1695,12 @@ pub struct ServerInfo {
     pub port: i16,
     pub name: String,
     pub user_count: u16,
+}
+
+#[derive(Debug, Clone)]
+pub struct AccessibleMap {
+    pub status: u32,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]

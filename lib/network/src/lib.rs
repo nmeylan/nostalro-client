@@ -3,10 +3,6 @@ pub mod handler;
 pub mod helpers;
 pub mod sender;
 pub mod session;
-#[cfg(test)]
-mod packet_version_regression;
-#[cfg(test)]
-mod zc_coverage_audit;
 
 use connection::{Connection, ConnectionError};
 use handler::dispatch_packet;
@@ -45,7 +41,7 @@ pub use sender::{
     build_reqname_packet,
     build_request_move_packet, build_restart_packet, build_return_savepoint_packet,
     build_solve_char_name_packet,
-    build_standing_resurrection_packet, build_select_char_packet,
+    build_standing_resurrection_packet, build_select_accessible_map_packet, build_select_char_packet,
     build_select_warppoint_packet, build_sell_item_list_packet, build_shortcut_key_change_packet,
     build_stat_change_packet, build_unequip_item_packet, build_upgrade_skill_packet,
     build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,

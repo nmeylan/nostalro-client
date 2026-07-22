@@ -39,6 +39,14 @@ pub fn build_select_char_packet(slot: u8, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_select_accessible_map_packet(slot: u8, map_index: u8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketChSelectAccessibleMapname::new(packetver);
+    pkt.set_char_num(slot);
+    pkt.set_map_list_num(map_index);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_make_char_packet(
     name: &str,
     slot: u8,
