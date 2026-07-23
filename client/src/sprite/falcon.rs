@@ -1,4 +1,6 @@
 use crate::App;
+use crate::input;
+use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use crate::sprite::cart::direction_offset;
 use ragnarok_formats::act::{MotionType, SpriteAnimationState};
 use ragnarok_game::entity::EntityState;
@@ -304,5 +306,32 @@ mod tests {
         );
         let (action, _) = m.advance(0.016, None, false);
         assert_eq!(action, FALCON_ACTION_HOVER);
+    }
+}
+
+impl App {
+    pub(crate) fn compute_falcon_render_list(&self) -> Vec<RenderEntry> {
+        let mut render_list = Vec::new();
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
+            for (gid, falcon) in self.game.sprite_caches.falcons.iter() {
+                let projected = input::project_world_screen(
+                    falcon.motion.pos,
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Falcon,
+                    *gid,
+                    projected,
+                    None,
+                    None,
+                    |_, _, _, _| ([0.0; 4], 0.0),
+                );
+            }
+        }
+        render_list
     }
 }

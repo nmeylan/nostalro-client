@@ -93,7 +93,6 @@ The fields a newcomer sets by hand:
 | `dpi_scale` | number | `125.0` | UI scale in percent. This is the high dpi support: raise it on high resolution screens. |
 | `bgm_volume` / `sfx_volume` | number | `0.8` | Volume, `0.0` to `1.0`. |
 | `bgm_enabled` / `sfx_enabled` | bool | `true` | Sound toggles. |
-| `keep_login_id` | bool | `false` | Remember the last login id (never the password) and pre-fill it. |
 | `map_recovery_command` | string | `@go prontera` | Chat command sent by the recovery window when a map cannot load because its data is missing from the GRF. |
 | `trace_packets_send` / `trace_packets_recv` | bool | `false` | Log sent / received packets. Useful when investigating network issues. |
 
@@ -108,6 +107,61 @@ cargo run --bin ragnarok-client
 ```
 
 The client reads `config.json` from the current directory, so we run it from the repository root.
+
+# Set up a server
+
+If you want to test quickly setup your own server use a fork of [rathena](https://github.com/nmeylan/rathena), preconfigured with packetvver `20111102`, with remapped port (prefixed default port with `2`:  `3306` -> `23306`) allowing testing without conflicting with existing server. 
+
+```sh
+git clone --single-branch --branch nostalro https://github.com/nmeylan/rathena
+```
+
+## Build and start
+
+```bash
+cd tools/docker
+
+# Build the servers once. Runs ./configure (packetver 20111102, prere)
+# and `make clean server` inside the container.
+docker compose run --rm builder
+
+# Start the database and the login, char, and map servers.
+docker compose up -d
+```
+
+The database comes up on `localhost:23306` with database, user, and password all set to `ragnarok`. The login server listens on `26900`, which matches the default `login_servers` entry in `config.json`.
+
+## Base characters
+
+`create_chars.sql` at the root of the server repository creates three GM accounts (`test1`, `test2`, `test3`, each with its password equal to the account name) and one fully leveled character per class. Load it once the database container is running:
+
+
+```bash
+# from tools/docker
+docker compose exec -T db mariadb -uragnarok -pragnarok ragnarok < ../../create_chars.sql
+```
+
+Log in from the client with `test1` / `test1`.
+
+Each account holds a different set of classes, starting with 1M zeny and all skills learn:
+
+- **`test1`** (female): Lord Knight, High Priest, High Wizard, Sniper, Assassin Cross, Paladin, Champion, Professor, Gypsy.
+- **`test2`** (male): Whitesmith, Stalker, Creator, Clown, Super Novice, Gunslinger, Ninja, Taekwon.
+- **`test3`** (male): no characters, an empty account for creating your own char, to test adoption.
+
+## Match the packet version
+
+This server is built for packet version `20111102`. Set `packetver` to `20111102` in `config.json` (or on the matching `login_servers` entry) so the client and server speak the same protocol.
+```config.json
+"login_servers": [
+    {
+      "name": "Nostalro local",
+      "host": "127.0.0.1",
+      "port": 26900,
+      "packetver": 20111102
+    }
+}
+```
 
 # Development tools
 
@@ -149,6 +203,12 @@ tools/effect-viewer-dev.sh                 # uses data/data.grf
 tools/effect-viewer-dev.sh path/to/data.grf
 ```
 
+Without hot reload (no `cargo-watch`), run the viewer directly:
+
+```bash
+cargo run --bin effect-viewer -- --grf data/data.grf
+```
+
 ## Unified viewer (hot reload)
 
 Renders a scene plus a sprite plus an effect in the same tool. This validates effect rendering against actual entity rendering: effect size (beginspell), entity alteration (body tint, body size change), and effect alpha / additive behavior. Needs a GRF and `cargo-watch`.
@@ -158,6 +218,13 @@ tools/viewer-dev.sh                             # prontera, default GRF
 tools/viewer-dev.sh --map geffen                # different map
 tools/viewer-dev.sh --grf path/to/data.grf      # explicit GRF
 tools/viewer-dev.sh --map prontera --effect 42  # spawn an effect at startup
+```
+
+Without hot reload (no `cargo-watch`), run the viewer directly with the same arguments:
+
+```bash
+cargo run --bin viewer                                 # prontera, default GRF
+cargo run --bin viewer -- --map prontera --effect 42   # explicit map and effect
 ```
 
 Controls: `B` cycles the background, right-drag orbits, scroll (or `+`/`-`) zooms, `C` resets the camera, `Space` pauses, arrow keys change action/direction, `N`/`P` cycle the effect preset and `F` replays it.
@@ -171,6 +238,13 @@ tools/rsw-viewer-dev.sh                          # default GRF
 tools/rsw-viewer-dev.sh path/to/data.grf geffen  # explicit GRF and map
 ```
 
+Without hot reload (no `cargo-watch`), run the viewer directly:
+
+```bash
+cargo run --bin rsw-viewer -- --grf data/data.grf
+cargo run --bin rsw-viewer -- --grf data/data.grf --map geffen  # explicit map
+```
+
 ## Rendering viewer (hot reload)
 
 Iterate on isolated rendering pieces such as damage numbers. Needs a GRF and `cargo-watch`. Edit `lib/game/src/damage_number.rs` or `tools/rendering-viewer-hot/src`.
@@ -178,6 +252,12 @@ Iterate on isolated rendering pieces such as damage numbers. Needs a GRF and `ca
 ```bash
 tools/rendering-viewer-dev.sh
 tools/rendering-viewer-dev.sh path/to/data.grf
+```
+
+Without hot reload (no `cargo-watch`), run the viewer directly:
+
+```bash
+cargo run --bin rendering-viewer -- --grf data/data.grf
 ```
 
 ## UI component viewer (hot reload)
@@ -197,6 +277,14 @@ tools/ui-component-dev.sh guild      # guild
 tools/ui-component-dev.sh social     # guild, party, vending board, emotion, mailbox, trade
 tools/ui-component-dev.sh chat       # chat, chat room create/member/board
 tools/ui-component-dev.sh shop       # cart, vending_setup, my_shop, vending_buy
+```
+
+Without hot reload (no `cargo-watch`), build the dylib once and run the host directly. It still loads the windows, it just does not reload on source change:
+
+```bash
+cargo build -p ragnarok-ui-component-hot
+cargo run --example hot_reload -p ragnarok-ui-component -- --example inventory
+cargo run --example hot_reload -p ragnarok-ui-component -- --example npc_shop --grf data/data.grf
 ```
 
 ## GR2 viewer

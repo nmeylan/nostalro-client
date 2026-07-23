@@ -1,7 +1,7 @@
 use crate::App;
 use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
-use ragnarok_game::targeting::pk_name_color;
+use ragnarok_game::targeting::{GM_TEXT_COLOR, pk_name_color};
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui_component::game::chat_room_board;
 use ragnarok_ui_component::game::vending_board;
@@ -146,11 +146,16 @@ impl App {
                 let guild_x = entry.screen_anchor[0] - guild_width / 2.0;
                 leftmost_x = leftmost_x.min(guild_x);
                 text_y += renderer.font_atlas.line_height;
+                let guild_color = if entity.is_gm {
+                    GM_TEXT_COLOR
+                } else {
+                    GUILD_NAME_COLOR
+                };
                 build_outlined_text(
                     &guild_text,
                     guild_x,
                     text_y,
-                    GUILD_NAME_COLOR,
+                    guild_color,
                     &renderer.font_atlas,
                     calls,
                 );
@@ -691,6 +696,9 @@ fn entity_name_color(entity: &Entity) -> [f32; 4] {
     if let Some(color) = pk_name_color(entity.effect_state) {
         return color;
     }
+    if entity.is_gm {
+        return GM_TEXT_COLOR;
+    }
     match entity.entity_type {
         EntityType::Player | EntityType::Homunculus | EntityType::Mercenary => {
             [1.0, 1.0, 1.0, 1.0]
@@ -812,5 +820,25 @@ fn build_outlined_text(
             indices,
             texture: UiTextureRef::FontAtlas,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_game::targeting::EFFECT_STATE_RED_NAME;
+
+    fn player() -> Entity {
+        Entity::new(1, EntityType::Player, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 150)
+    }
+
+    #[test]
+    fn gm_name_is_yellow_but_pk_state_wins() {
+        let mut e = player();
+        assert_eq!(entity_name_color(&e), [1.0, 1.0, 1.0, 1.0]);
+        e.is_gm = true;
+        assert_eq!(entity_name_color(&e), GM_TEXT_COLOR);
+        e.effect_state = EFFECT_STATE_RED_NAME;
+        assert_eq!(entity_name_color(&e), [1.0, 0.0, 0.0, 1.0]);
     }
 }

@@ -288,6 +288,10 @@ impl ChatWindow {
         self.add_message(message, GREEN, ChatChannel::Public);
     }
 
+    pub fn add_chat_colored(&mut self, message: String, color: [f32; 4]) {
+        self.add_message(message, color, ChatChannel::Public);
+    }
+
     pub fn add_system(&mut self, message: String) {
         self.add_message(message, YELLOW, ChatChannel::System);
     }

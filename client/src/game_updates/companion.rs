@@ -442,3 +442,18 @@ fn skill_range(skills: &[SkillInfo], id: u16) -> i32 {
         .map(|s| s.attack_range as i32)
         .unwrap_or(9)
 }
+
+impl App {
+    pub(crate) fn prune_companion_targets(&mut self) {
+        for (idx, present) in [self.has_homunculus(), self.has_mercenary()]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(t) = self.game.companions.companion_attack_target[idx] {
+                if !present || self.game.world.entities.get(t).is_none() {
+                    self.game.companions.companion_attack_target[idx] = None;
+                }
+            }
+        }
+    }
+}

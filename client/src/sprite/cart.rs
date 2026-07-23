@@ -1,4 +1,6 @@
 use crate::App;
+use crate::input;
+use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_formats::act::{MotionType, SpriteAnimationState};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::sprite_loader;
@@ -154,5 +156,42 @@ impl App {
                     .update(delta, &cart.sprite.body_act, camera_dir);
             }
         }
+    }
+}
+
+impl App {
+    pub(crate) fn compute_cart_render_list(&self) -> Vec<RenderEntry> {
+        let mut render_list = Vec::new();
+        if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
+            for entity in self.game.world.entities.iter() {
+                if entity.cart_type.is_none() || !self.game.sprite_caches.carts.contains_key(&entity.id) {
+                    continue;
+                }
+                let (px, py) = entity.movement.position();
+                let (ox, oy) = crate::sprite::cart::direction_offset(entity.direction);
+                let cart_pos = (
+                    px - ox * crate::sprite::cart::CART_TRAIL_DISTANCE,
+                    py - oy * crate::sprite::cart::CART_TRAIL_DISTANCE,
+                );
+                let projected = input::entity_screen_params(
+                    cart_pos,
+                    self.game.session.gat.as_ref(),
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                Self::push_projected(
+                    &mut render_list,
+                    RenderEntryKind::Cart,
+                    entity.id,
+                    projected,
+                    None,
+                    None,
+                    |_, _, _, _| ([0.0; 4], 0.0),
+                );
+            }
+        }
+        render_list
     }
 }

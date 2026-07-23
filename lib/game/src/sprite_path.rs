@@ -343,6 +343,16 @@ pub fn body_sprite_path(job_class: u16, sex: u8) -> String {
     format!("data/sprite/인간족/몸통/{sex_str}/{job}_{sex_str}")
 }
 
+pub fn gm_body_sprite_path(sex: u8) -> String {
+    let sex_str = sex_kr(sex);
+    format!("data/sprite/인간족/몸통/{sex_str}/운영자_{sex_str}")
+}
+
+pub fn gm_weapon_sprite_path(sex: u8) -> String {
+    let sex_str = sex_kr(sex);
+    format!("data/sprite/인간족/운영자/운영자_{sex_str}_검")
+}
+
 pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
     let sex_str = sex_kr(sex);
     format!("data/sprite/인간족/머리통/{sex_str}/{head_id}_{sex_str}")
@@ -843,6 +853,14 @@ mod tests {
             body_sprite_path(JT_SUMMER, 1),
             "data/sprite/인간족/몸통/남/여름_남"
         );
+    }
+
+    #[test]
+    fn gm_sprite_paths_per_sex() {
+        assert_eq!(gm_body_sprite_path(1), "data/sprite/인간족/몸통/남/운영자_남");
+        assert_eq!(gm_body_sprite_path(0), "data/sprite/인간족/몸통/여/운영자_여");
+        assert_eq!(gm_weapon_sprite_path(1), "data/sprite/인간족/운영자/운영자_남_검");
+        assert_eq!(gm_weapon_sprite_path(0), "data/sprite/인간족/운영자/운영자_여_검");
     }
 
     #[test]

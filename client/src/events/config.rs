@@ -13,3 +13,90 @@ impl App {
         }
     }
 }
+
+impl App {
+    pub(crate) fn open_sound_options(&mut self) {
+        self.windows.sound_options.set_values(
+            self.config.bgm_volume,
+            self.config.sfx_volume,
+            self.config.bgm_enabled,
+            self.config.sfx_enabled,
+        );
+        self.windows.sound_options.toggle();
+    }
+
+    pub(crate) fn open_graphic_options(&mut self) {
+        if !self.windows.graphic_options.open {
+            self.windows.graphic_options.set_values(
+                self.config.dpi_scale,
+                self.config.fullscreen,
+                self.config.fog,
+                self.config.show_skill_effects,
+                self.config.display.clone(),
+                self.config.refuse_trade,
+                self.config.refuse_party_invite,
+            );
+        }
+        self.windows.graphic_options.toggle();
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn apply_graphics_settings(
+        &mut self,
+        ui_scale: f32,
+        fullscreen: bool,
+        fog: bool,
+        show_skill_effects: bool,
+        display: crate::config::DisplayOptions,
+        refuse_trade: bool,
+        refuse_party_invite: bool,
+        persist: bool,
+    ) {
+        let fullscreen_changed = fullscreen != self.config.fullscreen;
+        let aura_changed = display.show_level_aura != self.config.display.show_level_aura;
+        let ui_scale_changed = ui_scale != self.config.dpi_scale;
+
+        self.config.dpi_scale = ui_scale;
+        self.config.fullscreen = fullscreen;
+        self.config.fog = fog;
+        self.config.show_skill_effects = show_skill_effects;
+        self.config.display = display;
+        self.config.refuse_trade = refuse_trade;
+        self.config.refuse_party_invite = refuse_party_invite;
+        self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;
+
+        if let Some(window) = &self.window {
+            if fullscreen_changed {
+                window.set_fullscreen(
+                    fullscreen.then(|| winit::window::Fullscreen::Borderless(None)),
+                );
+            }
+        }
+        if ui_scale_changed {
+            let new_dpi = ui_scale / 100.0;
+            if let Some(renderer) = &mut self.renderer {
+                renderer.set_dpi_scale(new_dpi);
+                let phys_w = renderer.device.surface_config.width as f32;
+                let phys_h = renderer.device.surface_config.height as f32;
+                if let Some(ui_ctx) = &mut self.ui_context {
+                    ui_ctx.dpi_scale = new_dpi;
+                    ui_ctx.screen_width = phys_w / new_dpi;
+                    ui_ctx.screen_height = phys_h / new_dpi;
+                }
+            }
+        }
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_fog(if fog { self.map_fog } else { None });
+        }
+        self.effect_queue.set_effects_enabled(show_skill_effects);
+        if aura_changed {
+            let gids: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
+            for gid in gids {
+                self.refresh_level_aura(gid);
+            }
+        }
+        if persist {
+            self.config.save("config.json");
+        }
+    }
+}

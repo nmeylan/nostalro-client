@@ -2,6 +2,7 @@ pub(crate) mod cart;
 mod cursor;
 mod effects;
 pub(crate) mod falcon;
+mod floor_item;
 
 pub(crate) use cart::CartVisual;
 pub(crate) use falcon::FalconVisual;
@@ -85,15 +86,16 @@ impl App {
         head_bottom: u16,
         shield_id: u16,
     ) {
-        let orc_face = self
+        let (orc_face, is_gm) = self
             .game
             .world
             .entities
             .get(gid)
-            .is_some_and(|e| ragnarok_game::sprite_path::is_orcish(e.effect_state));
+            .map(|e| (ragnarok_game::sprite_path::is_orcish(e.effect_state), e.is_gm))
+            .unwrap_or((false, false));
         if let Some(sprite) = self.build_player_entity_sprite(
             job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom,
-            shield_id, orc_face,
+            shield_id, orc_face, is_gm,
         ) {
             self.game.sprite_caches.sprites.insert(gid, sprite);
         } else {
@@ -115,6 +117,7 @@ impl App {
         head_bottom: u16,
         shield_id: u16,
         orc_face: bool,
+        is_gm: bool,
     ) -> Option<Rc<EntitySprite>> {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),
@@ -141,6 +144,7 @@ impl App {
             head_bottom,
             shield_id,
             orc_face,
+            is_gm,
         )?;
         Some(Rc::new(build_entity_sprite(
             &renderer.device.device,
@@ -189,7 +193,7 @@ impl App {
         };
         for (gid, job, sex, head, hair_color) in members {
             if let Some(sprite) = self
-                .build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false)
+                .build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false, false)
             {
                 self.game.sprite_caches.guild_head_sprites.insert(gid, sprite);
             }

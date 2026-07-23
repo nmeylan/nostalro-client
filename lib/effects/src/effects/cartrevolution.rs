@@ -204,7 +204,7 @@ mod tests {
         });
         assert!(
             sphere_radius.is_some_and(|r| r < 2.0),
-            "dome grows from zero (dhxj parity), not a seeded radius"
+            "dome grows from zero, not a seeded radius"
         );
 
         let p25 = step_and_draw(&mut e, 17.0 / FRAMES_PER_SECOND);

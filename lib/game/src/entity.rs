@@ -233,6 +233,8 @@ pub struct Entity {
     pub is_pet: bool,
     /// Equipped pet accessory view id (0 = none); selects the accessory ACT variant.
     pub pet_accessory: u16,
+    /// Account is listed as a GM: Operator body sprite and yellow name/guild/chat.
+    pub is_gm: bool,
 }
 
 impl Entity {
@@ -318,6 +320,7 @@ impl Entity {
             target_gid: None,
             is_pet: false,
             pet_accessory: 0,
+            is_gm: false,
         }
     }
 

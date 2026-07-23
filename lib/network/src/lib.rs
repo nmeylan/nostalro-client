@@ -247,7 +247,6 @@ pub async fn network_loop(
                             }
                         }
                         Some(NetworkCommand::Disconnect) => {
-                            info!("disconnecting");
                             connection = None;
                             session.state = SessionState::Disconnected;
                             keepalive = KeepaliveMode::Off;

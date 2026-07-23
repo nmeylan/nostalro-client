@@ -242,3 +242,25 @@ impl App {
         }
     }
 }
+
+impl App {
+    pub(super) fn handle_request_pet_command(&mut self, csub: i8) {
+        self.channel
+            .send_packet(ragnarok_network::build_command_pet_packet(csub, self.active_packetver));
+        // The window opens on this explicit request, not on the
+        // incoming property packet (which also arrives unsolicited).
+        if csub == 0 {
+            self.windows.pet_window.set_visible(true);
+        }
+        // Return-to-egg: the pet vanishes and the egg becomes usable again.
+        if csub == 3
+            && let Some(index) = self.game.companions.pet.egg_index.take()
+        {
+            self.game.character.inventory.set_item_damaged(index, false);
+        }
+        // Performance: owner emits a matching emote (PM_PERFORMANCE_S).
+        if csub == 2 {
+            self.emit_pet_act(5);
+        }
+    }
+}

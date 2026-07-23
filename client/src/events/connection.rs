@@ -198,6 +198,7 @@ impl App {
             dir,
         );
         entity.effect_state = effect_state;
+        entity.is_gm = self.config.is_gm_account(account_id) && self.config.see_self_as_gm_when_gm;
         if let Some(guild) = self.game.guild.as_ref() {
             entity.guild_id = guild.gdid;
             entity.guild_emblem_version = guild.emblem_version;
@@ -334,12 +335,7 @@ impl App {
             .strip_suffix(".gat")
             .unwrap_or(&map_name)
             .to_string();
-        tracing::info!(
-            "MapChanged: {map_name} ({x},{y}) current={:?}",
-            self.game.session.current_map
-        );
         if self.game.session.current_map.as_deref() != Some(&map_name) {
-            tracing::info!("Different map, clearing entities");
             self.load_map(&map_name);
             self.game.session.current_map = Some(map_name.clone());
             let player_sprite = self
@@ -494,5 +490,28 @@ impl App {
             self.account_dialog
                 .show(&format!("Disconnected: {reason}"), false, |_| {});
         }
+    }
+}
+
+impl App {
+    fn reconnect_to_char_server(&mut self) -> bool {
+        if self.channel.cmd_tx.is_none() {
+            return false;
+        }
+        let Some(session) = &self.game.session.login_session else {
+            return false;
+        };
+        let Some(addr) = &session.char_server_addr else {
+            return false;
+        };
+        self.channel.send_cmd(NetworkCommand::Disconnect);
+        self.channel.send_cmd(NetworkCommand::Connect { addr: addr.clone(), expect_aid: true });
+        self.channel.send_packet(ragnarok_network::build_char_enter_packet(session));
+        self.channel
+            .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
+                account_id: session.account_id,
+            }));
+        self.game.session.app_state = AppState::CharacterSelect;
+        true
     }
 }

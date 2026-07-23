@@ -151,6 +151,7 @@ impl App {
         }
         entity.guild_id = guild_id;
         entity.guild_emblem_version = guild_emblem_version;
+        entity.is_gm = entity_type == EntityType::Player && self.config.is_gm_account(aid);
         match posture {
             1 => entity.state = EntityState::Dead,
             2 => entity.state = EntityState::Sitting,
@@ -1010,13 +1011,7 @@ impl App {
                     entity.weapon = right_type;
                     entity.shield = value2;
                 }
-                tracing::debug!(
-                    "LOOK_WEAPON: gid={gid} value={value} value2={value2} left_is_weapon={left_hand_is_weapon} → weapon={:?} shield={}",
-                    entity.weapon,
-                    entity.shield
-                );
             } else {
-                tracing::debug!("SpriteChange: gid={gid} type={sprite_type} value={value}");
                 entity.apply_sprite_change(sprite_type, value);
             }
             let weapon_type = entity.weapon;

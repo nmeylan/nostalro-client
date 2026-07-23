@@ -1,3 +1,5 @@
+mod render_list;
+
 use crate::{App, ClipData};
 use crate::game_updates::CREATE_PREVIEW_GID;
 use ragnarok_game::ailment;

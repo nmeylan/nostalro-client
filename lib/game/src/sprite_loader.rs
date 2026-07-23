@@ -361,9 +361,31 @@ pub fn load_player_sprite_data(
     head_bottom: u16,
     shield_id: u16,
     orc_face: bool,
+    is_gm: bool,
 ) -> Option<PlayerSpriteData> {
-    let body = load_body_sprite(grf, job, sex, cloth_color)?;
     let head = load_head_sprite(grf, head_id, sex, hair_color, orc_face);
+    if is_gm {
+        let body = load_sprite_data_from_spr(
+            grf,
+            &format!("{}.spr", crate::sprite_path::gm_body_sprite_path(sex)),
+        )?;
+        let weapon = load_sprite_data_from_spr(
+            grf,
+            &format!("{}.spr", crate::sprite_path::gm_weapon_sprite_path(sex)),
+        );
+        return Some(PlayerSpriteData {
+            body,
+            head,
+            weapon,
+            weapon_trail: None,
+            headgear_top: load_headgear(grf, accessory_table, head_top, sex),
+            headgear_mid: load_headgear(grf, accessory_table, head_mid, sex),
+            headgear_bottom: load_headgear(grf, accessory_table, head_bottom, sex),
+            shield: None,
+            shadow: load_shadow_sprite(grf),
+        });
+    }
+    let body = load_body_sprite(grf, job, sex, cloth_color)?;
     // Costume bodies never render a weapon or shield.
     let (weapon, shield_id) = if crate::sprite_path::is_costume_job(job) {
         (None, 0)

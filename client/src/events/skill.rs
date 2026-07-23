@@ -1,4 +1,8 @@
 use crate::App;
+use ragnarok_game::cursor::PendingSkillTarget;
+use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::sprite_path::hide_allows_skill;
+use ragnarok_network::build_use_skill_packet;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::EnumWithStringValue;
@@ -718,5 +722,59 @@ impl App {
         let msg = ragnarok_game::skill::skill_failure_message(cause).unwrap_or("Skill failed.");
         tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
         self.windows.chat_window.add_error(msg.to_string());
+    }
+}
+
+impl App {
+    pub(super) fn handle_request_use_skill(&mut self, skill_id: u16, level: i16) {
+        if self.player_hidden() && !hide_allows_skill(skill_id) {
+            return;
+        }
+        if skill_id == SkillEnum::McChangecart.id() as u16 {
+            if self.game.character.cart_design.is_some() {
+                self.preload_cart_previews(&[1, 2, 3, 4, 5]);
+                self.windows.cart_select_window.open();
+            }
+            return;
+        }
+        if skill_id == SkillEnum::AcMakingarrow.id() as u16
+            || skill_id == SkillEnum::SaCreatecon.id() as u16
+        {
+            self.game.pending_casts.pending_list_skill = Some(skill_id);
+        }
+        let skill_target_type = self
+            .game
+            .resolve_cast_skill(skill_id)
+            .map(|(target_type, _)| target_type)
+            .unwrap_or(SkillTargetType::Target);
+        match skill_target_type {
+            SkillTargetType::MySelf => {
+                if !self.skill_on_cooldown(skill_id) {
+                    let target_id = self.game.world.entities.player_id().unwrap_or(0);
+                    self.channel.send_packet(build_use_skill_packet(
+                        skill_id,
+                        level,
+                        target_id,
+                        self.active_packetver,
+                    ));
+                }
+            }
+            SkillTargetType::Target | SkillTargetType::Friend => {
+                self.game.pending_casts.pending_skill_target =
+                    Some(PendingSkillTarget::Entity { skill_id, level });
+                self.game.pending_casts.pending_skill_id = Some(skill_id);
+                self.game.pending_casts.pending_skill_level = Some(level);
+            }
+            SkillTargetType::Ground | SkillTargetType::Trap => {
+                self.game.pending_casts.pending_skill_target =
+                    Some(PendingSkillTarget::Ground { skill_id, level });
+            }
+            _ => {
+                tracing::debug!(
+                    "Skill target type {:?} not yet supported for skill {skill_id}",
+                    skill_target_type
+                );
+            }
+        }
     }
 }

@@ -31,9 +31,13 @@ use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_ui_component::game::chat_room_member_window;
 use ragnarok_game::autocounter;
 use ragnarok_game::event::GameEvent;
-use ragnarok_network::build_npc_close_packet;
+use ragnarok_game::app_state::AppState;
+use ragnarok_network::*;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
+use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
+use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
+use ragnarok_ui_component::game::party_helper_window::MODE_CREATE;
 use winit::event_loop::ActiveEventLoop;
 
 const BLADE_STOP_GRIP_FRAME: usize = 4;
@@ -1458,5 +1462,1257 @@ impl App {
             }
         }
         self.game.world.entities.clear_just_spawned_flags();
+    }
+}
+
+impl App {
+    pub(crate) fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
+        ragnarok_profiling::profile_function!();
+        for event in events {
+            match event {
+                GameEvent::RequestLogin { username, password } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::LOGIN);
+                    self.config.keep_login_id = self.login_window.keep_id;
+                    self.config.saved_username = if self.login_window.keep_id {
+                        username.clone()
+                    } else {
+                        String::new()
+                    };
+                    self.config.save("config.json");
+                    self.account_dialog.show_message("Please wait...");
+                    let Some(server) = self.config.login_servers.get(self.selected_login_server)
+                    else {
+                        continue;
+                    };
+                    let addr = format!("{}:{}", server.host, server.port);
+                    self.channel.send_cmd(NetworkCommand::Connect { addr, expect_aid: false });
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel.send_packet(build_login_packet(
+                        &username,
+                        &password,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::SelectLoginServer { index } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.select_login_server(index);
+                    self.login_server_list_window = None;
+                    self.game.session.app_state = AppState::Login;
+                }
+                GameEvent::RequestSelectServer { index } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    if let Some(server_win) = &self.server_list_window
+                        && let Some(server) = server_win.servers.get(index)
+                    {
+                        let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
+                        self.channel.send_cmd(NetworkCommand::Disconnect);
+                        self.channel.send_cmd(NetworkCommand::Connect { addr: addr.clone(), expect_aid: true });
+                        if let Some(session) = &mut self.game.session.login_session {
+                            session.char_server_addr = Some(addr);
+                            self.channel.send_packet(build_char_enter_packet(session));
+                            self.channel.send_cmd(NetworkCommand::SetKeepalive(
+                                KeepaliveMode::CharServer {
+                                    account_id: session.account_id,
+                                },
+                            ));
+                        }
+                    }
+                }
+                GameEvent::RequestSelectCharacter { slot } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    if let Some(char_win) = &self.char_select_window {
+                        self.game.session.selected_character = char_win
+                            .characters
+                            .iter()
+                            .find(|c| c.slot == slot as i8)
+                            .cloned();
+                    }
+                    if self.config.last_char_slot != Some(slot) {
+                        self.config.last_char_slot = Some(slot);
+                        self.config.save("config.json");
+                    }
+                    self.channel
+                        .send_packet(build_select_char_packet(slot, self.active_packetver));
+                }
+                GameEvent::RequestCreateCharacter { slot } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    let with_stats = self.active_packetver < 20120307;
+                    let mut win = CharCreateWindow::new(slot, with_stats);
+                    if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
+                        let loaded = renderer.preload_textures(&win.layout_texture_paths(), grf);
+                        win.set_has_grf_textures(loaded);
+                        if with_stats {
+                            let _ = renderer.preload_textures(
+                                &CharCreateWindow::stat_arrow_texture_paths(),
+                                grf,
+                            );
+                        }
+                    }
+                    self.char_create_window = Some(win);
+                    self.char_create_built_appearance = None;
+                    self.game.session.app_state = AppState::CharacterCreate;
+                }
+                GameEvent::RequestMakeCharacter {
+                    name,
+                    slot,
+                    hair_style,
+                    hair_color,
+                    stats,
+                } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    let packet = if self.active_packetver >= 20120307 {
+                        build_make_char_packet(
+                            &name,
+                            slot,
+                            hair_style,
+                            hair_color,
+                            self.active_packetver,
+                        )
+                    } else {
+                        build_make_char_with_stats_packet(
+                            &name,
+                            stats,
+                            slot,
+                            hair_style,
+                            hair_color,
+                            self.active_packetver,
+                        )
+                    };
+                    self.channel.send_packet(packet);
+                }
+                GameEvent::CancelCreateCharacter => {
+                    self.char_create_window = None;
+                    self.game.session.app_state = AppState::CharacterSelect;
+                }
+                GameEvent::RequestDeleteCharacterReserve { gid } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel
+                        .send_packet(build_delete_char_reserve_packet(gid, self.active_packetver));
+                }
+                GameEvent::RequestDeleteCharacterConfirm { gid, birthdate } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel.send_packet(build_delete_char_confirm_packet(
+                        gid,
+                        &birthdate,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestDeleteCharacterCancel { gid } => {
+                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel
+                        .send_packet(build_delete_char_cancel_packet(gid, self.active_packetver));
+                }
+                GameEvent::BackToServerSelect => {
+                    self.game.session.app_state = AppState::ServerSelect;
+                    self.char_select_window = None;
+                    self.char_create_window = None;
+                    self.account_anims.clear();
+                    self.windows.system_menu.open = false;
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
+                }
+                GameEvent::BackToLogin => {
+                    self.game.session.app_state = AppState::Login;
+                    self.server_list_window = None;
+                    self.char_select_window = None;
+                    self.char_create_window = None;
+                    self.account_anims.clear();
+                    self.game.session.login_session = None;
+                    self.windows.system_menu.open = false;
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
+                }
+                GameEvent::BackToCharacterSelect => {
+                    self.windows.system_menu.open = false;
+                    self.windows.map_missing_window.hide();
+                    self.clear_companions();
+                    self.channel
+                        .send_packet(build_restart_packet(self.active_packetver));
+                }
+                GameEvent::ReturnToSavePoint => {
+                    self.channel
+                        .send_packet(build_return_savepoint_packet(self.active_packetver));
+                }
+                GameEvent::RequestStandingResurrection => {
+                    self.channel
+                        .send_packet(build_standing_resurrection_packet(self.active_packetver));
+                }
+                GameEvent::RequestMapRecoveryWarp => {
+                    let char_name = self
+                        .game
+                        .session.selected_character
+                        .as_ref()
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("Unknown");
+                    let full_msg = format!("{char_name} : {}", self.config.map_recovery_command);
+                    self.channel
+                        .send_packet(build_chat_packet(&full_msg, self.active_packetver));
+                }
+                GameEvent::QuitGame => {
+                    self.windows.system_menu.open = false;
+                    self.channel
+                        .send_packet(build_req_disconnect_packet(self.active_packetver));
+                }
+                GameEvent::RequestNpcContact { npc_id } => {
+                    self.channel
+                        .send_packet(build_contact_npc_packet(npc_id, self.active_packetver));
+                }
+                GameEvent::RequestNpcNext { npc_id } => {
+                    self.channel
+                        .send_packet(build_npc_next_packet(npc_id, self.active_packetver));
+                }
+                GameEvent::RequestNpcClose { npc_id } => {
+                    self.game.npc_cutins = [None, None, None];
+                    self.channel
+                        .send_packet(build_npc_close_packet(npc_id, self.active_packetver));
+                }
+                GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
+                    if choice == 255 {
+                        self.game.npc_cutins = [None, None, None];
+                    }
+                    self.channel.send_packet(build_npc_menu_select_packet(
+                        npc_id,
+                        choice,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestJoinChatRoom { room_id } => {
+                    self.channel
+                        .send_packet(build_req_enter_room_packet(room_id, self.active_packetver));
+                }
+                GameEvent::ToggleChatRoomCreate => {
+                    self.windows.chat_room_create_window.toggle();
+                }
+                GameEvent::RequestCreateChatRoom {
+                    title,
+                    limit,
+                    public,
+                    password,
+                } => {
+                    self.game.pending_chat_room = Some((title.clone(), limit, public));
+                    self.channel.send_packet(build_create_chatroom_packet(
+                        &title,
+                        limit,
+                        public,
+                        &password,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestChangeChatRoom {
+                    title,
+                    limit,
+                    public,
+                    password,
+                } => {
+                    self.channel.send_packet(build_change_chatroom_packet(
+                        &title,
+                        limit,
+                        public,
+                        &password,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestLeaveChatRoom => {
+                    self.channel
+                        .send_packet(build_exit_room_packet(self.active_packetver));
+                    self.windows.chat_room_member_window.close();
+                }
+                GameEvent::RequestEditChatRoomSettings => {
+                    let w = &self.windows.chat_room_member_window;
+                    let (room_id, title, limit, public) =
+                        (w.room_id(), w.title().to_string(), w.max_count(), w.public());
+                    self.windows
+                        .chat_room_create_window
+                        .open_change(room_id, &title, limit, public);
+                }
+                GameEvent::RequestKickChatMember { name } => {
+                    self.channel
+                        .send_packet(build_expel_chat_member_packet(&name, self.active_packetver));
+                }
+                GameEvent::RequestChangeChatOwner { name } => {
+                    self.channel.send_packet(build_change_chat_owner_packet(
+                        &name,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestOpenChatMemberMenu { name, x, y } => {
+                    use ragnarok_ui_component::game::context_menu::{
+                        ContextMenuAction, ContextMenuItem,
+                    };
+                    let items = vec![
+                        ContextMenuItem {
+                            label: "Hand Over Chat".to_string(),
+                            action: ContextMenuAction::ChangeChatOwner { name: name.clone() },
+                        },
+                        ContextMenuItem {
+                            label: "Kick".to_string(),
+                            action: ContextMenuAction::KickFromChatRoom { name },
+                        },
+                    ];
+                    self.windows.context_menu.open_at(x, y, items);
+                }
+                GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
+                    self.channel.send_packet(build_select_warppoint_packet(
+                        skill_id,
+                        &map_name,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestNpcInputNumber { npc_id, value } => {
+                    self.channel.send_packet(build_npc_input_number_packet(
+                        npc_id,
+                        value,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestNpcInputString { npc_id, text } => {
+                    self.channel.send_packet(build_npc_input_string_packet(
+                        npc_id,
+                        &text,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestNpcDealType { npc_id, deal_type } => {
+                    self.channel.send_packet(build_npc_deal_type_packet(
+                        npc_id,
+                        deal_type,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestNpcShopBuy { items } => {
+                    self.channel.send_packet(build_purchase_item_list_packet(
+                        &items,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestNpcShopSell { items } => {
+                    self.channel
+                        .send_packet(build_sell_item_list_packet(&items, self.active_packetver));
+                }
+                GameEvent::RequestNpcShopClose => {
+                    match self.windows.npc_shop.shop.mode {
+                        Some(ragnarok_game::npc_shop::NpcShopMode::Buy) => {
+                            self.channel.send_packet(build_purchase_item_list_packet(
+                                &[],
+                                self.active_packetver,
+                            ));
+                        }
+                        Some(ragnarok_game::npc_shop::NpcShopMode::Sell) => {
+                            self.channel.send_packet(build_sell_item_list_packet(
+                                &[],
+                                self.active_packetver,
+                            ));
+                        }
+                        None => {}
+                    }
+                    self.windows.npc_shop.close();
+                }
+                GameEvent::ShowItemInfo { index } => {
+                    if let Some(item) = self.game.character.inventory.get_item(index) {
+                        let is_book = self.item_is_book(item.item_id);
+                        self.windows
+                            .item_info_window
+                            .show(item, &self.game.data_table, is_book);
+                        let tex_paths = self.windows.item_info_window.pending_texture_paths();
+                        self.preload_item_icons(tex_paths);
+                    }
+                }
+                GameEvent::ShowItemInfoDirect { item } => {
+                    let is_book = self.item_is_book(item.item_id);
+                    self.windows
+                        .item_info_window
+                        .show(&item, &self.game.data_table, is_book);
+                    let tex_paths = self.windows.item_info_window.pending_texture_paths();
+                    self.preload_item_icons(tex_paths);
+                }
+                GameEvent::ShowCardInfo { item_id } => {
+                    self.windows
+                        .item_info_window
+                        .show_card(item_id, &self.game.data_table);
+                    let tex_paths = self.windows.item_info_window.pending_card_texture_paths();
+                    self.preload_item_icons(tex_paths);
+                }
+                GameEvent::ShowCardIllustration { item_id } => {
+                    let name = self
+                        .game
+                        .data_table
+                        .item_name
+                        .as_ref()
+                        .map(|t| t.get_name_or_id(item_id))
+                        .unwrap_or_else(|| format!("Item #{item_id}"));
+                    let illust_path = self
+                        .game
+                        .data_table
+                        .card_illustration
+                        .as_ref()
+                        .and_then(|t| t.illustration_path(item_id));
+                    if let Some(path) = illust_path {
+                        self.windows
+                            .item_info_window
+                            .show_illustration(item_id, name, path);
+                        let tex_paths = self
+                            .windows
+                            .item_info_window
+                            .pending_illustration_texture_paths();
+                        self.preload_item_icons(tex_paths);
+                    }
+                }
+                GameEvent::ReadBook { item_id } => {
+                    if let Some(grf) = self.grf.as_ref()
+                        && let Ok(data) = grf.read_file(&format!("data/book/{item_id}.txt"))
+                    {
+                        let content = ragnarok_game::book::BookContent::parse(&data);
+                        self.windows.book_window.show(content);
+                        self.windows.item_info_window.close();
+                    }
+                }
+                GameEvent::RequestUseItem { index } => {
+                    if self.player_hidden() {
+                        continue;
+                    }
+                    let account_id = self
+                        .game
+                        .session.login_session
+                        .as_ref()
+                        .map(|s| s.account_id)
+                        .unwrap_or(0);
+                    self.channel.send_packet(build_use_item_packet(
+                        index,
+                        account_id,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestEquipItem { index, location } => {
+                    self.channel.send_packet(build_equip_item_packet(
+                        index,
+                        location,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestUnequipItem { index } => {
+                    self.channel
+                        .send_packet(build_unequip_item_packet(index, self.active_packetver));
+                }
+                GameEvent::RequestDropItem { index, count } => {
+                    self.channel.send_packet(build_drop_item_packet(
+                        index,
+                        count,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestRemoveOption => {
+                    self.channel
+                        .send_packet(build_remove_option_packet(self.active_packetver));
+                }
+                GameEvent::RequestMoveItemBodyToCart { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_body_to_cart_packet(
+                            index,
+                            count,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::RequestMoveItemCartToBody { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_cart_to_body_packet(
+                            index,
+                            count,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::RequestMoveItemStoreToCart { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_store_to_cart_packet(
+                            index,
+                            count,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::RequestMoveItemCartToStore { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_cart_to_store_packet(
+                            index,
+                            count,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::RequestMoveItemBodyToStore { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_body_to_store_packet(
+                            index,
+                            count,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::RequestMoveItemStoreToBody { index, count } => {
+                    self.channel
+                        .send_packet(build_move_item_store_to_body_packet(
+                            index,
+                            count,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::RequestCloseStorage => {
+                    self.channel
+                        .send_packet(build_close_store_packet(self.active_packetver));
+                }
+                GameEvent::RequestExchangeItem { target_aid } => {
+                    let name = self
+                        .game
+                        .world
+                        .entities
+                        .get(target_aid)
+                        .and_then(|e| e.name.clone())
+                        .unwrap_or_default();
+                    self.game.pending_confirms.pending_trade_partner = Some((target_aid, name));
+                    self.channel
+                        .send_packet(build_req_exchange_item_packet(target_aid, self.active_packetver));
+                }
+                GameEvent::RespondExchangeRequest { accept } => {
+                    self.respond_exchange_request(accept);
+                }
+                GameEvent::RequestAddExchangeItem { index, count } => {
+                    self.channel
+                        .send_packet(build_add_exchange_item_packet(index, count, self.active_packetver));
+                }
+                GameEvent::RequestConcludeExchange => {
+                    self.channel
+                        .send_packet(build_conclude_exchange_item_packet(self.active_packetver));
+                }
+                GameEvent::RequestCancelExchange => {
+                    self.channel
+                        .send_packet(build_cancel_exchange_item_packet(self.active_packetver));
+                }
+                GameEvent::RequestExecExchange => {
+                    self.channel
+                        .send_packet(build_exec_exchange_item_packet(self.active_packetver));
+                }
+                GameEvent::RequestMailList => {
+                    self.channel
+                        .send_packet(build_mail_get_list_packet(self.active_packetver));
+                }
+                GameEvent::RequestMailOpen { mail_id } => {
+                    self.channel
+                        .send_packet(build_mail_open_packet(mail_id, self.active_packetver));
+                }
+                GameEvent::RequestMailDelete { mail_id } => {
+                    self.channel
+                        .send_packet(build_mail_delete_packet(mail_id, self.active_packetver));
+                }
+                GameEvent::RequestMailGetItem { mail_id } => {
+                    self.channel
+                        .send_packet(build_mail_get_item_packet(mail_id, self.active_packetver));
+                }
+                GameEvent::RequestMailResetItem { ty } => {
+                    self.channel
+                        .send_packet(build_mail_reset_item_packet(ty, self.active_packetver));
+                }
+                GameEvent::RequestMailAddItem { index, amount } => {
+                    self.channel.send_packet(build_mail_add_item_packet(
+                        index,
+                        amount,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestMailSend { to, title, body } => {
+                    self.channel.send_packet(build_mail_send_packet(
+                        &to,
+                        &title,
+                        &body,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestMailReturn { mail_id, sender } => {
+                    self.channel.send_packet(build_req_mail_return_packet(
+                        mail_id,
+                        &sender,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestCartOff => {
+                    self.channel
+                        .send_packet(build_cartoff_packet(self.active_packetver));
+                }
+                GameEvent::RequestChangeCart { num } => {
+                    self.channel
+                        .send_packet(build_change_cart_packet(num, self.active_packetver));
+                }
+                GameEvent::RequestSetCartPick { .. } => {}
+                GameEvent::ToggleCart => {
+                    self.game.character.cart.toggle();
+                }
+                GameEvent::RequestSkillLevelUp { skill_id } => {
+                    self.channel
+                        .send_packet(build_upgrade_skill_packet(skill_id, self.active_packetver));
+                }
+                GameEvent::RequestStatChange { status_id, amount } => {
+                    self.channel.send_packet(build_stat_change_packet(
+                        status_id,
+                        amount,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestCompanionMove { gid, x, y } => {
+                    self.channel.send_packet(build_companion_move_packet(
+                        gid,
+                        x as u16,
+                        y as u16,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestCompanionAttack { gid, target_gid } => {
+                    self.channel.send_packet(build_companion_attack_packet(
+                        gid,
+                        target_gid,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestCompanionMoveToOwner { gid } => {
+                    self.channel.send_packet(build_companion_move_to_owner_packet(
+                        gid,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestSetConfig { kind, enabled } => {
+                    self.channel.send_packet(build_config_packet(
+                        kind.config_id(),
+                        enabled as i32,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestHomunMenu { command } => {
+                    self.channel
+                        .send_packet(build_homun_menu_packet(command as i8, self.active_packetver));
+                    if command == 2 {
+                        self.clear_homunculus();
+                    }
+                }
+                GameEvent::RequestHomunRest => {
+                    let skill_id = SkillEnum::AmRest.id() as u16;
+                    if !self.skill_on_cooldown(skill_id) {
+                        let target_id = self.game.world.entities.player_id().unwrap_or(0);
+                        self.channel.send_packet(build_use_skill_packet(
+                            skill_id,
+                            1,
+                            target_id,
+                            self.active_packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestHomunDelete => {
+                    let name = self
+                        .game
+                        .companions
+                        .homunculus
+                        .as_ref()
+                        .map(|h| h.name.clone())
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or_else(|| "your homunculus".to_string());
+                    self.game.arm_confirm(&mut self.windows,
+                        &format!("Delete {name} permanently?"),
+                        |accept| accept.then_some(GameEvent::RequestHomunMenu { command: 2 }),
+                    );
+                }
+                GameEvent::RequestMercenaryCommand { command } => {
+                    self.channel.send_packet(build_mercenary_command_packet(
+                        command,
+                        self.active_packetver,
+                    ));
+                    if command == 2 {
+                        self.clear_mercenary();
+                    }
+                }
+                GameEvent::RequestRenameHomun { name } => {
+                    self.channel
+                        .send_packet(build_rename_homun_packet(&name, self.active_packetver));
+                }
+                GameEvent::ToggleHomunculusWindow => {
+                    self.windows.homunculus_window.toggle();
+                }
+                GameEvent::ToggleMercenaryWindow => {
+                    self.windows.mercenary_window.toggle();
+                }
+                GameEvent::ToggleMercenarySkillWindow => {
+                    self.windows.mercenary_skill_window.toggle();
+                }
+                GameEvent::ToggleHomunSkillWindow => {
+                    self.windows.homun_skill_window.toggle();
+                }
+                GameEvent::ToggleCompanionAiConfig => {
+                    self.windows.companion_ai_config_window.toggle();
+                }
+                GameEvent::SaveCompanionAiConfig => {
+                    if let Err(e) = self
+                        .game
+                        .companions
+                        .companion_ai
+                        .save(crate::game_state::COMPANION_AI_CONFIG_PATH)
+                    {
+                        tracing::warn!("failed to save companion AI config: {e}");
+                    }
+                }
+                GameEvent::RevertCompanionAiConfig => {
+                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                        crate::game_state::COMPANION_AI_CONFIG_PATH,
+                    );
+                }
+                GameEvent::ResetCompanionAiConfig => {
+                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
+                }
+                GameEvent::ToggleCompanionStandby { is_mercenary } => {
+                    self.push_owner_command_to(
+                        is_mercenary,
+                        ragnarok_game::companion::OwnerCommand::follow(),
+                        false,
+                    );
+                }
+                GameEvent::HotkeyListReceived { slots } => {
+                    self.game
+                        .character
+                        .hotkeys
+                        .set_from_server(&slots);
+                }
+                GameEvent::RequestHotkeyChange {
+                    index,
+                    is_skill,
+                    id,
+                    count,
+                } => {
+                    let is_skill_i8 = if is_skill { 1i8 } else { 0i8 };
+                    self.channel.send_packet(build_shortcut_key_change_packet(
+                        index,
+                        is_skill_i8,
+                        id,
+                        count,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestUseSkill { skill_id, level } => {
+                    self.handle_request_use_skill(skill_id, level);
+                }
+                GameEvent::RequestCompanionUseSkill {
+                    is_mercenary,
+                    skill_id,
+                    level,
+                } => {
+                    self.handle_request_companion_use_skill(is_mercenary, skill_id, level);
+                }
+                GameEvent::RequestPickupItem { id } => {
+                    self.channel
+                        .send_packet(build_pickup_item_packet(id, self.active_packetver));
+                    if let Some(entity) = self.game.world.entities.player_mut() {
+                        entity.enter_pickup(0.5);
+                    }
+                }
+                GameEvent::RequestCardInsertList { card_index } => {
+                    self.game.pending_casts.pending_card_composition_index = Some(card_index);
+                    self.channel.send_packet(build_card_composition_list_packet(
+                        card_index,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestCardInsert {
+                    card_index,
+                    equip_index,
+                } => {
+                    self.channel.send_packet(build_card_composition_packet(
+                        card_index,
+                        equip_index,
+                        self.active_packetver,
+                    ));
+                    self.game.pending_casts.pending_card_composition_index = None;
+                }
+                GameEvent::RequestIdentifyItem { index } => {
+                    self.channel
+                        .send_packet(build_req_itemidentify_packet(index, self.active_packetver));
+                }
+                GameEvent::RequestMakingArrow { item_id } => {
+                    self.channel
+                        .send_packet(build_req_makingarrow_packet(item_id, self.active_packetver));
+                }
+                GameEvent::RequestMakingItem { item_id, materials } => {
+                    self.channel.send_packet(build_req_makingitem_packet(
+                        item_id,
+                        materials,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestWeaponRefine { index } => {
+                    self.channel
+                        .send_packet(build_req_weaponrefine_packet(index, self.active_packetver));
+                }
+                GameEvent::RequestRepairItem {
+                    index,
+                    item_id,
+                    refine,
+                    cards,
+                } => {
+                    self.channel.send_packet(build_req_itemrepair_packet(
+                        index,
+                        item_id,
+                        refine,
+                        cards,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestSelectAutoSpell { skill_id } => {
+                    self.channel
+                        .send_packet(build_select_autospell_packet(skill_id, self.active_packetver));
+                }
+                GameEvent::RequestOpenStore { shop_name, items } => {
+                    self.channel.send_packet(build_req_openstore2_packet(
+                        &shop_name,
+                        &items,
+                        self.active_packetver,
+                    ));
+                    self.game.pending_casts.pending_shop_name = Some(shop_name);
+                }
+                GameEvent::RequestCancelVendingSetup => {
+                    self.channel
+                        .send_packet(build_req_cancel_openstore_packet(self.active_packetver));
+                }
+                GameEvent::RequestCloseStore => {
+                    self.close_own_shop();
+                }
+                GameEvent::RequestBuyFromVendor { aid } => {
+                    self.channel
+                        .send_packet(build_req_buy_frommc_packet(aid, self.active_packetver));
+                }
+                GameEvent::RequestPurchaseFromVendor {
+                    aid,
+                    unique_id,
+                    items,
+                } => {
+                    self.channel.send_packet(build_purchase_frommc_dispatch(
+                        aid,
+                        unique_id,
+                        &items,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestSendChat { message } => {
+                    self.run_chat_command(&message);
+                }
+                GameEvent::RequestSendWhisper { name, message } => {
+                    self.channel
+                        .send_packet(build_whisper_packet(&name, &message, self.active_packetver));
+                    self.windows.chat_window.add_whisper_out(name, message);
+                }
+                GameEvent::ToggleShortcutList => {
+                    if !self.windows.shortcut_list_window.is_open() {
+                        self.windows
+                            .shortcut_list_window
+                            .set_bindings(&self.config.shortcut_commands);
+                    }
+                    self.windows.shortcut_list_window.toggle();
+                }
+                GameEvent::ShortcutBindingsChanged(commands) => {
+                    self.config.shortcut_commands = commands;
+                }
+                GameEvent::ToggleQuestWindow => {
+                    self.windows.quest_window.toggle();
+                }
+                GameEvent::OpenQuestDetail { quest_id } => {
+                    self.windows.quest_detail_window.open(quest_id);
+                }
+                GameEvent::RequestToggleQuestActive { quest_id, active } => {
+                    self.channel.send_packet(ragnarok_network::build_active_quest_packet(
+                        quest_id,
+                        active,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::Disconnected(ref reason) if reason == "User exit" => {
+                    self.channel.send_cmd(NetworkCommand::Disconnect);
+                    event_loop.exit();
+                }
+                GameEvent::ToggleInventory => {
+                    self.game.character.inventory.toggle();
+                }
+                GameEvent::ToggleEquipment => {
+                    self.windows.equipment_window.toggle();
+                }
+                GameEvent::ToggleSkills => {
+                    self.game.character.skills.toggle();
+                }
+                GameEvent::ToggleEmotionWindow => {
+                    self.windows.emotion_window.toggle();
+                }
+                GameEvent::RequestEmotion { emote_type } => {
+                    self.channel
+                        .send_packet(build_emotion_packet(emote_type, self.active_packetver));
+                }
+                GameEvent::ToggleStatusWindow => {
+                    self.windows.status_window.toggle();
+                }
+                GameEvent::ToggleMinimap => {
+                    self.windows.minimap_window.cycle_visibility();
+                }
+                GameEvent::ToggleSoundOptions => {
+                    self.open_sound_options();
+                }
+                GameEvent::SoundSettingsChanged {
+                    bgm_volume,
+                    sfx_volume,
+                    bgm_enabled,
+                    sfx_enabled,
+                    persist,
+                } => {
+                    self.config.bgm_volume = bgm_volume;
+                    self.config.sfx_volume = sfx_volume;
+                    self.config.bgm_enabled = bgm_enabled;
+                    self.config.sfx_enabled = sfx_enabled;
+                    self.sound.set_volumes(
+                        self.config.effective_bgm_volume(),
+                        self.config.effective_sfx_volume(),
+                    );
+                    if persist {
+                        self.config.save("config.json");
+                    }
+                }
+                GameEvent::ToggleGraphicOptions => {
+                    self.open_graphic_options();
+                }
+                GameEvent::ToggleSystemMenu => {
+                    self.windows.system_menu.open = !self.windows.system_menu.open;
+                }
+                GameEvent::GraphicsSettingsChanged {
+                    ui_scale,
+                    fullscreen,
+                    fog,
+                    show_skill_effects,
+                    display,
+                    refuse_trade,
+                    refuse_party_invite,
+                    persist,
+                } => {
+                    self.apply_graphics_settings(
+                        ui_scale,
+                        fullscreen,
+                        fog,
+                        show_skill_effects,
+                        display,
+                        refuse_trade,
+                        refuse_party_invite,
+                        persist,
+                    );
+                }
+                GameEvent::ToggleHotkeyConfig => {
+                    if !self.windows.hotkey_config_window.is_open() {
+                        self.windows
+                            .hotkey_config_window
+                            .set_bindings(&self.config.keybindings, &self.config.emotion_keys);
+                    }
+                    self.windows.hotkey_config_window.toggle();
+                }
+                GameEvent::TogglePartyWindow => {
+                    self.windows.party_friends_window.open_party_tab();
+                }
+                GameEvent::ToggleFriendWindow => {
+                    self.windows.party_friends_window.open_friend_tab();
+                }
+                GameEvent::RequestPartyInvite { target_aid } => {
+                    let pv = self.active_packetver;
+                    if self.game.party.is_none() {
+                        // The party is created asynchronously server-side, so the invite must
+                        // wait for the create ack — sending it now would be dropped.
+                        let party_name = self
+                            .game
+                            .session.selected_character
+                            .as_ref()
+                            .map(|c| c.name.clone())
+                            .unwrap_or_else(|| "Party".to_string());
+                        self.channel
+                            .send_packet(build_make_party_packet(&party_name, pv));
+                        self.game.pending_confirms.pending_invite_aid = Some(target_aid);
+                    } else {
+                        self.channel
+                            .send_packet(build_req_join_party_packet(target_aid, pv));
+                    }
+                }
+                GameEvent::RespondPartyInvite { party_grid, accept } => {
+                    self.channel.send_packet(build_join_party_reply_packet(
+                        party_grid,
+                        accept,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestAdoption { target_aid } => {
+                    self.channel
+                        .send_packet(build_adopt_request_packet(target_aid, self.active_packetver));
+                }
+                GameEvent::RespondAdoptionRequest { accept } => {
+                    if let Some((father_aid, mother_aid)) = self.game.pending_confirms.pending_adopt_request.take() {
+                        self.channel.send_packet(build_adopt_reply_packet(
+                            father_aid,
+                            mother_aid,
+                            accept,
+                            self.active_packetver,
+                        ));
+                    }
+                }
+                GameEvent::RespondGuildInvite { gdid, accept } => {
+                    self.channel
+                        .send_packet(build_ans_join_guild(gdid, accept, self.active_packetver));
+                }
+                GameEvent::RespondGuildAlly { aid, accept } => {
+                    self.channel
+                        .send_packet(build_ally_guild(aid, accept, self.active_packetver));
+                }
+                GameEvent::RequestLeaveParty => {
+                    self.channel
+                        .send_packet(build_leave_party_packet(self.active_packetver));
+                }
+                GameEvent::RequestExpelMember { aid, name } => {
+                    self.channel.send_packet(build_expel_party_member_packet(
+                        aid,
+                        &name,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestPartyExpOption { exp_share } => {
+                    self.channel
+                        .send_packet(build_change_party_exp_option_packet(
+                            exp_share as u32,
+                            self.active_packetver,
+                        ));
+                }
+                GameEvent::SendPartyChat { message } => {
+                    self.channel
+                        .send_packet(build_party_chat_packet(&message, self.active_packetver));
+                }
+                GameEvent::ShowPartyHelper { mode } => {
+                    let local_aid = self
+                        .game
+                        .session.login_session
+                        .as_ref()
+                        .map(|s| s.account_id)
+                        .unwrap_or(0);
+                    let is_leader = self
+                        .game
+                        .party
+                        .as_ref()
+                        .and_then(|p| p.leader_aid())
+                        .map(|aid| aid == local_aid)
+                        .unwrap_or(false);
+                    let (exp, pickup, division) = self
+                        .game
+                        .party
+                        .as_ref()
+                        .map(|p| (p.exp_share, p.item_pickup_rule, p.item_division_rule))
+                        .unwrap_or((false, 0, 0));
+                    let editable = mode == MODE_CREATE || is_leader;
+                    self.windows
+                        .party_helper_window
+                        .open(mode, exp, pickup, division, editable);
+                }
+                GameEvent::RequestPartyCreate {
+                    name,
+                    item_pickup_rule,
+                    item_division_rule,
+                } => {
+                    self.channel.send_packet(build_make_party2_packet(
+                        &name,
+                        item_pickup_rule,
+                        item_division_rule,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestPartyInviteByName { name } => {
+                    self.channel.send_packet(build_party_invite_by_name_packet(
+                        &name,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestChangePartyLeader { aid } => {
+                    self.channel
+                        .send_packet(build_change_party_leader_packet(aid, self.active_packetver));
+                }
+                GameEvent::RequestGuildInfoBurst => {
+                    let pv = self.active_packetver;
+                    self.channel.send_packet(build_req_guild_menuinterface(pv));
+                    for atype in 0..=4 {
+                        self.channel.send_packet(build_req_guild_menu(atype, pv));
+                    }
+                }
+                GameEvent::RequestGuildMenu { atype } => {
+                    self.channel
+                        .send_packet(build_req_guild_menu(atype, self.active_packetver));
+                }
+                GameEvent::ShowGuildMemberMenu { aid, gid, name, x, y } => {
+                    self.handle_show_guild_member_menu(aid, gid, name, x, y);
+                }
+                GameEvent::RequestSetGuildNotice { subject, body } => {
+                    if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
+                        self.channel.send_packet(build_guild_notice(
+                            gdid,
+                            &subject,
+                            &body,
+                            self.active_packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestGuildLeave => {
+                    let name = self
+                        .game
+                        .guild
+                        .as_ref()
+                        .map(|g| g.name.clone())
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or_else(|| "the guild".to_string());
+                    self.game.arm_confirm(&mut self.windows,
+                        &format!("Leave {name}?"),
+                        |accept| accept.then_some(GameEvent::ConfirmedGuildLeave),
+                    );
+                }
+                GameEvent::RequestGuildExpel { aid, gid, name } => {
+                    self.windows.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
+                }
+                GameEvent::ConfirmedGuildLeave => {
+                    if let Some(g) = &self.game.guild {
+                        let aid = self
+                            .game
+                            .session.login_session
+                            .as_ref()
+                            .map(|s| s.account_id)
+                            .unwrap_or(0) as i32;
+                        self.channel.send_packet(build_req_leave_guild(
+                            g.gdid,
+                            aid,
+                            aid,
+                            "",
+                            self.active_packetver,
+                        ));
+                    }
+                }
+                GameEvent::ConfirmedGuildExpel { aid, gid, name: _, reason } => {
+                    if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
+                        self.channel.send_packet(build_req_ban_guild(
+                            gdid,
+                            aid as i32,
+                            gid as i32,
+                            &reason,
+                            self.active_packetver,
+                        ));
+                    }
+                }
+                GameEvent::RequestChangeMemberPosition { aid, gid, position_id } => {
+                    self.channel.send_packet(build_req_change_memberpos(
+                        aid as i32,
+                        gid as i32,
+                        position_id,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestChangePositionInfo { positions } => {
+                    self.channel.send_packet(build_reg_change_guild_positioninfo(
+                        &positions,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestUpgradeGuildSkill { skid } => {
+                    self.channel
+                        .send_packet(build_upgrade_skill_packet(skid, self.active_packetver));
+                }
+                GameEvent::RequestGuildInvite { target_aid } => {
+                    let (my_aid, my_gid) = self.local_aid_gid();
+                    self.channel.send_packet(build_req_join_guild(
+                        target_aid,
+                        my_aid,
+                        my_gid,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestGuildAlly { target_aid } => {
+                    let (my_aid, my_gid) = self.local_aid_gid();
+                    self.channel.send_packet(build_req_ally_guild(
+                        target_aid,
+                        my_aid,
+                        my_gid,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestGuildHostile { target_aid } => {
+                    self.channel
+                        .send_packet(build_req_hostile_guild(target_aid, self.active_packetver));
+                }
+                GameEvent::RequestDeleteGuildRelation { gdid, relation } => {
+                    let msg = if relation == 0 {
+                        "Cancel this alliance?"
+                    } else {
+                        "Cancel this antagonist declaration?"
+                    };
+                    self.game.arm_confirm(&mut self.windows, msg, move |accept| {
+                        accept.then_some(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation })
+                    });
+                }
+                GameEvent::ConfirmedDeleteGuildRelation { gdid, relation } => {
+                    self.channel.send_packet(build_req_delete_related_guild(
+                        gdid,
+                        relation,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestSelectEmblem => {
+                    self.open_emblem_picker();
+                }
+                GameEvent::RequestUploadEmblem { path } => {
+                    self.upload_emblem_file(&path);
+                }
+                GameEvent::RequestAddFriend { name } => {
+                    self.channel
+                        .send_packet(build_add_friend_packet(&name, self.active_packetver));
+                }
+                GameEvent::RequestDeleteFriend { aid, gid } => {
+                    self.channel
+                        .send_packet(build_delete_friend_packet(aid, gid, self.active_packetver));
+                }
+                GameEvent::RespondFriendRequest {
+                    req_aid,
+                    req_gid,
+                    accept,
+                } => {
+                    self.channel.send_packet(build_ack_add_friend_packet(
+                        req_aid,
+                        req_gid,
+                        accept,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestWhisper { name } => {
+                    self.windows.chat_window.start_whisper(name);
+                }
+
+                GameEvent::RequestTryCapture { gid } => {
+                    self.channel
+                        .send_packet(build_trycapture_packet(gid, self.active_packetver));
+                }
+                GameEvent::RequestPetCommand { csub } => {
+                    self.handle_request_pet_command(csub);
+                }
+                GameEvent::RequestRenamePet { name } => {
+                    self.channel
+                        .send_packet(build_rename_pet_packet(&name, self.active_packetver));
+                }
+                GameEvent::RequestSelectPetEgg { index } => {
+                    self.channel
+                        .send_packet(build_select_petegg_packet(index, self.active_packetver));
+                    self.game.companions.pet.egg_index = Some(index);
+                    self.game.character.inventory.set_item_damaged(index, true);
+                }
+                GameEvent::RequestPetAct { data } => {
+                    self.channel
+                        .send_packet(build_pet_act_packet(data, self.active_packetver));
+                }
+                GameEvent::RequestPetFeed => {
+                    self.game.arm_confirm(&mut self.windows,
+                        "Are you sure you want to feed your pet?",
+                        |accept| accept.then_some(GameEvent::RequestPetCommand { csub: 1 }),
+                    );
+                }
+                GameEvent::TogglePetWindow => {
+                    self.windows.pet_window.toggle();
+                }
+                _ => {}
+            }
+        }
     }
 }

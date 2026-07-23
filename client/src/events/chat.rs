@@ -51,7 +51,13 @@ impl App {
             .zip(message.split_once(" : "))
             .is_some_and(|(c, (sender, _))| sender == c.name);
         if is_own || !self.game.prefs.hide_public_chat {
-            self.windows.chat_window.add_chat(message);
+            if self.config.is_gm_account(gid) {
+                self.windows
+                    .chat_window
+                    .add_chat_colored(message, ragnarok_game::targeting::GM_TEXT_COLOR);
+            } else {
+                self.windows.chat_window.add_chat(message);
+            }
         }
     }
 
@@ -79,7 +85,20 @@ impl App {
                 .chat_room_member_window
                 .push_message(message.clone(), OWN_MSG_COLOR);
         }
-        self.windows.chat_window.add_own_chat(message);
+        let self_is_gm = self
+            .game
+            .world
+            .entities
+            .player_id()
+            .and_then(|id| self.game.world.entities.get(id))
+            .is_some_and(|e| e.is_gm);
+        if self_is_gm {
+            self.windows
+                .chat_window
+                .add_chat_colored(message, ragnarok_game::targeting::GM_TEXT_COLOR);
+        } else {
+            self.windows.chat_window.add_own_chat(message);
+        }
     }
 
     pub(super) fn handle_guild_chat_message(&mut self, message: String) {

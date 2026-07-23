@@ -115,6 +115,14 @@ pub struct Config {
     /// screens. Empty or all-missing falls back to the solid clear color.
     #[serde(default = "default_account_backgrounds")]
     pub account_backgrounds: Vec<String>,
+    /// Account ids treated as GM: their characters use the Operator body sprite
+    /// and render their name, guild name and chat in yellow.
+    #[serde(default)]
+    pub admin_account_ids: Vec<u32>,
+    /// When the local player is a GM (its account id is in `admin_account_ids`),
+    /// also render it as a GM to itself. Has no effect for non-GM accounts.
+    #[serde(default)]
+    pub see_self_as_gm_when_gm: bool,
 }
 
 fn default_account_backgrounds() -> Vec<String> {
@@ -170,6 +178,8 @@ impl Default for Config {
             keybindings: KeyBindings::defaults(),
             emotion_keys: EmotionKeys::default(),
             account_backgrounds: default_account_backgrounds(),
+            admin_account_ids: Vec::new(),
+            see_self_as_gm_when_gm: false,
         }
     }
 }
@@ -185,6 +195,10 @@ impl Config {
 
     pub fn font_px_height(&self) -> f32 {
         BASE_FONT_PX_HEIGHT
+    }
+
+    pub fn is_gm_account(&self, account_id: u32) -> bool {
+        self.admin_account_ids.contains(&account_id)
     }
 
     pub fn save(&self, path: &str) {

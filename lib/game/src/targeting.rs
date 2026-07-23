@@ -80,6 +80,9 @@ impl MapProperties {
 pub const EFFECT_STATE_PINK_NAME: i32 = 0x80000;
 pub const EFFECT_STATE_RED_NAME: i32 = 0x100000;
 
+/// Name, guild name and chat color for GM (admin) accounts.
+pub const GM_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
+
 pub fn pk_name_color(effect_state: i32) -> Option<[f32; 4]> {
     if effect_state & EFFECT_STATE_RED_NAME != 0 {
         Some([1.0, 0.0, 0.0, 1.0])

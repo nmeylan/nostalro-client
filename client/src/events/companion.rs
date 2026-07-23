@@ -1,4 +1,6 @@
 use crate::App;
+use ragnarok_game::cursor::PendingCompanionSkill;
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::event::{HomunculusProperty, MercenaryInfo, SkillInfo};
 
@@ -224,5 +226,57 @@ fn update_skill(
         s.sp_cost = sp_cost;
         s.attack_range = attack_range;
         s.upgradable = upgradable;
+    }
+}
+
+impl App {
+    pub(super) fn handle_request_companion_use_skill(
+        &mut self,
+        is_mercenary: bool,
+        skill_id: u16,
+        level: i16,
+    ) {
+        let companion = if is_mercenary {
+            self.game.companions.mercenary.as_ref().map(|m| (m.gid, &m.skills))
+        } else {
+            self.game.companions.homunculus.as_ref().map(|h| (h.gid, &h.skills))
+        };
+        let Some((gid, skills)) = companion else {
+            tracing::info!("RequestCompanionUseSkill: no companion present — dropped");
+            return;
+        };
+        let target_type = skills
+            .iter()
+            .find(|s| s.id == skill_id)
+            .map(|s| s.skill_target_type)
+            .unwrap_or(SkillTargetType::Target);
+        tracing::info!(
+            "RequestCompanionUseSkill: merc={is_mercenary} skill={skill_id} gid={gid} target_type={target_type:?}"
+        );
+        match target_type {
+            SkillTargetType::Target | SkillTargetType::Friend => {
+                self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
+                    is_mercenary,
+                    skill_id,
+                    level,
+                    is_ground: false,
+                });
+            }
+            SkillTargetType::Ground | SkillTargetType::Trap => {
+                self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
+                    is_mercenary,
+                    skill_id,
+                    level,
+                    is_ground: true,
+                });
+            }
+            _ => {
+                self.push_owner_command_to(
+                    is_mercenary,
+                    ragnarok_game::companion::OwnerCommand::skill_object(skill_id, level as u8, gid),
+                    self.input.shift_pressed,
+                );
+            }
+        }
     }
 }

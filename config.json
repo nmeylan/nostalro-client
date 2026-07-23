@@ -39,14 +39,6 @@
     "trace_texture_load": false
   },
   "window_state": {
-    "1300": {
-      "position": [
-        476.6667,
-        0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
     "1400": {
       "position": [
         0.0,
@@ -55,18 +47,10 @@
       "open": false,
       "collapsed": false
     },
-    "900": {
+    "1300": {
       "position": [
-        0.0,
-        192.23828
-      ],
-      "open": true,
-      "collapsed": false
-    },
-    "2900": {
-      "position": [
-        200.0,
-        120.0
+        476.6667,
+        0.0
       ],
       "open": false,
       "collapsed": false
@@ -87,7 +71,7 @@
     "hide_name_npc": false,
     "show_level_aura": true
   },
-  "last_char_slot": 1,
+  "last_char_slot": 0,
   "map_recovery_command": "@go prontera",
   "shortcut_commands": [
     "/rock",
@@ -102,98 +86,14 @@
     "/..."
   ],
   "keybindings": {
-    "ToggleSkillTree": {
-      "key": "KeyS",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleGuild": {
-      "key": "KeyG",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleHomunculus": {
-      "key": "KeyR",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "TogglePet": {
-      "key": "KeyJ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "MercenaryFollow": {
-      "key": "KeyT",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleCart": {
-      "key": "KeyW",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleQuest": {
-      "key": "KeyU",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleMercenary": {
-      "key": "KeyR",
-      "alt": false,
-      "ctrl": true,
-      "shift": false
-    },
-    "ToggleFriends": {
-      "key": "KeyH",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleEquipment": {
-      "key": "KeyQ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "SitStand": {
-      "key": "Insert",
-      "alt": false,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleInventory": {
-      "key": "KeyE",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
     "ToggleEmotion": {
       "key": "KeyL",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleShortcutList": {
-      "key": "KeyM",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleParty": {
-      "key": "KeyZ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleStatus": {
-      "key": "KeyA",
+    "ToggleFriends": {
+      "key": "KeyH",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -204,8 +104,92 @@
       "ctrl": false,
       "shift": false
     },
+    "ToggleCart": {
+      "key": "KeyW",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleHomunculus": {
+      "key": "KeyR",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleMercenary": {
+      "key": "KeyR",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
+    "ToggleChatRoomCreate": {
+      "key": "KeyC",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleEquipment": {
+      "key": "KeyQ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleShortcutList": {
+      "key": "KeyM",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleGuild": {
+      "key": "KeyG",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleParty": {
+      "key": "KeyZ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "MercenaryFollow": {
+      "key": "KeyT",
+      "alt": false,
+      "ctrl": true,
+      "shift": false
+    },
     "ToggleBasicInfo": {
       "key": "KeyV",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "TogglePet": {
+      "key": "KeyJ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleQuest": {
+      "key": "KeyU",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleInventory": {
+      "key": "KeyE",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleStatus": {
+      "key": "KeyA",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleGraphicOptions": {
+      "key": "KeyD",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -216,15 +200,15 @@
       "ctrl": true,
       "shift": false
     },
-    "ToggleGraphicOptions": {
-      "key": "KeyD",
+    "ToggleSkillTree": {
+      "key": "KeyS",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleChatRoomCreate": {
-      "key": "KeyC",
-      "alt": true,
+    "SitStand": {
+      "key": "Insert",
+      "alt": false,
       "ctrl": false,
       "shift": false
     }
@@ -234,5 +218,9 @@
     "data/texture/유저인터페이스/rag_title.bmp",
     "data/texture/유저인터페이스/rag_title2.bmp",
     "data/texture/유저인터페이스/rag_title3.bmp"
-  ]
+  ],
+  "admin_account_ids": [
+    2001100
+  ],
+  "see_self_as_gm_when_gm": true
 }
