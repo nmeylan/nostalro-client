@@ -35,7 +35,7 @@ pub mod minimap_window;
 pub mod my_shop_window;
 pub mod npc_dialog;
 pub mod npc_shop;
-pub mod number_input;
+pub mod input_dialog;
 pub mod party_friends_window;
 pub mod party_helper_window;
 pub mod pet_window;

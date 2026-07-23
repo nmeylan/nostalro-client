@@ -1,7 +1,7 @@
 use super::cart_window::CART_WINDOW_ID;
 use super::inventory_window::INV_WINDOW_ID;
 use super::inventory_window::{TAB_EQUIP_TEX, TAB_ETC_TEX, TAB_USABLE_TEX};
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
@@ -70,7 +70,7 @@ pub struct StorageWindow {
     close_size: (f32, f32),
     resize_start: Option<usize>,
     container: DialogContainer,
-    qty_dialog: Option<(PendingMove, NumberInputDialog)>,
+    qty_dialog: Option<(PendingMove, InputDialog)>,
 }
 
 impl Default for StorageWindow {
@@ -115,13 +115,14 @@ impl StorageWindow {
     }
 
     fn open_qty_dialog(&mut self, kind: PendingMove, max: i16) {
-        let mut dialog = NumberInputDialog::new(
-            NumberInputConfig {
+        let mut dialog = InputDialog::new(
+            InputDialogConfig {
                 label: None,
                 show_cancel: true,
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
+                numeric_only: true,
             },
             WidgetId(NUM_DIALOG_BASE),
         );
@@ -164,7 +165,7 @@ impl Window for StorageWindow {
             TAB_ETC_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
-        paths.extend(NumberInputDialog::grf_texture_paths());
+        paths.extend(InputDialog::grf_texture_paths());
         paths
     }
 }
@@ -437,7 +438,7 @@ impl InGameWindow for StorageWindow {
         let dialog_was_open = self.qty_dialog.is_some();
         if let Some((kind, dialog)) = &mut self.qty_dialog {
             match dialog.build(ui) {
-                NumberInputResult::Submitted => {
+                InputDialogResult::Submitted => {
                     let qty = dialog.value_i16().unwrap_or(0);
                     if qty > 0 {
                         match kind {
@@ -463,10 +464,10 @@ impl InGameWindow for StorageWindow {
                     }
                     self.qty_dialog = None;
                 }
-                NumberInputResult::Cancel => {
+                InputDialogResult::Cancel => {
                     self.qty_dialog = None;
                 }
-                NumberInputResult::None => {}
+                InputDialogResult::None => {}
             }
         }
 

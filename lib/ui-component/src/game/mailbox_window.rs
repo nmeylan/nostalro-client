@@ -1,5 +1,5 @@
 use super::inventory_window::INV_WINDOW_ID;
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::text_color;
 use crate::{BuildCtx, InGameWindow, Window};
@@ -111,7 +111,7 @@ pub struct MailboxWindow {
     body_input: TextInput,
     zeny_input: TextInput,
     container: DialogContainer,
-    amount_dialog: Option<(ComposeItem, NumberInputDialog)>,
+    amount_dialog: Option<(ComposeItem, InputDialog)>,
     last_mode: MailboxMode,
 }
 
@@ -170,7 +170,7 @@ impl Window for MailboxWindow {
             CANCEL_BTN.normal,
             CANCEL_BTN.hover,
         ];
-        paths.extend(NumberInputDialog::grf_texture_paths());
+        paths.extend(InputDialog::grf_texture_paths());
         paths
     }
 }
@@ -503,13 +503,14 @@ impl MailboxWindow {
                     identified: item.is_identified,
                 };
                 if count > 1 {
-                    let mut dialog = NumberInputDialog::new(
-                        NumberInputConfig {
+                    let mut dialog = InputDialog::new(
+                        InputDialogConfig {
                             label: None,
                             show_cancel: true,
                             escape_cancels: true,
                             default_value: count.to_string(),
                             max_len: 6,
+                            numeric_only: true,
                         },
                         AMOUNT_DIALOG_ID,
                     );
@@ -526,7 +527,7 @@ impl MailboxWindow {
         // Attachment amount dialog.
         if let Some((attach, dialog)) = &mut self.amount_dialog {
             match dialog.build(ui) {
-                NumberInputResult::Submitted => {
+                InputDialogResult::Submitted => {
                     let amount = dialog.value_i16().unwrap_or(0).max(0) as u32;
                     let mut attach = *attach;
                     let index = attach.inv_index;
@@ -538,8 +539,8 @@ impl MailboxWindow {
                         character.mail.compose.pending_item = Some(attach);
                     }
                 }
-                NumberInputResult::Cancel => self.amount_dialog = None,
-                NumberInputResult::None => {}
+                InputDialogResult::Cancel => self.amount_dialog = None,
+                InputDialogResult::None => {}
             }
         }
 

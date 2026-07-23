@@ -1,4 +1,4 @@
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
 use crate::{BuildCtx, InGameWindow, Window};
@@ -82,7 +82,7 @@ pub struct NpcDialog {
     pub movable: bool,
     pub dialog: NpcDialogData,
     pub string_input: TextInput,
-    number_input_dialog: Option<NumberInputDialog>,
+    number_input_dialog: Option<InputDialog>,
     btn_size: (f32, f32),
     container: DialogContainer,
     win_size: (f32, f32),
@@ -400,13 +400,14 @@ impl InGameWindow for NpcDialog {
 
         if state == NpcDialogState::WaitingForNumberInput {
             if self.number_input_dialog.is_none() {
-                let mut dialog = NumberInputDialog::new(
-                    NumberInputConfig {
+                let mut dialog = InputDialog::new(
+                    InputDialogConfig {
                         label: Some("Input number".to_string()),
                         show_cancel: false,
                         escape_cancels: false,
                         default_value: String::new(),
                         max_len: 10,
+                        numeric_only: true,
                     },
                     WidgetId(INPUT_ID.0),
                 );
@@ -415,7 +416,7 @@ impl InGameWindow for NpcDialog {
             }
             let dialog = self.number_input_dialog.as_mut().unwrap();
             dialog.init_container(&self.container);
-            if let NumberInputResult::Submitted = dialog.build(ui) {
+            if let InputDialogResult::Submitted = dialog.build(ui) {
                 let value: i32 = dialog.value_i32().unwrap_or(0);
                 events.push(GameEvent::RequestNpcInputNumber {
                     npc_id: self.dialog.npc_id,

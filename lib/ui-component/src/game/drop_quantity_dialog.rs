@@ -1,4 +1,4 @@
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -7,23 +7,24 @@ pub struct DropQuantityDialog {
     pub item_index: u16,
     pub max_count: i16,
     pub has_grf_textures: bool,
-    inner: NumberInputDialog,
+    inner: InputDialog,
 }
 
 impl DropQuantityDialog {
     pub fn new(item_index: u16, max_count: i16) -> Self {
-        let config = NumberInputConfig {
+        let config = InputDialogConfig {
             label: None,
             show_cancel: false,
             escape_cancels: true,
             default_value: max_count.to_string(),
             max_len: 6,
+            numeric_only: true,
         };
         Self {
             item_index,
             max_count,
             has_grf_textures: false,
-            inner: NumberInputDialog::new(config, WidgetId(421)),
+            inner: InputDialog::new(config, WidgetId(421)),
         }
     }
 }
@@ -34,7 +35,7 @@ impl InGameWindow for DropQuantityDialog {
         let _data = ctx.data;
         self.inner.has_grf_textures = self.has_grf_textures;
         match self.inner.build(ui) {
-            NumberInputResult::Submitted => {
+            InputDialogResult::Submitted => {
                 let qty: i16 = self.inner.value_i16().unwrap_or(0);
                 if qty > 0 && qty <= self.max_count {
                     vec![GameEvent::RequestDropItem {
@@ -45,8 +46,8 @@ impl InGameWindow for DropQuantityDialog {
                     vec![GameEvent::DialogClosed]
                 }
             }
-            NumberInputResult::Cancel => vec![GameEvent::DialogClosed],
-            NumberInputResult::None => vec![],
+            InputDialogResult::Cancel => vec![GameEvent::DialogClosed],
+            InputDialogResult::None => vec![],
         }
     }
 }
@@ -64,7 +65,7 @@ impl Window for DropQuantityDialog {
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        NumberInputDialog::grf_texture_paths()
+        InputDialog::grf_texture_paths()
     }
 }
 

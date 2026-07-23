@@ -1,4 +1,4 @@
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::colors::draw_price_right;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
@@ -86,7 +86,7 @@ pub struct VendingShopWindow {
     resize: Option<(WidgetId, f32, usize)>,
     btn_size: (f32, f32),
     container: DialogContainer,
-    qty_dialog: Option<NumberInputDialog>,
+    qty_dialog: Option<InputDialog>,
     pending_stage: Option<usize>,
 }
 
@@ -376,13 +376,14 @@ impl VendingShopWindow {
                 .map(|r| r.item.amount.max(0))
                 .unwrap_or(0);
             if stock > 1 {
-                let mut dialog = NumberInputDialog::new(
-                    NumberInputConfig {
+                let mut dialog = InputDialog::new(
+                    InputDialogConfig {
                         label: None,
                         show_cancel: true,
                         escape_cancels: true,
                         default_value: stock.to_string(),
                         max_len: 6,
+                        numeric_only: true,
                     },
                     WidgetId(NUM_DIALOG_BASE),
                 );
@@ -461,7 +462,7 @@ impl Window for VendingShopWindow {
         paths.push(ITEMWIN_MID_TEX);
         paths.push(RESIZE_HANDLE_TEX);
         paths.extend(scrollbar::grf_texture_paths());
-        paths.extend(NumberInputDialog::grf_texture_paths());
+        paths.extend(InputDialog::grf_texture_paths());
         paths
     }
 }
@@ -488,18 +489,18 @@ impl InGameWindow for VendingShopWindow {
 
         if let Some(dialog) = &mut self.qty_dialog {
             match dialog.build(ui) {
-                NumberInputResult::Submitted => {
+                InputDialogResult::Submitted => {
                     let qty = dialog.value_i16().unwrap_or(0);
                     if let Some(row_idx) = self.pending_stage.take() {
                         self.stage(row_idx, qty);
                     }
                     self.qty_dialog = None;
                 }
-                NumberInputResult::Cancel => {
+                InputDialogResult::Cancel => {
                     self.pending_stage = None;
                     self.qty_dialog = None;
                 }
-                NumberInputResult::None => {}
+                InputDialogResult::None => {}
             }
         }
 

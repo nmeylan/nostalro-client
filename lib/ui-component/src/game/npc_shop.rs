@@ -1,5 +1,5 @@
 use super::item_info_window::ITEM_INFO_WINDOW_ID;
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
 use crate::helper::window_chrome::{
@@ -64,7 +64,7 @@ const RESIZE_SIZE: f32 = 13.0;
 pub struct NpcShop {
     pub has_grf_textures: bool,
     pub shop: NpcShopData,
-    qty_popup: Option<(usize, NumberInputDialog)>,
+    qty_popup: Option<(usize, InputDialog)>,
     btn_size: (f32, f32),
     scroll_offset: usize,
     output_scroll_offset: usize,
@@ -683,13 +683,14 @@ impl NpcShop {
         let name = self.shop.item_name(item_idx);
         let price = self.shop.item_price(item_idx);
         let label = format!("{} ({}z)", name, format_thousands(price as i64));
-        let mut dialog = NumberInputDialog::new(
-            NumberInputConfig {
+        let mut dialog = InputDialog::new(
+            InputDialogConfig {
                 label: Some(label),
                 show_cancel: false,
                 escape_cancels: false,
                 default_value: "1".to_string(),
                 max_len: 6,
+                numeric_only: true,
             },
             WidgetId(QTY_INPUT_ID.0),
         );
@@ -703,17 +704,17 @@ impl NpcShop {
         dialog.init_container(&self.container);
 
         match dialog.build(ui) {
-            NumberInputResult::Submitted => {
+            InputDialogResult::Submitted => {
                 let qty: i16 = dialog.value_i16().unwrap_or(0);
                 if qty > 0 {
                     self.shop.add_to_cart(item_idx, qty);
                 }
                 self.qty_popup = None;
             }
-            NumberInputResult::Cancel => {
+            InputDialogResult::Cancel => {
                 self.qty_popup = None;
             }
-            NumberInputResult::None => {}
+            InputDialogResult::None => {}
         }
     }
 

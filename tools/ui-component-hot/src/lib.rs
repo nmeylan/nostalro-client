@@ -77,7 +77,7 @@ use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, Mercena
 use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
 use ragnarok_ui_component::game::npc_dialog::{NPC_DIALOG_WINDOW_ID, NpcDialog};
 use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
+use ragnarok_ui_component::game::input_dialog::{InputDialogConfig, InputDialog};
 use ragnarok_ui_component::game::party_friends_window::{
     PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow,
 };
@@ -216,7 +216,7 @@ enum State {
         open: bool,
     },
     NumberInput {
-        dialog: NumberInputDialog,
+        dialog: InputDialog,
     },
     ServerList {
         win: ServerListWindow,
@@ -747,13 +747,14 @@ fn create_single(name: &str) -> State {
             open: false,
         },
         "number_input" => State::NumberInput {
-            dialog: NumberInputDialog::new(
-                NumberInputConfig {
+            dialog: InputDialog::new(
+                InputDialogConfig {
                     label: Some("How many (max 99)?".to_string()),
                     show_cancel: false,
                     escape_cancels: true,
                     default_value: "99".to_string(),
                     max_len: 6,
+                    numeric_only: true,
                 },
                 WidgetId(950),
             ),

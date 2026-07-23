@@ -1,5 +1,5 @@
 use super::equipment_window::EQ_WINDOW_ID;
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
@@ -61,7 +61,7 @@ pub struct InventoryWindow {
     resize_start: Option<(usize, usize)>,
     minimized: bool,
     container: DialogContainer,
-    qty_dialog: Option<(u16, NumberInputDialog)>,
+    qty_dialog: Option<(u16, InputDialog)>,
 }
 
 impl Default for InventoryWindow {
@@ -88,13 +88,14 @@ impl InventoryWindow {
     /// Opens the "how many to retrieve" dialog for a cart→inventory drag of a
     /// stack; `index` is the cart slot.
     fn open_cart_qty_dialog(&mut self, index: u16, max: i16) {
-        let mut dialog = NumberInputDialog::new(
-            NumberInputConfig {
+        let mut dialog = InputDialog::new(
+            InputDialogConfig {
                 label: None,
                 show_cancel: true,
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
+                numeric_only: true,
             },
             WidgetId(NUM_DIALOG_BASE),
         );
@@ -163,7 +164,7 @@ impl Window for InventoryWindow {
             CLOSE_ON_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
-        paths.extend(NumberInputDialog::grf_texture_paths());
+        paths.extend(InputDialog::grf_texture_paths());
         paths
     }
 }
@@ -555,7 +556,7 @@ impl InGameWindow for InventoryWindow {
 
         if let Some((index, dialog)) = &mut self.qty_dialog {
             match dialog.build(ui) {
-                NumberInputResult::Submitted => {
+                InputDialogResult::Submitted => {
                     let qty = dialog.value_i16().unwrap_or(0);
                     if qty > 0 {
                         events.push(GameEvent::RequestMoveItemCartToBody {
@@ -565,10 +566,10 @@ impl InGameWindow for InventoryWindow {
                     }
                     self.qty_dialog = None;
                 }
-                NumberInputResult::Cancel => {
+                InputDialogResult::Cancel => {
                     self.qty_dialog = None;
                 }
-                NumberInputResult::None => {}
+                InputDialogResult::None => {}
             }
         }
 

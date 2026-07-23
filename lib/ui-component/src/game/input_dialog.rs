@@ -24,21 +24,22 @@ const PADDING_X: f32 = 12.0;
 const BTN_SPACING: f32 = 3.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NumberInputResult {
+pub enum InputDialogResult {
     None,
     Submitted,
     Cancel,
 }
 
-pub struct NumberInputConfig {
+pub struct InputDialogConfig {
     pub label: Option<String>,
     pub show_cancel: bool,
     pub escape_cancels: bool,
     pub default_value: String,
     pub max_len: usize,
+    pub numeric_only: bool,
 }
 
-pub struct NumberInputDialog {
+pub struct InputDialog {
     pub has_grf_textures: bool,
     input: TextInput,
     btn_size: (f32, f32),
@@ -54,9 +55,9 @@ const ID_OK: u32 = 1;
 const ID_CANCEL: u32 = 2;
 const ID_WINDOW: u32 = 3;
 
-impl NumberInputDialog {
-    pub fn new(config: NumberInputConfig, base_id: WidgetId) -> Self {
-        let mut input = TextInput::new(config.max_len, false).with_numeric_only(true);
+impl InputDialog {
+    pub fn new(config: InputDialogConfig, base_id: WidgetId) -> Self {
+        let mut input = TextInput::new(config.max_len, false).with_numeric_only(config.numeric_only);
         input.text = config.default_value;
         input.cursor_pos = input.text.chars().count();
         Self {
@@ -115,9 +116,9 @@ impl NumberInputDialog {
         WidgetId(self.base_id.0 + ID_CANCEL)
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) -> NumberInputResult {
+    pub fn build(&mut self, ui: &mut UiFrame) -> InputDialogResult {
         if self.escape_cancels && ui.ctx.key_escape {
-            return NumberInputResult::Cancel;
+            return InputDialogResult::Cancel;
         }
 
         let dw = DIALOG_W;
@@ -175,19 +176,19 @@ impl NumberInputDialog {
             let cancel_rect = Rect::new(btn_x + btn_w + BTN_SPACING, content_y - 2.0, btn_w, btn_h);
             let cancel = ui.button(self.cancel_id(), cancel_rect, &CANCEL_BTN, "Cancel");
             if cancel.clicked() {
-                return NumberInputResult::Cancel;
+                return InputDialogResult::Cancel;
             }
         }
 
         if ok.clicked() || ui.ctx.key_enter {
-            return NumberInputResult::Submitted;
+            return InputDialogResult::Submitted;
         }
 
-        NumberInputResult::None
+        InputDialogResult::None
     }
 }
 
-impl Window for NumberInputDialog {
+impl Window for InputDialog {
     fn has_grf_textures(&self) -> bool {
         self.has_grf_textures
     }
@@ -231,14 +232,15 @@ mod tests {
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
-    fn make_dialog(default_value: &str, show_cancel: bool) -> NumberInputDialog {
-        NumberInputDialog::new(
-            NumberInputConfig {
+    fn make_dialog(default_value: &str, show_cancel: bool) -> InputDialog {
+        InputDialog::new(
+            InputDialogConfig {
                 label: Some("How many?".to_string()),
                 show_cancel,
                 escape_cancels: true,
                 default_value: default_value.to_string(),
                 max_len: 6,
+                numeric_only: true,
             },
             WidgetId(900),
         )
@@ -251,7 +253,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), NumberInputResult::Submitted);
+        assert_eq!(dialog.build(&mut ui), InputDialogResult::Submitted);
         assert_eq!(dialog.value_str(), "5");
         assert_eq!(dialog.value_i16(), Some(5));
     }
@@ -263,7 +265,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), NumberInputResult::Cancel);
+        assert_eq!(dialog.build(&mut ui), InputDialogResult::Cancel);
     }
 
     #[test]
@@ -272,7 +274,7 @@ mod tests {
         let mut state = StateCache::new();
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &mut state);
-        assert_eq!(dialog.build(&mut ui), NumberInputResult::None);
+        assert_eq!(dialog.build(&mut ui), InputDialogResult::None);
     }
 
     #[test]

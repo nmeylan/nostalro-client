@@ -1,5 +1,5 @@
 use super::inventory_window::INV_WINDOW_ID;
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
@@ -49,7 +49,7 @@ pub struct CartWindow {
     scroll_offset: usize,
     minimized: bool,
     container: DialogContainer,
-    qty_dialog: Option<(PendingCartMove, NumberInputDialog)>,
+    qty_dialog: Option<(PendingCartMove, InputDialog)>,
 }
 
 impl Default for CartWindow {
@@ -70,13 +70,14 @@ impl CartWindow {
     }
 
     fn open_qty_dialog(&mut self, kind: PendingCartMove, max: i16) {
-        let mut dialog = NumberInputDialog::new(
-            NumberInputConfig {
+        let mut dialog = InputDialog::new(
+            InputDialogConfig {
                 label: None,
                 show_cancel: true,
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
+                numeric_only: true,
             },
             WidgetId(NUM_DIALOG_BASE),
         );
@@ -123,7 +124,7 @@ impl Window for CartWindow {
             CLOSE_ON_TEX,
         ];
         paths.extend(scrollbar::grf_texture_paths());
-        paths.extend(NumberInputDialog::grf_texture_paths());
+        paths.extend(InputDialog::grf_texture_paths());
         paths
     }
 }
@@ -374,7 +375,7 @@ impl InGameWindow for CartWindow {
 
         if let Some((kind, dialog)) = &mut self.qty_dialog {
             match dialog.build(ui) {
-                NumberInputResult::Submitted => {
+                InputDialogResult::Submitted => {
                     let qty = dialog.value_i16().unwrap_or(0);
                     if qty > 0 {
                         match kind {
@@ -394,10 +395,10 @@ impl InGameWindow for CartWindow {
                     }
                     self.qty_dialog = None;
                 }
-                NumberInputResult::Cancel => {
+                InputDialogResult::Cancel => {
                     self.qty_dialog = None;
                 }
-                NumberInputResult::None => {}
+                InputDialogResult::None => {}
             }
         }
 

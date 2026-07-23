@@ -1,4 +1,4 @@
-use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
+use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -11,24 +11,25 @@ pub struct GuildExpelDialog {
     pub gid: u32,
     pub name: String,
     pub has_grf_textures: bool,
-    inner: NumberInputDialog,
+    inner: InputDialog,
 }
 
 impl GuildExpelDialog {
     pub fn new(aid: u32, gid: u32, name: String) -> Self {
-        let config = NumberInputConfig {
+        let config = InputDialogConfig {
             label: Some(format!("Reason for expelling {name}:")),
             show_cancel: true,
             escape_cancels: true,
             default_value: String::new(),
             max_len: REASON_MAX_LEN,
+            numeric_only: false,
         };
         Self {
             aid,
             gid,
             name,
             has_grf_textures: false,
-            inner: NumberInputDialog::new(config, BASE_ID),
+            inner: InputDialog::new(config, BASE_ID),
         }
     }
 }
@@ -39,14 +40,14 @@ impl InGameWindow for GuildExpelDialog {
         let _data = ctx.data;
         self.inner.has_grf_textures = self.has_grf_textures;
         match self.inner.build(ui) {
-            NumberInputResult::Submitted => vec![GameEvent::ConfirmedGuildExpel {
+            InputDialogResult::Submitted => vec![GameEvent::ConfirmedGuildExpel {
                 aid: self.aid,
                 gid: self.gid,
                 name: self.name.clone(),
                 reason: self.inner.value_str().to_string(),
             }],
-            NumberInputResult::Cancel => vec![GameEvent::DialogClosed],
-            NumberInputResult::None => vec![],
+            InputDialogResult::Cancel => vec![GameEvent::DialogClosed],
+            InputDialogResult::None => vec![],
         }
     }
 }
@@ -64,7 +65,7 @@ impl Window for GuildExpelDialog {
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        NumberInputDialog::grf_texture_paths()
+        InputDialog::grf_texture_paths()
     }
 }
 
