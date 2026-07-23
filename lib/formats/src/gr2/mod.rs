@@ -119,7 +119,9 @@ impl Gr2Container {
         };
 
         if total_size != bytes.len() {
-            return Err(FormatError::DecompressionFailed("gr2: size mismatch".into()));
+            return Err(FormatError::DecompressionFailed(
+                "gr2: size mismatch".into(),
+            ));
         }
 
         let crc_start = HEADER_SIZE + file_info_size;
@@ -203,7 +205,9 @@ fn apply_fixups(
             let dst_sector = read_u32(bytes, base + 4)? as usize;
             let dst_offset = read_u32(bytes, base + 8)? as usize;
             if dst_sector >= sector_offsets.len() {
-                return Err(FormatError::DecompressionFailed("gr2: bad fixup sector".into()));
+                return Err(FormatError::DecompressionFailed(
+                    "gr2: bad fixup sector".into(),
+                ));
             }
             let target = (sector_offsets[dst_sector] + dst_offset) as u32;
             let at = sector_offsets[i] + src_offset;

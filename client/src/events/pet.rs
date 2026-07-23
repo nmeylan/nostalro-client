@@ -67,10 +67,11 @@ impl App {
         let hunger = self.game.companions.pet.hunger_state().index();
         let friendly = self.game.companions.pet.intimacy_state().index();
         if let Some(emote) = ragnarok_game::pet_tables::pet_emotion(hunger, friendly, act) {
-            self.channel.send_packet(ragnarok_network::build_pet_act_packet(
-                emote as i32,
-                self.active_packetver,
-            ));
+            self.channel
+                .send_packet(ragnarok_network::build_pet_act_packet(
+                    emote as i32,
+                    self.active_packetver,
+                ));
         }
     }
 
@@ -105,14 +106,9 @@ impl App {
         if self.game.companions.capture_targeting {
             if let Some(entity_id) = self.game.hover.hovered_entity_id
                 && self.game.companions.pet.gid != Some(entity_id)
-                && self
-                    .game
-                    .world
-                    .entities
-                    .get(entity_id)
-                    .is_some_and(|e| {
-                        e.entity_type == ragnarok_game::entity::EntityType::Monster && !e.is_pet
-                    })
+                && self.game.world.entities.get(entity_id).is_some_and(|e| {
+                    e.entity_type == ragnarok_game::entity::EntityType::Monster && !e.is_pet
+                })
             {
                 self.open_capture_roulette(entity_id);
             }
@@ -190,7 +186,10 @@ impl App {
     pub(super) fn handle_pet_act(&mut self, gid: u32, data: i32) {
         let Some(code) = ragnarok_game::pet::decode_pet_talk(data) else {
             // Plain emotion id.
-            self.game.world.entities.apply_entity_emotion(gid, data as u8);
+            self.game
+                .world
+                .entities
+                .apply_entity_emotion(gid, data as u8);
             return;
         };
         // Talk line: resolve a random sentence from pettalktable.xml, keyed by the
@@ -246,7 +245,10 @@ impl App {
 impl App {
     pub(super) fn handle_request_pet_command(&mut self, csub: i8) {
         self.channel
-            .send_packet(ragnarok_network::build_command_pet_packet(csub, self.active_packetver));
+            .send_packet(ragnarok_network::build_command_pet_packet(
+                csub,
+                self.active_packetver,
+            ));
         // The window opens on this explicit request, not on the
         // incoming property packet (which also arrives unsolicited).
         if csub == 0 {

@@ -298,7 +298,9 @@ impl SpritePreview {
             action => {
                 let anim_path = animation_file_path(bone_type?, action)?;
                 let bytes = grf.read_file(&anim_path).ok()?;
-                let anim = Gr2Container::parse(&bytes).and_then(|c| Gr2File::parse(&c)).ok()?;
+                let anim = Gr2Container::parse(&bytes)
+                    .and_then(|c| Gr2File::parse(&c))
+                    .ok()?;
                 AnimationClip::from_gr2(&anim, 0)
             }
         });
@@ -400,10 +402,14 @@ impl SpritePreview {
             .strip_suffix(".str")
             .unwrap_or(&lower)
             .to_string();
-        if self
-            .str_cache
-            .load(&name, &[], grf, &mut self.tex_cache, &self.device, &self.queue)
-        {
+        if self.str_cache.load(
+            &name,
+            &[],
+            grf,
+            &mut self.tex_cache,
+            &self.device,
+            &self.queue,
+        ) {
             self.str_name = Some(name);
             self.content = Content::Str;
         } else {
@@ -428,8 +434,10 @@ impl SpritePreview {
 
         if matches!(self.content, Content::Model | Content::Gr2) {
             self.frame_model_camera(matches!(self.content, Content::Gr2));
-            self.global_uniforms.update_camera(&self.queue, &self.camera);
-            self.global_uniforms.update_light(&self.queue, &model_light());
+            self.global_uniforms
+                .update_camera(&self.queue, &self.camera);
+            self.global_uniforms
+                .update_light(&self.queue, &model_light());
         }
         if matches!(self.content, Content::Gr2) {
             if let (Some(gr2), Some(pose)) = (&self.gr2, &self.gr2_pose) {
@@ -503,16 +511,14 @@ impl SpritePreview {
                                 store: wgpu::StoreOp::Store,
                             },
                         })],
-                        depth_stencil_attachment: Some(
-                            wgpu::RenderPassDepthStencilAttachment {
-                                view: &self.depth_view,
-                                depth_ops: Some(wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(1.0),
-                                    store: wgpu::StoreOp::Store,
-                                }),
-                                stencil_ops: None,
-                            },
-                        ),
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &self.depth_view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
                         ..Default::default()
                     });
                     model.render(&mut pass, &self.global_uniforms, &self.tex_cache);
@@ -600,7 +606,12 @@ impl SpritePreview {
     /// Render a single still thumbnail (`size`×`size`) for a sprite or STR
     /// effect without disturbing the live single-file preview state. Used by the
     /// gallery grid. Returns `None` if the asset fails to load.
-    pub fn thumbnail(&mut self, grf: &GrfArchive, path: &str, size: u32) -> Option<egui::ColorImage> {
+    pub fn thumbnail(
+        &mut self,
+        grf: &GrfArchive,
+        path: &str,
+        size: u32,
+    ) -> Option<egui::ColorImage> {
         self.sprite_renderer.update_uniforms(
             &self.queue,
             &SpriteUniforms {
@@ -675,10 +686,14 @@ impl SpritePreview {
             .strip_suffix(".str")
             .unwrap_or(&lower)
             .to_string();
-        if !self
-            .str_cache
-            .load(&name, &[], grf, &mut self.tex_cache, &self.device, &self.queue)
-        {
+        if !self.str_cache.load(
+            &name,
+            &[],
+            grf,
+            &mut self.tex_cache,
+            &self.device,
+            &self.queue,
+        ) {
             return None;
         }
         // Sample mid-animation — STR effects are usually empty at t=0.
@@ -736,8 +751,10 @@ impl SpritePreview {
         self.zoom = 1.0;
         self.frame_model_camera(false);
         self.zoom = saved_zoom;
-        self.global_uniforms.update_camera(&self.queue, &self.camera);
-        self.global_uniforms.update_light(&self.queue, &model_light());
+        self.global_uniforms
+            .update_camera(&self.queue, &self.camera);
+        self.global_uniforms
+            .update_light(&self.queue, &model_light());
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
@@ -794,8 +811,10 @@ impl SpritePreview {
         self.zoom = 1.0;
         self.frame_model_camera(true);
         self.zoom = saved_zoom;
-        self.global_uniforms.update_camera(&self.queue, &self.camera);
-        self.global_uniforms.update_light(&self.queue, &model_light());
+        self.global_uniforms
+            .update_camera(&self.queue, &self.camera);
+        self.global_uniforms
+            .update_light(&self.queue, &model_light());
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
@@ -825,13 +844,7 @@ impl SpritePreview {
         Some(self.finish_read(encoder))
     }
 
-    pub fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        grf: &GrfArchive,
-        spr_path: &str,
-        file_idx: usize,
-    ) {
+    pub fn show(&mut self, ui: &mut egui::Ui, grf: &GrfArchive, spr_path: &str, file_idx: usize) {
         if self.cached_file_idx != Some(file_idx) {
             self.load(grf, spr_path, file_idx);
         }
@@ -1034,8 +1047,10 @@ impl SpritePreview {
             let side = avail.x.min(avail.y).min(CANVAS as f32).max(64.0);
             let hovered = ui
                 .vertical_centered(|ui| {
-                    let response =
-                        ui.image(egui::load::SizedTexture::new(tex_id, egui::vec2(side, side)));
+                    let response = ui.image(egui::load::SizedTexture::new(
+                        tex_id,
+                        egui::vec2(side, side),
+                    ));
                     if let Some(status) = &status {
                         ui.label(status);
                     }
@@ -1060,7 +1075,10 @@ impl SpritePreview {
         if avail.is_empty() {
             return;
         }
-        let cur = avail.iter().position(|&i| i == self.gr2_action).unwrap_or(0) as i32;
+        let cur = avail
+            .iter()
+            .position(|&i| i == self.gr2_action)
+            .unwrap_or(0) as i32;
         let next = (cur + delta).rem_euclid(avail.len() as i32) as usize;
         self.gr2_action = avail[next];
         self.gr2_time = 0.0;
@@ -1162,10 +1180,13 @@ mod tests {
 
     #[test]
     fn gr2_thumbnail_renders_geometry() {
-        let Some(grf_path) = ["data/data.grf", "../../data/data.grf", "../../../../data/data.grf"]
-            .iter()
-            .find(|p| Path::new(p).exists())
-        else {
+        let Some(grf_path) = [
+            "data/data.grf",
+            "../../data/data.grf",
+            "../../../../data/data.grf",
+        ]
+        .iter()
+        .find(|p| Path::new(p).exists()) else {
             eprintln!("skipping: data.grf not found");
             return;
         };
@@ -1181,11 +1202,17 @@ mod tests {
 
         let first = image.pixels[0];
         let varied = image.pixels.iter().any(|p| *p != first);
-        assert!(varied, "gr2 thumbnail is a flat frame — model did not render");
+        assert!(
+            varied,
+            "gr2 thumbnail is a flat frame — model did not render"
+        );
 
         preview.load_gr2(&grf, "data/model/3dmob/kguardian90_7.gr2");
         assert!(preview.error.is_none(), "{:?}", preview.error);
         let actions = preview.gr2_clips.iter().filter(|c| c.is_some()).count();
-        assert!(actions > 1, "guardian should load external action clips, got {actions}");
+        assert!(
+            actions > 1,
+            "guardian should load external action clips, got {actions}"
+        );
     }
 }

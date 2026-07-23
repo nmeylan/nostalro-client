@@ -227,11 +227,8 @@ impl<'a> UiFrame<'a> {
         initial_focus: Option<WidgetId>,
         saved_positions: &'a HashMap<u32, [f32; 2]>,
     ) -> Self {
-        let focus = initial_focus.or_else(|| {
-            state
-                .get::<FocusState>(FOCUS_STATE_ID)
-                .and_then(|f| f.0)
-        });
+        let focus =
+            initial_focus.or_else(|| state.get::<FocusState>(FOCUS_STATE_ID).and_then(|f| f.0));
         Self {
             ctx,
             atlas,
@@ -647,7 +644,13 @@ impl<'a> UiFrame<'a> {
                 });
             };
             fill(rect.x, rect.y, rect.w, rect.h, [0.6, 0.6, 0.65, 1.0]);
-            fill(rect.x + 1.0, rect.y + 1.0, rect.w - 2.0, rect.h - 2.0, [1.0, 1.0, 1.0, 1.0]);
+            fill(
+                rect.x + 1.0,
+                rect.y + 1.0,
+                rect.w - 2.0,
+                rect.h - 2.0,
+                [1.0, 1.0, 1.0, 1.0],
+            );
             if checked {
                 fill(
                     rect.x + 2.0,
@@ -801,7 +804,14 @@ impl<'a> UiFrame<'a> {
         self.text(x, y, &bold, color);
     }
 
-    pub fn text_with_shadow(&mut self, x: f32, y: f32, content: &str, color: [f32; 4], shadow: Option<[f32; 4]>) {
+    pub fn text_with_shadow(
+        &mut self,
+        x: f32,
+        y: f32,
+        content: &str,
+        color: [f32; 4],
+        shadow: Option<[f32; 4]>,
+    ) {
         if let Some(shadow) = shadow {
             self.text(x + 1.0, y, content, shadow);
         }
@@ -864,7 +874,8 @@ impl<'a> UiFrame<'a> {
 
     pub fn set_focus(&mut self, id: WidgetId) {
         self.focus = Some(id);
-        self.state.set::<FocusState>(FOCUS_STATE_ID, FocusState(Some(id)));
+        self.state
+            .set::<FocusState>(FOCUS_STATE_ID, FocusState(Some(id)));
     }
 
     pub fn focused(&self) -> Option<WidgetId> {
@@ -955,8 +966,22 @@ impl<'a> UiFrame<'a> {
                 texture: TextureRef::White,
             });
         };
-        push_rect(self, rect.x, track_y, rect.w, track_h, [0.2, 0.2, 0.28, 1.0]);
-        push_rect(self, rect.x, track_y, knob_x - rect.x, track_h, [0.45, 0.55, 0.8, 1.0]);
+        push_rect(
+            self,
+            rect.x,
+            track_y,
+            rect.w,
+            track_h,
+            [0.2, 0.2, 0.28, 1.0],
+        );
+        push_rect(
+            self,
+            rect.x,
+            track_y,
+            knob_x - rect.x,
+            track_h,
+            [0.45, 0.55, 0.8, 1.0],
+        );
         let knob_c = if resp.hovered || resp.dragging {
             [0.85, 0.9, 1.0, 1.0]
         } else {
@@ -1483,7 +1508,12 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
 
-        ui.button(WidgetId(1), Rect::new(10.0, 10.0, 60.0, 20.0), &textures, "OK");
+        ui.button(
+            WidgetId(1),
+            Rect::new(10.0, 10.0, 60.0, 20.0),
+            &textures,
+            "OK",
+        );
 
         assert!(!ui.draw_calls.is_empty());
         assert!(

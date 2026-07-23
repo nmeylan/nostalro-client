@@ -183,7 +183,10 @@ impl<'a> Nav<'a> {
     }
 
     fn array(&self, slot: usize) -> Result<(usize, usize), FormatError> {
-        Ok((self.i32(slot)?.max(0) as usize, self.u32(slot + 4)? as usize))
+        Ok((
+            self.i32(slot)?.max(0) as usize,
+            self.u32(slot + 4)? as usize,
+        ))
     }
 
     fn variant_array(&self, slot: usize) -> Result<(usize, usize, usize), FormatError> {
@@ -200,11 +203,15 @@ fn find<'f>(fields: &'f [Field], name: &str) -> Option<&'f Field> {
 }
 
 fn i32_field(nav: &Nav, fields: &[Field], name: &str) -> i32 {
-    find(fields, name).and_then(|f| nav.i32(f.slot).ok()).unwrap_or(0)
+    find(fields, name)
+        .and_then(|f| nav.i32(f.slot).ok())
+        .unwrap_or(0)
 }
 
 fn f32_field(nav: &Nav, fields: &[Field], name: &str) -> f32 {
-    find(fields, name).and_then(|f| nav.f32(f.slot).ok()).unwrap_or(0.0)
+    find(fields, name)
+        .and_then(|f| nav.f32(f.slot).ok())
+        .unwrap_or(0.0)
 }
 
 fn string_field(nav: &Nav, fields: &[Field], name: &str) -> String {
@@ -412,8 +419,7 @@ impl Gr2File {
         // references between collections store a target's file offset, which we
         // resolve to an array index through `offset_index` maps below.
         let (textures, texture_offs) = parse_array(&nav, &root, "Textures", parse_texture)?;
-        let (materials, material_offs) =
-            parse_array(&nav, &root, "Materials", parse_material_raw)?;
+        let (materials, material_offs) = parse_array(&nav, &root, "Materials", parse_material_raw)?;
         let (skeletons, skeleton_offs) = parse_array(&nav, &root, "Skeletons", parse_skeleton)?;
         let (vertex_datas, vertex_data_offs) =
             parse_array(&nav, &root, "VertexDatas", parse_vertex_data)?;
@@ -442,8 +448,7 @@ impl Gr2File {
         // texture; they inherit it through a referenced map. A material's map may
         // itself be such a parent, so iterate to a fixed point to follow chains.
         for _ in 0..4 {
-            let snapshot: Vec<Option<usize>> =
-                materials.iter().map(|m| m.texture_index).collect();
+            let snapshot: Vec<Option<usize>> = materials.iter().map(|m| m.texture_index).collect();
             let mut changed = false;
             for (m, refs) in materials.iter_mut().zip(&material_refs) {
                 if m.texture_index.is_none() {
@@ -463,7 +468,9 @@ impl Gr2File {
         let meshes = meshes
             .into_iter()
             .map(|(mut mesh, refs)| {
-                mesh.vertex_data_index = refs.vertex_data.and_then(|o| vertex_data_index.get(&o).copied());
+                mesh.vertex_data_index = refs
+                    .vertex_data
+                    .and_then(|o| vertex_data_index.get(&o).copied());
                 mesh.topology_index = refs.topology.and_then(|o| topology_index.get(&o).copied());
                 mesh.material_indices = refs
                     .materials
@@ -686,9 +693,11 @@ fn parse_vertex_data(nav: &Nav, type_off: usize, obj: usize) -> Result<Gr2Vertex
                 let read3 = |o: Option<usize>| -> Result<[f32; 3], FormatError> {
                     match o {
                         None => Ok([0.0; 3]),
-                        Some(o) => {
-                            Ok([nav.f32(base + o)?, nav.f32(base + o + 4)?, nav.f32(base + o + 8)?])
-                        }
+                        Some(o) => Ok([
+                            nav.f32(base + o)?,
+                            nav.f32(base + o + 4)?,
+                            nav.f32(base + o + 8)?,
+                        ]),
                     }
                 };
                 let mut uv2 = [0.0f32; 2];

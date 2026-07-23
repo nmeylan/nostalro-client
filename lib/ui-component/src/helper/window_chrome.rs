@@ -119,7 +119,6 @@ pub fn text_color(_has_grf: bool) -> [f32; 4] {
     [0.0, 0.0, 0.0, 1.0]
 }
 
-
 /// Dark navy blue used for field labels (Name/HP/SP/stat names) in info windows.
 pub fn label_color(has_grf: bool) -> [f32; 4] {
     if has_grf {
@@ -135,7 +134,15 @@ pub fn draw_hline(ui: &mut UiFrame, x: f32, y: f32, w: f32) {
 
 /// Thin flat EXP-style bar (gray border, white fill area, blue fill) matching the
 /// character info window's exp gauge.
-pub fn draw_exp_bar(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, fill_pct: f32, has_grf: bool) {
+pub fn draw_exp_bar(
+    ui: &mut UiFrame,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    fill_pct: f32,
+    has_grf: bool,
+) {
     if has_grf {
         push_quad(ui, x, y, w + 2.0, h + 2.0, [0.69, 0.69, 0.69, 1.0]);
         push_quad(ui, x + 1.0, y + 1.0, w, h, [1.0; 4]);

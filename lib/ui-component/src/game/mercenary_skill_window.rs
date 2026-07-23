@@ -1,10 +1,10 @@
-use crate::{BuildCtx, InGameWindow, Window};
 use crate::game::homun_skill_window::draw_companion_skill_tooltip;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::MercenaryState;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
@@ -95,7 +95,14 @@ impl MercenarySkillWindow {
         let mut events = Vec::new();
         let tc = text_color(grf);
 
-        let win = ui.window_at(MERCENARY_SKILL_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 240.0, 340.0);
+        let win = ui.window_at(
+            MERCENARY_SKILL_WINDOW_ID,
+            WIN_W,
+            WIN_H,
+            TITLE_H,
+            240.0,
+            340.0,
+        );
         let x = win.x;
         let y = win.y;
         ui.interact(MERCENARY_SKILL_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
@@ -216,7 +223,10 @@ impl MercenarySkillWindow {
                 level: skill.level,
             });
         }
-        if ui.button(FOOTER_CLOSE_BTN_ID, close_footer, &CLOSE_BTN, "close").clicked() {
+        if ui
+            .button(FOOTER_CLOSE_BTN_ID, close_footer, &CLOSE_BTN, "close")
+            .clicked()
+        {
             self.visible = false;
         }
 

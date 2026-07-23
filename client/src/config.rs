@@ -186,11 +186,19 @@ impl Default for Config {
 
 impl Config {
     pub fn effective_bgm_volume(&self) -> f32 {
-        if self.bgm_enabled { self.bgm_volume } else { 0.0 }
+        if self.bgm_enabled {
+            self.bgm_volume
+        } else {
+            0.0
+        }
     }
 
     pub fn effective_sfx_volume(&self) -> f32 {
-        if self.sfx_enabled { self.sfx_volume } else { 0.0 }
+        if self.sfx_enabled {
+            self.sfx_volume
+        } else {
+            0.0
+        }
     }
 
     pub fn font_px_height(&self) -> f32 {

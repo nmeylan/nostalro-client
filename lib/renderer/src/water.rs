@@ -75,7 +75,11 @@ impl WaterRenderer {
         let wave_speed = water.wave_speed.unwrap_or(2.0);
         let wave_pitch = water.wave_pitch.unwrap_or(50.0);
         let anim_speed = water.anim_speed.unwrap_or(3) as f32;
-        let opacity = if water_type == 4 || water_type == 6 { 1.0 } else { 0.6 };
+        let opacity = if water_type == 4 || water_type == 6 {
+            1.0
+        } else {
+            0.6
+        };
 
         let texture_names: Vec<String> = (0..WATER_FRAMES)
             .map(|i| {

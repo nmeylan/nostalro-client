@@ -1,28 +1,28 @@
 use crate::App;
-use ragnarok_game::cursor::PendingSkillTarget;
-use ragnarok_game::skill::SkillTargetType;
-use ragnarok_game::sprite_path::hide_allows_skill;
-use ragnarok_network::build_use_skill_packet;
+use models::enums::EnumWithStringValue;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
-use models::enums::EnumWithStringValue;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
+use ragnarok_game::autocounter;
+use ragnarok_game::cursor::PendingSkillTarget;
+use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
     is_trail_effect, potion_throw_index, target_skill_effects, trail_arrival_secs,
 };
-use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::entity::ChatBubbleState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
 use ragnarok_game::sound::tables::{
     SkillSoundPos, skill_cast_begin_sound, skill_projectile_sound, skill_use_sound,
 };
-use ragnarok_game::autocounter;
-use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
+use ragnarok_game::sprite_path::hide_allows_skill;
 use ragnarok_network::build_change_direction_packet;
+use ragnarok_network::build_use_skill_packet;
 
 /// AL_HEAL's green heal sparkle size by healed amount, matching the original
 /// game's thresholds (the tiniest and largest heals share the biggest sparkle).
@@ -65,13 +65,15 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .session.server_time
+            .session
+            .server_time
             .observe_server_tick(start_time, local_ms);
         // Server timeline anchor (in the past by ~half-RTT): all skill timings derive from
         // when the cast actually resolved on the server, not from the late arrival here.
         let now = self
             .game
-            .session.server_time
+            .session
+            .server_time
             .server_to_local_secs_clamped(start_time, local_ms);
         let local_now = local_ms as f32 / 1000.0;
         let age = (local_now - now).max(0.0);
@@ -419,7 +421,10 @@ impl App {
     const PROJECTILE_CHEST_LIFT: f32 = 10.0;
 
     fn skill_trail_endpoints(&self, src_gid: u32, target_gid: u32) -> Option<([f32; 3], [f32; 3])> {
-        let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
+        let (gat, coords) = (
+            self.game.session.gat.as_ref()?,
+            self.game.session.map_coords.as_ref()?,
+        );
         let cell_world = |gid: u32| {
             let (cx, cy) = self.game.world.entities.get(gid)?.movement.cell_position();
             let (wx, _, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
@@ -525,7 +530,9 @@ impl App {
                     self.effect_queue
                         .spawn_trail_with_count(*e, from, to, potion);
                 }
-                Some((from, to)) if is_trail_effect(*e) => self.effect_queue.spawn_trail(*e, from, to),
+                Some((from, to)) if is_trail_effect(*e) => {
+                    self.effect_queue.spawn_trail(*e, from, to)
+                }
                 _ => self.effect_queue.spawn_on(*e, src_gid),
             }
         }
@@ -539,7 +546,9 @@ impl App {
                 *e
             };
             match trail {
-                Some((from, to)) if is_trail_effect(e) => self.effect_queue.spawn_trail(e, from, to),
+                Some((from, to)) if is_trail_effect(e) => {
+                    self.effect_queue.spawn_trail(e, from, to)
+                }
                 _ => self.effect_queue.spawn_on(e, target_gid),
             }
         }
@@ -554,12 +563,15 @@ impl App {
         // WE_FEMALE ("I Look up to You") restores partner SP: a light-blue rising
         // recovery number.
         if skill == SkillEnum::WeFemale && level > 0 {
-            self.game.combat.damage_numbers.add(DamageNumber::effect_number(
-                target_gid,
-                level as i32,
-                [85.0 / 255.0, 177.0 / 255.0, 255.0 / 255.0],
-                0,
-            ));
+            self.game
+                .combat
+                .damage_numbers
+                .add(DamageNumber::effect_number(
+                    target_gid,
+                    level as i32,
+                    [85.0 / 255.0, 177.0 / 255.0, 255.0 / 255.0],
+                    0,
+                ));
         }
         self.spawn_wedding_balloon(skill, src_gid, target_gid);
         if skill == SkillEnum::WeCallpartner {
@@ -604,11 +616,7 @@ impl App {
         }
     }
 
-    fn queue_skill_sound(
-        &mut self,
-        sound: Option<(&'static str, SkillSoundPos)>,
-        target_gid: u32,
-    ) {
+    fn queue_skill_sound(&mut self, sound: Option<(&'static str, SkillSoundPos)>, target_gid: u32) {
         let Some((wav, pos)) = sound else { return };
         match pos {
             SkillSoundPos::NonPositional => self.sound_queue.ui(wav),
@@ -634,10 +642,12 @@ impl App {
             self.game.combat.last_attacked_enemy,
             attack_target,
         );
-        self.game
-            .world
-            .entities
-            .apply_autocounter_channel(gid, params.face, skill_id, params.duration);
+        self.game.world.entities.apply_autocounter_channel(
+            gid,
+            params.face,
+            skill_id,
+            params.duration,
+        );
         if is_player
             && params.face.is_some()
             && let Some(dir) = self.game.world.entities.player().map(|e| e.direction)
@@ -664,7 +674,8 @@ impl App {
         {
             return;
         }
-        self.effect_queue.spawn_on(EffectId::Autocounter, player_gid);
+        self.effect_queue
+            .spawn_on(EffectId::Autocounter, player_gid);
     }
 
     pub(super) fn spawn_ground_skill_effects(
@@ -680,8 +691,10 @@ impl App {
         if effects.is_empty() {
             return;
         }
-        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
-        else {
+        let (Some(gat), Some(coords)) = (
+            self.game.session.gat.as_ref(),
+            self.game.session.map_coords.as_ref(),
+        ) else {
             return;
         };
         let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);

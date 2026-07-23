@@ -169,11 +169,7 @@ impl Window for InventoryWindow {
 }
 
 impl InGameWindow for InventoryWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
         if !character.inventory.is_open() {
@@ -506,7 +502,14 @@ impl InGameWindow for InventoryWindow {
 
             if !grf {
                 let active = character.inventory.active_tab == *tab;
-                crate::helper::fallback::cell(ui, tab_x, ty, tab_img_w, tab_btn_h, active || resp.hovered());
+                crate::helper::fallback::cell(
+                    ui,
+                    tab_x,
+                    ty,
+                    tab_img_w,
+                    tab_btn_h,
+                    active || resp.hovered(),
+                );
                 let tw = ui.atlas.measure_text(label);
                 ui.text(
                     tab_x + (tab_img_w - tw) / 2.0,
@@ -555,7 +558,10 @@ impl InGameWindow for InventoryWindow {
                 NumberInputResult::Submitted => {
                     let qty = dialog.value_i16().unwrap_or(0);
                     if qty > 0 {
-                        events.push(GameEvent::RequestMoveItemCartToBody { index: *index, count: qty });
+                        events.push(GameEvent::RequestMoveItemCartToBody {
+                            index: *index,
+                            count: qty,
+                        });
                     }
                     self.qty_dialog = None;
                 }

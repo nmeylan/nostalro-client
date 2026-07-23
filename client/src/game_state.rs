@@ -3,35 +3,35 @@ use std::rc::Rc;
 
 use crate::config::WindowStateEntry;
 use crate::ui::windows::Windows;
+use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::banner::BannerState;
-use ragnarok_game::poptip::PoptipStack;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
+use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::cursor::{
     CursorAnimationState, CursorType, PendingCompanionSkill, PendingSkillTarget,
 };
 use ragnarok_game::damage_number::DamageNumberManager;
-use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity_collection::EntityCollection;
-use models::enums::effect_id::EffectId;
-use ragnarok_game::gr2_model::Gr2ModelInstance;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
-use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::floor_item::FloorItem;
-use ragnarok_game::companion::{HomunculusState, MercenaryState};
-use ragnarok_game::pet::PetState;
-use ragnarok_game::quest::{QuestLog, QuestMarker};
-use ragnarok_formats::map_coordinates::MapCoordinates;
+use ragnarok_game::gr2_model::Gr2ModelInstance;
 use ragnarok_game::party::Party;
+use ragnarok_game::pet::PetState;
+use ragnarok_game::poptip::PoptipStack;
+use ragnarok_game::quest::{QuestLog, QuestMarker};
 use ragnarok_game::server_time::ServerTimeClock;
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::session::Session;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
@@ -445,7 +445,6 @@ pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
 pub(crate) const TOKEN_OF_SIEGFRIED: u16 = 7621;
 
 impl GameState {
-
     /// Resolves a skill's cast metadata `(target type, attack range)` from the
     /// player's skills first, then the mercenary's, then the homunculus'.
     /// Companion skill IDs live in their own ranges, so the lookup order is
@@ -704,7 +703,10 @@ mod trade_request_tests {
 
         assert!(!game.begin_trade_request(&mut windows, "Alice".to_string(), 42, false));
         assert_eq!(game.pending_confirms.pending_trade_request, Some(42));
-        assert_eq!(game.pending_confirms.pending_trade_partner, Some((42, "Alice".to_string())));
+        assert_eq!(
+            game.pending_confirms.pending_trade_partner,
+            Some((42, "Alice".to_string()))
+        );
         assert!(windows.confirm_dialog.state.is_some());
     }
 }
@@ -719,19 +721,29 @@ mod pending_confirms_tests {
         let mut windows = Windows::new();
 
         game.arm_confirm(&mut windows, "Join party?", |accept| {
-            Some(GameEvent::RespondPartyInvite { party_grid: 7, accept })
+            Some(GameEvent::RespondPartyInvite {
+                party_grid: 7,
+                accept,
+            })
         });
         assert!(windows.confirm_dialog.state.is_some());
         assert!(matches!(
             game.pending_confirms.dispatch(ConfirmResult::Ok),
-            Some(GameEvent::RespondPartyInvite { party_grid: 7, accept: true })
+            Some(GameEvent::RespondPartyInvite {
+                party_grid: 7,
+                accept: true
+            })
         ));
         assert!(game.pending_confirms.dispatch(ConfirmResult::Ok).is_none());
 
         game.arm_confirm(&mut windows, "Feed pet?", |accept| {
             accept.then_some(GameEvent::RequestPetCommand { csub: 1 })
         });
-        assert!(game.pending_confirms.dispatch(ConfirmResult::Cancel).is_none());
+        assert!(
+            game.pending_confirms
+                .dispatch(ConfirmResult::Cancel)
+                .is_none()
+        );
     }
 }
 
@@ -746,7 +758,8 @@ mod window_state_persistence_tests {
         let windows = Windows::new();
         game.character.skills.open();
         assert_eq!(
-            game.extract_window_state(&windows, &cache).get(&SKILL_WINDOW_ID.0),
+            game.extract_window_state(&windows, &cache)
+                .get(&SKILL_WINDOW_ID.0),
             Some(&(true, false))
         );
 

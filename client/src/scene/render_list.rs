@@ -74,38 +74,41 @@ impl App {
                     projected,
                     Some(flat_depth_gradient),
                     None,
-                    |screen_anchor, depth, camera_dir, sprite_scale| {
-                        match self.game.sprite_caches.sprites.get(&entity.id) {
-                            Some(sprite) => (
-                                sprite.compute_pick_bounds(
-                                    &entity.animation,
-                                    Some(camera_dir),
-                                    entity.head_dir,
-                                    screen_anchor,
-                                    depth,
-                                    sprite_scale,
-                                ),
-                                sprite.compute_head_offset(
-                                    &entity.animation,
-                                    Some(camera_dir),
-                                    entity.head_dir,
-                                    screen_anchor,
-                                    depth,
-                                    sprite_scale,
-                                ),
+                    |screen_anchor, depth, camera_dir, sprite_scale| match self
+                        .game
+                        .sprite_caches
+                        .sprites
+                        .get(&entity.id)
+                    {
+                        Some(sprite) => (
+                            sprite.compute_pick_bounds(
+                                &entity.animation,
+                                Some(camera_dir),
+                                entity.head_dir,
+                                screen_anchor,
+                                depth,
+                                sprite_scale,
                             ),
-                            None => {
-                                let half = 50.0;
-                                (
-                                    [
-                                        screen_anchor[0] - half,
-                                        screen_anchor[1] - 100.0,
-                                        screen_anchor[0] + half,
-                                        screen_anchor[1],
-                                    ],
-                                    100.0,
-                                )
-                            }
+                            sprite.compute_head_offset(
+                                &entity.animation,
+                                Some(camera_dir),
+                                entity.head_dir,
+                                screen_anchor,
+                                depth,
+                                sprite_scale,
+                            ),
+                        ),
+                        None => {
+                            let half = 50.0;
+                            (
+                                [
+                                    screen_anchor[0] - half,
+                                    screen_anchor[1] - 100.0,
+                                    screen_anchor[0] + half,
+                                    screen_anchor[1],
+                                ],
+                                100.0,
+                            )
                         }
                     },
                 );

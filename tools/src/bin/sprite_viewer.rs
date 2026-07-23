@@ -252,6 +252,7 @@ impl App {
             0,
             shield,
             false,
+            false,
         ) {
             Some(d) => d,
             None => {

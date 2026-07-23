@@ -246,13 +246,29 @@ impl App {
         if self.game.world.entities.is_player(entity_id) {
             return Some(self.game.character.hp_percentage());
         }
-        if let Some(h) = self.game.companions.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+        if let Some(h) = self
+            .game
+            .companions
+            .homunculus
+            .as_ref()
+            .filter(|h| h.gid == entity_id)
+        {
             return Some(h.hp_percentage());
         }
-        if let Some(m) = self.game.companions.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+        if let Some(m) = self
+            .game
+            .companions
+            .mercenary
+            .as_ref()
+            .filter(|m| m.gid == entity_id)
+        {
             return Some(m.hp_percentage());
         }
-        self.game.world.entities.get(entity_id).and_then(|e| e.hp_percentage())
+        self.game
+            .world
+            .entities
+            .get(entity_id)
+            .and_then(|e| e.hp_percentage())
     }
 
     /// SP ratio for an entity that shows an SP bar below it: the player and the
@@ -261,10 +277,22 @@ impl App {
         if self.game.world.entities.is_player(entity_id) {
             return Some(self.game.character.sp_percentage());
         }
-        if let Some(h) = self.game.companions.homunculus.as_ref().filter(|h| h.gid == entity_id) {
+        if let Some(h) = self
+            .game
+            .companions
+            .homunculus
+            .as_ref()
+            .filter(|h| h.gid == entity_id)
+        {
             return Some(h.sp_percentage());
         }
-        if let Some(m) = self.game.companions.mercenary.as_ref().filter(|m| m.gid == entity_id) {
+        if let Some(m) = self
+            .game
+            .companions
+            .mercenary
+            .as_ref()
+            .filter(|m| m.gid == entity_id)
+        {
             return Some(m.sp_percentage());
         }
         None
@@ -293,7 +321,12 @@ impl App {
                 .homunculus
                 .as_ref()
                 .is_some_and(|h| h.gid == entry.id)
-                || self.game.companions.mercenary.as_ref().is_some_and(|m| m.gid == entry.id);
+                || self
+                    .game
+                    .companions
+                    .mercenary
+                    .as_ref()
+                    .is_some_and(|m| m.gid == entry.id);
             let is_party_member = self
                 .game
                 .party
@@ -313,7 +346,13 @@ impl App {
             };
             let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
             if let Some(sp_ratio) = self.entity_sp_ratio(entry.id) {
-                render_bar(entry.screen_anchor[0], y + HP_BAR_HEIGHT, sp_ratio, SP_BAR_COLOR, calls);
+                render_bar(
+                    entry.screen_anchor[0],
+                    y + HP_BAR_HEIGHT,
+                    sp_ratio,
+                    SP_BAR_COLOR,
+                    calls,
+                );
             }
         }
     }
@@ -322,13 +361,14 @@ impl App {
         use models::enums::skill_enums::SkillEnum;
         use ragnarok_game::effect::casting_skill;
         for entry in render_list {
-            if (self.config.display.show_other_cast_bars || self.game.world.entities.is_player(entry.id))
+            if (self.config.display.show_other_cast_bars
+                || self.game.world.entities.is_player(entry.id))
                 && let Some(entity) = self.game.world.entities.get(entry.id)
                 && entity.state == EntityState::Casting
                 && entity.cast_total_duration > 0.0
-                && !entity.active_skill_id.is_some_and(|id| {
-                    casting_skill(SkillEnum::from_id(id as u32)).hide_cast_bar
-                })
+                && !entity
+                    .active_skill_id
+                    .is_some_and(|id| casting_skill(SkillEnum::from_id(id as u32)).hide_cast_bar)
             {
                 let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
                 let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
@@ -347,7 +387,9 @@ impl App {
     fn name_hidden(&self, entity_type: EntityType) -> bool {
         let display = &self.config.display;
         match entity_type {
-            EntityType::Player => display.hide_name_player || self.game.session.map_properties.is_siege(),
+            EntityType::Player => {
+                display.hide_name_player || self.game.session.map_properties.is_siege()
+            }
             EntityType::Monster => display.hide_name_monster,
             EntityType::Npc => display.hide_name_npc,
             EntityType::Homunculus | EntityType::Mercenary => false,
@@ -598,7 +640,10 @@ impl App {
     }
 
     pub(crate) fn build_skill_overlay(&self) -> Vec<UiDrawCall> {
-        let (pending, renderer) = match (&self.game.pending_casts.pending_skill_target, &self.renderer) {
+        let (pending, renderer) = match (
+            &self.game.pending_casts.pending_skill_target,
+            &self.renderer,
+        ) {
             (Some(p), Some(r)) => (p, r),
             _ => return Vec::new(),
         };
@@ -700,9 +745,7 @@ fn entity_name_color(entity: &Entity) -> [f32; 4] {
         return GM_TEXT_COLOR;
     }
     match entity.entity_type {
-        EntityType::Player | EntityType::Homunculus | EntityType::Mercenary => {
-            [1.0, 1.0, 1.0, 1.0]
-        }
+        EntityType::Player | EntityType::Homunculus | EntityType::Mercenary => [1.0, 1.0, 1.0, 1.0],
         EntityType::Monster => [1.0, 0.776, 0.776, 1.0],
         EntityType::Npc => [0.39, 0.54, 0.76, 1.0],
     }
@@ -829,7 +872,23 @@ mod tests {
     use ragnarok_game::targeting::EFFECT_STATE_RED_NAME;
 
     fn player() -> Entity {
-        Entity::new(1, EntityType::Player, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 150)
+        Entity::new(
+            1,
+            EntityType::Player,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            150,
+        )
     }
 
     #[test]

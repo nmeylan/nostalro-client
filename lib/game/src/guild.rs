@@ -167,9 +167,10 @@ impl Guild {
     pub fn sorted_members(&self) -> Vec<&GuildMember> {
         let mut members: Vec<&GuildMember> = self.members.iter().collect();
         members.sort_by(|a, b| {
-            b.online
-                .cmp(&a.online)
-                .then_with(|| self.ranking_of(a.position_id).cmp(&self.ranking_of(b.position_id)))
+            b.online.cmp(&a.online).then_with(|| {
+                self.ranking_of(a.position_id)
+                    .cmp(&self.ranking_of(b.position_id))
+            })
         });
         members
     }
@@ -240,7 +241,11 @@ mod tests {
     fn sorting_rights_and_master_cross_members_and_positions() {
         let mut guild = Guild {
             positions: vec![
-                position(0, 0, GUILD_PERM_INVITE | GUILD_PERM_EXPEL | GUILD_PERM_STORAGE),
+                position(
+                    0,
+                    0,
+                    GUILD_PERM_INVITE | GUILD_PERM_EXPEL | GUILD_PERM_STORAGE,
+                ),
                 position(1, 1, GUILD_PERM_INVITE),
                 position(2, 2, 0),
             ],

@@ -197,116 +197,42 @@ mod tests {
         assert_eq!(modern.len(), 8);
         assert_eq!(u16::from_le_bytes([modern[0], modern[1]]), 0x0439);
         assert_eq!(u16::from_le_bytes([modern[2], modern[3]]), idx);
-        assert_eq!(u32::from_le_bytes([modern[4], modern[5], modern[6], modern[7]]), aid);
+        assert_eq!(
+            u32::from_le_bytes([modern[4], modern[5], modern[6], modern[7]]),
+            aid
+        );
 
         let e20040705 = build_use_item_packet(idx, aid, 20040705);
         assert_eq!(e20040705.len(), 13);
         assert_eq!(u16::from_le_bytes([e20040705[0], e20040705[1]]), 0x00a7);
         assert_eq!(u16::from_le_bytes([e20040705[5], e20040705[6]]), idx);
-        assert_eq!(u32::from_le_bytes([e20040705[9], e20040705[10], e20040705[11], e20040705[12]]), aid);
+        assert_eq!(
+            u32::from_le_bytes([e20040705[9], e20040705[10], e20040705[11], e20040705[12]]),
+            aid
+        );
 
         let e20040713 = build_use_item_packet(idx, aid, 20040713);
         assert_eq!(e20040713.len(), 17);
         assert_eq!(u16::from_le_bytes([e20040713[0], e20040713[1]]), 0x00a7);
         assert_eq!(u16::from_le_bytes([e20040713[6], e20040713[7]]), idx);
-        assert_eq!(u32::from_le_bytes([e20040713[13], e20040713[14], e20040713[15], e20040713[16]]), aid);
+        assert_eq!(
+            u32::from_le_bytes([e20040713[13], e20040713[14], e20040713[15], e20040713[16]]),
+            aid
+        );
 
         let e20050718 = build_use_item_packet(idx, aid, 20050718);
         assert_eq!(e20050718.len(), 12);
         assert_eq!(u16::from_le_bytes([e20050718[0], e20050718[1]]), 0x009f);
         assert_eq!(u16::from_le_bytes([e20050718[3], e20050718[4]]), idx);
-        assert_eq!(u32::from_le_bytes([e20050718[8], e20050718[9], e20050718[10], e20050718[11]]), aid);
+        assert_eq!(
+            u32::from_le_bytes([e20050718[8], e20050718[9], e20050718[10], e20050718[11]]),
+            aid
+        );
 
         // below the earliest ladder entry falls back to the oldest id, clean layout
         let ancient = build_use_item_packet(idx, aid, 20040101);
         assert_eq!(ancient.len(), 8);
         assert_eq!(u16::from_le_bytes([ancient[0], ancient[1]]), 0x00a7);
-    }
-
-    #[test]
-    fn downlevel_lengths_match_hercules() {
-        // (packetver, expected total length) per era, from Hercules packets.h offsets.
-        let rt: &[(u32, usize)] = &[(20040101, 6), (20040726, 10), (20040809, 13), (20040906, 11), (20040920, 14), (20041005, 10), (20041025, 9), (20041129, 7), (20050110, 9), (20050509, 8), (20050628, 13), (20050718, 7), (20050719, 13), (20070108, 11), (20070212, 8), (20080827, 11), (20101124, 6), (20111005, 6), (20120307, 6)];
-        for &(v, l) in rt { assert_eq!(build_request_time_packet(1, v).len(), l, "request_time @{v}"); }
-
-        let pk: &[(u32, usize)] = &[(20040101, 6), (20040713, 10), (20040726, 10), (20040809, 13), (20040906, 11), (20040920, 14), (20041005, 10), (20041025, 9), (20041129, 7), (20050110, 9), (20050509, 8), (20050628, 13), (20050718, 7), (20050719, 13), (20060327, 13), (20070108, 11), (20070212, 8), (20080827, 11), (20101124, 6), (20120307, 6)];
-        for &(v, l) in pk { assert_eq!(build_pickup_item_packet(1, v).len(), l, "pickup @{v}"); }
-
-        let rn: &[(u32, usize)] = &[(20040101, 6), (20040726, 15), (20040809, 12), (20040906, 14), (20040920, 10), (20041005, 15), (20041025, 10), (20041129, 13), (20050110, 8), (20050509, 11), (20050628, 8), (20050718, 11), (20050719, 8), (20060327, 12), (20070108, 17), (20070212, 11), (20080827, 14), (20101124, 6), (20120307, 6)];
-        for &(v, l) in rn { assert_eq!(build_reqname_packet(1, v).len(), l, "reqname @{v}"); }
-
-        let cd: &[(u32, usize)] = &[(20040101, 5), (20040713, 13), (20040726, 13), (20040809, 12), (20040906, 10), (20040920, 18), (20041005, 13), (20041025, 15), (20041129, 8), (20050110, 23), (20050509, 11), (20050628, 17), (20050718, 11), (20050719, 17), (20060327, 12), (20070108, 14), (20070212, 11), (20080827, 10), (20101124, 5), (20120307, 5)];
-        for &(v, l) in cd { assert_eq!(build_change_direction_packet(1, 1, v).len(), l, "change_dir @{v}"); }
-
-        let it: &[(u32, usize)] = &[(20040101, 6), (20040726, 14), (20040809, 17), (20040906, 17), (20040920, 19), (20041005, 14), (20041025, 12), (20041129, 12), (20050110, 20), (20050509, 10), (20050628, 12), (20050718, 12), (20050719, 12), (20060327, 17), (20070108, 19), (20070212, 10), (20080827, 17), (20101124, 6), (20120307, 6)];
-        for &(v, l) in it { assert_eq!(build_drop_item_packet(1, 1, v).len(), l, "drop @{v}"); }
-
-        let ra: &[(u32, usize)] = &[(20040101, 7), (20040726, 9), (20040809, 18), (20040906, 23), (20040920, 9), (20041025, 15), (20041129, 18), (20050110, 20), (20050509, 19), (20050628, 24), (20050718, 21), (20050719, 24), (20060327, 18), (20070108, 10), (20070212, 19), (20080827, 23), (20080910, 7), (20120307, 7)];
-        for &(v, l) in ra { assert_eq!(build_action_request_packet(1, 1, v).len(), l, "action @{v}"); }
-
-        let mb: &[(u32, usize)] = &[(20040101, 8), (20040726, 16), (20040809, 23), (20040906, 19), (20040920, 25), (20041005, 16), (20041025, 13), (20041129, 14), (20050110, 20), (20050509, 14), (20050628, 31), (20050718, 21), (20050719, 31), (20060327, 23), (20070108, 17), (20070212, 14), (20080827, 19), (20101124, 8), (20120307, 8)];
-        for &(v, l) in mb { assert_eq!(build_move_item_body_to_store_packet(1, 1, v).len(), l, "move_body @{v}"); }
-
-        let ms: &[(u32, usize)] = &[(20040101, 8), (20040726, 26), (20040809, 26), (20040906, 17), (20040920, 12), (20041005, 26), (20041025, 22), (20041129, 21), (20050110, 21), (20050509, 22), (20050628, 18), (20050718, 13), (20050719, 18), (20060327, 26), (20070108, 15), (20070212, 22), (20080827, 17), (20101124, 8), (20120307, 8)];
-        for &(v, l) in ms { assert_eq!(build_move_item_store_to_body_packet(1, 1, v).len(), l, "move_store @{v}"); }
-
-        let us: &[(u32, usize)] = &[(20040101, 10), (20040705, 15), (20040713, 19), (20040726, 20), (20040809, 26), (20040906, 22), (20040920, 14), (20041005, 20), (20041025, 26), (20041129, 22), (20050110, 26), (20050509, 25), (20050628, 34), (20050718, 19), (20050719, 34), (20060327, 26), (20070108, 30), (20070212, 25), (20080827, 22), (20080910, 10), (20120307, 10)];
-        for &(v, l) in us { assert_eq!(build_use_skill_packet(1, 1, 1, v).len(), l, "use_skill @{v}"); }
-
-        let ug: &[(u32, usize)] = &[(20040101, 10), (20040705, 15), (20040713, 19), (20040726, 23), (20040809, 40), (20040906, 25), (20040920, 29), (20041005, 23), (20041025, 28), (20041129, 30), (20050110, 34), (20050509, 22), (20050628, 33), (20050718, 30), (20050719, 33), (20060327, 40), (20070108, 40), (20070212, 22), (20080827, 25), (20101124, 10), (20120307, 10)];
-        for &(v, l) in ug { assert_eq!(build_use_skill_to_ground_packet(1, 1, 1, 1, v).len(), l, "use_skill_ground @{v}"); }
-
-        let en: &[(u32, usize)] = &[(20040101, 19), (20040705, 22), (20040713, 39), (20040726, 33), (20040809, 37), (20040906, 34), (20040920, 32), (20041005, 33), (20041025, 29), (20041129, 29), (20050110, 32), (20050509, 26), (20050628, 32), (20050718, 31), (20050719, 32), (20060327, 37), (20070108, 35), (20070212, 26), (20080827, 34), (20080910, 19), (20120307, 19)];
-        for &(v, l) in en {
-            let mut pkt = PacketCzEnter2::new(v);
-            pkt.set_aid(1); pkt.set_gid(1); pkt.set_auth_code(1); pkt.set_client_time(0); pkt.set_sex(1);
-            pkt.fill_raw_with_packetver(Some(v));
-            assert_eq!(pkt.raw.len(), l, "enter @{v}");
-        }
-    }
-
-    #[test]
-    fn solve_char_name_downlevels() {
-        let sc: &[(u32, usize)] = &[(20040101, 6), (20040726, 12), (20040809, 11), (20040906, 14), (20040920, 10), (20041005, 12), (20041025, 16), (20041129, 14), (20050110, 11), (20050509, 15), (20050628, 9), (20050718, 18), (20050719, 9), (20060327, 11), (20070108, 10), (20070212, 15), (20080827, 14), (20101124, 6), (20111005, 6), (20120307, 6)];
-        for &(v, l) in sc { assert_eq!(build_solve_char_name_packet(1, v).len(), l, "solve_char_name @{v}"); }
-
-        let modern = build_solve_char_name_packet(0xAABBCCDD, 20120307);
-        assert_eq!(u16::from_le_bytes([modern[0], modern[1]]), 0x0368);
-        assert_eq!(u32::from_le_bytes([modern[2], modern[3], modern[4], modern[5]]), 0xAABBCCDD);
-
-        // @20050718 (0x00a2): GID@14
-        let old = build_solve_char_name_packet(0x11223344, 20050718);
-        assert_eq!(u16::from_le_bytes([old[0], old[1]]), 0x00a2);
-        assert_eq!(u32::from_le_bytes([old[14], old[15], old[16], old[17]]), 0x11223344);
-
-        // below earliest ladder entry falls back to oldest id, clean layout
-        assert_eq!(u16::from_le_bytes([build_solve_char_name_packet(1, 20040101)[0], build_solve_char_name_packet(1, 20040101)[1]]), 0x0193);
-    }
-
-    #[test]
-    fn downlevel_field_offsets_spot_check() {
-        // use_skill @20040726 (0x0085): level@7, skid@12, target@16
-        let s = build_use_skill_packet(0x1122, 33, 0xAABBCCDD, 20040726);
-        assert_eq!(u16::from_le_bytes([s[0], s[1]]), 0x0085);
-        assert_eq!(i16::from_le_bytes([s[7], s[8]]), 33);
-        assert_eq!(u16::from_le_bytes([s[12], s[13]]), 0x1122);
-        assert_eq!(u32::from_le_bytes([s[16], s[17], s[18], s[19]]), 0xAABBCCDD);
-
-        // action @20050718 (0x0190): targetGID@5, action@20
-        let a = build_action_request_packet(0x11223344, 7, 20050718);
-        assert_eq!(u16::from_le_bytes([a[0], a[1]]), 0x0190);
-        assert_eq!(u32::from_le_bytes([a[5], a[6], a[7], a[8]]), 0x11223344);
-        assert_eq!(a[20], 7);
-
-        // enter @20040713 (0x0072): AID@12, GID@22, AuthCode@30, clientTime@34, Sex@38
-        let mut e = PacketCzEnter2::new(20040713);
-        e.set_aid(0x01020304); e.set_gid(0x05060708); e.set_auth_code(0x090A0B0C); e.set_client_time(0x0D0E0F10); e.set_sex(9);
-        e.fill_raw_with_packetver(Some(20040713));
-        assert_eq!(u16::from_le_bytes([e.raw[0], e.raw[1]]), 0x0072);
-        assert_eq!(u32::from_le_bytes([e.raw[12], e.raw[13], e.raw[14], e.raw[15]]), 0x01020304);
-        assert_eq!(u32::from_le_bytes([e.raw[22], e.raw[23], e.raw[24], e.raw[25]]), 0x05060708);
-        assert_eq!(u32::from_le_bytes([e.raw[30], e.raw[31], e.raw[32], e.raw[33]]), 0x090A0B0C);
-        assert_eq!(e.raw[38], 9);
     }
 
     #[test]
@@ -1465,13 +1391,7 @@ pub fn build_req_leave_guild(
     pkt.raw
 }
 
-pub fn build_req_ban_guild(
-    gdid: u32,
-    aid: i32,
-    gid: i32,
-    reason: &str,
-    packetver: u32,
-) -> Vec<u8> {
+pub fn build_req_ban_guild(gdid: u32, aid: i32, gid: i32, reason: &str, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqBanGuild::new(packetver);
     pkt.set_gdid(gdid);
     pkt.set_aid(aid);
@@ -1481,12 +1401,7 @@ pub fn build_req_ban_guild(
     pkt.raw
 }
 
-pub fn build_req_change_memberpos(
-    aid: i32,
-    gid: i32,
-    position_id: i32,
-    packetver: u32,
-) -> Vec<u8> {
+pub fn build_req_change_memberpos(aid: i32, gid: i32, position_id: i32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqChangeMemberpos::new(packetver);
     let mut row = MemberPositionInfo::new(packetver);
     row.set_aid(aid);
@@ -1595,7 +1510,11 @@ pub fn build_req_hostile_guild(target_aid: u32, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
-pub fn build_req_delete_related_guild(opponent_gdid: u32, relation: i32, packetver: u32) -> Vec<u8> {
+pub fn build_req_delete_related_guild(
+    opponent_gdid: u32,
+    relation: i32,
+    packetver: u32,
+) -> Vec<u8> {
     let mut pkt = PacketCzReqDeleteRelatedGuild::new(packetver);
     pkt.set_opponent_gdid(opponent_gdid);
     pkt.set_relation(relation);

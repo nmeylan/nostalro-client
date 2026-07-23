@@ -150,11 +150,7 @@ impl Window for EmblemPickerWindow {
 }
 
 impl InGameWindow for EmblemPickerWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -291,7 +287,12 @@ impl EmblemPickerWindow {
         };
         ui.text(px, box_y + PREVIEW + 16.0, &entry.name, TEXT);
         for (i, line) in wrap(verdict, 16).iter().enumerate() {
-            ui.text(px, box_y + PREVIEW + 32.0 + i as f32 * 13.0, line, verdict_color);
+            ui.text(
+                px,
+                box_y + PREVIEW + 32.0 + i as f32 * 13.0,
+                line,
+                verdict_color,
+            );
         }
     }
 

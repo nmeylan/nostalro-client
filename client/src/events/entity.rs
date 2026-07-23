@@ -215,7 +215,8 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .session.server_time
+            .session
+            .server_time
             .observe_server_tick(start_time, local_ms);
         let already_moving_to_dest = self
             .game
@@ -254,12 +255,24 @@ impl App {
         if self.game.companions.pet.gid == Some(gid) {
             self.game.companions.pet.clear_entity();
         }
-        if let Some(h) = self.game.companions.homunculus.as_mut().filter(|h| h.gid == gid) {
+        if let Some(h) = self
+            .game
+            .companions
+            .homunculus
+            .as_mut()
+            .filter(|h| h.gid == gid)
+        {
             if matches!(vanish_type, VanishType::Die) {
                 h.hp = 0;
             }
         }
-        if let Some(m) = self.game.companions.mercenary.as_mut().filter(|m| m.gid == gid) {
+        if let Some(m) = self
+            .game
+            .companions
+            .mercenary
+            .as_mut()
+            .filter(|m| m.gid == gid)
+        {
             if matches!(vanish_type, VanishType::Die) {
                 m.hp = 0;
             }
@@ -325,11 +338,13 @@ impl App {
     ) {
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .session.server_time
+            .session
+            .server_time
             .observe_server_tick(start_time, local_ms);
         let action_start = self
             .game
-            .session.server_time
+            .session
+            .server_time
             .server_to_local_secs_clamped(start_time, local_ms);
         let local_now = local_ms as f32 / 1000.0;
         let age = (local_now - action_start).max(0.0);
@@ -367,7 +382,10 @@ impl App {
                         }
                     }
                     let duration = ((attack_mt as f32 / 1000.0) - age).max(0.5);
-                    entity.enter_attack(duration, ragnarok_game::entity::attack_motion_factor(attack_mt));
+                    entity.enter_attack(
+                        duration,
+                        ragnarok_game::entity::attack_motion_factor(attack_mt),
+                    );
                     entity.target_gid = Some(target_gid);
                     if entity.weapon == Some(WeaponType::Bow) {
                         shooter_cell = Some(entity.movement.cell_position());
@@ -452,7 +470,8 @@ impl App {
         attack_mt: i32,
         count: u16,
     ) {
-        let (Some(gat), Some(coords)) = (&self.game.session.gat, &self.game.session.map_coords) else {
+        let (Some(gat), Some(coords)) = (&self.game.session.gat, &self.game.session.map_coords)
+        else {
             return;
         };
         let cell_world = |x: u16, y: u16| {
@@ -532,10 +551,13 @@ impl App {
             if now_frozen && !was_frozen {
                 self.queue_status_sound(gid, StatusSoundKind::FreezeEnter);
             } else if was_frozen && !now_frozen {
-                self.game.world.freeze_shatters.push(crate::game_state::FreezeShatter {
-                    gid,
-                    started_at: None,
-                });
+                self.game
+                    .world
+                    .freeze_shatters
+                    .push(crate::game_state::FreezeShatter {
+                        gid,
+                        started_at: None,
+                    });
                 self.queue_status_sound(gid, StatusSoundKind::FreezeExit);
             }
             if prev_body == ailment::OPT1_STONE && body_state != ailment::OPT1_STONE {
@@ -663,7 +685,8 @@ impl App {
                     self.set_status_icon(efst, now, 0, 0);
                 }
             }
-            let gained_hide = old_effect_state & OPTION_HIDE == 0 && effect_state & OPTION_HIDE != 0;
+            let gained_hide =
+                old_effect_state & OPTION_HIDE == 0 && effect_state & OPTION_HIDE != 0;
             if gained_hide && self.player_hide_move_blocked() {
                 if let Some(player) = self.game.world.entities.player_mut() {
                     player.movement.stop();
@@ -684,7 +707,10 @@ impl App {
             return;
         };
         let want_sight = effect_state & OPTION_SIGHT != 0;
-        match (want_sight, self.game.effect_keys.sight_aura_keys.contains_key(&gid)) {
+        match (
+            want_sight,
+            self.game.effect_keys.sight_aura_keys.contains_key(&gid),
+        ) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Sight2, gid, key);
@@ -698,7 +724,10 @@ impl App {
             _ => {}
         }
         let want_ruwach = effect_state & OPTION_RUWACH != 0;
-        match (want_ruwach, self.game.effect_keys.ruwach_aura_keys.contains_key(&gid)) {
+        match (
+            want_ruwach,
+            self.game.effect_keys.ruwach_aura_keys.contains_key(&gid),
+        ) {
             (true, false) => {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Ruwach, gid, key);
@@ -756,7 +785,8 @@ impl App {
         if active && !reaction.aura.is_empty() {
             let key = self.next_entity_effect_key();
             for &id in reaction.aura {
-                self.effect_queue.spawn_on_keyed_for(id, gid, key, remain_ms);
+                self.effect_queue
+                    .spawn_on_keyed_for(id, gid, key, remain_ms);
             }
             self.game.effect_keys.status_buff_keys.insert(map_key, key);
         }
@@ -852,12 +882,16 @@ impl App {
     }
 
     pub(super) fn refresh_boss_aura(&mut self, gid: u32) {
-        let Some((entity_type, is_boss, effect_state, level, alive)) = self
-            .game
-            .world
-            .entities
-            .get(gid)
-            .map(|e| (e.entity_type, e.is_boss, e.effect_state, e.base_level, e.is_alive()))
+        let Some((entity_type, is_boss, effect_state, level, alive)) =
+            self.game.world.entities.get(gid).map(|e| {
+                (
+                    e.entity_type,
+                    e.is_boss,
+                    e.effect_state,
+                    e.base_level,
+                    e.is_alive(),
+                )
+            })
         else {
             return;
         };
@@ -963,7 +997,8 @@ impl App {
 
     fn next_entity_effect_key(&mut self) -> u32 {
         let key = 0x8000_0000 | self.game.effect_keys.next_status_buff_key;
-        self.game.effect_keys.next_status_buff_key = (self.game.effect_keys.next_status_buff_key + 1) & 0x7fff_ffff;
+        self.game.effect_keys.next_status_buff_key =
+            (self.game.effect_keys.next_status_buff_key + 1) & 0x7fff_ffff;
         key
     }
 
@@ -1125,7 +1160,10 @@ impl App {
     }
 
     pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
-        let (gat, coords) = (self.game.session.gat.as_ref()?, self.game.session.map_coords.as_ref()?);
+        let (gat, coords) = (
+            self.game.session.gat.as_ref()?,
+            self.game.session.map_coords.as_ref()?,
+        );
         let (cx, cy) = self.game.world.entities.get(gid)?.movement.position();
         let (wx, _, wz) = coords.cell_to_world(cx + 0.5, cy + 0.5);
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
@@ -1151,7 +1189,12 @@ impl App {
                     .map(|j| job_hit_sound(j).to_string())
                     .unwrap_or_else(|| skill_hit_sound(roll))
             } else {
-                let weapon = self.game.world.entities.get(attacker_gid).and_then(|e| e.weapon);
+                let weapon = self
+                    .game
+                    .world
+                    .entities
+                    .get(attacker_gid)
+                    .and_then(|e| e.weapon);
                 let is_taekwon = self.game.world.entities.player_id() == Some(attacker_gid)
                     && self
                         .game
@@ -1190,7 +1233,9 @@ impl App {
     pub(super) fn handle_mvp_reward(&mut self, gid: u32) {
         self.effect_queue.spawn_on(EffectId::Mvp, gid);
         match self.entity_world_pos(gid) {
-            Some(pos) => self.sound_queue.world("effect\\st_mvp.wav".to_string(), pos),
+            Some(pos) => self
+                .sound_queue
+                .world("effect\\st_mvp.wav".to_string(), pos),
             None => self.sound_queue.ui("effect\\st_mvp.wav"),
         }
     }
@@ -1204,8 +1249,10 @@ impl App {
         unit_id: u8,
         is_visible: bool,
     ) {
-        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
-        else {
+        let (Some(gat), Some(coords)) = (
+            self.game.session.gat.as_ref(),
+            self.game.session.map_coords.as_ref(),
+        ) else {
             return;
         };
         let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);

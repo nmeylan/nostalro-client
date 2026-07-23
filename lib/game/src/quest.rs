@@ -158,8 +158,14 @@ mod tests {
     fn login_burst_builds_quests_with_totals() {
         let mut log = QuestLog::default();
         // 0x2b1: two quests, one active.
-        log.set_list_entry(QuestListEntry { id: 1000, active: true });
-        log.set_list_entry(QuestListEntry { id: 1001, active: false });
+        log.set_list_entry(QuestListEntry {
+            id: 1000,
+            active: true,
+        });
+        log.set_list_entry(QuestListEntry {
+            id: 1001,
+            active: false,
+        });
         // 0x2b2: mission data with objectives (names + current kills, no totals yet).
         log.set_mission(QuestMissionData {
             id: 1000,

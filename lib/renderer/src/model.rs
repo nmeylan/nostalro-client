@@ -195,10 +195,18 @@ impl ModelRenderer {
             return None;
         }
 
-        let vertex_buffer =
-            create_buffer(device, "model_vertices", &all_vertices, wgpu::BufferUsages::VERTEX);
-        let index_buffer =
-            create_buffer(device, "model_indices", &all_indices, wgpu::BufferUsages::INDEX);
+        let vertex_buffer = create_buffer(
+            device,
+            "model_vertices",
+            &all_vertices,
+            wgpu::BufferUsages::VERTEX,
+        );
+        let index_buffer = create_buffer(
+            device,
+            "model_indices",
+            &all_indices,
+            wgpu::BufferUsages::INDEX,
+        );
         let pipeline = create_pipeline(
             device,
             surface_format,
@@ -282,10 +290,18 @@ impl ModelRenderer {
             return None;
         }
 
-        let vertex_buffer =
-            create_buffer(device, "model_vertices", &all_vertices, wgpu::BufferUsages::VERTEX);
-        let index_buffer =
-            create_buffer(device, "model_indices", &all_indices, wgpu::BufferUsages::INDEX);
+        let vertex_buffer = create_buffer(
+            device,
+            "model_vertices",
+            &all_vertices,
+            wgpu::BufferUsages::VERTEX,
+        );
+        let index_buffer = create_buffer(
+            device,
+            "model_indices",
+            &all_indices,
+            wgpu::BufferUsages::INDEX,
+        );
         let pipeline = create_pipeline(
             device,
             surface_format,

@@ -451,10 +451,10 @@ fn pack_lightmap_atlas(lightmaps: &[Lightmap], grid: u32, atlas_size: u32) -> Ve
 
         for by in 0..LIGHTMAP_STRIDE {
             for bx in 0..LIGHTMAP_STRIDE {
-                let sx = (bx as i32 - LIGHTMAP_BORDER as i32)
-                    .clamp(0, LIGHTMAP_CELL as i32 - 1) as usize;
-                let sy = (by as i32 - LIGHTMAP_BORDER as i32)
-                    .clamp(0, LIGHTMAP_CELL as i32 - 1) as usize;
+                let sx = (bx as i32 - LIGHTMAP_BORDER as i32).clamp(0, LIGHTMAP_CELL as i32 - 1)
+                    as usize;
+                let sy = (by as i32 - LIGHTMAP_BORDER as i32).clamp(0, LIGHTMAP_CELL as i32 - 1)
+                    as usize;
                 let lm_idx = sy * LIGHTMAP_CELL as usize + sx;
 
                 let px = cx + bx;

@@ -103,7 +103,11 @@ fn edge_point(dx: f32, dz: f32, width: f32, height: f32) -> (f32, f32) {
     }
     let half_w = width / 2.0;
     let half_h = height / 2.0;
-    let rect_slope = if width != 0.0 { height / width } else { f32::INFINITY };
+    let rect_slope = if width != 0.0 {
+        height / width
+    } else {
+        f32::INFINITY
+    };
     let p_slope = dz / dx;
 
     if p_slope.abs() <= rect_slope {

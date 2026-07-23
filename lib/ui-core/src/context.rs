@@ -121,10 +121,10 @@ impl UiContext {
     }
 
     fn is_paste_chord(&self, event: &winit::event::KeyEvent) -> bool {
-        let ctrl_v = self.ctrl_pressed
-            && matches!(event.physical_key, PhysicalKey::Code(KeyCode::KeyV));
-        let shift_insert = self.shift_pressed
-            && matches!(event.physical_key, PhysicalKey::Code(KeyCode::Insert));
+        let ctrl_v =
+            self.ctrl_pressed && matches!(event.physical_key, PhysicalKey::Code(KeyCode::KeyV));
+        let shift_insert =
+            self.shift_pressed && matches!(event.physical_key, PhysicalKey::Code(KeyCode::Insert));
         ctrl_v || shift_insert
     }
 

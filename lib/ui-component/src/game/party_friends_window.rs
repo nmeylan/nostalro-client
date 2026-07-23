@@ -197,11 +197,7 @@ impl Window for PartyFriendsWindow {
 }
 
 impl InGameWindow for PartyFriendsWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         if !self.open {
             return Vec::new();
         }
@@ -285,7 +281,14 @@ impl InGameWindow for PartyFriendsWindow {
 }
 
 impl PartyFriendsWindow {
-    fn build_party_list(&mut self, ui: &mut UiFrame, party: Option<&Party>, x: f32, content_y: f32, tc: [f32; 4]) {
+    fn build_party_list(
+        &mut self,
+        ui: &mut UiFrame,
+        party: Option<&Party>,
+        x: f32,
+        content_y: f32,
+        tc: [f32; 4],
+    ) {
         let members: &[PartyMember] = party.map(|p| p.members.as_slice()).unwrap_or(&[]);
         if members.is_empty() {
             ui.text(x + 8.0, content_y + 18.0, "Not in a party", OFFLINE_COLOR);
@@ -303,10 +306,21 @@ impl PartyFriendsWindow {
                 self.selected = Some(idx);
             }
             if self.selected == Some(idx) {
-                Self::fill(ui, row_rect.x, row_rect.y, row_rect.w, row_rect.h, SELECTION_COLOR);
+                Self::fill(
+                    ui,
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    SELECTION_COLOR,
+                );
             }
 
-            let icon = if m.leader { GRP_LEADER_TEX } else { GRP_ONLINE_TEX };
+            let icon = if m.leader {
+                GRP_LEADER_TEX
+            } else {
+                GRP_ONLINE_TEX
+            };
             if m.online {
                 Self::draw_icon(ui, x + 3.0, row_y, icon, grf);
             }
@@ -320,12 +334,24 @@ impl PartyFriendsWindow {
             };
             ui.text(x + 22.0, row_y + 11.0, &m.name, name_color);
             let map = m.map.trim_end_matches(".gat").trim_end_matches(".rsw");
-            ui.text_right(x + WIN_W - 8.0, row_y + 11.0, &format!("({map})"), OFFLINE_COLOR);
+            ui.text_right(
+                x + WIN_W - 8.0,
+                row_y + 11.0,
+                &format!("({map})"),
+                OFFLINE_COLOR,
+            );
 
             if m.online {
                 let bar_x = x + 22.0;
                 let bar_y = row_y + 14.0;
-                Self::fill(ui, bar_x, bar_y, HP_BAR_W, HP_BAR_H, [0.15, 0.15, 0.15, 0.9]);
+                Self::fill(
+                    ui,
+                    bar_x,
+                    bar_y,
+                    HP_BAR_W,
+                    HP_BAR_H,
+                    [0.15, 0.15, 0.15, 0.9],
+                );
                 if let (Some(hp), Some(max_hp)) = (m.hp, m.max_hp)
                     && max_hp > 0
                 {
@@ -364,21 +390,48 @@ impl PartyFriendsWindow {
                 self.selected = Some(idx);
             }
             if self.selected == Some(idx) {
-                Self::fill(ui, row_rect.x, row_rect.y, row_rect.w, row_rect.h, SELECTION_COLOR);
+                Self::fill(
+                    ui,
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    SELECTION_COLOR,
+                );
             }
             if f.online {
                 Self::draw_icon(ui, x + 3.0, row_y, GRP_ONLINE_TEX, grf);
             }
-            let color = if f.online { FRIEND_COLOR } else { OFFLINE_COLOR };
+            let color = if f.online {
+                FRIEND_COLOR
+            } else {
+                OFFLINE_COLOR
+            };
             ui.text(x + 22.0, row_y + 12.0, &f.name, color);
         }
     }
 
-    fn build_nav_bar(&mut self, ui: &mut UiFrame, party: Option<&Party>, friends: &[Friend], local_aid: u32, x: f32, nav_y: f32) -> Vec<GameEvent> {
+    fn build_nav_bar(
+        &mut self,
+        ui: &mut UiFrame,
+        party: Option<&Party>,
+        friends: &[Friend],
+        local_aid: u32,
+        x: f32,
+        nav_y: f32,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let mut bx = x + 3.0;
         if self.friend_tab {
-            if Self::nav_button(ui, NAV_ADD_ID, bx, nav_y, &MESBTN_CREATE, "Add", "Add Friend") {
+            if Self::nav_button(
+                ui,
+                NAV_ADD_ID,
+                bx,
+                nav_y,
+                &MESBTN_CREATE,
+                "Add",
+                "Add Friend",
+            ) {
                 events.push(GameEvent::ShowPartyHelper { mode: 3 });
             }
             bx += NAV_BTN_W;
@@ -388,7 +441,15 @@ impl PartyFriendsWindow {
                 }
             }
             bx += NAV_BTN_W;
-            if Self::nav_button(ui, NAV_REMOVE_ID, bx, nav_y, &MESBTN_REMOVE, "Del", "Delete") {
+            if Self::nav_button(
+                ui,
+                NAV_REMOVE_ID,
+                bx,
+                nav_y,
+                &MESBTN_REMOVE,
+                "Del",
+                "Delete",
+            ) {
                 if let Some((aid, gid)) = self.selected_friend_ids(friends) {
                     events.push(GameEvent::RequestDeleteFriend { aid, gid });
                 }
@@ -399,19 +460,43 @@ impl PartyFriendsWindow {
         let has_party = party.map(|p| !p.members.is_empty()).unwrap_or(false);
         let is_leader = self.is_leader(party, local_aid);
         if !has_party {
-            if Self::nav_button(ui, NAV_CREATE_ID, bx, nav_y, &MESBTN_CREATE, "New", "Create Party") {
+            if Self::nav_button(
+                ui,
+                NAV_CREATE_ID,
+                bx,
+                nav_y,
+                &MESBTN_CREATE,
+                "New",
+                "Create Party",
+            ) {
                 events.push(GameEvent::ShowPartyHelper { mode: 0 });
             }
             return events;
         }
         if is_leader
-            && Self::nav_button(ui, NAV_INVITE_ID, bx, nav_y, &MESBTN_INVITE, "Inv", "Party Invitation")
+            && Self::nav_button(
+                ui,
+                NAV_INVITE_ID,
+                bx,
+                nav_y,
+                &MESBTN_INVITE,
+                "Inv",
+                "Party Invitation",
+            )
         {
             events.push(GameEvent::ShowPartyHelper { mode: 1 });
         }
         bx += NAV_BTN_W;
         if is_leader
-            && Self::nav_button(ui, NAV_SETUP_ID, bx, nav_y, &MESBTN_SETUP, "Set", "Party Setup")
+            && Self::nav_button(
+                ui,
+                NAV_SETUP_ID,
+                bx,
+                nav_y,
+                &MESBTN_SETUP,
+                "Set",
+                "Party Setup",
+            )
         {
             events.push(GameEvent::ShowPartyHelper { mode: 2 });
         }
@@ -423,7 +508,15 @@ impl PartyFriendsWindow {
         }
         bx += NAV_BTN_W;
         if is_leader
-            && Self::nav_button(ui, NAV_REMOVE_ID, bx, nav_y, &MESBTN_REMOVE, "Kick", "Expel from party")
+            && Self::nav_button(
+                ui,
+                NAV_REMOVE_ID,
+                bx,
+                nav_y,
+                &MESBTN_REMOVE,
+                "Kick",
+                "Expel from party",
+            )
         {
             if let Some((aid, name)) = self.selected_member_kick(party, local_aid) {
                 events.push(GameEvent::RequestExpelMember { aid, name });
@@ -431,7 +524,15 @@ impl PartyFriendsWindow {
         }
         bx += NAV_BTN_W;
         if is_leader
-            && Self::nav_button(ui, NAV_LEADER_ID, bx, nav_y, &MESBTN_SETUP, "Lead", "Delegate leader")
+            && Self::nav_button(
+                ui,
+                NAV_LEADER_ID,
+                bx,
+                nav_y,
+                &MESBTN_SETUP,
+                "Lead",
+                "Delegate leader",
+            )
         {
             if let Some((aid, _)) = self.selected_member_kick(party, local_aid) {
                 events.push(GameEvent::RequestChangePartyLeader { aid });
@@ -439,8 +540,20 @@ impl PartyFriendsWindow {
         }
         bx += NAV_BTN_W;
         let leave_label = if is_leader { "End" } else { "Out" };
-        let leave_tip = if is_leader { "Disband party" } else { "Leave Party" };
-        if Self::nav_button(ui, NAV_LEAVE_ID, bx, nav_y, &MESBTN_LEAVE, leave_label, leave_tip) {
+        let leave_tip = if is_leader {
+            "Disband party"
+        } else {
+            "Leave Party"
+        };
+        if Self::nav_button(
+            ui,
+            NAV_LEAVE_ID,
+            bx,
+            nav_y,
+            &MESBTN_LEAVE,
+            leave_label,
+            leave_tip,
+        ) {
             events.push(GameEvent::RequestLeaveParty);
         }
         events

@@ -97,12 +97,16 @@ impl App {
                     let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
                     let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
                         self.game.world.entities.get(id).is_some_and(|e| {
-                            skill_target_allowed(class, e, &self.game.session.map_properties, player_id)
-                                || (potion_pitcher
-                                    && matches!(
-                                        e.entity_type,
-                                        EntityType::Homunculus | EntityType::Mercenary
-                                    ))
+                            skill_target_allowed(
+                                class,
+                                e,
+                                &self.game.session.map_properties,
+                                player_id,
+                            ) || (potion_pitcher
+                                && matches!(
+                                    e.entity_type,
+                                    EntityType::Homunculus | EntityType::Mercenary
+                                ))
                         })
                     });
                     if let Some(entity_id) = valid_target {
@@ -234,8 +238,10 @@ impl App {
                 .get(entity_id)
                 .is_some_and(|e| e.vending_board.is_some())
         {
-            self.channel
-                .send_packet(build_req_buy_frommc_packet(entity_id, self.active_packetver));
+            self.channel.send_packet(build_req_buy_frommc_packet(
+                entity_id,
+                self.active_packetver,
+            ));
             return;
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
@@ -281,7 +287,13 @@ impl App {
         {
             return;
         }
-        if self.game.world.entities.player().is_some_and(|e| e.is_move_locked()) {
+        if self
+            .game
+            .world
+            .entities
+            .player()
+            .is_some_and(|e| e.is_move_locked())
+        {
             return;
         }
         if self.player_hide_move_blocked() {

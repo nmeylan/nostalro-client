@@ -1,8 +1,8 @@
 use crate::App;
-use ragnarok_game::cursor::PendingCompanionSkill;
-use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
+use ragnarok_game::cursor::PendingCompanionSkill;
 use ragnarok_game::event::{HomunculusProperty, MercenaryInfo, SkillInfo};
+use ragnarok_game::skill::SkillTargetType;
 
 /// e_hom_state2: SP_ACK carries the companion GID, SP_INTIMATE / SP_HUNGRY update those meters.
 const HOM_STATE_ACK: i8 = 0;
@@ -132,8 +132,8 @@ impl App {
     }
 
     pub(super) fn handle_mercenary_param_changed(&mut self, var: u16, value: i32) {
-        use models::enums::status::StatusTypes;
         use models::enums::EnumWithNumberValue;
+        use models::enums::status::StatusTypes;
         let Some(m) = &mut self.game.companions.mercenary else {
             return;
         };
@@ -237,9 +237,17 @@ impl App {
         level: i16,
     ) {
         let companion = if is_mercenary {
-            self.game.companions.mercenary.as_ref().map(|m| (m.gid, &m.skills))
+            self.game
+                .companions
+                .mercenary
+                .as_ref()
+                .map(|m| (m.gid, &m.skills))
         } else {
-            self.game.companions.homunculus.as_ref().map(|h| (h.gid, &h.skills))
+            self.game
+                .companions
+                .homunculus
+                .as_ref()
+                .map(|h| (h.gid, &h.skills))
         };
         let Some((gid, skills)) = companion else {
             tracing::info!("RequestCompanionUseSkill: no companion present — dropped");
@@ -273,7 +281,11 @@ impl App {
             _ => {
                 self.push_owner_command_to(
                     is_mercenary,
-                    ragnarok_game::companion::OwnerCommand::skill_object(skill_id, level as u8, gid),
+                    ragnarok_game::companion::OwnerCommand::skill_object(
+                        skill_id,
+                        level as u8,
+                        gid,
+                    ),
                     self.input.shift_pressed,
                 );
             }

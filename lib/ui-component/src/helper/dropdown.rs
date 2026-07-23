@@ -164,8 +164,13 @@ mod tests {
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
 
-    fn make_frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+    fn make_frame<'a>(
+        ctx: &'a UiContext,
+        atlas: &'a FontAtlas,
+        state: &'a mut StateCache,
+    ) -> UiFrame<'a> {
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -184,7 +189,15 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         dd.begin_frame();
-        let resp = dd.show(&mut ui, WidgetId(1), box_rect, "Member", labels.len(), bounds, false);
+        let resp = dd.show(
+            &mut ui,
+            WidgetId(1),
+            box_rect,
+            "Member",
+            labels.len(),
+            bounds,
+            false,
+        );
         assert!(resp.toggled);
         assert!(dd.open);
         let overlay = resp.overlay_rect.expect("overlay when open");
@@ -196,7 +209,15 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         dd.begin_frame();
-        let resp = dd.show(&mut ui, WidgetId(1), box_rect, "Member", labels.len(), bounds, false);
+        let resp = dd.show(
+            &mut ui,
+            WidgetId(1),
+            box_rect,
+            "Member",
+            labels.len(),
+            bounds,
+            false,
+        );
         assert!(!resp.toggled);
         let overlay = resp.overlay_rect.expect("still open");
         assert_eq!(dd.show_overlay(&mut ui, overlay, 10, &labels), Some(1));

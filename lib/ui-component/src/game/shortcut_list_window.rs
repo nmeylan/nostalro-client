@@ -117,11 +117,7 @@ impl Window for ShortcutListWindow {
 }
 
 impl InGameWindow for ShortcutListWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {

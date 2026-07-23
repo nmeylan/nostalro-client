@@ -80,8 +80,20 @@ struct Tap {
 
 /// `tap!(c, ..)` reads the coarse band, `tap!(d, ..)` the detail band.
 macro_rules! tap {
-    (c, $rel:expr, $co:expr) => { Tap { detail: false, rel: $rel, coeff: $co } };
-    (d, $rel:expr, $co:expr) => { Tap { detail: true, rel: $rel, coeff: $co } };
+    (c, $rel:expr, $co:expr) => {
+        Tap {
+            detail: false,
+            rel: $rel,
+            coeff: $co,
+        }
+    };
+    (d, $rel:expr, $co:expr) => {
+        Tap {
+            detail: true,
+            rel: $rel,
+            coeff: $co,
+        }
+    };
 }
 
 // Wavelet synthesis (reconstruction) filter coefficients, in Q16 fixed-point
@@ -92,12 +104,24 @@ macro_rules! tap {
 // (`PASS_A_LEFT`/`PASS_A_RIGHT`) below use asymmetric stencils where the full
 // filter support runs off the band boundary.
 const PASS_A_EVEN: [Tap; 7] = [
-    tap!(c, -1, -2667), tap!(c, 0, 51674), tap!(c, 1, -2667),
-    tap!(d, -2, -1563), tap!(d, -1, 24733), tap!(d, 0, 24733), tap!(d, 1, -1563),
+    tap!(c, -1, -2667),
+    tap!(c, 0, 51674),
+    tap!(c, 1, -2667),
+    tap!(d, -2, -1563),
+    tap!(d, -1, 24733),
+    tap!(d, 0, 24733),
+    tap!(d, 1, -1563),
 ];
 const PASS_A_ODD: [Tap; 9] = [
-    tap!(c, -1, -4230), tap!(c, 0, 27400), tap!(c, 1, 27400), tap!(c, 2, -4230),
-    tap!(d, -2, -2479), tap!(d, -1, 7250), tap!(d, 0, -55882), tap!(d, 1, 7250), tap!(d, 2, -2479),
+    tap!(c, -1, -4230),
+    tap!(c, 0, 27400),
+    tap!(c, 1, 27400),
+    tap!(c, 2, -4230),
+    tap!(d, -2, -2479),
+    tap!(d, -1, 7250),
+    tap!(d, 0, -55882),
+    tap!(d, 1, 7250),
+    tap!(d, 2, -2479),
 ];
 
 fn plane_count(has_alpha: bool) -> usize {
@@ -158,7 +182,13 @@ fn dc_band(dec: &mut Decoder, rd: &mut Reservoir, mut band: Band<'_>) {
         band.fill(v);
         return;
     }
-    let Band { plane, base, stride, w, h } = band;
+    let Band {
+        plane,
+        base,
+        stride,
+        w,
+        h,
+    } = band;
     let max = rd.pull(16);
     let total = max + 1;
     let mut model = Window::new(max, total as u16);
@@ -219,7 +249,13 @@ fn ac_band(dec: &mut Decoder, rd: &mut Reservoir, mut band: Band<'_>) -> Result<
         band.fill(v);
         return Ok(());
     }
-    let Band { plane, base, stride, w, h } = band;
+    let Band {
+        plane,
+        base,
+        stride,
+        w,
+        h,
+    } = band;
     let token = rd.pull(16);
     let esc_total = token + 1;
     let classes = mag_class(token.wrapping_mul(scale as u32)) + 1;
@@ -252,7 +288,11 @@ fn ac_band(dec: &mut Decoder, rd: &mut Reservoir, mut band: Band<'_>) -> Result<
                     .checked_sub(1)
                     .ok_or_else(|| FormatError::DecompressionFailed("bink: band overrun".into()))?;
                 let t1 = m.run6.decode_symbol(dec, |_| rd.pull(6) as u16) as u32;
-                r1 = if t1 >= 0x3c { RUN6_ESCAPE[(t1 - 0x3c) as usize] } else { t1 };
+                r1 = if t1 >= 0x3c {
+                    RUN6_ESCAPE[(t1 - 0x3c) as usize]
+                } else {
+                    t1
+                };
                 let t2 = m.run8.decode_symbol(dec, |_| rd.pull(8) as u16) as u32;
                 r2 = if t2 >= 0xfc {
                     RUN8_ESCAPE[(t2 - 0xfc) as usize] + 2
@@ -315,7 +355,8 @@ fn ac_band(dec: &mut Decoder, rd: &mut Reservoir, mut band: Band<'_>) -> Result<
                 .wrapping_add(above_val.unsigned_abs())
                 >> 2
         } else {
-            (plane[above] as i32).unsigned_abs()
+            (plane[above] as i32)
+                .unsigned_abs()
                 .wrapping_add(aa.unsigned_abs())
                 .wrapping_add(above_val.unsigned_abs())
                 .wrapping_add(left.unsigned_abs())
@@ -400,17 +441,49 @@ fn decode_plane(
     dc_band(
         &mut dec,
         &mut rd,
-        Band { plane: &mut *plane, base: 0, stride: w << 4, w: w >> 4, h: h >> 4 },
+        Band {
+            plane: &mut *plane,
+            base: 0,
+            stride: w << 4,
+            w: w >> 4,
+            h: h >> 4,
+        },
     );
     for sh in (1..=4).rev() {
         let stride = w << sh;
         let (bw, bh) = (w >> sh, h >> sh);
-        ac_band(&mut dec, &mut rd, Band { plane: &mut *plane, base: w >> sh, stride, w: bw, h: bh })?;
-        ac_band(&mut dec, &mut rd, Band { plane: &mut *plane, base: w << (sh - 1), stride, w: bw, h: bh })?;
         ac_band(
             &mut dec,
             &mut rd,
-            Band { plane: &mut *plane, base: (w >> sh) + (w << (sh - 1)), stride, w: bw, h: bh },
+            Band {
+                plane: &mut *plane,
+                base: w >> sh,
+                stride,
+                w: bw,
+                h: bh,
+            },
+        )?;
+        ac_band(
+            &mut dec,
+            &mut rd,
+            Band {
+                plane: &mut *plane,
+                base: w << (sh - 1),
+                stride,
+                w: bw,
+                h: bh,
+            },
+        )?;
+        ac_band(
+            &mut dec,
+            &mut rd,
+            Band {
+                plane: &mut *plane,
+                base: (w >> sh) + (w << (sh - 1)),
+                stride,
+                w: bw,
+                h: bh,
+            },
         )?;
     }
 
@@ -465,14 +538,15 @@ pub(crate) fn decode_planes(
         planes.push(plane);
         row_flags.push(flags);
     }
-    Ok(DecodedPlanes { planes, row_flags, w, h })
+    Ok(DecodedPlanes {
+        planes,
+        row_flags,
+        w,
+        h,
+    })
 }
 
-fn color_transform_rgba(
-    planes: &[Vec<i16>],
-    width: usize,
-    height: usize,
-) -> Vec<u8> {
+fn color_transform_rgba(planes: &[Vec<i16>], width: usize, height: usize) -> Vec<u8> {
     let has_alpha = planes.len() >= 4;
     let mut out = vec![0u8; width * height * 4];
     for (i, px) in out.chunks_exact_mut(4).enumerate() {
@@ -495,23 +569,72 @@ fn color_transform_rgba(
 }
 
 const PASS_A_LEFT: [&[Tap]; 4] = [
-    &[tap!(c, 0, 51674), tap!(c, 1, -5334), tap!(d, 0, 49466), tap!(d, 1, -3126)],
-    &[tap!(c, 0, 27400), tap!(c, 1, 23170), tap!(c, 2, -4230),
-      tap!(d, 0, -48632), tap!(d, 1, 4771), tap!(d, 2, -2479)],
-    &[tap!(c, 0, -2667), tap!(c, 1, 51674), tap!(c, 2, -2667),
-      tap!(d, 0, 23170), tap!(d, 1, 24733), tap!(d, 2, -1563)],
-    &[tap!(c, 0, -4230), tap!(c, 1, 27400), tap!(c, 2, 27400), tap!(c, 3, -4230),
-      tap!(d, 0, 4771), tap!(d, 1, -55882), tap!(d, 2, 7250), tap!(d, 3, -2479)],
+    &[
+        tap!(c, 0, 51674),
+        tap!(c, 1, -5334),
+        tap!(d, 0, 49466),
+        tap!(d, 1, -3126),
+    ],
+    &[
+        tap!(c, 0, 27400),
+        tap!(c, 1, 23170),
+        tap!(c, 2, -4230),
+        tap!(d, 0, -48632),
+        tap!(d, 1, 4771),
+        tap!(d, 2, -2479),
+    ],
+    &[
+        tap!(c, 0, -2667),
+        tap!(c, 1, 51674),
+        tap!(c, 2, -2667),
+        tap!(d, 0, 23170),
+        tap!(d, 1, 24733),
+        tap!(d, 2, -1563),
+    ],
+    &[
+        tap!(c, 0, -4230),
+        tap!(c, 1, 27400),
+        tap!(c, 2, 27400),
+        tap!(c, 3, -4230),
+        tap!(d, 0, 4771),
+        tap!(d, 1, -55882),
+        tap!(d, 2, 7250),
+        tap!(d, 3, -2479),
+    ],
 ];
 const PASS_A_RIGHT: [&[Tap]; 4] = [
-    &[tap!(c, -3, -2667), tap!(c, -2, 51674), tap!(c, -1, -2667),
-      tap!(d, -4, -1563), tap!(d, -3, 24733), tap!(d, -2, 24733), tap!(d, -1, -1563)],
-    &[tap!(c, -3, -4230), tap!(c, -2, 27400), tap!(c, -1, 23170),
-      tap!(d, -4, -2479), tap!(d, -3, 7250), tap!(d, -2, -58361), tap!(d, -1, 7250)],
-    &[tap!(c, -2, -2667), tap!(c, -1, 49007),
-      tap!(d, -3, -1563), tap!(d, -2, 23170), tap!(d, -1, 24733)],
-    &[tap!(c, -2, -8460), tap!(c, -1, 54800),
-      tap!(d, -3, -4958), tap!(d, -2, 14500), tap!(d, -1, -55882)],
+    &[
+        tap!(c, -3, -2667),
+        tap!(c, -2, 51674),
+        tap!(c, -1, -2667),
+        tap!(d, -4, -1563),
+        tap!(d, -3, 24733),
+        tap!(d, -2, 24733),
+        tap!(d, -1, -1563),
+    ],
+    &[
+        tap!(c, -3, -4230),
+        tap!(c, -2, 27400),
+        tap!(c, -1, 23170),
+        tap!(d, -4, -2479),
+        tap!(d, -3, 7250),
+        tap!(d, -2, -58361),
+        tap!(d, -1, 7250),
+    ],
+    &[
+        tap!(c, -2, -2667),
+        tap!(c, -1, 49007),
+        tap!(d, -3, -1563),
+        tap!(d, -2, 23170),
+        tap!(d, -1, 24733),
+    ],
+    &[
+        tap!(c, -2, -8460),
+        tap!(c, -1, 54800),
+        tap!(d, -3, -4958),
+        tap!(d, -2, 14500),
+        tap!(d, -1, -55882),
+    ],
 ];
 
 fn pass_a_row(coarse: &[i16], detail: &[i16], out: &mut [i16]) {
@@ -520,7 +643,11 @@ fn pass_a_row(coarse: &[i16], detail: &[i16], out: &mut [i16]) {
     let band = |t: &Tap, k: isize| -> i32 {
         let arr = if t.detail { detail } else { coarse };
         let i = k + t.rel;
-        if i >= 0 && (i as usize) < half { arr[i as usize] as i32 } else { 0 }
+        if i >= 0 && (i as usize) < half {
+            arr[i as usize] as i32
+        } else {
+            0
+        }
     };
     for o in 0..w {
         let mut acc = 0i32;
@@ -537,7 +664,11 @@ fn pass_a_row(coarse: &[i16], detail: &[i16], out: &mut [i16]) {
             }
         } else {
             let k = (o / 2) as isize;
-            let stencil: &[Tap] = if o % 2 == 0 { &PASS_A_EVEN } else { &PASS_A_ODD };
+            let stencil: &[Tap] = if o % 2 == 0 {
+                &PASS_A_EVEN
+            } else {
+                &PASS_A_ODD
+            };
             for t in stencil {
                 acc = acc.wrapping_add(t.coeff.wrapping_mul(band(t, k)));
             }
@@ -566,14 +697,7 @@ fn mirror_detail(i: isize, n: usize) -> usize {
     }
 }
 
-fn pass_b_column(
-    scratch: &[i16],
-    ow: usize,
-    j: usize,
-    n: usize,
-    plane: &mut [i16],
-    pitch: usize,
-) {
+fn pass_b_column(scratch: &[i16], ow: usize, j: usize, n: usize, plane: &mut [i16], pitch: usize) {
     let c = |i: isize| scratch[2 * mirror_coarse(i, n) * ow + j] as i32;
     let d = |i: isize| scratch[(2 * mirror_detail(i, n) + 1) * ow + j] as i32;
     for k in 0..n as isize {
@@ -734,6 +858,4 @@ mod tests {
         let rgba = color_transform_rgba(&planes, 1, 1);
         assert_eq!(rgba, vec![255, 255, 255, 255]);
     }
-
-
 }

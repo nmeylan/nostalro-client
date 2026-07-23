@@ -10,25 +10,57 @@ const ITEM_H: f32 = 18.0;
 
 #[derive(Clone)]
 pub enum ContextMenuAction {
-    InviteToParty { target_aid: u32 },
-    RequestTrade { target_aid: u32 },
-    AdoptBaby { target_aid: u32 },
-    Whisper { name: String },
-    ChangeGuildPosition { aid: u32, gid: u32, position_id: i32 },
-    ExpelFromGuild { aid: u32, gid: u32, name: String },
+    InviteToParty {
+        target_aid: u32,
+    },
+    RequestTrade {
+        target_aid: u32,
+    },
+    AdoptBaby {
+        target_aid: u32,
+    },
+    Whisper {
+        name: String,
+    },
+    ChangeGuildPosition {
+        aid: u32,
+        gid: u32,
+        position_id: i32,
+    },
+    ExpelFromGuild {
+        aid: u32,
+        gid: u32,
+        name: String,
+    },
     GuildLeave,
-    GuildInvite { target_aid: u32 },
-    GuildAlly { target_aid: u32 },
-    GuildHostile { target_aid: u32 },
-    CompanionShowInfo { is_mercenary: bool },
+    GuildInvite {
+        target_aid: u32,
+    },
+    GuildAlly {
+        target_aid: u32,
+    },
+    GuildHostile {
+        target_aid: u32,
+    },
+    CompanionShowInfo {
+        is_mercenary: bool,
+    },
     CompanionFeed,
-    CompanionStandby { is_mercenary: bool },
+    CompanionStandby {
+        is_mercenary: bool,
+    },
     CompanionAiConfig,
-    KickFromChatRoom { name: String },
-    ChangeChatOwner { name: String },
+    KickFromChatRoom {
+        name: String,
+    },
+    ChangeChatOwner {
+        name: String,
+    },
     PetShowInfo,
     PetFeed,
-    PetCommand { csub: i8 },
+    PetCommand {
+        csub: i8,
+    },
 }
 
 pub struct ContextMenuItem {
@@ -90,7 +122,8 @@ impl ContextMenu {
             if resp.hovered() {
                 any_hovered = true;
                 ui.any_interactive_hovered = true;
-                let (v, i) = draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [0.72, 0.79, 0.93, 1.0]);
+                let (v, i) =
+                    draw::quad_vertices(rect.x, rect.y, rect.w, rect.h, [0.72, 0.79, 0.93, 1.0]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),

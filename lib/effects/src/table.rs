@@ -12,13 +12,13 @@ use super::effects::{
     frost_diver, fullscreen_overlay, glasswall, glasswall2, grandcross, gravitation, ground_sample,
     guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6,
     hitdark, kouenka, light_sphere, linelink, m_ef02, magic_bolt, magnum_break, mapzone, multibody,
-    napalmbeat, napalmvalcan, orbit_burst, particle_up, peong, peong_up, pierce,
-    pokjuk, portal, portal_wind, portal2, potion_berserk, potion_con, potion_pillar, pressure,
-    providence, quakebody, rainbow, ready_portal, revive, rg_coin, saintwing, sakura, sandwind,
-    sight, slash, sma, sonicblowhit, soul_breaker, soul_strike, soullink, spearbmr, spherewind,
-    spraypond, squarebody, status_up, stin, storm_kick, stormgust, summon_slave, super_angel,
-    teihit, teleportation, texture_falling, throw_item, thunderstorm2, tripleattack, turnundead,
-    twilight, volcano, warp, waterball, waterball2, wind, yufitel2, yupitel,
+    napalmbeat, napalmvalcan, orbit_burst, particle_up, peong, peong_up, pierce, pokjuk, portal,
+    portal_wind, portal2, potion_berserk, potion_con, potion_pillar, pressure, providence,
+    quakebody, rainbow, ready_portal, revive, rg_coin, saintwing, sakura, sandwind, sight, slash,
+    sma, sonicblowhit, soul_breaker, soul_strike, soullink, spearbmr, spherewind, spraypond,
+    squarebody, status_up, stin, storm_kick, stormgust, summon_slave, super_angel, teihit,
+    teleportation, texture_falling, throw_item, thunderstorm2, tripleattack, turnundead, twilight,
+    volcano, warp, waterball, waterball2, wind, yufitel2, yupitel,
 };
 use super::spec::{EffectSpec, SprBodyRecolor};
 use super::spr_aliases::spr_def;
@@ -29,9 +29,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
     Some(match id {
         EffectId::Warp => EffectSpec::Custom,
 
-        EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13 => {
-            EffectSpec::Custom
-        }
+        EffectId::Damage1 | EffectId::Damage12 | EffectId::Damage13 => EffectSpec::Custom,
 
         EffectId::Magnumbreak => EffectSpec::Custom,
         EffectId::Magnum2 => EffectSpec::Custom,
@@ -534,8 +532,12 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         | EffectId::Shieldboomerang
         | EffectId::Shieldboomerang2
         | EffectId::Shieldboomerang3 => cloud_projectile::TOTAL_DURATION_MS,
-        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => twilight::TOTAL_DURATION_MS,
-        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => pressure::PRESSURE_TOTAL_DURATION_MS,
+        EffectId::Twilight1 | EffectId::Twilight2 | EffectId::Twilight3 => {
+            twilight::TOTAL_DURATION_MS
+        }
+        EffectId::Slim | EffectId::Slim2 | EffectId::Slim3 | EffectId::Pressure => {
+            pressure::PRESSURE_TOTAL_DURATION_MS
+        }
         EffectId::Hit1 => hit::HIT1_TOTAL_DURATION_MS,
         EffectId::Hit2 => hit2::TOTAL_DURATION_MS,
         EffectId::Hit3 => hit::HIT3_TOTAL_DURATION_MS,
@@ -555,7 +557,9 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Portal => portal::TOTAL_DURATION_MS,
         EffectId::Portal2 | EffectId::Portal3 => portal2::TOTAL_DURATION_MS,
         EffectId::Portal4 | EffectId::Portal5 => portal_wind::TOTAL_DURATION_MS,
-        EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => portal_wind::TOTAL_DURATION_MS,
+        EffectId::Mgdef1 | EffectId::Mgdef2 | EffectId::Mgdef3 | EffectId::Mgdef4 => {
+            portal_wind::TOTAL_DURATION_MS
+        }
         EffectId::Halfsphere => attack_energy::HALFSPHERE_DURATION_MS,
         EffectId::Attackenergy => attack_energy::ATTACKENERGY_DURATION_MS,
         EffectId::Attackenergy2 => attack_energy::ATTACKENERGY2_DURATION_MS,
@@ -585,9 +589,29 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Toprank => 99990,
         EffectId::Party => 99990,
         EffectId::Curseattack => curseattack::TOTAL_DURATION_MS,
-        EffectId::MapMagiczone | EffectId::MapMagiczone2 | EffectId::Glow4 => mapzone::TOTAL_DURATION_MS,
-        EffectId::Waterfall | EffectId::Waterfall90 | EffectId::WaterfallSmall | EffectId::WaterfallSmall90 | EffectId::WaterfallT2 | EffectId::WaterfallT290 | EffectId::WaterfallSmallT2 | EffectId::WaterfallSmallT290 | EffectId::Bluefall | EffectId::Bluefall90 | EffectId::Fastbluefall | EffectId::Fastbluefall90 => 4294967295,
-        EffectId::Cloud | EffectId::Cloud2 | EffectId::Cloud3 | EffectId::Cloud4 | EffectId::Cloud5 | EffectId::Cloud6 | EffectId::Cloud7 | EffectId::Cloud8 => 4294967295,
+        EffectId::MapMagiczone | EffectId::MapMagiczone2 | EffectId::Glow4 => {
+            mapzone::TOTAL_DURATION_MS
+        }
+        EffectId::Waterfall
+        | EffectId::Waterfall90
+        | EffectId::WaterfallSmall
+        | EffectId::WaterfallSmall90
+        | EffectId::WaterfallT2
+        | EffectId::WaterfallT290
+        | EffectId::WaterfallSmallT2
+        | EffectId::WaterfallSmallT290
+        | EffectId::Bluefall
+        | EffectId::Bluefall90
+        | EffectId::Fastbluefall
+        | EffectId::Fastbluefall90 => 4294967295,
+        EffectId::Cloud
+        | EffectId::Cloud2
+        | EffectId::Cloud3
+        | EffectId::Cloud4
+        | EffectId::Cloud5
+        | EffectId::Cloud6
+        | EffectId::Cloud7
+        | EffectId::Cloud8 => 4294967295,
         EffectId::Napalmbeat => napalmbeat::TOTAL_DURATION_MS,
         EffectId::Sandwind => sandwind::TOTAL_DURATION_MS,
         EffectId::Heavensdrive => heavensdrive::TOTAL_DURATION_MS,
@@ -595,8 +619,12 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Cone => cone::TOTAL_DURATION_MS,
         EffectId::Flowercast => flowercast::TOTAL_DURATION_MS,
         EffectId::Yufitel2 => yufitel2::TOTAL_DURATION_MS,
-        EffectId::TextureFalling => texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING),
-        EffectId::Twohandquicken | EffectId::Spearquicken | EffectId::Lkconcentration => body_buff::TOTAL_DURATION_MS,
+        EffectId::TextureFalling => {
+            texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING)
+        }
+        EffectId::Twohandquicken | EffectId::Spearquicken | EffectId::Lkconcentration => {
+            body_buff::TOTAL_DURATION_MS
+        }
         EffectId::Bunsinjyutsu => body_buff::TOTAL_DURATION_MS,
         EffectId::Quakebody => quakebody::total_duration_ms(&quakebody::QUAKEBODY),
         EffectId::Quakebody2 => quakebody::total_duration_ms(&quakebody::QUAKEBODY2),
@@ -640,7 +668,9 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Sight => sight::total_duration_ms(&sight::SIGHT),
         EffectId::Ruwach => sight::total_duration_ms(&sight::RUWACH),
         EffectId::Sight2 => 9999990,
-        EffectId::Incagility | EffectId::Decagility | EffectId::Incagidex => status_up::TOTAL_DURATION_MS,
+        EffectId::Incagility | EffectId::Decagility | EffectId::Incagidex => {
+            status_up::TOTAL_DURATION_MS
+        }
         EffectId::Landprotector => volcano::LANDPROTECTOR.total_duration_ms(),
         EffectId::Volcano => volcano::VOLCANO.total_duration_ms(),
         EffectId::Deluge => volcano::DELUGE.total_duration_ms(),
@@ -709,9 +739,19 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Firstaid => firstaid::TOTAL_DURATION_MS,
         EffectId::Earthspike | EffectId::Hyousensou => 2000,
         EffectId::Warpzone | EffectId::Grimtooth | EffectId::Grimtoothatk => 2500,
-        EffectId::Mappillar | EffectId::Mappillar2 | EffectId::Mappillar3 | EffectId::Mappillar4 => 9990,
+        EffectId::Mappillar
+        | EffectId::Mappillar2
+        | EffectId::Mappillar3
+        | EffectId::Mappillar4 => 9990,
         EffectId::Icewall => 99990,
-        EffectId::Warpzone2 | EffectId::Level99 | EffectId::Level992 | EffectId::Level993 | EffectId::Level994 | EffectId::Level995 | EffectId::Level996 | EffectId::MapGhost => 4294967295,
+        EffectId::Warpzone2
+        | EffectId::Level99
+        | EffectId::Level992
+        | EffectId::Level993
+        | EffectId::Level994
+        | EffectId::Level995
+        | EffectId::Level996
+        | EffectId::MapGhost => 4294967295,
         EffectId::Barrier => barrier::TOTAL_DURATION_MS,
         EffectId::Banjjakii => banjjakii::TOTAL_DURATION_MS,
         EffectId::Sphere => orbit_burst::SPHERE_TOTAL_DURATION_MS,
@@ -756,29 +796,125 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Linelink3 => linelink::LINELINK3_DURATION_MS,
 
         EffectId::Sonicblow => 400,
-        EffectId::BabybodyBack | EffectId::BlackNumber | EffectId::BlueNumber | EffectId::Firesplashhit | EffectId::GreenNumber | EffectId::PinkNumber | EffectId::PurpleNumber | EffectId::RedNumber | EffectId::Spinedbody | EffectId::WhiteNumber | EffectId::YellowNumber => 500,
+        EffectId::BabybodyBack
+        | EffectId::BlackNumber
+        | EffectId::BlueNumber
+        | EffectId::Firesplashhit
+        | EffectId::GreenNumber
+        | EffectId::PinkNumber
+        | EffectId::PurpleNumber
+        | EffectId::RedNumber
+        | EffectId::Spinedbody
+        | EffectId::WhiteNumber
+        | EffectId::YellowNumber => 500,
         EffectId::Coldhit => 550,
         EffectId::Bluecasting | EffectId::Darkcasting | EffectId::Landbody => 600,
         EffectId::TaeReady => 850,
         EffectId::Spinedbody2 => 900,
-        EffectId::Chaingeholy | EffectId::Changecold | EffectId::Changedark | EffectId::Changeearth | EffectId::Changefire | EffectId::Changeflame | EffectId::Changepoison | EffectId::Changewind | EffectId::Ef4waybody | EffectId::Jumpkick => 1000,
+        EffectId::Chaingeholy
+        | EffectId::Changecold
+        | EffectId::Changedark
+        | EffectId::Changeearth
+        | EffectId::Changefire
+        | EffectId::Changeflame
+        | EffectId::Changepoison
+        | EffectId::Changewind
+        | EffectId::Ef4waybody
+        | EffectId::Jumpkick => 1000,
         EffectId::Electric2 | EffectId::Hitline7 => 1500,
         EffectId::Fvoice | EffectId::TempFail | EffectId::TempOk | EffectId::Wink => 1667,
-        EffectId::Blackdevil | EffectId::Hitline | EffectId::Hitline2 | EffectId::Hitline3 | EffectId::Hittexture | EffectId::SmaReady => 2000,
+        EffectId::Blackdevil
+        | EffectId::Hitline
+        | EffectId::Hitline2
+        | EffectId::Hitline3
+        | EffectId::Hittexture
+        | EffectId::SmaReady => 2000,
         EffectId::Hitline4 | EffectId::Hitline5 | EffectId::Sightrasher => 2500,
-        EffectId::Electric | EffectId::Hated2 | EffectId::Hitline6 | EffectId::Hptime | EffectId::ItemLight | EffectId::Sprinklesand | EffectId::Sptime | EffectId::Teihit1 | EffectId::Teihit1x | EffectId::Teihit3 => 3000,
+        EffectId::Electric
+        | EffectId::Hated2
+        | EffectId::Hitline6
+        | EffectId::Hptime
+        | EffectId::ItemLight
+        | EffectId::Sprinklesand
+        | EffectId::Sptime
+        | EffectId::Teihit1
+        | EffectId::Teihit1x
+        | EffectId::Teihit3 => 3000,
         EffectId::NpcSlowcast => 3100,
         EffectId::Lockon => 3333,
-        EffectId::Foot | EffectId::Foot2 | EffectId::Foot3 | EffectId::Foot4 | EffectId::Foot5 | EffectId::Foot6 => 3400,
-        EffectId::Tarotcard1 | EffectId::Tarotcard10 | EffectId::Tarotcard11 | EffectId::Tarotcard12 | EffectId::Tarotcard13 | EffectId::Tarotcard14 | EffectId::Tarotcard2 | EffectId::Tarotcard3 | EffectId::Tarotcard4 | EffectId::Tarotcard5 | EffectId::Tarotcard6 | EffectId::Tarotcard7 | EffectId::Tarotcard8 | EffectId::Tarotcard9 => 4067,
+        EffectId::Foot
+        | EffectId::Foot2
+        | EffectId::Foot3
+        | EffectId::Foot4
+        | EffectId::Foot5
+        | EffectId::Foot6 => 3400,
+        EffectId::Tarotcard1
+        | EffectId::Tarotcard10
+        | EffectId::Tarotcard11
+        | EffectId::Tarotcard12
+        | EffectId::Tarotcard13
+        | EffectId::Tarotcard14
+        | EffectId::Tarotcard2
+        | EffectId::Tarotcard3
+        | EffectId::Tarotcard4
+        | EffectId::Tarotcard5
+        | EffectId::Tarotcard6
+        | EffectId::Tarotcard7
+        | EffectId::Tarotcard8
+        | EffectId::Tarotcard9 => 4067,
         EffectId::Hated | EffectId::Jumpbody => 5000,
         EffectId::Bat | EffectId::Bat2 | EffectId::Ghost => 40000,
         EffectId::BottomMag | EffectId::Venomdust2 => 99990,
         EffectId::BottomGospel => 199990,
-        EffectId::BottomAppleidun | EffectId::BottomAssassincross | EffectId::BottomBasilica | EffectId::BottomDe | EffectId::BottomDissonance | EffectId::BottomDontforgetme | EffectId::BottomDrumbattlefield | EffectId::BottomEternalchaos | EffectId::BottomEvilland | EffectId::BottomFogwall | EffectId::BottomFortunekiss | EffectId::BottomHermode | EffectId::BottomHumming | EffectId::BottomIntoabyss | EffectId::BottomLa | EffectId::BottomLullaby | EffectId::BottomPoembragi | EffectId::BottomRichmankim | EffectId::BottomRingnibelungen | EffectId::BottomRokisweil | EffectId::BottomRunner | EffectId::BottomServiceforyou | EffectId::BottomSiegfried | EffectId::BottomSpider | EffectId::BottomSuiton | EffectId::BottomTransfer | EffectId::BottomUglydance | EffectId::BottomVi | EffectId::BottomVo | EffectId::BottomWhistle => 299990,
-        EffectId::Forestlight | EffectId::Forestlight2 | EffectId::Forestlight3 | EffectId::Forestlight4 => 600000,
-        EffectId::Asurabody | EffectId::Babybody | EffectId::Babybody2 | EffectId::Giantbody | EffectId::Giantbody2 => 999990,
-        EffectId::Dust | EffectId::Glow1 | EffectId::Glow11 | EffectId::Glow12 | EffectId::Glow2 | EffectId::Green995 | EffectId::Green996 | EffectId::TorchGreen | EffectId::TorchPurple | EffectId::TorchRed => 4294967295,
+        EffectId::BottomAppleidun
+        | EffectId::BottomAssassincross
+        | EffectId::BottomBasilica
+        | EffectId::BottomDe
+        | EffectId::BottomDissonance
+        | EffectId::BottomDontforgetme
+        | EffectId::BottomDrumbattlefield
+        | EffectId::BottomEternalchaos
+        | EffectId::BottomEvilland
+        | EffectId::BottomFogwall
+        | EffectId::BottomFortunekiss
+        | EffectId::BottomHermode
+        | EffectId::BottomHumming
+        | EffectId::BottomIntoabyss
+        | EffectId::BottomLa
+        | EffectId::BottomLullaby
+        | EffectId::BottomPoembragi
+        | EffectId::BottomRichmankim
+        | EffectId::BottomRingnibelungen
+        | EffectId::BottomRokisweil
+        | EffectId::BottomRunner
+        | EffectId::BottomServiceforyou
+        | EffectId::BottomSiegfried
+        | EffectId::BottomSpider
+        | EffectId::BottomSuiton
+        | EffectId::BottomTransfer
+        | EffectId::BottomUglydance
+        | EffectId::BottomVi
+        | EffectId::BottomVo
+        | EffectId::BottomWhistle => 299990,
+        EffectId::Forestlight
+        | EffectId::Forestlight2
+        | EffectId::Forestlight3
+        | EffectId::Forestlight4 => 600000,
+        EffectId::Asurabody
+        | EffectId::Babybody
+        | EffectId::Babybody2
+        | EffectId::Giantbody
+        | EffectId::Giantbody2 => 999990,
+        EffectId::Dust
+        | EffectId::Glow1
+        | EffectId::Glow11
+        | EffectId::Glow12
+        | EffectId::Glow2
+        | EffectId::Green995
+        | EffectId::Green996
+        | EffectId::TorchGreen
+        | EffectId::TorchPurple
+        | EffectId::TorchRed => 4294967295,
 
         _ => 0,
     }
@@ -842,7 +978,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
     if is_custom_bucket(id) {
         EffectSpec::Custom
     } else {
-         EffectSpec::Noop
+        EffectSpec::Noop
     }
 }
 
@@ -877,14 +1013,14 @@ mod tests {
             "Maple must reach the sakura machinery, not a frozen spr"
         );
         assert!(
-            matches!(
-                effect_spec(EffectId::PokjukSound),
-                Some(EffectSpec::Custom)
-            ),
+            matches!(effect_spec(EffectId::PokjukSound), Some(EffectSpec::Custom)),
             "PokjukSound must hold a silent entry so its SFX schedule fires"
         );
         assert!(
-            matches!(effect_spec(EffectId::Snow), Some(EffectSpec::SprBurst { .. })),
+            matches!(
+                effect_spec(EffectId::Snow),
+                Some(EffectSpec::SprBurst { .. })
+            ),
             "Snow stays on the SprBurst path"
         );
     }

@@ -20,10 +20,10 @@ pub use primitives::{
     prepare_sphere_records, prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use queue::{BlendBucket, DrawRecord, PipelineKind, partition_and_sort};
-pub use registry::{EffectPrimitiveRegistry, EffectPrimitiveRenderer};
 pub use ragnarok_effects::{
     BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectRenderCtx, EffectStatus, EffectUpdateCtx,
     effect_texture_path,
 };
+pub use registry::{EffectPrimitiveRegistry, EffectPrimitiveRenderer};
 pub use scene::{EffectFrameInputs, EffectFrameOutputs, compose_effect_frame};
 pub use str_pipeline::{StrEffectCache, StrEffectEntry, StrEmitterInput, build_str_effect_batches};

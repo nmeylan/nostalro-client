@@ -13,10 +13,10 @@ mod sprite;
 mod ui;
 
 use config::Config;
-use game_state::{
-    CursorInput, CursorPending, GameState, cursor_type_from_hover,
-};
+use game_state::{CursorInput, CursorPending, GameState, cursor_type_from_hover};
 use input::InputState;
+use ragnarok_audio::SoundManager;
+use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::RenderEntry;
@@ -34,11 +34,10 @@ use ragnarok_game::data_table::skill_tree_table::SkillTreeTable;
 use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::map_loader;
 use ragnarok_game::sound::SoundQueue;
 use ragnarok_game::sprite_path::{HiddenRender, hidden_render};
-use ragnarok_game::map_loader;
 use ragnarok_network::{NetworkCommand, build_reqname_packet, network_loop};
-use ragnarok_audio::SoundManager;
 use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
     EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
@@ -47,15 +46,14 @@ use ragnarok_renderer::{
 use ragnarok_ui::context::UiContext;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::state::StateCache;
-use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
-use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
-use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::login_server_list_window::{
     LoginServerEntry, LoginServerListWindow,
 };
+use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -166,8 +164,7 @@ impl App {
         game.prefs.self_config.refuse_party_invite = config.refuse_party_invite;
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);
-        let sound =
-            SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
+        let sound = SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
         let active_packetver = config
             .login_servers
             .first()
@@ -283,11 +280,17 @@ impl App {
             }
         }
 
-        self.game.schedulers.ambient_effects.clear(&mut self.effect_queue);
+        self.game
+            .schedulers
+            .ambient_effects
+            .clear(&mut self.effect_queue);
         self.game.schedulers.ambient_effects =
             ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
         self.game.schedulers.ambient_sounds =
-            ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
+            ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(
+                &map_data.rsw,
+                &map_data.gnd,
+            );
         self.game.schedulers.repeat_sounds.clear();
 
         self.game.schedulers.day_night.on_map_loaded(
@@ -384,7 +387,8 @@ impl App {
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
-        if let (Some(coords), Some(renderer)) = (&self.game.session.map_coords, &mut self.renderer) {
+        if let (Some(coords), Some(renderer)) = (&self.game.session.map_coords, &mut self.renderer)
+        {
             input::position_camera_at(
                 &mut renderer.camera,
                 self.game.session.gat.as_ref(),
@@ -456,10 +460,7 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
-                    ragnarok_ui_component::account::draw_background(
-                        &mut ui,
-                        account_bg.as_deref(),
-                    );
+                    ragnarok_ui_component::account::draw_background(&mut ui, account_bg.as_deref());
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -487,10 +488,7 @@ impl App {
                         initial_focus,
                         &self.saved_window_positions,
                     );
-                    ragnarok_ui_component::account::draw_background(
-                        &mut ui,
-                        account_bg.as_deref(),
-                    );
+                    ragnarok_ui_component::account::draw_background(&mut ui, account_bg.as_deref());
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -518,10 +516,7 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
-                    ragnarok_ui_component::account::draw_background(
-                        &mut ui,
-                        account_bg.as_deref(),
-                    );
+                    ragnarok_ui_component::account::draw_background(&mut ui, account_bg.as_deref());
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -549,10 +544,7 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
-                    ragnarok_ui_component::account::draw_background(
-                        &mut ui,
-                        account_bg.as_deref(),
-                    );
+                    ragnarok_ui_component::account::draw_background(&mut ui, account_bg.as_deref());
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -580,10 +572,7 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
-                    ragnarok_ui_component::account::draw_background(
-                        &mut ui,
-                        account_bg.as_deref(),
-                    );
+                    ragnarok_ui_component::account::draw_background(&mut ui, account_bg.as_deref());
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -629,7 +618,11 @@ impl App {
                             "net sync: {}",
                             if st.is_synced() { "yes" } else { "no" }
                         ));
-                        overlay_lines.push(format!("rtt: {} ms (avg {:.0})", st.rtt(), st.rtt_avg()));
+                        overlay_lines.push(format!(
+                            "rtt: {} ms (avg {:.0})",
+                            st.rtt(),
+                            st.rtt_avg()
+                        ));
                         overlay_lines.push(format!("server tick est: {est}"));
                         overlay_lines.push(format!("offset: {offset} ms"));
                     }
@@ -638,7 +631,8 @@ impl App {
                         const PADDING: f32 = 10.0;
                         let color = [1.0, 0.9, 0.25, 1.0];
                         let shadow = [0.0, 0.0, 0.0, 0.9];
-                        let right_x = (ui.ctx.screen_width - MINIMAP_LEFT_MARGIN - PADDING).max(0.0);
+                        let right_x =
+                            (ui.ctx.screen_width - MINIMAP_LEFT_MARGIN - PADDING).max(0.0);
                         for (i, line) in overlay_lines.iter().enumerate() {
                             let y = 10.0 + i as f32 * 16.0;
                             let tw = ui.atlas.measure_text(line);
@@ -657,7 +651,6 @@ impl App {
             }
         }
     }
-
 }
 
 impl ApplicationHandler for App {
@@ -716,13 +709,14 @@ impl ApplicationHandler for App {
                         renderer.try_load_grf_font(&grf);
                         events::preload_window(&mut self.login_window, renderer, &grf);
                         events::preload_window(&mut self.account_dialog, renderer, &grf);
-                        self.account_background =
-                            pick_account_background(&self.config.account_backgrounds)
-                                .and_then(|path| {
-                                    renderer
-                                        .preload_textures(&[path.as_str()], &grf)
-                                        .then_some(path)
-                                });
+                        self.account_background = pick_account_background(
+                            &self.config.account_backgrounds,
+                        )
+                        .and_then(|path| {
+                            renderer
+                                .preload_textures(&[path.as_str()], &grf)
+                                .then_some(path)
+                        });
                     }
                     self.login_window.keep_id = self.config.keep_login_id;
                     if self.config.keep_login_id {
@@ -748,8 +742,11 @@ impl ApplicationHandler for App {
                         Some(SkillDescriptionTable::load(&grf));
                     self.game.data_table.skill_tree = Some(SkillTreeTable::load(&grf));
                     self.game.data_table.skill_use_level = Some(SkillUseLevelTable::load(&grf));
-                    self.game.data_table.quest_display =
-                        Some(ragnarok_game::data_table::quest_display_table::QuestDisplayTable::load(&grf));
+                    self.game.data_table.quest_display = Some(
+                        ragnarok_game::data_table::quest_display_table::QuestDisplayTable::load(
+                            &grf,
+                        ),
+                    );
                     if let Ok(bytes) = grf.read_file("data/pettalktable.xml") {
                         self.game.data_table.pet_talk =
                             Some(ragnarok_formats::pettalk::PetTalkTable::parse(&bytes));
@@ -875,7 +872,11 @@ impl ApplicationHandler for App {
                 self.game.assets.cursor_animation.set_cursor_type(cursor);
                 self.game.hover = hover;
 
-                let hovered_named_id = self.game.hover.target_id().or(self.game.hover.hovered_player_id);
+                let hovered_named_id = self
+                    .game
+                    .hover
+                    .target_id()
+                    .or(self.game.hover.hovered_player_id);
                 let hovered_floor_item_id = self.game.hover.hovered_floor_item_id;
                 if let Some(entity_id) = hovered_named_id
                     && let Some(entity) = self.game.world.entities.get_mut(entity_id)

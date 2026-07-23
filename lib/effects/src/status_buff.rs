@@ -30,7 +30,10 @@ impl StatusReaction {
     }
 
     const fn aura(aura: &'static [EffectId]) -> Self {
-        Self { aura, ..Self::new() }
+        Self {
+            aura,
+            ..Self::new()
+        }
     }
 
     const fn on_activate(ids: &'static [EffectId]) -> Self {
@@ -48,7 +51,10 @@ impl StatusReaction {
     }
 
     const fn kind(kind: StatusKind) -> Self {
-        Self { kind, ..Self::new() }
+        Self {
+            kind,
+            ..Self::new()
+        }
     }
 }
 
@@ -151,6 +157,9 @@ mod tests {
             status_reaction(I::Run).unwrap().on_deactivate,
             &[EffectId::Stopeffect]
         );
-        assert_eq!(status_reaction(I::OnPushCart).unwrap().kind, StatusKind::PushCart);
+        assert_eq!(
+            status_reaction(I::OnPushCart).unwrap().kind,
+            StatusKind::PushCart
+        );
     }
 }

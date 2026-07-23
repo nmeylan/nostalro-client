@@ -1,7 +1,7 @@
 use crate::App;
 use crate::input;
-use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_formats::act::{MotionType, SpriteAnimationState};
+use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::cart_sprite_path;
@@ -101,7 +101,12 @@ impl App {
             _ => return,
         };
         for &design in designs {
-            if self.game.sprite_caches.cart_preview_sprites.contains_key(&design) {
+            if self
+                .game
+                .sprite_caches
+                .cart_preview_sprites
+                .contains_key(&design)
+            {
                 continue;
             }
             let base = cart_sprite_path(design);
@@ -126,7 +131,10 @@ impl App {
                 None,
                 None,
             ));
-            self.game.sprite_caches.cart_preview_sprites.insert(design, sprite);
+            self.game
+                .sprite_caches
+                .cart_preview_sprites
+                .insert(design, sprite);
         }
     }
 
@@ -164,7 +172,9 @@ impl App {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for entity in self.game.world.entities.iter() {
-                if entity.cart_type.is_none() || !self.game.sprite_caches.carts.contains_key(&entity.id) {
+                if entity.cart_type.is_none()
+                    || !self.game.sprite_caches.carts.contains_key(&entity.id)
+                {
                     continue;
                 }
                 let (px, py) = entity.movement.position();

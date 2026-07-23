@@ -298,7 +298,10 @@ mod tests {
     fn embedded_cjk_rasterizes_hangul() {
         let a = FontAtlas::from_embedded_cjk(16.0, 1.0, &euc_kr_charset());
         let g = a.glyph('가');
-        assert!(g.size[0] > 0.0 && g.size[1] > 0.0, "hangul glyph not rendered");
+        assert!(
+            g.size[0] > 0.0 && g.size[1] > 0.0,
+            "hangul glyph not rendered"
+        );
     }
 
     #[test]

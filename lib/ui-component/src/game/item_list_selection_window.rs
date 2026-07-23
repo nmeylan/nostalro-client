@@ -202,9 +202,7 @@ impl ItemListSelectionWindow {
         let tc = text_color(grf);
         let (btn_w, btn_h) = self.btn_size;
 
-        let visible_rows = self
-            .visible_rows
-            .clamp(MIN_VISIBLE_ROWS, MAX_VISIBLE_ROWS);
+        let visible_rows = self.visible_rows.clamp(MIN_VISIBLE_ROWS, MAX_VISIBLE_ROWS);
         let max_scroll = self.rows.len().saturating_sub(visible_rows);
         let list_h = visible_rows as f32 * ROW_H;
         let win_h = TITLE_H + PAD + list_h + PAD + FOOTER_H;
@@ -273,8 +271,13 @@ impl ItemListSelectionWindow {
                 confirm_now = true;
             }
             if idx == self.selected {
-                let (v, i) =
-                    draw::quad_vertices(row_rect.x, row_rect.y, row_rect.w, row_rect.h, SELECTED_COLOR);
+                let (v, i) = draw::quad_vertices(
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    SELECTED_COLOR,
+                );
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
@@ -338,13 +341,7 @@ impl ItemListSelectionWindow {
         } else {
             [0.5, 0.5, 0.6, 0.8]
         };
-        let (gv, gi) = draw::quad_vertices(
-            grip_rect.x,
-            grip_rect.y + 2.0,
-            GRIP_W,
-            2.0,
-            grip_color,
-        );
+        let (gv, gi) = draw::quad_vertices(grip_rect.x, grip_rect.y + 2.0, GRIP_W, 2.0, grip_color);
         ui.draw_calls.push(DrawCall {
             vertices: gv.to_vec(),
             indices: gi.to_vec(),
@@ -429,10 +426,11 @@ mod tests {
         let events = win.build(&mut ui);
 
         assert!(!win.is_open());
-        assert!(events.iter().any(|e| matches!(
-            e,
-            GameEvent::RequestIdentifyItem { index: 7 }
-        )));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestIdentifyItem { index: 7 }))
+        );
     }
 
     #[test]
@@ -447,10 +445,11 @@ mod tests {
         let events = win.build(&mut ui);
 
         assert!(!win.is_open());
-        assert!(events.iter().any(|e| matches!(
-            e,
-            GameEvent::RequestMakingArrow { item_id: 0 }
-        )));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMakingArrow { item_id: 0 }))
+        );
     }
 
     #[test]
@@ -464,9 +463,10 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
         let events = win.build(&mut ui);
 
-        assert!(events.iter().any(|e| matches!(
-            e,
-            GameEvent::RequestMakingArrow { item_id: 1750 }
-        )));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMakingArrow { item_id: 1750 }))
+        );
     }
 }

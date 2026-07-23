@@ -36,7 +36,13 @@ impl TradeData {
         self.active
     }
 
-    pub fn begin(&mut self, partner_name: String, partner_aid: u32, partner_level: i16, my_level: i16) {
+    pub fn begin(
+        &mut self,
+        partner_name: String,
+        partner_aid: u32,
+        partner_level: i16,
+        my_level: i16,
+    ) {
         *self = Self {
             active: true,
             partner_name,

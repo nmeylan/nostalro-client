@@ -1,7 +1,7 @@
 use models::enums::class::JobName;
 use models::enums::element::Element;
-use models::enums::weapon::WeaponType;
 use models::enums::skill_enums::SkillEnum;
+use models::enums::weapon::WeaponType;
 use ragnarok_effects::merc_skill_base;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -69,7 +69,9 @@ pub fn skill_use_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)
         S::GsGlittering => ("effect\\플립.wav", NonPositional),
         S::PaGospel => ("effect\\가스펠.wav", NonPositional),
         S::HpBasilica => ("effect\\바실리카.wav", NonPositional),
-        S::CrAutoguard | S::MlAutoguard | S::LkParrying | S::MsParrying =>  ("effect\\kyrie_guard.wav", NonPositional),
+        S::CrAutoguard | S::MlAutoguard | S::LkParrying | S::MsParrying => {
+            ("effect\\kyrie_guard.wav", NonPositional)
+        }
         _ => return None,
     })
 }
@@ -99,7 +101,6 @@ pub fn skill_projectile_sound(skill: SkillEnum) -> Option<&'static str> {
         _ => return None,
     })
 }
-
 
 pub fn swing_sound(weapon: Option<WeaponType>) -> &'static str {
     use WeaponType as W;
@@ -148,19 +149,43 @@ pub fn skill_hit_sound(roll: u32) -> String {
 pub fn job_hit_sound(job: JobName) -> &'static str {
     use JobName as J;
     match job {
-        J::Archer | J::ArcherHigh | J::BabyArcher
-        | J::Thief | J::ThiefHigh | J::BabyThief
-        | J::Hunter | J::Sniper | J::BabyHunter
-        | J::Assassin | J::AssassinCross | J::BabyAssassin
-        | J::Bard | J::Clown | J::BabyBard
-        | J::Dancer | J::Gypsy | J::BabyDancer
-        | J::Rogue | J::Stalker | J::BabyRogue
-        | J::Gunslinger | J::Ninja | J::Taekwon => "player_wooden_male.wav",
+        J::Archer
+        | J::ArcherHigh
+        | J::BabyArcher
+        | J::Thief
+        | J::ThiefHigh
+        | J::BabyThief
+        | J::Hunter
+        | J::Sniper
+        | J::BabyHunter
+        | J::Assassin
+        | J::AssassinCross
+        | J::BabyAssassin
+        | J::Bard
+        | J::Clown
+        | J::BabyBard
+        | J::Dancer
+        | J::Gypsy
+        | J::BabyDancer
+        | J::Rogue
+        | J::Stalker
+        | J::BabyRogue
+        | J::Gunslinger
+        | J::Ninja
+        | J::Taekwon => "player_wooden_male.wav",
 
-        J::Swordsman | J::SwordsmanHigh | J::BabySwordsman
-        | J::Knight | J::LordKnight | J::BabyKnight
-        | J::Crusader | J::Paladin | J::BabyCrusader
-        | J::Monk | J::Champion | J::BabyMonk
+        J::Swordsman
+        | J::SwordsmanHigh
+        | J::BabySwordsman
+        | J::Knight
+        | J::LordKnight
+        | J::BabyKnight
+        | J::Crusader
+        | J::Paladin
+        | J::BabyCrusader
+        | J::Monk
+        | J::Champion
+        | J::BabyMonk
         | J::StarGladiator => "player_metal.wav",
 
         _ => "player_clothes.wav",
@@ -204,7 +229,6 @@ pub enum StatusSoundKind {
     BlindSet,
 }
 
-
 pub mod ui {
     pub const LOGIN: &str = "login.wav";
     pub const BUTTON: &str = "\u{BC84}\u{D2BC}\u{C18C}\u{B9AC}.wav"; // 버튼소리.wav
@@ -217,8 +241,14 @@ mod tests {
 
     #[test]
     fn hit_and_job_tables_pick_expected_waves() {
-        assert_eq!(weapon_hit_sound(Some(WeaponType::Bow), 0, false), "_hit_arrow.wav");
-        assert_eq!(weapon_hit_sound(Some(WeaponType::Sword2H), 0, false), "_hit_sword.wav");
+        assert_eq!(
+            weapon_hit_sound(Some(WeaponType::Bow), 0, false),
+            "_hit_arrow.wav"
+        );
+        assert_eq!(
+            weapon_hit_sound(Some(WeaponType::Sword2H), 0, false),
+            "_hit_sword.wav"
+        );
         assert_eq!(weapon_hit_sound(None, 0, false), "_hit_fist1.wav");
         assert_eq!(weapon_hit_sound(None, 2, false), "_hit_fist3.wav");
         assert_eq!(weapon_hit_sound(None, 0, true), "_hit_mace.wav");

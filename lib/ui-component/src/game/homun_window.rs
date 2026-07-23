@@ -1,14 +1,14 @@
-use crate::{BuildCtx, InGameWindow, Window};
+use crate::helper::colors;
 use crate::helper::window_chrome::{
     GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_exp_bar, draw_gauge, draw_hline,
     draw_sys_button, draw_titlebar, gauge_texture_paths, label_color, text_color,
 };
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
-use crate::helper::colors;
 
 pub const HOMUN_WINDOW_ID: WidgetId = WidgetId(2900);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2901);
@@ -22,7 +22,6 @@ const AI_BTN_ID: WidgetId = WidgetId(2909);
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-
 
 const RENAME_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_rewrite.bmp",
@@ -97,11 +96,7 @@ impl HomunWindow {
         self.visible = value;
     }
 
-    fn build_body(
-        &mut self,
-        ui: &mut UiFrame,
-        homun: Option<&HomunculusState>,
-    ) -> Vec<GameEvent> {
+    fn build_body(&mut self, ui: &mut UiFrame, homun: Option<&HomunculusState>) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -188,7 +183,10 @@ impl HomunWindow {
             };
             ui.text_input(RENAME_INPUT_ID, input_rect, &mut self.rename_input, bg);
             let btn_rect = Rect::new(rx + input_w + 4.0, ry, 40.0, 14.0);
-            if ui.button(RENAME_BTN_ID, btn_rect, &RENAME_BTN, "Name").clicked() {
+            if ui
+                .button(RENAME_BTN_ID, btn_rect, &RENAME_BTN, "Name")
+                .clicked()
+            {
                 let name = self.rename_input.text.trim().to_string();
                 if !name.is_empty() {
                     events.push(GameEvent::RequestRenameHomun { name });
@@ -204,20 +202,46 @@ impl HomunWindow {
         let (dw, dh) = self.del_size;
         let skill_rect = Rect::new(right_edge - sw, ry, sw, sh);
         let del_rect = Rect::new(right_edge - sw - 4.0 - dw, ry, dw, dh);
-        if ui.button(DEL_BTN_ID, del_rect, &DEL_BTN, "Delete").clicked() {
+        if ui
+            .button(DEL_BTN_ID, del_rect, &DEL_BTN, "Delete")
+            .clicked()
+        {
             events.push(GameEvent::RequestHomunDelete);
         }
-        if ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill").clicked() {
+        if ui
+            .button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill")
+            .clicked()
+        {
             events.push(GameEvent::ToggleHomunSkillWindow);
         }
         ry += 24.0;
 
         ry = bar(
-            ui, rx, ry, bar_w, "HP", homun.hp, homun.max_hp, GaugeKind::Hp, self.bar_cap_w, tc, lc,
+            ui,
+            rx,
+            ry,
+            bar_w,
+            "HP",
+            homun.hp,
+            homun.max_hp,
+            GaugeKind::Hp,
+            self.bar_cap_w,
+            tc,
+            lc,
             grf,
         );
         ry = bar(
-            ui, rx, ry, bar_w, "SP", homun.sp, homun.max_sp, GaugeKind::Sp, self.bar_cap_w, tc, lc,
+            ui,
+            rx,
+            ry,
+            bar_w,
+            "SP",
+            homun.sp,
+            homun.max_sp,
+            GaugeKind::Sp,
+            self.bar_cap_w,
+            tc,
+            lc,
             grf,
         );
         ry += 3.0;
@@ -227,7 +251,10 @@ impl HomunWindow {
         ui.text(rx, ry + BASELINE, "EXP", tc);
         ui.text(rx + 30.0, ry + BASELINE, &homun.exp.max(0).to_string(), tc);
         let feed_rect = Rect::new(right_edge - fw, ry, fw, fh);
-        if ui.button(FEED_BTN_ID, feed_rect, &FEED_BTN, "Feed").clicked() {
+        if ui
+            .button(FEED_BTN_ID, feed_rect, &FEED_BTN, "Feed")
+            .clicked()
+        {
             events.push(GameEvent::RequestHomunMenu { command: 1 });
         }
         let exp_ratio = if homun.max_exp > 0 {
@@ -235,11 +262,24 @@ impl HomunWindow {
         } else {
             0.0
         };
-        draw_exp_bar(ui, rx, ry + 14.0, bar_w - fw - 6.0, EXP_BAR_H, exp_ratio, grf);
+        draw_exp_bar(
+            ui,
+            rx,
+            ry + 14.0,
+            bar_w - fw - 6.0,
+            EXP_BAR_H,
+            exp_ratio,
+            grf,
+        );
         ry += fh.max(BAR_H + 14.0) + 3.0;
 
         ui.text(rx, ry + BASELINE, "Hunger", tc);
-        ui.text(rx + 46.0, ry + BASELINE, &format!("{} / 100", homun.hunger), tc);
+        ui.text(
+            rx + 46.0,
+            ry + BASELINE,
+            &format!("{} / 100", homun.hunger),
+            tc,
+        );
         let hunger_ratio = (homun.hunger.max(0) as f32 / 100.0).clamp(0.0, 1.0);
         draw_exp_bar(ui, rx, ry + 14.0, bar_w, EXP_BAR_H, hunger_ratio, grf);
         ry += BAR_H + 16.0;
@@ -248,11 +288,15 @@ impl HomunWindow {
         ui.text(rx + 52.0, ry + BASELINE, intimacy_label(homun.intimacy), tc);
         ry += 16.0;
 
-
         // Red note, placed below the left stat column.
         let note_y = y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0;
         ui.text(x + PAD, note_y + BASELINE, "Homunculus get", NOTE_COLOR);
-        ui.text(x + PAD, note_y + BASELINE + 13.0, "10% of EXP from player.", NOTE_COLOR);
+        ui.text(
+            x + PAD,
+            note_y + BASELINE + 13.0,
+            "10% of EXP from player.",
+            NOTE_COLOR,
+        );
 
         ui.has_grf_textures = prev_grf;
         events

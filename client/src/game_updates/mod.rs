@@ -24,7 +24,13 @@ impl App {
             None => return,
         };
         if self.char_create_built_appearance != Some(appearance) {
-            let sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+            let sex = self
+                .game
+                .session
+                .login_session
+                .as_ref()
+                .map(|s| s.sex)
+                .unwrap_or(0);
             self.load_player_sprite(
                 CREATE_PREVIEW_GID,
                 0,
@@ -121,10 +127,11 @@ impl App {
                 }
             }
         }
-        self.game
-            .schedulers
-            .repeat_sounds
-            .update(delta, &resolve_entity_pos, &mut self.sound_queue);
+        self.game.schedulers.repeat_sounds.update(
+            delta,
+            &resolve_entity_pos,
+            &mut self.sound_queue,
+        );
         self.effect_holder
             .drain_queue(&mut self.effect_queue, &resolve_entity_pos);
         {
@@ -159,9 +166,12 @@ impl App {
         }
 
         for (entity_id, req) in self.effect_holder.drain_number_requests() {
-            self.game.combat.damage_numbers.add(DamageNumber::effect_number(
-                entity_id, req.value, req.color, 0,
-            ));
+            self.game
+                .combat
+                .damage_numbers
+                .add(DamageNumber::effect_number(
+                    entity_id, req.value, req.color, 0,
+                ));
         }
 
         self.sync_trap_models();
@@ -172,14 +182,16 @@ impl App {
         let (Some(renderer), Some(grf)) = (self.renderer.as_mut(), self.grf.as_ref()) else {
             return;
         };
-        let live: std::collections::HashSet<u32> = self.game.world.trap_units.keys().copied().collect();
+        let live: std::collections::HashSet<u32> =
+            self.game.world.trap_units.keys().copied().collect();
         renderer.retain_skill_unit_models(&live);
         if self.game.world.trap_units.is_empty() {
             return;
         }
         let scale_factor = self
             .game
-            .session.map_coords
+            .session
+            .map_coords
             .as_ref()
             .map(|c| c.zoom() / 10.0)
             .unwrap_or(1.0);
@@ -200,5 +212,4 @@ impl App {
             }
         }
     }
-
 }

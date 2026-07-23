@@ -94,7 +94,6 @@ const SKILL_ROW_H: f32 = 28.0;
 const HEADER_H: f32 = 18.0;
 const POSITION_TITLE_MAX: usize = 24;
 
-// robrowser palette
 const TAB_BAR_BG: [f32; 4] = [0.71, 0.714, 0.71, 1.0]; // #b5b6b5
 const TAB_INACTIVE: [f32; 4] = [0.808, 0.808, 0.808, 1.0]; // #cecece
 const TAB_ACTIVE: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // #fff
@@ -257,7 +256,8 @@ impl GuildWindow {
             let current = (g.notice_subject.clone(), g.notice_body.clone());
             if current != self.last_notice {
                 self.notice_subject_input.text = current.0.clone();
-                self.notice_subject_input.cursor_pos = self.notice_subject_input.text.chars().count();
+                self.notice_subject_input.cursor_pos =
+                    self.notice_subject_input.text.chars().count();
                 self.notice_body_input.text = current.1.clone();
                 self.notice_body_input.cursor_pos = self.notice_body_input.text.chars().count();
                 self.last_notice = current;
@@ -300,7 +300,13 @@ impl GuildWindow {
             .iter()
             .map(|e| GuildPosition {
                 id: e.id,
-                name: e.title.text.trim().chars().take(POSITION_TITLE_MAX - 1).collect(),
+                name: e
+                    .title
+                    .text
+                    .trim()
+                    .chars()
+                    .take(POSITION_TITLE_MAX - 1)
+                    .collect(),
                 right: e.right,
                 ranking: e.ranking,
                 pay_rate: e.tax.text.trim().parse().unwrap_or(0),
@@ -313,9 +319,7 @@ impl GuildWindow {
             return false;
         };
         g.am_i_master
-            || (!g.master_name.is_empty()
-                && !local_name.is_empty()
-                && g.master_name == local_name)
+            || (!g.master_name.is_empty() && !local_name.is_empty() && g.master_name == local_name)
             || g.member_by_gid(local_gid)
                 .map(|m| m.position_id == 0)
                 .unwrap_or(false)
@@ -373,11 +377,7 @@ impl Window for GuildWindow {
 }
 
 impl InGameWindow for GuildWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let data = ctx.data;
         if !self.open {
             return Vec::new();
@@ -446,10 +446,18 @@ impl InGameWindow for GuildWindow {
         Self::fill(ui, x, content_y, WIN_W, 1.0, TAB_INACTIVE);
 
         match self.tab {
-            GuildTab::Info => events.extend(self.build_info_tab(ui, guild, is_master, x, content_y)),
-            GuildTab::Members => events.extend(self.build_members_tab(ui, guild, is_master, x, content_y)),
-            GuildTab::Position => self.build_position_tab(ui, guild.is_some(), is_master, x, content_y),
-            GuildTab::Skill => events.extend(self.build_skill_tab(ui, guild, is_master, x, content_y, data)),
+            GuildTab::Info => {
+                events.extend(self.build_info_tab(ui, guild, is_master, x, content_y))
+            }
+            GuildTab::Members => {
+                events.extend(self.build_members_tab(ui, guild, is_master, x, content_y))
+            }
+            GuildTab::Position => {
+                self.build_position_tab(ui, guild.is_some(), is_master, x, content_y)
+            }
+            GuildTab::Skill => {
+                events.extend(self.build_skill_tab(ui, guild, is_master, x, content_y, data))
+            }
             GuildTab::Expel => self.build_expel_tab(ui, guild, x, content_y),
             GuildTab::Notice => self.build_notice_tab(ui, guild, is_master, x, content_y),
         }
@@ -501,7 +509,14 @@ impl GuildWindow {
         clicked_tab
     }
 
-    fn build_footer(&mut self, ui: &mut UiFrame, guild_present: bool, is_master: bool, x: f32, footer_y: f32) -> Vec<GameEvent> {
+    fn build_footer(
+        &mut self,
+        ui: &mut UiFrame,
+        guild_present: bool,
+        is_master: bool,
+        x: f32,
+        footer_y: f32,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
         if !guild_present || !is_master {
             return events;
@@ -535,7 +550,14 @@ impl GuildWindow {
         events
     }
 
-    fn build_info_tab(&self, ui: &mut UiFrame, guild: Option<&Guild>, is_master: bool, x: f32, cy: f32) -> Vec<GameEvent> {
+    fn build_info_tab(
+        &self,
+        ui: &mut UiFrame,
+        guild: Option<&Guild>,
+        is_master: bool,
+        x: f32,
+        cy: f32,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let Some(g) = guild else {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
@@ -547,7 +569,12 @@ impl GuildWindow {
 
         ui.text(lx, cy + 20.0, &format!("Guild Name : {}", g.name), TEXT);
         ui.text(lx, cy + 36.0, &format!("Guild lvl : {}", g.level), TEXT);
-        ui.text(lx, cy + 52.0, &format!("Guild Master : {}", g.master_name), TEXT);
+        ui.text(
+            lx,
+            cy + 52.0,
+            &format!("Guild Master : {}", g.master_name),
+            TEXT,
+        );
         let members_text = format!("Members : {} / {}", g.member_num, g.max_member_num);
         ui.text(lx, cy + 68.0, &members_text, TEXT);
         let online_icon_x = lx + ui.atlas.measure_text(&members_text) + 6.0;
@@ -566,7 +593,11 @@ impl GuildWindow {
             &format!("Avg.lvl of Members : {}", g.avg_level),
             TEXT,
         );
-        let land = if g.manage_land.is_empty() { "-" } else { &g.manage_land };
+        let land = if g.manage_land.is_empty() {
+            "-"
+        } else {
+            &g.manage_land
+        };
         ui.text(lx, cy + 100.0, &format!("Territory : {land}"), TEXT);
 
         ui.text(lx, cy + 137.0, "Tendency :", TEXT);
@@ -574,7 +605,12 @@ impl GuildWindow {
 
         // Right column.
         let rx = x + 301.0;
-        ui.text(rx, cy + 20.0, &format!("EXP : {} / {}", g.exp, g.max_exp), TEXT);
+        ui.text(
+            rx,
+            cy + 20.0,
+            &format!("EXP : {} / {}", g.exp, g.max_exp),
+            TEXT,
+        );
 
         ui.text(rx, cy + 52.0, "emblem", TEXT);
         Self::fill(ui, x + 400.0, cy + 32.0, 24.0, 24.0, EMBLEM_BG);
@@ -608,10 +644,38 @@ impl GuildWindow {
     fn draw_tendency(ui: &mut UiFrame, gx: f32, gy: f32) {
         let size = 90.0;
         Self::fill(ui, gx, gy, size, size, TENDENCY_BORDER);
-        Self::fill(ui, gx + 1.0, gy + 1.0, size - 2.0, size - 2.0, SELECTION_COLOR);
-        Self::fill(ui, gx + size / 2.0 - 1.0, gy + 1.0, 2.0, size - 2.0, TENDENCY_AXIS);
-        Self::fill(ui, gx + 1.0, gy + size / 2.0 - 1.0, size - 2.0, 2.0, TENDENCY_AXIS);
-        Self::fill(ui, gx + size / 2.0 - 1.0, gy + size / 2.0 - 1.0, 2.0, 2.0, [1.0; 4]);
+        Self::fill(
+            ui,
+            gx + 1.0,
+            gy + 1.0,
+            size - 2.0,
+            size - 2.0,
+            SELECTION_COLOR,
+        );
+        Self::fill(
+            ui,
+            gx + size / 2.0 - 1.0,
+            gy + 1.0,
+            2.0,
+            size - 2.0,
+            TENDENCY_AXIS,
+        );
+        Self::fill(
+            ui,
+            gx + 1.0,
+            gy + size / 2.0 - 1.0,
+            size - 2.0,
+            2.0,
+            TENDENCY_AXIS,
+        );
+        Self::fill(
+            ui,
+            gx + size / 2.0 - 1.0,
+            gy + size / 2.0 - 1.0,
+            2.0,
+            2.0,
+            [1.0; 4],
+        );
         let black = [0.0, 0.0, 0.0, 1.0];
         ui.text(gx + size / 2.0 - 3.0, gy - 3.0, "R", black);
         ui.text(gx + size / 2.0 - 3.0, gy + size + 6.0, "W", black);
@@ -662,7 +726,14 @@ impl GuildWindow {
         events
     }
 
-    fn build_members_tab(&mut self, ui: &mut UiFrame, guild: Option<&Guild>, is_master: bool, x: f32, cy: f32) -> Vec<GameEvent> {
+    fn build_members_tab(
+        &mut self,
+        ui: &mut UiFrame,
+        guild: Option<&Guild>,
+        is_master: bool,
+        x: f32,
+        cy: f32,
+    ) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let Some(g) = guild else {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
@@ -723,11 +794,32 @@ impl GuildWindow {
             let row_rect = Rect::new(x + 2.0, row_y, WIN_W - 4.0 - bar_w, MEMBER_ROW_H);
 
             if self.selected_member == Some(m.gid) {
-                Self::fill(ui, row_rect.x, row_rect.y, row_rect.w, row_rect.h, SELECTION_COLOR);
+                Self::fill(
+                    ui,
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    SELECTION_COLOR,
+                );
             } else if m.online {
-                Self::fill(ui, row_rect.x, row_rect.y, row_rect.w, row_rect.h, ONLINE_ROW_BG);
+                Self::fill(
+                    ui,
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    ONLINE_ROW_BG,
+                );
             }
-            Self::fill(ui, x + 2.0, row_y + MEMBER_ROW_H - 1.0, WIN_W - 4.0 - bar_w, 1.0, BORDER);
+            Self::fill(
+                ui,
+                x + 2.0,
+                row_y + MEMBER_ROW_H - 1.0,
+                WIN_W - 4.0 - bar_w,
+                1.0,
+                BORDER,
+            );
 
             // Head-sprite cell filled by the client's roster pass.
             self.member_head_slots
@@ -740,7 +832,9 @@ impl GuildWindow {
             let mut pos_cell_rect: Option<Rect> = None;
             if is_master && m.position_id != 0 {
                 let cell = Rect::new(pos_x - 2.0, row_y + 9.0, 62.0, 16.0);
-                let dd_blocked = overlay.map(|(_, _, _, lr)| lr.contains(mx, my)).unwrap_or(false);
+                let dd_blocked = overlay
+                    .map(|(_, _, _, lr)| lr.contains(mx, my))
+                    .unwrap_or(false);
                 self.member_pos_dropdown.open = self.open_member_dropdown == Some(m.gid);
                 let dr = self.member_pos_dropdown.show(
                     ui,
@@ -778,7 +872,9 @@ impl GuildWindow {
                 ui.any_interactive_hovered = true;
             }
             let suppress = pos_cell_rect.map(|c| c.contains(mx, my)).unwrap_or(false)
-                || overlay.map(|(_, _, _, lr)| lr.contains(mx, my)).unwrap_or(false);
+                || overlay
+                    .map(|(_, _, _, lr)| lr.contains(mx, my))
+                    .unwrap_or(false);
             if resp.clicked() && !suppress {
                 self.open_member_dropdown = None;
                 self.selected_member = Some(m.gid);
@@ -829,7 +925,14 @@ impl GuildWindow {
         events
     }
 
-    fn build_position_tab(&mut self, ui: &mut UiFrame, guild_present: bool, is_master: bool, x: f32, cy: f32) {
+    fn build_position_tab(
+        &mut self,
+        ui: &mut UiFrame,
+        guild_present: bool,
+        is_master: bool,
+        x: f32,
+        cy: f32,
+    ) {
         if !guild_present {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return;
@@ -880,9 +983,23 @@ impl GuildWindow {
             let is_rank0 = pos_id == 0;
 
             if is_rank0 {
-                Self::fill(ui, x + 2.0, row_y, WIN_W - 2.0 - SCROLLBAR_W, POS_ROW_H - 1.0, SELECTION_COLOR);
+                Self::fill(
+                    ui,
+                    x + 2.0,
+                    row_y,
+                    WIN_W - 2.0 - SCROLLBAR_W,
+                    POS_ROW_H - 1.0,
+                    SELECTION_COLOR,
+                );
             }
-            Self::fill(ui, x + 2.0, row_y + POS_ROW_H - 1.0, WIN_W - 4.0, 1.0, BORDER);
+            Self::fill(
+                ui,
+                x + 2.0,
+                row_y + POS_ROW_H - 1.0,
+                WIN_W - 4.0,
+                1.0,
+                BORDER,
+            );
             ui.text(id_x, baseline, &pos_id.to_string(), TEXT);
 
             let editable = is_master;
@@ -912,12 +1029,28 @@ impl GuildWindow {
             // Rank 0 permissions are fixed; only lower ranks toggle.
             if is_master && !is_rank0 {
                 let mut inv = invite_on;
-                if ui.checkbox(WidgetId(POS_INVITE_BASE + idx as u32), inv_rect, &mut inv, &CHECKBOX).clicked() {
+                if ui
+                    .checkbox(
+                        WidgetId(POS_INVITE_BASE + idx as u32),
+                        inv_rect,
+                        &mut inv,
+                        &CHECKBOX,
+                    )
+                    .clicked()
+                {
                     self.pos_edits[idx].right ^= GUILD_PERM_INVITE;
                     self.pos_dirty = true;
                 }
                 let mut pun = punish_on;
-                if ui.checkbox(WidgetId(POS_PUNISH_BASE + idx as u32), pun_rect, &mut pun, &CHECKBOX).clicked() {
+                if ui
+                    .checkbox(
+                        WidgetId(POS_PUNISH_BASE + idx as u32),
+                        pun_rect,
+                        &mut pun,
+                        &CHECKBOX,
+                    )
+                    .clicked()
+                {
                     self.pos_edits[idx].right ^= GUILD_PERM_EXPEL;
                     self.pos_dirty = true;
                 }
@@ -1024,12 +1157,21 @@ impl GuildWindow {
                 .map(|t| t.get_display_name_or_internal(&s.name))
                 .unwrap_or_else(|| s.name.clone());
             ui.text(x + 45.0, row_y + 12.0, &display, name_color);
-            ui.text(x + 45.0, row_y + 25.0, &format!("Lv : {shown_level}"), name_color);
+            ui.text(
+                x + 45.0,
+                row_y + 25.0,
+                &format!("Lv : {shown_level}"),
+                name_color,
+            );
 
             if is_master && !s.passive && s.upgradable {
-
                 let up_rect = Rect::new(x + WIN_W - 76.0, row_y + 4.0, 18.0, 18.0);
-                let up = ui.button(WidgetId(SKILL_UP_BASE + row as u32), up_rect, &SKILL_UP_BTN, "+");
+                let up = ui.button(
+                    WidgetId(SKILL_UP_BASE + row as u32),
+                    up_rect,
+                    &SKILL_UP_BTN,
+                    "+",
+                );
                 if up.hovered() {
                     ui.any_interactive_hovered = true;
                 }
@@ -1041,7 +1183,12 @@ impl GuildWindow {
 
         let footer_y = cy + CONTENT_H - footer_h;
         Self::fill(ui, x + 2.0, footer_y, WIN_W - 4.0, 1.0, BORDER);
-        ui.text(x + 10.0, footer_y + 17.0, &format!("Skill Points: {remaining}"), TEXT);
+        ui.text(
+            x + 10.0,
+            footer_y + 17.0,
+            &format!("Skill Points: {remaining}"),
+            TEXT,
+        );
         if is_master && pending_total > 0 {
             let apply_rect = Rect::new(x + WIN_W - 100.0, footer_y + 4.0, 42.0, 20.0);
             let apply = ui.button(SKILL_APPLY_BTN, apply_rect, &APPLY_BTN, "Apply");
@@ -1091,7 +1238,12 @@ impl GuildWindow {
         Self::fill(ui, reason_x - 4.0, cy, 1.0, CONTENT_H, BORDER);
 
         if g.ban_list.is_empty() {
-            ui.text(x + 10.0, cy + HEADER_H + 18.0, "No expelled members.", OFFLINE_COLOR);
+            ui.text(
+                x + 10.0,
+                cy + HEADER_H + 18.0,
+                "No expelled members.",
+                OFFLINE_COLOR,
+            );
             return;
         }
         let row_h = 18.0;
@@ -1104,7 +1256,14 @@ impl GuildWindow {
         }
     }
 
-    fn build_notice_tab(&mut self, ui: &mut UiFrame, guild: Option<&Guild>, is_master: bool, x: f32, cy: f32) {
+    fn build_notice_tab(
+        &mut self,
+        ui: &mut UiFrame,
+        guild: Option<&Guild>,
+        is_master: bool,
+        x: f32,
+        cy: f32,
+    ) {
         if guild.is_none() {
             ui.text(x + 10.0, cy + 20.0, "Not in a guild.", OFFLINE_COLOR);
             return;
@@ -1115,18 +1274,42 @@ impl GuildWindow {
         let body_rect = Rect::new(x + 9.0, cy + 52.0, WIN_W - 18.0, CONTENT_H - 68.0);
 
         if is_master {
-            ui.text_input(NOTICE_SUBJECT_INPUT, subj_rect, &mut self.notice_subject_input, TextInputBg::Gray);
+            ui.text_input(
+                NOTICE_SUBJECT_INPUT,
+                subj_rect,
+                &mut self.notice_subject_input,
+                TextInputBg::Gray,
+            );
             self.multiline_input(ui, body_rect);
         } else {
             let (subject, body) = {
                 let g = guild.unwrap();
                 (g.notice_subject.clone(), g.notice_body.clone())
             };
-            Self::fill(ui, subj_rect.x, subj_rect.y, subj_rect.w, subj_rect.h, INPUT_BG);
+            Self::fill(
+                ui,
+                subj_rect.x,
+                subj_rect.y,
+                subj_rect.w,
+                subj_rect.h,
+                INPUT_BG,
+            );
             ui.text(subj_rect.x + 4.0, subj_rect.y + 12.0, &subject, TEXT);
-            Self::fill(ui, body_rect.x, body_rect.y, body_rect.w, body_rect.h, INPUT_BG);
+            Self::fill(
+                ui,
+                body_rect.x,
+                body_rect.y,
+                body_rect.w,
+                body_rect.h,
+                INPUT_BG,
+            );
             for (i, line) in wrap_text(&body, 60).iter().enumerate() {
-                ui.text(body_rect.x + 4.0, body_rect.y + 13.0 + i as f32 * 14.0, line, TEXT);
+                ui.text(
+                    body_rect.x + 4.0,
+                    body_rect.y + 13.0 + i as f32 * 14.0,
+                    line,
+                    TEXT,
+                );
             }
         }
     }
@@ -1153,7 +1336,6 @@ impl GuildWindow {
             Self::fill(ui, caret_x, caret_y, 1.0, 12.0, TEXT);
         }
     }
-
 }
 
 fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
@@ -1165,7 +1347,8 @@ fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
         }
         let mut current = String::new();
         for word in raw_line.split(' ') {
-            if !current.is_empty() && current.chars().count() + 1 + word.chars().count() > max_chars {
+            if !current.is_empty() && current.chars().count() + 1 + word.chars().count() > max_chars
+            {
                 lines.push(std::mem::take(&mut current));
             }
             if !current.is_empty() {
@@ -1193,7 +1376,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -1228,9 +1412,13 @@ mod tests {
         let events = win.build(&mut ui, &mut build_ctx);
 
         assert!(
-            events
-                .iter()
-                .any(|e| matches!(e, GameEvent::RequestDeleteGuildRelation { gdid: 42, relation: 0 })),
+            events.iter().any(|e| matches!(
+                e,
+                GameEvent::RequestDeleteGuildRelation {
+                    gdid: 42,
+                    relation: 0
+                }
+            )),
             "expected delete-relation event, got {events:?}"
         );
     }

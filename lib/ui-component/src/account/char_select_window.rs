@@ -206,7 +206,9 @@ impl CharSelectWindow {
     }
 
     fn character_at(&self, slot: usize) -> Option<&CharacterInfo> {
-        self.characters.iter().find(|c| c.slot.max(0) as usize == slot)
+        self.characters
+            .iter()
+            .find(|c| c.slot.max(0) as usize == slot)
     }
 
     fn move_selection(&mut self, delta: i32) {
@@ -293,7 +295,14 @@ impl CharSelectWindow {
         let win = ui.window_account(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
 
-        push_quad(ui, win.x, win.y, WIN_W, WIN_H, TextureRef::Named(WIN_TEXTURE.to_string()));
+        push_quad(
+            ui,
+            win.x,
+            win.y,
+            WIN_W,
+            WIN_H,
+            TextureRef::Named(WIN_TEXTURE.to_string()),
+        );
 
         self.build_slots(ui, win.x, win.y, true, events);
         self.build_arrows(ui, win.x, win.y);
@@ -321,7 +330,14 @@ impl CharSelectWindow {
         self.build_buttons(ui, win.x, win.y, events);
     }
 
-    fn build_slots(&mut self, ui: &mut UiFrame, ox: f32, oy: f32, grf: bool, events: &mut Vec<GameEvent>) {
+    fn build_slots(
+        &mut self,
+        ui: &mut UiFrame,
+        ox: f32,
+        oy: f32,
+        grf: bool,
+        events: &mut Vec<GameEvent>,
+    ) {
         for col in 0..SLOTS_PER_PAGE {
             let slot_rect = Rect::new(ox + SLOT_LEFTS[col], oy + SLOT_TOP, SLOT_W, SLOT_H);
 
@@ -329,7 +345,10 @@ impl CharSelectWindow {
                 push_border(ui, slot_rect, SLOT_BORDER_COLOR);
             }
 
-            let resp = ui.interact(WidgetId(CHAR_SELECT_WINDOW_ID.0 + 10 + col as u32), slot_rect);
+            let resp = ui.interact(
+                WidgetId(CHAR_SELECT_WINDOW_ID.0 + 10 + col as u32),
+                slot_rect,
+            );
             if resp.hovered() {
                 ui.any_interactive_hovered = true;
             }
@@ -418,7 +437,11 @@ impl CharSelectWindow {
         let selected_gid = selected.map(|c| c.gid);
 
         let cancel = Rect::new(ox + WIN_W - CANCEL_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
-        if ui.button(CANCEL_ID, cancel, &CANCEL_BTN, "Cancel").clicked() && !modal {
+        if ui
+            .button(CANCEL_ID, cancel, &CANCEL_BTN, "Cancel")
+            .clicked()
+            && !modal
+        {
             events.push(GameEvent::BackToServerSelect);
         }
 
@@ -439,7 +462,12 @@ impl CharSelectWindow {
         }
 
         if let Some(msg) = &self.delete_status {
-            ui.text(ox + DEL_LEFT, btn_y - ui.atlas.line_height, msg, [0.85, 0.3, 0.3, 1.0]);
+            ui.text(
+                ox + DEL_LEFT,
+                btn_y - ui.atlas.line_height,
+                msg,
+                [0.85, 0.3, 0.3, 1.0],
+            );
         }
     }
 
@@ -466,7 +494,12 @@ impl CharSelectWindow {
             .and_then(|d| self.characters.iter().find(|c| c.gid == d.gid))
             .map(|c| c.name.clone())
             .unwrap_or_default();
-        ui.text(dx + 20.0, dy + DIALOG_TITLE_H - 4.0, &format!("Delete {name}?"), fg);
+        ui.text(
+            dx + 20.0,
+            dy + DIALOG_TITLE_H - 4.0,
+            &format!("Delete {name}?"),
+            fg,
+        );
         ui.text(
             dx + 12.0,
             body_y + lh,
@@ -476,7 +509,12 @@ impl CharSelectWindow {
 
         let dialog = self.delete_dialog.as_mut().unwrap();
         let input_rect = Rect::new(dx + 12.0, body_y + lh * 1.6, DIALOG_W - 24.0, 18.0);
-        ui.text_input(DEL_INPUT_ID, input_rect, &mut dialog.birthdate, TextInputBg::Default);
+        ui.text_input(
+            DEL_INPUT_ID,
+            input_rect,
+            &mut dialog.birthdate,
+            TextInputBg::Default,
+        );
 
         if let Some(err) = &dialog.error {
             ui.text(dx + 12.0, body_y + lh * 3.0, err, [0.85, 0.3, 0.3, 1.0]);
@@ -488,11 +526,16 @@ impl CharSelectWindow {
         let confirm = Rect::new(dx + DIALOG_W - OK_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
         let cancel = Rect::new(dx + DIALOG_W - CANCEL_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
 
-        let submit = ui.button(DEL_CONFIRM_ID, confirm, &OK_BTN, "OK").clicked() || ui.ctx.key_enter;
+        let submit =
+            ui.button(DEL_CONFIRM_ID, confirm, &OK_BTN, "OK").clicked() || ui.ctx.key_enter;
         if submit {
             events.push(GameEvent::RequestDeleteCharacterConfirm { gid, birthdate });
         }
-        if ui.button(DEL_CANCEL_ID, cancel, &CANCEL_BTN, "Cancel").clicked() || ui.ctx.key_escape {
+        if ui
+            .button(DEL_CANCEL_ID, cancel, &CANCEL_BTN, "Cancel")
+            .clicked()
+            || ui.ctx.key_escape
+        {
             events.push(GameEvent::RequestDeleteCharacterCancel { gid });
             self.close_delete_dialog();
         }
@@ -695,7 +738,11 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
         let events = win.build(&mut ui);
-        assert!(events.iter().any(|e| matches!(e, GameEvent::BackToServerSelect)));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::BackToServerSelect))
+        );
     }
 
     #[test]
@@ -729,7 +776,11 @@ mod tests {
             GameEvent::RequestDeleteCharacterConfirm { gid: g, .. } if *g == gid
         )));
         // While the dialog is open, Enter must not also fire a character selection.
-        assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestSelectCharacter { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestSelectCharacter { .. }))
+        );
     }
 
     #[test]
@@ -763,6 +814,10 @@ mod tests {
             e,
             GameEvent::RequestDeleteCharacterCancel { gid: g } if *g == gid
         )));
-        assert!(!events.iter().any(|e| matches!(e, GameEvent::BackToServerSelect)));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::BackToServerSelect))
+        );
     }
 }

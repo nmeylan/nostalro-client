@@ -12,11 +12,25 @@ pub enum Motion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiIntent {
-    MoveTo { x: i32, y: i32 },
+    MoveTo {
+        x: i32,
+        y: i32,
+    },
     MoveToOwner,
-    Attack { target_gid: u32 },
-    SkillObject { skill_id: u16, level: u8, target_gid: u32 },
-    SkillGround { skill_id: u16, level: u8, x: i32, y: i32 },
+    Attack {
+        target_gid: u32,
+    },
+    SkillObject {
+        skill_id: u16,
+        level: u8,
+        target_gid: u32,
+    },
+    SkillGround {
+        skill_id: u16,
+        level: u8,
+        x: i32,
+        y: i32,
+    },
     EmergencyDisconnect,
 }
 

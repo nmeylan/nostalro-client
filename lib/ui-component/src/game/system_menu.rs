@@ -171,11 +171,7 @@ impl Window for SystemMenu {
 }
 
 impl InGameWindow for SystemMenu {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         let mut events = Vec::new();
@@ -462,9 +458,9 @@ impl SystemMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InGameWindow;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use crate::InGameWindow;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;

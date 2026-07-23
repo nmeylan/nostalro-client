@@ -1,9 +1,9 @@
-use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::{GameEvent, SkillInfo};
@@ -184,7 +184,12 @@ impl HomunSkillWindow {
                 }
                 sp_right = btn_x - 4.0;
             }
-            ui.text_right(sp_right, row_y + 24.0, &format!("Sp : {}", skill.sp_cost), tc);
+            ui.text_right(
+                sp_right,
+                row_y + 24.0,
+                &format!("Sp : {}", skill.sp_cost),
+                tc,
+            );
 
             if row_resp.double_clicked() {
                 events.push(GameEvent::RequestCompanionUseSkill {
@@ -216,7 +221,12 @@ impl HomunSkillWindow {
         // Footer.
         let footer_y = y + TITLE_H + list_h;
         draw_footer(ui, x, footer_y, WIN_W, FOOTER_H, grf);
-        ui.text(x + PAD, footer_y + 15.0, &format!("Skill Point: {}", homun.skill_points), tc);
+        ui.text(
+            x + PAD,
+            footer_y + 15.0,
+            &format!("Skill Point: {}", homun.skill_points),
+            tc,
+        );
 
         let (cw, ch) = self.close_size;
         let (uw, uh) = self.use_size;
@@ -232,7 +242,10 @@ impl HomunSkillWindow {
                 level: skill.level,
             });
         }
-        if ui.button(FOOTER_CLOSE_BTN_ID, close_footer, &CLOSE_BTN, "close").clicked() {
+        if ui
+            .button(FOOTER_CLOSE_BTN_ID, close_footer, &CLOSE_BTN, "close")
+            .clicked()
+        {
             self.visible = false;
         }
 
@@ -347,12 +360,20 @@ pub(crate) fn draw_companion_skill_tooltip(
     let box_w = max_line_w + pad * 2.0;
     let box_h = text_h + pad * 2.0;
 
-    container.draw(&mut ui.tooltip_draw_calls, anchor_x, anchor_y, box_w, box_h, [1.0; 4]);
+    container.draw(
+        &mut ui.tooltip_draw_calls,
+        anchor_x,
+        anchor_y,
+        box_w,
+        box_h,
+        [1.0; 4],
+    );
 
     let text_color = container.text_color();
     let mut text_y = anchor_y + pad + line_h;
     for line in &wrapped {
-        let (v, i) = draw::colored_text_vertices(line, anchor_x + pad, text_y, text_color, ui.atlas);
+        let (v, i) =
+            draw::colored_text_vertices(line, anchor_x + pad, text_y, text_color, ui.atlas);
         if !v.is_empty() {
             ui.tooltip_draw_calls.push(DrawCall {
                 vertices: v,

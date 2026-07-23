@@ -38,7 +38,8 @@ fn alpha_curve(frame: f32, peak: f32) -> f32 {
     if frame <= FADE_IN_FRAMES {
         peak * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0)
     } else {
-        let fade = ((frame - FADE_OUT_FRAMES) / (DURATION_FRAMES - FADE_OUT_FRAMES)).clamp(0.0, 1.0);
+        let fade =
+            ((frame - FADE_OUT_FRAMES) / (DURATION_FRAMES - FADE_OUT_FRAMES)).clamp(0.0, 1.0);
         peak * (1.0 - fade)
     }
 }
@@ -175,7 +176,10 @@ mod tests {
         step(&mut mb, 1.0 / FRAMES_PER_SECOND);
         let prims = draws(&mb);
         assert_eq!(prims.len(), 2, "ring + sphere");
-        assert!(matches!(prims[0], EffectPrimitiveDraw::BillboardRing { .. }));
+        assert!(matches!(
+            prims[0],
+            EffectPrimitiveDraw::BillboardRing { .. }
+        ));
         assert!(matches!(prims[1], EffectPrimitiveDraw::Sphere { .. }));
     }
 

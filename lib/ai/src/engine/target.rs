@@ -44,7 +44,10 @@ impl CompanionAi {
                 return (i32::from(t.basic), i32::from(t.cast));
             }
         }
-        (self.tact_basic(ctx, a.class_id), self.tact_cast(ctx, a.class_id))
+        (
+            self.tact_basic(ctx, a.class_id),
+            self.tact_cast(ctx, a.class_id),
+        )
     }
 
     fn is_friend(&self, ctx: &AiContext, id: u32) -> bool {
@@ -277,12 +280,20 @@ impl CompanionAi {
         let mut max_reachable = 1;
 
         if let Some(cur_gid) = cur {
-            let dist = get_distance(ctx.my_x, ctx.my_y, self.actor_x(ctx, cur_gid), self.actor_y(ctx, cur_gid));
+            let dist = get_distance(
+                ctx.my_x,
+                ctx.my_y,
+                self.actor_x(ctx, cur_gid),
+                self.actor_y(ctx, cur_gid),
+            );
             let cur_agr = self
                 .actor(ctx, cur_gid)
                 .map(|a| self.is_friend_or_self(ctx, a.target_gid.unwrap_or(0)))
                 .unwrap_or(false);
-            let base = self.tact_basic(ctx, self.actor(ctx, cur_gid).map(|a| a.class_id).unwrap_or(0));
+            let base = self.tact_basic(
+                ctx,
+                self.actor(ctx, cur_gid).map(|a| a.class_id).unwrap_or(0),
+            );
             min_priority = conv_priority(base, cur_agr);
             if dist < 3 {
                 return 0;
@@ -293,7 +304,12 @@ impl CompanionAi {
         for c in cands {
             let agr = c.v2 > 0 && (c.motion_class == 3 || c.casttact == CAST_REACT);
             let priority = conv_priority(c.tact, agr);
-            let dis = get_distance(ctx.my_x, ctx.my_y, self.actor_x(ctx, c.gid), self.actor_y(ctx, c.gid));
+            let dis = get_distance(
+                ctx.my_x,
+                ctx.my_y,
+                self.actor_x(ctx, c.gid),
+                self.actor_y(ctx, c.gid),
+            );
             let unreachable = if self.is_unreachable(c.gid) { 1 } else { 0 };
             if unreachable <= max_reachable
                 && (priority > min_priority || (priority == min_priority && dis < min_dis))

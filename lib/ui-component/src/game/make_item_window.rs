@@ -1,9 +1,9 @@
+use crate::game::inventory_window::INV_WINDOW_ID;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container, draw_footer,
     draw_titlebar, text_color,
 };
-use crate::game::inventory_window::INV_WINDOW_ID;
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::event::GameEvent;
@@ -345,8 +345,13 @@ impl MakeItemWindow {
                     && let Some(icon) = &slot.icon
                 {
                     let pad = (SLOT_SIZE - ICON_SIZE) / 2.0;
-                    let (v, i) =
-                        draw::quad_vertices(slot_x + pad, slots_y + pad, ICON_SIZE, ICON_SIZE, [1.0; 4]);
+                    let (v, i) = draw::quad_vertices(
+                        slot_x + pad,
+                        slots_y + pad,
+                        ICON_SIZE,
+                        ICON_SIZE,
+                        [1.0; 4],
+                    );
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: i.to_vec(),
@@ -417,11 +422,7 @@ impl Window for MakeItemWindow {
 }
 
 impl InGameWindow for MakeItemWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -473,11 +474,23 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
 
         let mut ui = make_frame(&ctx, &mut state);
-        assert!(win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::new())).is_empty());
+        assert!(
+            win.build(
+                &mut ui,
+                &mut crate::BuildCtx::test(&mut character, &DataTable::new())
+            )
+            .is_empty()
+        );
 
         win.phase = Phase::Process;
         let mut ui = make_frame(&ctx, &mut state);
-        assert!(win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::new())).is_empty());
+        assert!(
+            win.build(
+                &mut ui,
+                &mut crate::BuildCtx::test(&mut character, &DataTable::new())
+            )
+            .is_empty()
+        );
 
         win.close();
         assert!(!win.is_open());

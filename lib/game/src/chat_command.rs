@@ -18,7 +18,10 @@ pub enum ChatCommand {
     InviteParty(String),
     MakeGuild(String),
     BreakGuild(String),
-    StatUp { status_id: u16, amount: u32 },
+    StatUp {
+        status_id: u16,
+        amount: u32,
+    },
     ToggleEffect,
     ToggleFog,
     ToggleLightmap,
@@ -50,7 +53,10 @@ pub enum ChatCommand {
     /// `/hi <text>` — whisper every online friend.
     WhisperFriends(String),
     /// `/ex <name>` (block) / `/in <name>` (unblock).
-    WhisperBlock { name: String, block: bool },
+    WhisperBlock {
+        name: String,
+        block: bool,
+    },
     /// `/exall` (block) / `/inall` (unblock).
     WhisperBlockAll(bool),
     /// `/ex` with no argument — list currently blocked players.
@@ -61,7 +67,9 @@ pub enum ChatCommand {
     OpenEmotionList,
     /// `/hoai` / `/mercai` — open the companion AI settings at the homunculus
     /// (`false`) or mercenary (`true`) tab.
-    OpenCompanionAi { mercenary: bool },
+    OpenCompanionAi {
+        mercenary: bool,
+    },
     Emote(u8),
     /// `/show_ping` — toggle the network sync/latency overlay.
     ToggleShowPing,
@@ -156,9 +164,15 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
     ("/battlemode or /bm", "Keyboard skill-bar mode."),
     ("/miss", "Toggles the Miss damage text."),
     ("/eqopen", "Toggles letting others view your equipment."),
-    ("/gc <msg>", "Sends a guild-chat message ($ prefix works too)."),
+    (
+        "/gc <msg>",
+        "Sends a guild-chat message ($ prefix works too).",
+    ),
     ("/hi <text>", "Whispers every online friend."),
-    ("/ex <name>", "Blocks whispers from a player (/ex lists them)."),
+    (
+        "/ex <name>",
+        "Blocks whispers from a player (/ex lists them).",
+    ),
     ("/in <name>", "Unblocks whispers from a player."),
     ("/exall or /inall", "Blocks or unblocks all whispers."),
     ("/chat", "Opens the chat-room creation window."),
@@ -170,9 +184,18 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
         "Shows the top-10 ranking.",
     ),
     ("/notrade or /nt", "Blocks all trade offers."),
-    ("/refuse", "Auto-declines party invites (/accept re-enables)."),
-    ("/noctrl or /nc", "Attack monsters with a single left-click."),
-    ("/noshift or /ns", "Use support skills without holding Shift."),
+    (
+        "/refuse",
+        "Auto-declines party invites (/accept re-enables).",
+    ),
+    (
+        "/noctrl or /nc",
+        "Attack monsters with a single left-click.",
+    ),
+    (
+        "/noshift or /ns",
+        "Use support skills without holding Shift.",
+    ),
     ("/show_ping", "Toggles the network sync/latency overlay."),
     ("/show_fps", "Toggles the frame-rate overlay."),
     ("/h or /help", "Lists the in-game commands."),
@@ -314,8 +337,14 @@ mod tests {
 
     #[test]
     fn refuse_and_accept_flip_flag() {
-        assert_eq!(parse_chat_command("/refuse"), ChatCommand::RefuseParty(true));
-        assert_eq!(parse_chat_command("/accept"), ChatCommand::RefuseParty(false));
+        assert_eq!(
+            parse_chat_command("/refuse"),
+            ChatCommand::RefuseParty(true)
+        );
+        assert_eq!(
+            parse_chat_command("/accept"),
+            ChatCommand::RefuseParty(false)
+        );
     }
 
     #[test]
@@ -328,10 +357,16 @@ mod tests {
     fn parses_volume_clamped_and_toggles() {
         assert_eq!(parse_chat_command("/bgm"), ChatCommand::ToggleBgm);
         assert_eq!(parse_chat_command("/v 100"), ChatCommand::SetSfxVolume(100));
-        assert_eq!(parse_chat_command("/bv 200"), ChatCommand::SetBgmVolume(127));
+        assert_eq!(
+            parse_chat_command("/bv 200"),
+            ChatCommand::SetBgmVolume(127)
+        );
         assert_eq!(parse_chat_command("/v"), ChatCommand::Unknown);
         assert_eq!(parse_chat_command("/showexp"), ChatCommand::ToggleShowExp);
-        assert_eq!(parse_chat_command("/show_ping"), ChatCommand::ToggleShowPing);
+        assert_eq!(
+            parse_chat_command("/show_ping"),
+            ChatCommand::ToggleShowPing
+        );
         assert_eq!(parse_chat_command("/show_fps"), ChatCommand::ToggleShowFps);
     }
 
@@ -345,7 +380,10 @@ mod tests {
             }
         );
         assert_eq!(parse_chat_command("/ex"), ChatCommand::WhisperListBlocked);
-        assert_eq!(parse_chat_command("/inall"), ChatCommand::WhisperBlockAll(false));
+        assert_eq!(
+            parse_chat_command("/inall"),
+            ChatCommand::WhisperBlockAll(false)
+        );
         assert_eq!(
             parse_chat_command("/gc hello team"),
             ChatCommand::GuildChat("hello team".to_string())

@@ -35,7 +35,9 @@ impl Profiler {
         let bind_addr = format!("0.0.0.0:{PORT}"); // Serve on all addresses.
         self.server = match puffin_http::Server::new(&bind_addr) {
             Ok(puffin_server) => {
-                tracing::info!("Started puffin profiling server. View with:  cargo install puffin_viewer && puffin_viewer");
+                tracing::info!(
+                    "Started puffin profiling server. View with:  cargo install puffin_viewer && puffin_viewer"
+                );
                 Some(puffin_server)
             }
             Err(err) => {
@@ -49,10 +51,15 @@ impl Profiler {
 fn start_puffin_viewer() {
     crate::profile_function!();
     let url = format!("127.0.0.1:{PORT}"); // Connect to localhost.
-    let child = std::process::Command::new("puffin_viewer").arg("--url").arg(&url).spawn();
+    let child = std::process::Command::new("puffin_viewer")
+        .arg("--url")
+        .arg(&url)
+        .spawn();
 
     if let Err(err) = child {
         let cmd = format!("cargo install puffin_viewer && puffin_viewer --url {url}",);
-        tracing::warn!("Failed to start puffin_viewer: {err}. Try connecting manually with:  {cmd}");
+        tracing::warn!(
+            "Failed to start puffin_viewer: {err}. Try connecting manually with:  {cmd}"
+        );
     }
 }

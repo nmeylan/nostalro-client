@@ -282,7 +282,10 @@ mod tests {
         tick(&mut e, 5);
         e.set_position([40.0, 0.0, -12.0]);
         let p = first_pos(&e);
-        assert!((p[0] - 40.0).abs() < 8.0 && (p[2] + 12.0).abs() < 8.0, "orbs recenter on moved entity");
+        assert!(
+            (p[0] - 40.0).abs() < 8.0 && (p[2] + 12.0).abs() < 8.0,
+            "orbs recenter on moved entity"
+        );
     }
 
     fn first_pos(e: &ChookgiEffect) -> [f32; 3] {

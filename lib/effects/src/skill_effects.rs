@@ -341,7 +341,12 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         S::AcConcentration => &[E::Incagidex],
         S::MoExtremityfist => &[E::Beginasura],
 
-        S::AmCallhomun | S::AmRest | S::AmResurrecthomun | S::WeMale | S::WeBaby | S::WeCallparent
+        S::AmCallhomun
+        | S::AmRest
+        | S::AmResurrecthomun
+        | S::WeMale
+        | S::WeBaby
+        | S::WeCallparent
         | S::WeCallbaby => &[E::Couplecasting],
         S::WeFemale => &[E::Heartcasting],
 
@@ -523,7 +528,9 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::WsMeltdown => C::cast(&[E::Meltdown]),
         S::WsCartboost => C::cast(&[E::Cartboost]),
 
-        S::SgSunComfort | S::SgMoonComfort | S::SgStarComfort => C::cast(&[E::Flowercast, E::Hated]),
+        S::SgSunComfort | S::SgMoonComfort | S::SgStarComfort => {
+            C::cast(&[E::Flowercast, E::Hated])
+        }
         S::TkSevenwind => C::cast(&[E::Stormkick3, E::Beginasura1]),
 
         S::RgIntimidate => C::cast(&[E::Intimidate]),
@@ -1011,8 +1018,14 @@ mod tests {
         // Support buffs have no dedicated effect in the original game.
         assert_eq!(merc_skill_base(S::MerQuicken), S::MerQuicken);
         assert!(caster_skill_effects(S::MerQuicken).cast.is_empty());
-        assert_eq!(merc_skill_base_id(S::MaDouble.id() as u16), S::AcDouble.id() as u16);
-        assert_eq!(merc_skill_base_id(S::SmBash.id() as u16), S::SmBash.id() as u16);
+        assert_eq!(
+            merc_skill_base_id(S::MaDouble.id() as u16),
+            S::AcDouble.id() as u16
+        );
+        assert_eq!(
+            merc_skill_base_id(S::SmBash.id() as u16),
+            S::SmBash.id() as u16
+        );
     }
 
     #[test]
@@ -1027,14 +1040,21 @@ mod tests {
             (S::NpcPowerup, E::Gumgangnpc),
         ] {
             assert_eq!(caster_skill_effects(skill).cast, &[effect], "{skill:?}");
-            assert!(target_skill_effects(skill).on_target.is_empty(), "{skill:?}");
+            assert!(
+                target_skill_effects(skill).on_target.is_empty(),
+                "{skill:?}"
+            );
         }
         for (skill, effect) in [
             (S::NpcStop, E::NpcStop),
             (S::NpcWeaponbraker, E::Stripweapon),
             (S::HlifHeal, E::Heal4),
         ] {
-            assert_eq!(target_skill_effects(skill).on_target, &[effect], "{skill:?}");
+            assert_eq!(
+                target_skill_effects(skill).on_target,
+                &[effect],
+                "{skill:?}"
+            );
             assert!(caster_skill_effects(skill).cast.is_empty(), "{skill:?}");
         }
     }
@@ -1045,9 +1065,18 @@ mod tests {
     fn plays_once(id: EffectId) -> bool {
         use crate::spec::EffectSpec::*;
         match crate::table::effect_spec(id) {
-            Some(Str { duration_ms, repeat, .. } | Spr { duration_ms, repeat, .. }) => {
-                !repeat && duration_ms < u32::MAX
-            }
+            Some(
+                Str {
+                    duration_ms,
+                    repeat,
+                    ..
+                }
+                | Spr {
+                    duration_ms,
+                    repeat,
+                    ..
+                },
+            ) => !repeat && duration_ms < u32::MAX,
             Some(Custom) => crate::table::custom_duration_ms(id) < u32::MAX,
             Some(SprBurst { duration_ms, .. }) => duration_ms < u32::MAX,
             Some(Noop) | None => true,
@@ -1058,8 +1087,15 @@ mod tests {
     fn auto_guard_and_parrying_launch_guard_effect() {
         use SkillEnum as S;
         for skill in [S::CrAutoguard, S::MlAutoguard, S::LkParrying, S::MsParrying] {
-            assert_eq!(caster_skill_effects(skill).cast, &[EffectId::Guard], "{skill:?}");
-            assert!(target_skill_effects(skill).on_target.is_empty(), "{skill:?}");
+            assert_eq!(
+                caster_skill_effects(skill).cast,
+                &[EffectId::Guard],
+                "{skill:?}"
+            );
+            assert!(
+                target_skill_effects(skill).on_target.is_empty(),
+                "{skill:?}"
+            );
         }
     }
 
@@ -1136,7 +1172,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn physical_attack_skills_share_the_bash_begin_effect() {
         for skill in [
@@ -1153,10 +1188,7 @@ mod tests {
         }
         // Meltdown has a real cast time: the default Bash cast glyph shows while
         // the bar fills, and the Meltdown body flashes once at use.
-        assert_eq!(
-            begin_cast_effect(SkillEnum::WsMeltdown),
-            &[EffectId::Bash]
-        );
+        assert_eq!(begin_cast_effect(SkillEnum::WsMeltdown), &[EffectId::Bash]);
         assert_eq!(
             caster_skill_effects(SkillEnum::WsMeltdown).cast,
             &[EffectId::Meltdown]
@@ -1305,11 +1337,17 @@ mod tests {
         use SkillEnum as S;
         assert_eq!(begin_cast_effect(S::WeMale), &[E::Couplecasting]);
         assert_eq!(begin_cast_effect(S::WeFemale), &[E::Heartcasting]);
-        assert_eq!(caster_skill_effects(S::WeCallpartner).cast, &[E::Couplecasting]);
+        assert_eq!(
+            caster_skill_effects(S::WeCallpartner).cast,
+            &[E::Couplecasting]
+        );
         assert!(is_cast_circle(E::Couplecasting));
         assert!(is_cast_circle(E::Heartcasting));
         assert_eq!(target_skill_effects(S::WeMale).on_target, &[E::Heal]);
-        assert_eq!(target_skill_effects(S::WeFemale).on_target, &[E::Absorbspirits]);
+        assert_eq!(
+            target_skill_effects(S::WeFemale).on_target,
+            &[E::Absorbspirits]
+        );
     }
 
     #[test]
@@ -1373,10 +1411,22 @@ mod tests {
         use SkillEnum as S;
 
         assert_eq!(begin_cast_effect(S::AscMeteorassault), &[E::Beginspell7]);
-        assert!(caster_skill_effects(S::AscMeteorassault).cast.contains(&E::Soulbreaker2));
-        assert!(target_skill_effects(S::AscMeteorassault).on_target.is_empty());
+        assert!(
+            caster_skill_effects(S::AscMeteorassault)
+                .cast
+                .contains(&E::Soulbreaker2)
+        );
+        assert!(
+            target_skill_effects(S::AscMeteorassault)
+                .on_target
+                .is_empty()
+        );
 
-        assert!(target_skill_effects(S::TfSteal).on_target.contains(&E::Steal));
+        assert!(
+            target_skill_effects(S::TfSteal)
+                .on_target
+                .contains(&E::Steal)
+        );
         assert!(caster_skill_effects(S::TfSteal).cast.is_empty());
     }
 

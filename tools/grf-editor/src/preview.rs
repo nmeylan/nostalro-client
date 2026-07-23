@@ -255,7 +255,10 @@ mod tests {
         assert!(is_animated_previewable("data/sprite/poring.spr", &archive));
         assert!(is_animated_previewable("data/sprite/poring.act", &archive));
         assert!(!is_animated_previewable("data/sprite/orphan.act", &archive));
-        assert!(is_animated_previewable("data/texture/effect/fire.str", &archive));
+        assert!(is_animated_previewable(
+            "data/texture/effect/fire.str",
+            &archive
+        ));
         assert!(is_animated_previewable("data/model/tree.rsm", &archive));
         assert!(is_animated_previewable("data/model/emperium.gr2", &archive));
         assert!(!is_animated_previewable("data/sprite/lonely.spr", &archive));

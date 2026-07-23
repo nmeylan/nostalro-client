@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::consts::{
-    BasicTactic, CastTactic, ChaseTactic, KsTactic, KiteTactic, PushbackTactic, RescueTactic,
+    BasicTactic, CastTactic, ChaseTactic, KiteTactic, KsTactic, PushbackTactic, RescueTactic,
     SkillClass, SnipeTactic,
 };
 
@@ -129,7 +129,11 @@ impl TacticTable {
         let map: HashMap<u32, Tactic> = rows.iter().map(|t| (t.id, t.clone())).collect();
         let default = map.get(&0).cloned().unwrap_or_else(Tactic::default_row);
         let treasure = map.get(&13).cloned().unwrap_or_else(Tactic::treasure_row);
-        TacticTable { rows: map, default, treasure }
+        TacticTable {
+            rows: map,
+            default,
+            treasure,
+        }
     }
 
     pub fn resolve(&self, class_id: u32) -> &Tactic {

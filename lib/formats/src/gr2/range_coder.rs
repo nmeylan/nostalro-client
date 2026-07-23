@@ -52,7 +52,12 @@ pub(crate) struct Reservoir<'a> {
 
 impl<'a> Reservoir<'a> {
     pub(crate) fn new(data: &'a [u8], start: usize) -> Self {
-        Reservoir { stream: data, pos: start, bitbuf: 0, bitcount: 0 }
+        Reservoir {
+            stream: data,
+            pos: start,
+            bitbuf: 0,
+            bitcount: 0,
+        }
     }
 
     pub(crate) fn pull(&mut self, n: u32) -> u32 {

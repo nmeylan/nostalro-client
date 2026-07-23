@@ -58,7 +58,8 @@ pub fn draw_board(
 
     let text_x = box_x + PAD + ICON + PAD;
     let text_y = box_y + (box_h + atlas.line_height) / 2.0;
-    let (verts, indices) = draw::text_vertices(label, text_x, text_y, container.text_color(), atlas);
+    let (verts, indices) =
+        draw::text_vertices(label, text_x, text_y, container.text_color(), atlas);
     if !verts.is_empty() {
         draw_calls.push(DrawCall {
             vertices: verts,

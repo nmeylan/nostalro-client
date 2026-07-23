@@ -191,7 +191,12 @@ impl LoginServerListWindow {
 
         let btn_y = win.y + win_h - BTN_BOTTOM - btn_h;
         let ok_rect = Rect::new(win.x + win_w - OK_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
-        let cancel_rect = Rect::new(win.x + win_w - CANCEL_BTN_RIGHT - btn_w, btn_y, btn_w, btn_h);
+        let cancel_rect = Rect::new(
+            win.x + win_w - CANCEL_BTN_RIGHT - btn_w,
+            btn_y,
+            btn_w,
+            btn_h,
+        );
         let ok = ui.button(OK_ID, ok_rect, &OK_BTN, "OK");
         let cancel = ui.button(CANCEL_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
@@ -213,7 +218,12 @@ impl LoginServerListWindow {
         let padding = 8.0;
         let title_h = 30.0;
         let win_h = title_h + list_h + padding + btn_h + padding;
-        let win = ui.window_account(LOGIN_SERVER_LIST_WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H);
+        let win = ui.window_account(
+            LOGIN_SERVER_LIST_WINDOW_ID,
+            win_w,
+            win_h,
+            FALLBACK_TITLE_BAR_H,
+        );
 
         let (v, i) = draw::quad_vertices(win.x, win.y, win.w, win_h, [0.08, 0.08, 0.12, 0.95]);
         ui.draw_calls.push(DrawCall {
@@ -277,7 +287,12 @@ impl LoginServerListWindow {
             }
 
             let text_y = row_y + (ROW_H + ui.atlas.line_height) / 2.0 - 2.0;
-            ui.text(win.x + padding + 4.0, text_y, &server.name, [1.0, 1.0, 1.0, 1.0]);
+            ui.text(
+                win.x + padding + 4.0,
+                text_y,
+                &server.name,
+                [1.0, 1.0, 1.0, 1.0],
+            );
 
             let detail_w = ui.atlas.measure_text(&server.detail);
             ui.text(
@@ -321,8 +336,11 @@ impl Window for LoginServerListWindow {
         if self.has_grf_textures {
             self.win_size
         } else {
-            let win_h =
-                FALLBACK_TITLE_BAR_H + self.servers.len() as f32 * ROW_H + 8.0 + FALLBACK_BTN_H + 8.0;
+            let win_h = FALLBACK_TITLE_BAR_H
+                + self.servers.len() as f32 * ROW_H
+                + 8.0
+                + FALLBACK_BTN_H
+                + 8.0;
             (FALLBACK_WIN_W, win_h)
         }
     }
@@ -409,6 +427,10 @@ mod tests {
         ctx.key_escape = true;
         let mut ui = make_frame(&ctx, &mut state);
         let events = win.build(&mut ui);
-        assert!(events.iter().any(|e| matches!(e, GameEvent::Disconnected(_))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::Disconnected(_)))
+        );
     }
 }

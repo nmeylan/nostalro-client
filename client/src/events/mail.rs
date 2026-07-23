@@ -90,7 +90,9 @@ impl App {
         mail.send_pending = false;
         if ok {
             mail.switch_to_inbox();
-            self.windows.chat_window.add_system("Mail sent.".to_string());
+            self.windows
+                .chat_window
+                .add_system("Mail sent.".to_string());
             self.channel
                 .send_packet(build_mail_get_list_packet(self.active_packetver));
         } else {
@@ -100,11 +102,18 @@ impl App {
         }
     }
 
-    pub(super) fn handle_mail_new_received(&mut self, mail_id: u32, _title: String, _sender: String) {
+    pub(super) fn handle_mail_new_received(
+        &mut self,
+        mail_id: u32,
+        _title: String,
+        _sender: String,
+    ) {
         if mail_id == 0 {
             return;
         }
-        self.windows.chat_window.add_system("You've got mail.".to_string());
+        self.windows
+            .chat_window
+            .add_system("You've got mail.".to_string());
         let mail = &self.game.character.mail;
         if mail.window_open && mail.mode == MailboxMode::Inbox {
             self.channel

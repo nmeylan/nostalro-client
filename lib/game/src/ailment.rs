@@ -84,7 +84,11 @@ fn ailment_tint(body_state: i16, health_state: i16, rooted: bool) -> Option<[u8;
 /// STONEWAIT does not block movement; opt2 bits never do. Root (Blade Stop)
 /// immobilizes both bound actors.
 pub fn movement_blocked(body_state: i16, rooted: bool) -> bool {
-    rooted || matches!(body_state, OPT1_STONE | OPT1_FREEZE | OPT1_STUN | OPT1_SLEEP)
+    rooted
+        || matches!(
+            body_state,
+            OPT1_STONE | OPT1_FREEZE | OPT1_STUN | OPT1_SLEEP
+        )
 }
 
 pub fn ailment_overlays(body_state: i16, health_state: i16) -> Vec<AilmentOverlay> {

@@ -12,7 +12,9 @@ use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::gr2_model::{AnimationClip, Gr2Action, SkeletonPose, animation_file_path};
 use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
-use ragnarok_renderer::{Camera, GlobalUniforms, LightUniform, RenderDevice, TextureCache, block_on};
+use ragnarok_renderer::{
+    Camera, GlobalUniforms, LightUniform, RenderDevice, TextureCache, block_on,
+};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -198,9 +200,10 @@ impl Scene {
         scene.frame_camera();
         // These models are Z-up; a +90° X-rotation maps model +Z to world -Y
         // (up in RO coordinates) without flipping handedness.
-        scene
-            .renderer
-            .set_transform(queue, glam::Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2));
+        scene.renderer.set_transform(
+            queue,
+            glam::Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2),
+        );
         if let Some(path) = &args.emblem {
             apply_emblem_override(&mut scene, path, device, queue, texture_cache);
         }
@@ -248,7 +251,12 @@ impl Scene {
         self.global_uniforms.update_camera(queue, &self.camera);
     }
 
-    fn encode_pass(&self, encoder: &mut wgpu::CommandEncoder, color: &wgpu::TextureView, depth: &wgpu::TextureView) {
+    fn encode_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        color: &wgpu::TextureView,
+        depth: &wgpu::TextureView,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("gr2_viewer"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -290,7 +298,11 @@ struct App {
 impl App {
     fn update_title(&self) {
         if let (Some(window), Some(scene)) = (&self.window, &self.scene) {
-            window.set_title(&format!("GR2 Viewer - {} - {}", self.args.model, scene.action_label()));
+            window.set_title(&format!(
+                "GR2 Viewer - {} - {}",
+                self.args.model,
+                scene.action_label()
+            ));
         }
     }
 
@@ -330,7 +342,10 @@ impl ApplicationHandler for App {
         }
         let attrs = WindowAttributes::default()
             .with_title("GR2 Viewer")
-            .with_inner_size(winit::dpi::PhysicalSize::new(self.args.width, self.args.height));
+            .with_inner_size(winit::dpi::PhysicalSize::new(
+                self.args.width,
+                self.args.height,
+            ));
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         let device = block_on(RenderDevice::new(window.clone()));
 
@@ -419,8 +434,7 @@ impl ApplicationHandler for App {
                     let dy = self.mouse_pos.1 - self.last_mouse.1;
                     if let Some(scene) = &mut self.scene {
                         scene.camera.yaw += dx * 0.01;
-                        scene.camera.pitch = (scene.camera.pitch + dy * 0.01)
-                            .clamp(-1.4, 1.4);
+                        scene.camera.pitch = (scene.camera.pitch + dy * 0.01).clamp(-1.4, 1.4);
                     }
                     self.last_mouse = self.mouse_pos;
                 }
@@ -459,16 +473,8 @@ fn screenshot(args: &Args, out_path: &str) {
     let format = wgpu::TextureFormat::Rgba8UnormSrgb;
     let texture_cache = TextureCache::new(&device, 1.0);
     let aspect = args.width as f32 / args.height as f32;
-    let mut scene = Scene::new(
-        &device,
-        &queue,
-        &texture_cache,
-        format,
-        &grf,
-        args,
-        aspect,
-    )
-    .expect("load model");
+    let mut scene = Scene::new(&device, &queue, &texture_cache, format, &grf, args, aspect)
+        .expect("load model");
 
     let extent = wgpu::Extent3d {
         width: args.width,

@@ -24,7 +24,13 @@ impl App {
         tracing::info!("Received {} character(s)", characters.len());
         // Per-character sex is only sent from packetver 20141016; before that every
         // character on the account shares the account sex.
-        let account_sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+        let account_sex = self
+            .game
+            .session
+            .login_session
+            .as_ref()
+            .map(|s| s.sex)
+            .unwrap_or(0);
         for ch in &mut characters {
             ch.sex = account_sex;
         }
@@ -46,8 +52,18 @@ impl App {
         &mut self,
         mut character: ragnarok_game::event::CharacterInfo,
     ) {
-        tracing::info!("Character '{}' created in slot {}", character.name, character.slot);
-        character.sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(0);
+        tracing::info!(
+            "Character '{}' created in slot {}",
+            character.name,
+            character.slot
+        );
+        character.sex = self
+            .game
+            .session
+            .login_session
+            .as_ref()
+            .map(|s| s.sex)
+            .unwrap_or(0);
         self.load_char_select_sprite(&character);
         if let Some(win) = &mut self.char_select_window {
             win.characters.push(character);
@@ -87,7 +103,10 @@ impl App {
         }
         let addr = format!("{}:{}", ip_u32_to_string(ip), port);
         self.channel.send_cmd(NetworkCommand::Disconnect);
-        self.channel.send_cmd(NetworkCommand::Connect { addr, expect_aid: true });
+        self.channel.send_cmd(NetworkCommand::Connect {
+            addr,
+            expect_aid: true,
+        });
         if let Some(session) = &self.game.session.login_session {
             self.channel.send_packet(build_zone_enter_packet(session));
         }
@@ -103,15 +122,21 @@ impl App {
             tracing::warn!("No accessible map-server available for character");
             return;
         };
-        let slot = self
-            .config
-            .last_char_slot
-            .or_else(|| self.game.session.selected_character.as_ref().map(|c| c.slot as u8));
+        let slot = self.config.last_char_slot.or_else(|| {
+            self.game
+                .session
+                .selected_character
+                .as_ref()
+                .map(|c| c.slot as u8)
+        });
         let Some(slot) = slot else {
             tracing::warn!("Received accessible maps with no selected character slot");
             return;
         };
-        tracing::info!("Redirecting character to accessible map '{}'", maps[index].name);
+        tracing::info!(
+            "Redirecting character to accessible map '{}'",
+            maps[index].name
+        );
         self.channel.send_packet(build_select_accessible_map_packet(
             slot,
             index as u8,
@@ -139,10 +164,17 @@ impl App {
             self.game.session.current_map = Some(map_name.clone());
         }
 
-        let session_sex = self.game.session.login_session.as_ref().map(|s| s.sex).unwrap_or(1);
+        let session_sex = self
+            .game
+            .session
+            .login_session
+            .as_ref()
+            .map(|s| s.sex)
+            .unwrap_or(1);
         let account_id = self
             .game
-            .session.login_session
+            .session
+            .login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
@@ -159,7 +191,8 @@ impl App {
             effect_state,
         ) = self
             .game
-            .session.selected_character
+            .session
+            .selected_character
             .as_ref()
             .map(|c| {
                 let sex = if self.active_packetver >= 20141016 {
@@ -297,7 +330,9 @@ impl App {
             if let Some(current_map) = &self.game.session.current_map {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
-                    self.windows.minimap_window.set_map_texture(Some(minimap_path));
+                    self.windows
+                        .minimap_window
+                        .set_map_texture(Some(minimap_path));
                 } else {
                     tracing::warn!("Minimap texture not found: {minimap_path}");
                     self.windows.minimap_window.set_map_texture(None);
@@ -312,7 +347,8 @@ impl App {
 
         self.game.session.app_state = AppState::InGame;
         if !self.window_state_restored {
-            self.game.apply_window_state(&mut self.windows, &self.config.window_state);
+            self.game
+                .apply_window_state(&mut self.windows, &self.config.window_state);
             self.window_state_restored = true;
         }
         self.game
@@ -357,7 +393,8 @@ impl App {
             if let Some(guild) = &mut self.game.guild {
                 guild.clear_live_positions();
             }
-            if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite) {
+            if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite)
+            {
                 self.game.sprite_caches.sprites.insert(pid, sprite);
             }
             self.game.sprite_caches.carts.clear();
@@ -368,7 +405,12 @@ impl App {
                     .world
                     .entities
                     .get(pid)
-                    .map(|e| (e.cart_type, ragnarok_game::sprite_path::has_falcon(e.effect_state)))
+                    .map(|e| {
+                        (
+                            e.cart_type,
+                            ragnarok_game::sprite_path::has_falcon(e.effect_state),
+                        )
+                    })
                     .unwrap_or((None, false));
                 if let Some(design) = cart {
                     self.spawn_cart_visual(pid, design);
@@ -381,7 +423,9 @@ impl App {
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
-                    self.windows.minimap_window.set_map_texture(Some(minimap_path));
+                    self.windows
+                        .minimap_window
+                        .set_map_texture(Some(minimap_path));
                 } else {
                     self.windows.minimap_window.set_map_texture(None);
                 }
@@ -431,7 +475,8 @@ impl App {
             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
         let local_ms = self.start_time.elapsed().as_millis() as u32;
         self.game
-            .session.server_time
+            .session
+            .server_time
             .observe_server_tick(start_time, local_ms);
         if !already_moving_to_dest && let Some(gat) = &self.game.session.gat {
             let path = ragnarok_game::path::path_search(gat, start_x, start_y, dest_x, dest_y);
@@ -439,7 +484,9 @@ impl App {
             // player forward by one round-trip at each segment seam.
             let now = local_ms as f32 / 1000.0;
             if let Some(entity) = self.game.world.entities.player_mut() {
-                entity.movement.correct_to_cell(start_x as f32, start_y as f32);
+                entity
+                    .movement
+                    .correct_to_cell(start_x as f32, start_y as f32);
                 if !path.is_empty() {
                     entity.movement.start_move(path, now);
                 }
@@ -456,9 +503,11 @@ impl App {
                 local_send_time_ms,
             );
         } else {
-            self.game
-                .session.server_time
-                .on_server_tick(server_tick, local_now_ms, local_send_time_ms);
+            self.game.session.server_time.on_server_tick(
+                server_tick,
+                local_now_ms,
+                local_send_time_ms,
+            );
         }
     }
 
@@ -505,8 +554,12 @@ impl App {
             return false;
         };
         self.channel.send_cmd(NetworkCommand::Disconnect);
-        self.channel.send_cmd(NetworkCommand::Connect { addr: addr.clone(), expect_aid: true });
-        self.channel.send_packet(ragnarok_network::build_char_enter_packet(session));
+        self.channel.send_cmd(NetworkCommand::Connect {
+            addr: addr.clone(),
+            expect_aid: true,
+        });
+        self.channel
+            .send_packet(ragnarok_network::build_char_enter_packet(session));
         self.channel
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::CharServer {
                 account_id: session.account_id,

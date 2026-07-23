@@ -1,6 +1,6 @@
-use models::enums::action::ActionType;
-use models::enums::EnumWithNumberValue;
 use crate::App;
+use models::enums::EnumWithNumberValue;
+use models::enums::action::ActionType;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::ailment;
 use ragnarok_game::autocounter;
@@ -56,7 +56,11 @@ impl App {
     }
 
     pub(crate) fn has_mercenary(&self) -> bool {
-        self.game.companions.mercenary.as_ref().is_some_and(|m| m.gid != 0)
+        self.game
+            .companions
+            .mercenary
+            .as_ref()
+            .is_some_and(|m| m.gid != 0)
     }
 
     pub(crate) fn issue_owner_command(&mut self, is_mercenary: bool, hovered_target: Option<u32>) {
@@ -70,7 +74,9 @@ impl App {
             let entity = self.game.world.entities.get(gid)?;
             let attackable = match entity.entity_type {
                 EntityType::Monster => true,
-                EntityType::Player => can_attack(entity, &self.game.session.map_properties, player_id),
+                EntityType::Player => {
+                    can_attack(entity, &self.game.session.map_properties, player_id)
+                }
                 _ => false,
             };
             attackable.then_some(gid)
@@ -176,7 +182,12 @@ impl App {
         }
         if self.is_local_player_incapacitated()
             || self.player_hide_move_blocked()
-            || self.game.world.entities.player().is_some_and(|p| p.is_move_locked())
+            || self
+                .game
+                .world
+                .entities
+                .player()
+                .is_some_and(|p| p.is_move_locked())
         {
             return false;
         }

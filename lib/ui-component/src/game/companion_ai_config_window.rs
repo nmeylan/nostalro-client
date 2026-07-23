@@ -1,4 +1,3 @@
-use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::CHECKBOX;
 use crate::helper::colors;
 use crate::helper::dropdown::{self, Dropdown};
@@ -6,6 +5,7 @@ use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{
     TITLEBAR_TEX, draw_container, draw_sys_button, draw_titlebar, text_color,
 };
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_ai::config::{CompanionAiConfig, HomunConfig, MercConfig};
 use ragnarok_ai::consts::{
     BasicTactic, CastTactic, ChaseTactic, KiteTactic, KsTactic, PushbackTactic, RescueTactic,
@@ -112,32 +112,126 @@ const CHASE_OPTS: &[(i32, &str)] = &[(-1, "Normal"), (0, "Always"), (1, "Never")
 fn tactic_cols() -> Vec<FieldSpec<Tactic>> {
     use Widget::*;
     vec![
-        FieldSpec { label: "Basic", category: "", widget: Enum(BASIC_OPTS), tip: "",
-            get: |t| i32::from(t.basic), set: |t, v| t.basic = BasicTactic::from(v) },
-        FieldSpec { label: "Skill Use", category: "", widget: Int { min: -20, max: 100, step: 1 }, tip: "0 never, 100 always, N up to N casts, -N once at level N",
-            get: |t| i32::from(t.skill), set: |t, v| t.skill = SkillUse::from(v) },
-        FieldSpec { label: "Kite", category: "", widget: Enum(KITE_OPTS), tip: "",
-            get: |t| i32::from(t.kite), set: |t, v| t.kite = KiteTactic::from(v) },
-        FieldSpec { label: "Cast React", category: "", widget: Enum(CAST_OPTS), tip: "",
-            get: |t| i32::from(t.cast), set: |t, v| t.cast = CastTactic::from(v) },
-        FieldSpec { label: "Pushback", category: "", widget: Enum(PUSH_OPTS), tip: "",
-            get: |t| i32::from(t.pushback), set: |t, v| t.pushback = PushbackTactic::from(v) },
-        FieldSpec { label: "Debuff Skill", category: "", widget: Int { min: -9000, max: 9000, step: 1 }, tip: "Debuff skill id, or a negative status code",
-            get: |t| t.debuff, set: |t, v| t.debuff = v },
-        FieldSpec { label: "Skill Class", category: "", widget: Enum(CLASS_OPTS), tip: "",
-            get: |t| i32::from(t.skill_class), set: |t, v| t.skill_class = SkillClass::from(v) },
-        FieldSpec { label: "Rescue", category: "", widget: Enum(RESCUE_OPTS), tip: "",
-            get: |t| i32::from(t.rescue), set: |t, v| t.rescue = RescueTactic::from(v) },
-        FieldSpec { label: "SP Reserve", category: "", widget: Int { min: -1, max: 100, step: 1 }, tip: "-1 uses Attack Skill Reserve SP",
-            get: |t| t.sp, set: |t, v| t.sp = v },
-        FieldSpec { label: "Snipe", category: "", widget: Enum(SNIPE_OPTS), tip: "",
-            get: |t| i32::from(t.snipe), set: |t, v| t.snipe = SnipeTactic::from(v) },
-        FieldSpec { label: "KS", category: "", widget: Enum(KS_OPTS), tip: "",
-            get: |t| i32::from(t.ks), set: |t, v| t.ks = KsTactic::from(v) },
-        FieldSpec { label: "Weight x10", category: "", widget: Int { min: 0, max: 30, step: 1 }, tip: "Aggro/mob-count weight, in tenths",
-            get: |t| (t.weight * 10.0).round() as i32, set: |t, v| t.weight = v as f32 / 10.0 },
-        FieldSpec { label: "Chase", category: "", widget: Enum(CHASE_OPTS), tip: "",
-            get: |t| i32::from(t.chase), set: |t, v| t.chase = ChaseTactic::from(v) },
+        FieldSpec {
+            label: "Basic",
+            category: "",
+            widget: Enum(BASIC_OPTS),
+            tip: "",
+            get: |t| i32::from(t.basic),
+            set: |t, v| t.basic = BasicTactic::from(v),
+        },
+        FieldSpec {
+            label: "Skill Use",
+            category: "",
+            widget: Int {
+                min: -20,
+                max: 100,
+                step: 1,
+            },
+            tip: "0 never, 100 always, N up to N casts, -N once at level N",
+            get: |t| i32::from(t.skill),
+            set: |t, v| t.skill = SkillUse::from(v),
+        },
+        FieldSpec {
+            label: "Kite",
+            category: "",
+            widget: Enum(KITE_OPTS),
+            tip: "",
+            get: |t| i32::from(t.kite),
+            set: |t, v| t.kite = KiteTactic::from(v),
+        },
+        FieldSpec {
+            label: "Cast React",
+            category: "",
+            widget: Enum(CAST_OPTS),
+            tip: "",
+            get: |t| i32::from(t.cast),
+            set: |t, v| t.cast = CastTactic::from(v),
+        },
+        FieldSpec {
+            label: "Pushback",
+            category: "",
+            widget: Enum(PUSH_OPTS),
+            tip: "",
+            get: |t| i32::from(t.pushback),
+            set: |t, v| t.pushback = PushbackTactic::from(v),
+        },
+        FieldSpec {
+            label: "Debuff Skill",
+            category: "",
+            widget: Int {
+                min: -9000,
+                max: 9000,
+                step: 1,
+            },
+            tip: "Debuff skill id, or a negative status code",
+            get: |t| t.debuff,
+            set: |t, v| t.debuff = v,
+        },
+        FieldSpec {
+            label: "Skill Class",
+            category: "",
+            widget: Enum(CLASS_OPTS),
+            tip: "",
+            get: |t| i32::from(t.skill_class),
+            set: |t, v| t.skill_class = SkillClass::from(v),
+        },
+        FieldSpec {
+            label: "Rescue",
+            category: "",
+            widget: Enum(RESCUE_OPTS),
+            tip: "",
+            get: |t| i32::from(t.rescue),
+            set: |t, v| t.rescue = RescueTactic::from(v),
+        },
+        FieldSpec {
+            label: "SP Reserve",
+            category: "",
+            widget: Int {
+                min: -1,
+                max: 100,
+                step: 1,
+            },
+            tip: "-1 uses Attack Skill Reserve SP",
+            get: |t| t.sp,
+            set: |t, v| t.sp = v,
+        },
+        FieldSpec {
+            label: "Snipe",
+            category: "",
+            widget: Enum(SNIPE_OPTS),
+            tip: "",
+            get: |t| i32::from(t.snipe),
+            set: |t, v| t.snipe = SnipeTactic::from(v),
+        },
+        FieldSpec {
+            label: "KS",
+            category: "",
+            widget: Enum(KS_OPTS),
+            tip: "",
+            get: |t| i32::from(t.ks),
+            set: |t, v| t.ks = KsTactic::from(v),
+        },
+        FieldSpec {
+            label: "Weight x10",
+            category: "",
+            widget: Int {
+                min: 0,
+                max: 30,
+                step: 1,
+            },
+            tip: "Aggro/mob-count weight, in tenths",
+            get: |t| (t.weight * 10.0).round() as i32,
+            set: |t, v| t.weight = v as f32 / 10.0,
+        },
+        FieldSpec {
+            label: "Chase",
+            category: "",
+            widget: Enum(CHASE_OPTS),
+            tip: "",
+            get: |t| i32::from(t.chase),
+            set: |t, v| t.chase = ChaseTactic::from(v),
+        },
     ]
 }
 
@@ -179,8 +273,7 @@ struct FieldSpec<C: 'static> {
     set: fn(&mut C, i32),
 }
 
-const USE_SKILL_ONLY_OPTS: &[(i32, &str)] =
-    &[(0, "Attacking"), (-1, "Chasing"), (1, "Skill Only")];
+const USE_SKILL_ONLY_OPTS: &[(i32, &str)] = &[(0, "Attacking"), (-1, "Chasing"), (1, "Skill Only")];
 const AUTO_MOB_OPTS: &[(i32, &str)] = &[(0, "Disabled"), (1, "Aggressive"), (2, "All")];
 const AUTO_COMBO_OPTS: &[(i32, &str)] = &[(0, "Never"), (1, "Tactics"), (2, "Always")];
 const IDLE_WALK_OPTS: &[(i32, &str)] = &[
@@ -194,8 +287,7 @@ const IDLE_WALK_OPTS: &[(i32, &str)] = &[
 ];
 const STICKY_STANDBY_OPTS: &[(i32, &str)] =
     &[(0, "Disabled"), (1, "Enabled"), (2, "Enabled+Relog")];
-const AUTO_HEAL_OPTS: &[(i32, &str)] =
-    &[(0, "Never"), (1, "Always"), (2, "Idle"), (3, "Idle Low")];
+const AUTO_HEAL_OPTS: &[(i32, &str)] = &[(0, "Never"), (1, "Always"), (2, "Idle"), (3, "Idle Low")];
 const PUSHBACK_OPTS: &[(i32, &str)] = &[(0, "Off"), (1, "Self"), (2, "All")];
 const OLD_HOMUN_OPTS: &[(i32, &str)] = &[(1, "Lif"), (2, "Amistr"), (3, "Filir")];
 const BUFF_WHEN_OPTS: &[(i32, &str)] = &[
@@ -230,122 +322,842 @@ macro_rules! spec {
 fn homun_specs() -> Vec<FieldSpec<HomunConfig>> {
     use Widget::*;
     vec![
-        spec!("Aggro HP %", "Basic", AggroHP, Int { min: 0, max: 100, step: 5 }, "Only aggress while HP is above this percent."),
-        spec!("Aggro SP %", "Basic", AggroSP, Int { min: 0, max: 100, step: 5 }, "Only aggress while SP is above this percent."),
-        spec!("Old Homun Type", "Basic", OldHomunType, Enum(OLD_HOMUN_OPTS), "Pre-evolution family used for skill selection."),
-        spec!("Use Skill Only", "Basic", UseSkillOnly, Enum(USE_SKILL_ONLY_OPTS), "When attack skills may be used."),
-        spec!("Use Attack Skill", "Basic", UseAttackSkill, Bool, "Enable attack-skill selection."),
-        spec!("Opportunistic Target", "Basic", OpportunisticTargeting, Bool, "Re-target a closer/weaker monster mid-fight."),
-        spec!("Do Not Chase", "Basic", DoNotChase, Bool, "Never leave attack range to chase."),
-        spec!("Use Dance Attack", "Basic", UseDanceAttack, Bool, "Use the move-cancel dance attack."),
-        spec!("Super Passive", "Basic", SuperPassive, Bool, "Never attack unless commanded."),
-        spec!("Rescue Owner Low HP", "Basic", RescueOwnerLowHP, Bool, "Prioritize the owner's attacker when the owner is low."),
-        spec!("Tank Monster Limit", "Basic", TankMonsterLimit, Int { min: 0, max: 12, step: 1 }, "Max monsters to tank at once."),
-        spec!("Stationary Aggro Dist", "Basic", StationaryAggroDist, Int { min: 1, max: 14, step: 1 }, "Aggro radius while the owner is still."),
-        spec!("Mobile Aggro Dist", "Basic", MobileAggroDist, Int { min: 1, max: 14, step: 1 }, "Aggro radius while the owner moves."),
-        spec!("Use Avoid", "Basic", UseAvoid, Bool, "Emergency disconnect on severe danger."),
-
-        spec!("Attack Skill Reserve SP", "AutoSkill", AttackSkillReserveSP, Int { min: 0, max: 100, step: 5 }, "SP to keep in reserve for attack skills."),
-        spec!("Auto Mob Mode", "AutoSkill", AutoMobMode, Enum(AUTO_MOB_OPTS), "When to switch to AoE mob attacks."),
-        spec!("Auto Mob Count", "AutoSkill", AutoMobCount, Int { min: 1, max: 12, step: 1 }, "Monsters needed to trigger AoE."),
-        spec!("Auto Combo Mode", "AutoSkill", AutoComboMode, Enum(AUTO_COMBO_OPTS), "When to use combo skills."),
-        spec!("Auto Combo Spheres", "AutoSkill", AutoComboSpheres, Int { min: 0, max: 15, step: 1 }, "Spheres to keep for combos."),
-        spec!("Homun-S Skill Chase", "AutoSkill", UseHomunSSkillChase, Bool, "Use Homun-S skills while chasing."),
-        spec!("Homun-S Skill Attack", "AutoSkill", UseHomunSSkillAttack, Bool, "Use Homun-S skills while attacking."),
-        spec!("Auto Skill Delay", "AutoSkill", AutoSkillDelay, Int { min: 100, max: 2000, step: 50 }, "Delay between auto skill casts (ms)."),
-        spec!("AoE Maximize Targets", "AutoSkill", AoEMaximizeTargets, Bool, "Position AoE to hit the most targets."),
-        spec!("AoE Reserve SP", "AutoSkill", AoEReserveSP, Bool, "Reserve SP for AoE skills."),
-        spec!("Use Auto Pushback", "AutoSkill", UseAutoPushback, Enum(PUSHBACK_OPTS), "Knockback skill usage scope."),
-        spec!("Attack Time Limit", "AutoSkill", AttackTimeLimit, Int { min: 1000, max: 30000, step: 500 }, "Give up an unreachable target after (ms)."),
-
-        spec!("Follow Stay Back", "Walk", FollowStayBack, Int { min: 0, max: 6, step: 1 }, "Cells to keep behind the owner."),
-        spec!("Rest X Offset", "Walk", RestXOff, Int { min: -6, max: 6, step: 1 }, "Rest cell X offset from owner."),
-        spec!("Rest Y Offset", "Walk", RestYOff, Int { min: -6, max: 6, step: 1 }, "Rest cell Y offset from owner."),
-        spec!("Do Not Use Rest", "Walk", DoNotUseRest, Bool, "Never sit to rest at the owner."),
-        spec!("Spawn Delay", "Walk", SpawnDelay, Int { min: 0, max: 5000, step: 100 }, "Startup delay before acting (ms)."),
-        spec!("Move Sticky", "Walk", MoveSticky, Bool, "Hold position tightly when idle."),
-        spec!("Use Idle Walk", "Walk", UseIdleWalk, Enum(IDLE_WALK_OPTS), "Idle wander / route pattern."),
-        spec!("Idle Walk SP %", "Walk", IdleWalkSP, Int { min: 0, max: 100, step: 5 }, "Only idle-walk above this SP percent."),
-        spec!("Idle Walk Distance", "Walk", IdleWalkDistance, Int { min: 1, max: 10, step: 1 }, "Idle-walk radius."),
-        spec!("Chase SP Pause", "Walk", ChaseSPPause, Bool, "Pause chasing when SP is low."),
-
-        spec!("Use Offensive Buff", "Autobuff", UseOffensiveBuff, Enum(BUFF_WHEN_OPTS), "When to cast offensive buffs."),
-        spec!("Use Defensive Buff", "Autobuff", UseDefensiveBuff, Enum(BUFF_WHEN_OPTS), "When to cast defensive buffs."),
-        spec!("Def Buff Owner Mobbed", "Autobuff", DefensiveBuffOwnerMobbed, Int { min: 0, max: 12, step: 1 }, "Mob count that triggers owner defensive buffs."),
-        spec!("Heal Owner HP %", "Autobuff", HealOwnerHP, Int { min: 0, max: 100, step: 5 }, "Heal the owner below this HP percent."),
-        spec!("Heal Self HP %", "Autobuff", HealSelfHP, Int { min: 0, max: 100, step: 5 }, "Heal self below this HP percent."),
-        spec!("Use Auto Heal", "Autobuff", UseAutoHeal, Enum(AUTO_HEAL_OPTS), "When to auto-heal."),
-        spec!("Lava Slide Mode", "Autobuff", LavaSlideMode, Enum(GROUND_BUFF_OPTS), "When to lay Lava Slide."),
-        spec!("Poison Mist Mode", "Autobuff", PoisonMistMode, Enum(GROUND_BUFF_OPTS), "When to lay Poison Mist."),
-
-        spec!("Kite Monsters", "Kiting", KiteMonsters, Bool, "Kite monsters flagged for kiting."),
-        spec!("Kite Step", "Kiting", KiteStep, Int { min: 1, max: 10, step: 1 }, "Cells to retreat per kite step."),
-        spec!("Kite Threshold", "Kiting", KiteThreshold, Int { min: 1, max: 10, step: 1 }, "Distance that triggers a kite step."),
-        spec!("Kite Bounds", "Kiting", KiteBounds, Int { min: 1, max: 14, step: 1 }, "Max distance to kite from the owner."),
-        spec!("Kite Paranoid", "Kiting", KiteParanoid, Bool, "Kite more aggressively."),
-        spec!("Force Kite", "Kiting", ForceKite, Bool, "Always kite regardless of tactics."),
-        spec!("Flee HP %", "Kiting", FleeHP, Int { min: 0, max: 100, step: 5 }, "Flee below this HP percent."),
-
-        spec!("Standby Friending", "Standby", StandbyFriending, Bool, "Enable friend gestures while in standby."),
-        spec!("Defend Standby", "Standby", DefendStandby, Bool, "Defend self/owner while in standby."),
-        spec!("Sticky Standby", "Standby", StickyStandby, Enum(STICKY_STANDBY_OPTS), "Persist standby across relog."),
-
-        spec!("Use Berserk Mobbed", "Berserk", UseBerserkMobbed, Bool, "Enter berserk when mobbed."),
-        spec!("Use Berserk Skill", "Berserk", UseBerserkSkill, Bool, "Enter berserk to use skills."),
-        spec!("Use Berserk Attack", "Berserk", UseBerserkAttack, Bool, "Enter berserk to attack."),
-
-        spec!("PVP Mode", "PVP", PVPmode, Bool, "Consult PVP tactics against players."),
+        spec!(
+            "Aggro HP %",
+            "Basic",
+            AggroHP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Only aggress while HP is above this percent."
+        ),
+        spec!(
+            "Aggro SP %",
+            "Basic",
+            AggroSP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Only aggress while SP is above this percent."
+        ),
+        spec!(
+            "Old Homun Type",
+            "Basic",
+            OldHomunType,
+            Enum(OLD_HOMUN_OPTS),
+            "Pre-evolution family used for skill selection."
+        ),
+        spec!(
+            "Use Skill Only",
+            "Basic",
+            UseSkillOnly,
+            Enum(USE_SKILL_ONLY_OPTS),
+            "When attack skills may be used."
+        ),
+        spec!(
+            "Use Attack Skill",
+            "Basic",
+            UseAttackSkill,
+            Bool,
+            "Enable attack-skill selection."
+        ),
+        spec!(
+            "Opportunistic Target",
+            "Basic",
+            OpportunisticTargeting,
+            Bool,
+            "Re-target a closer/weaker monster mid-fight."
+        ),
+        spec!(
+            "Do Not Chase",
+            "Basic",
+            DoNotChase,
+            Bool,
+            "Never leave attack range to chase."
+        ),
+        spec!(
+            "Use Dance Attack",
+            "Basic",
+            UseDanceAttack,
+            Bool,
+            "Use the move-cancel dance attack."
+        ),
+        spec!(
+            "Super Passive",
+            "Basic",
+            SuperPassive,
+            Bool,
+            "Never attack unless commanded."
+        ),
+        spec!(
+            "Rescue Owner Low HP",
+            "Basic",
+            RescueOwnerLowHP,
+            Bool,
+            "Prioritize the owner's attacker when the owner is low."
+        ),
+        spec!(
+            "Tank Monster Limit",
+            "Basic",
+            TankMonsterLimit,
+            Int {
+                min: 0,
+                max: 12,
+                step: 1
+            },
+            "Max monsters to tank at once."
+        ),
+        spec!(
+            "Stationary Aggro Dist",
+            "Basic",
+            StationaryAggroDist,
+            Int {
+                min: 1,
+                max: 14,
+                step: 1
+            },
+            "Aggro radius while the owner is still."
+        ),
+        spec!(
+            "Mobile Aggro Dist",
+            "Basic",
+            MobileAggroDist,
+            Int {
+                min: 1,
+                max: 14,
+                step: 1
+            },
+            "Aggro radius while the owner moves."
+        ),
+        spec!(
+            "Use Avoid",
+            "Basic",
+            UseAvoid,
+            Bool,
+            "Emergency disconnect on severe danger."
+        ),
+        spec!(
+            "Attack Skill Reserve SP",
+            "AutoSkill",
+            AttackSkillReserveSP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "SP to keep in reserve for attack skills."
+        ),
+        spec!(
+            "Auto Mob Mode",
+            "AutoSkill",
+            AutoMobMode,
+            Enum(AUTO_MOB_OPTS),
+            "When to switch to AoE mob attacks."
+        ),
+        spec!(
+            "Auto Mob Count",
+            "AutoSkill",
+            AutoMobCount,
+            Int {
+                min: 1,
+                max: 12,
+                step: 1
+            },
+            "Monsters needed to trigger AoE."
+        ),
+        spec!(
+            "Auto Combo Mode",
+            "AutoSkill",
+            AutoComboMode,
+            Enum(AUTO_COMBO_OPTS),
+            "When to use combo skills."
+        ),
+        spec!(
+            "Auto Combo Spheres",
+            "AutoSkill",
+            AutoComboSpheres,
+            Int {
+                min: 0,
+                max: 15,
+                step: 1
+            },
+            "Spheres to keep for combos."
+        ),
+        spec!(
+            "Homun-S Skill Chase",
+            "AutoSkill",
+            UseHomunSSkillChase,
+            Bool,
+            "Use Homun-S skills while chasing."
+        ),
+        spec!(
+            "Homun-S Skill Attack",
+            "AutoSkill",
+            UseHomunSSkillAttack,
+            Bool,
+            "Use Homun-S skills while attacking."
+        ),
+        spec!(
+            "Auto Skill Delay",
+            "AutoSkill",
+            AutoSkillDelay,
+            Int {
+                min: 100,
+                max: 2000,
+                step: 50
+            },
+            "Delay between auto skill casts (ms)."
+        ),
+        spec!(
+            "AoE Maximize Targets",
+            "AutoSkill",
+            AoEMaximizeTargets,
+            Bool,
+            "Position AoE to hit the most targets."
+        ),
+        spec!(
+            "AoE Reserve SP",
+            "AutoSkill",
+            AoEReserveSP,
+            Bool,
+            "Reserve SP for AoE skills."
+        ),
+        spec!(
+            "Use Auto Pushback",
+            "AutoSkill",
+            UseAutoPushback,
+            Enum(PUSHBACK_OPTS),
+            "Knockback skill usage scope."
+        ),
+        spec!(
+            "Attack Time Limit",
+            "AutoSkill",
+            AttackTimeLimit,
+            Int {
+                min: 1000,
+                max: 30000,
+                step: 500
+            },
+            "Give up an unreachable target after (ms)."
+        ),
+        spec!(
+            "Follow Stay Back",
+            "Walk",
+            FollowStayBack,
+            Int {
+                min: 0,
+                max: 6,
+                step: 1
+            },
+            "Cells to keep behind the owner."
+        ),
+        spec!(
+            "Rest X Offset",
+            "Walk",
+            RestXOff,
+            Int {
+                min: -6,
+                max: 6,
+                step: 1
+            },
+            "Rest cell X offset from owner."
+        ),
+        spec!(
+            "Rest Y Offset",
+            "Walk",
+            RestYOff,
+            Int {
+                min: -6,
+                max: 6,
+                step: 1
+            },
+            "Rest cell Y offset from owner."
+        ),
+        spec!(
+            "Do Not Use Rest",
+            "Walk",
+            DoNotUseRest,
+            Bool,
+            "Never sit to rest at the owner."
+        ),
+        spec!(
+            "Spawn Delay",
+            "Walk",
+            SpawnDelay,
+            Int {
+                min: 0,
+                max: 5000,
+                step: 100
+            },
+            "Startup delay before acting (ms)."
+        ),
+        spec!(
+            "Move Sticky",
+            "Walk",
+            MoveSticky,
+            Bool,
+            "Hold position tightly when idle."
+        ),
+        spec!(
+            "Use Idle Walk",
+            "Walk",
+            UseIdleWalk,
+            Enum(IDLE_WALK_OPTS),
+            "Idle wander / route pattern."
+        ),
+        spec!(
+            "Idle Walk SP %",
+            "Walk",
+            IdleWalkSP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Only idle-walk above this SP percent."
+        ),
+        spec!(
+            "Idle Walk Distance",
+            "Walk",
+            IdleWalkDistance,
+            Int {
+                min: 1,
+                max: 10,
+                step: 1
+            },
+            "Idle-walk radius."
+        ),
+        spec!(
+            "Chase SP Pause",
+            "Walk",
+            ChaseSPPause,
+            Bool,
+            "Pause chasing when SP is low."
+        ),
+        spec!(
+            "Use Offensive Buff",
+            "Autobuff",
+            UseOffensiveBuff,
+            Enum(BUFF_WHEN_OPTS),
+            "When to cast offensive buffs."
+        ),
+        spec!(
+            "Use Defensive Buff",
+            "Autobuff",
+            UseDefensiveBuff,
+            Enum(BUFF_WHEN_OPTS),
+            "When to cast defensive buffs."
+        ),
+        spec!(
+            "Def Buff Owner Mobbed",
+            "Autobuff",
+            DefensiveBuffOwnerMobbed,
+            Int {
+                min: 0,
+                max: 12,
+                step: 1
+            },
+            "Mob count that triggers owner defensive buffs."
+        ),
+        spec!(
+            "Heal Owner HP %",
+            "Autobuff",
+            HealOwnerHP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Heal the owner below this HP percent."
+        ),
+        spec!(
+            "Heal Self HP %",
+            "Autobuff",
+            HealSelfHP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Heal self below this HP percent."
+        ),
+        spec!(
+            "Use Auto Heal",
+            "Autobuff",
+            UseAutoHeal,
+            Enum(AUTO_HEAL_OPTS),
+            "When to auto-heal."
+        ),
+        spec!(
+            "Lava Slide Mode",
+            "Autobuff",
+            LavaSlideMode,
+            Enum(GROUND_BUFF_OPTS),
+            "When to lay Lava Slide."
+        ),
+        spec!(
+            "Poison Mist Mode",
+            "Autobuff",
+            PoisonMistMode,
+            Enum(GROUND_BUFF_OPTS),
+            "When to lay Poison Mist."
+        ),
+        spec!(
+            "Kite Monsters",
+            "Kiting",
+            KiteMonsters,
+            Bool,
+            "Kite monsters flagged for kiting."
+        ),
+        spec!(
+            "Kite Step",
+            "Kiting",
+            KiteStep,
+            Int {
+                min: 1,
+                max: 10,
+                step: 1
+            },
+            "Cells to retreat per kite step."
+        ),
+        spec!(
+            "Kite Threshold",
+            "Kiting",
+            KiteThreshold,
+            Int {
+                min: 1,
+                max: 10,
+                step: 1
+            },
+            "Distance that triggers a kite step."
+        ),
+        spec!(
+            "Kite Bounds",
+            "Kiting",
+            KiteBounds,
+            Int {
+                min: 1,
+                max: 14,
+                step: 1
+            },
+            "Max distance to kite from the owner."
+        ),
+        spec!(
+            "Kite Paranoid",
+            "Kiting",
+            KiteParanoid,
+            Bool,
+            "Kite more aggressively."
+        ),
+        spec!(
+            "Force Kite",
+            "Kiting",
+            ForceKite,
+            Bool,
+            "Always kite regardless of tactics."
+        ),
+        spec!(
+            "Flee HP %",
+            "Kiting",
+            FleeHP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Flee below this HP percent."
+        ),
+        spec!(
+            "Standby Friending",
+            "Standby",
+            StandbyFriending,
+            Bool,
+            "Enable friend gestures while in standby."
+        ),
+        spec!(
+            "Defend Standby",
+            "Standby",
+            DefendStandby,
+            Bool,
+            "Defend self/owner while in standby."
+        ),
+        spec!(
+            "Sticky Standby",
+            "Standby",
+            StickyStandby,
+            Enum(STICKY_STANDBY_OPTS),
+            "Persist standby across relog."
+        ),
+        spec!(
+            "Use Berserk Mobbed",
+            "Berserk",
+            UseBerserkMobbed,
+            Bool,
+            "Enter berserk when mobbed."
+        ),
+        spec!(
+            "Use Berserk Skill",
+            "Berserk",
+            UseBerserkSkill,
+            Bool,
+            "Enter berserk to use skills."
+        ),
+        spec!(
+            "Use Berserk Attack",
+            "Berserk",
+            UseBerserkAttack,
+            Bool,
+            "Enter berserk to attack."
+        ),
+        spec!(
+            "PVP Mode",
+            "PVP",
+            PVPmode,
+            Bool,
+            "Consult PVP tactics against players."
+        ),
     ]
 }
 
 fn merc_specs() -> Vec<FieldSpec<MercConfig>> {
     use Widget::*;
     vec![
-        spec!("Aggro HP %", "Basic", AggroHP, Int { min: 0, max: 100, step: 5 }, "Only aggress while HP is above this percent."),
-        spec!("Aggro SP %", "Basic", AggroSP, Int { min: 0, max: 100, step: 5 }, "Only aggress while SP is above this percent."),
-        spec!("Use Skill Only", "Basic", UseSkillOnly, Enum(USE_SKILL_ONLY_OPTS), "When attack skills may be used."),
-        spec!("Use Attack Skill", "Basic", UseAttackSkill, Bool, "Enable attack-skill selection."),
-        spec!("Opportunistic Target", "Basic", OpportunisticTargeting, Bool, "Re-target a closer/weaker monster mid-fight."),
-        spec!("Do Not Chase", "Basic", DoNotChase, Bool, "Never leave attack range to chase."),
-        spec!("Super Passive", "Basic", SuperPassive, Bool, "Never attack unless commanded."),
-        spec!("Auto Detect Plant", "Basic", AutoDetectPlant, Bool, "Skip immobile plant-type monsters."),
-        spec!("Tank Monster Limit", "Basic", TankMonsterLimit, Int { min: 0, max: 12, step: 1 }, "Max monsters to tank at once."),
-        spec!("Stationary Aggro Dist", "Basic", StationaryAggroDist, Int { min: 1, max: 14, step: 1 }, "Aggro radius while the owner is still."),
-        spec!("Mobile Aggro Dist", "Basic", MobileAggroDist, Int { min: 1, max: 14, step: 1 }, "Aggro radius while the owner moves."),
-
-        spec!("Auto Mob Mode", "AutoSkill", AutoMobMode, Enum(AUTO_MOB_OPTS), "When to switch to AoE mob attacks."),
-        spec!("Auto Mob Count", "AutoSkill", AutoMobCount, Int { min: 1, max: 12, step: 1 }, "Monsters needed to trigger AoE."),
-        spec!("Auto Skill Delay", "AutoSkill", AutoSkillDelay, Int { min: 100, max: 750, step: 50 }, "Delay between auto skill casts (ms)."),
-        spec!("Use Auto Pushback", "AutoSkill", UseAutoPushback, Enum(PUSHBACK_OPTS), "Knockback skill usage scope."),
-        spec!("Auto Pushback Threshold", "AutoSkill", AutoPushbackThreshold, Int { min: 1, max: 6, step: 1 }, "Distance that triggers pushback."),
-        spec!("Attack Time Limit", "AutoSkill", AttackTimeLimit, Int { min: 1000, max: 30000, step: 500 }, "Give up an unreachable target after (ms)."),
-
-        spec!("Use Offensive Buff", "Autobuff", UseOffensiveBuff, Enum(BUFF_WHEN_OPTS), "When to cast offensive buffs."),
-        spec!("Use Defensive Buff", "Autobuff", UseDefensiveBuff, Enum(BUFF_WHEN_OPTS), "When to cast defensive buffs."),
-        spec!("Use Provoke Owner", "Autobuff", UseProvokeOwner, Enum(BUFF_WHEN_OPTS), "Provoke the owner's attacker."),
-        spec!("Use Provoke Self", "Autobuff", UseProvokeSelf, Enum(BUFF_WHEN_OPTS), "Provoke own attacker."),
-        spec!("Use Sacrifice Owner", "Autobuff", UseSacrificeOwner, Enum(BUFF_WHEN_OPTS), "Cast Sacrifice on the owner."),
-        spec!("Use Auto Mag", "Autobuff", UseAutoMag, Enum(BUFF_WHEN_OPTS), "Cast Magnificat."),
-        spec!("Use Auto Sight", "Autobuff", UseAutoSight, Enum(BUFF_WHEN_OPTS), "Cast Sight to reveal hidden foes."),
-        spec!("Use Blessing Owner", "Autobuff", UseBlessingOwner, Enum(BUFF_WHEN_OPTS), "Bless the owner."),
-        spec!("Use Blessing Self", "Autobuff", UseBlessingSelf, Enum(BUFF_WHEN_OPTS), "Bless self."),
-        spec!("Use IncAgi Owner", "Autobuff", UseIncAgiOwner, Enum(BUFF_WHEN_OPTS), "Increase Agility on the owner."),
-        spec!("Use IncAgi Self", "Autobuff", UseIncAgiSelf, Enum(BUFF_WHEN_OPTS), "Increase Agility on self."),
-        spec!("Use Kyrie Owner", "Autobuff", UseKyrieOwner, Enum(BUFF_WHEN_OPTS), "Kyrie Eleison on the owner."),
-        spec!("Use Kyrie Self", "Autobuff", UseKyrieSelf, Enum(BUFF_WHEN_OPTS), "Kyrie Eleison on self."),
-
-        spec!("Follow Stay Back", "Walk", FollowStayBack, Int { min: 0, max: 6, step: 1 }, "Cells to keep behind the owner."),
-        spec!("Do Not Use Rest", "Walk", DoNotUseRest, Bool, "Never sit to rest at the owner."),
-        spec!("Use Idle Walk", "Walk", UseIdleWalk, Enum(IDLE_WALK_OPTS), "Idle wander / route pattern."),
-        spec!("Idle Walk Distance", "Walk", IdleWalkDistance, Int { min: 1, max: 10, step: 1 }, "Idle-walk radius."),
-
-        spec!("Kite Monsters", "Kiting", KiteMonsters, Bool, "Kite monsters flagged for kiting."),
-        spec!("Kite Bounds", "Kiting", KiteBounds, Int { min: 1, max: 14, step: 1 }, "Max distance to kite from the owner."),
-        spec!("Force Kite", "Kiting", ForceKite, Bool, "Always kite regardless of tactics."),
-        spec!("Flee HP %", "Kiting", FleeHP, Int { min: 0, max: 100, step: 5 }, "Flee below this HP percent."),
-
-        spec!("Sticky Standby", "Standby", StickyStandby, Enum(STICKY_STANDBY_OPTS), "Persist standby across relog."),
-        spec!("PVP Mode", "PVP", PVPmode, Bool, "Consult PVP tactics against players."),
+        spec!(
+            "Aggro HP %",
+            "Basic",
+            AggroHP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Only aggress while HP is above this percent."
+        ),
+        spec!(
+            "Aggro SP %",
+            "Basic",
+            AggroSP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Only aggress while SP is above this percent."
+        ),
+        spec!(
+            "Use Skill Only",
+            "Basic",
+            UseSkillOnly,
+            Enum(USE_SKILL_ONLY_OPTS),
+            "When attack skills may be used."
+        ),
+        spec!(
+            "Use Attack Skill",
+            "Basic",
+            UseAttackSkill,
+            Bool,
+            "Enable attack-skill selection."
+        ),
+        spec!(
+            "Opportunistic Target",
+            "Basic",
+            OpportunisticTargeting,
+            Bool,
+            "Re-target a closer/weaker monster mid-fight."
+        ),
+        spec!(
+            "Do Not Chase",
+            "Basic",
+            DoNotChase,
+            Bool,
+            "Never leave attack range to chase."
+        ),
+        spec!(
+            "Super Passive",
+            "Basic",
+            SuperPassive,
+            Bool,
+            "Never attack unless commanded."
+        ),
+        spec!(
+            "Auto Detect Plant",
+            "Basic",
+            AutoDetectPlant,
+            Bool,
+            "Skip immobile plant-type monsters."
+        ),
+        spec!(
+            "Tank Monster Limit",
+            "Basic",
+            TankMonsterLimit,
+            Int {
+                min: 0,
+                max: 12,
+                step: 1
+            },
+            "Max monsters to tank at once."
+        ),
+        spec!(
+            "Stationary Aggro Dist",
+            "Basic",
+            StationaryAggroDist,
+            Int {
+                min: 1,
+                max: 14,
+                step: 1
+            },
+            "Aggro radius while the owner is still."
+        ),
+        spec!(
+            "Mobile Aggro Dist",
+            "Basic",
+            MobileAggroDist,
+            Int {
+                min: 1,
+                max: 14,
+                step: 1
+            },
+            "Aggro radius while the owner moves."
+        ),
+        spec!(
+            "Auto Mob Mode",
+            "AutoSkill",
+            AutoMobMode,
+            Enum(AUTO_MOB_OPTS),
+            "When to switch to AoE mob attacks."
+        ),
+        spec!(
+            "Auto Mob Count",
+            "AutoSkill",
+            AutoMobCount,
+            Int {
+                min: 1,
+                max: 12,
+                step: 1
+            },
+            "Monsters needed to trigger AoE."
+        ),
+        spec!(
+            "Auto Skill Delay",
+            "AutoSkill",
+            AutoSkillDelay,
+            Int {
+                min: 100,
+                max: 750,
+                step: 50
+            },
+            "Delay between auto skill casts (ms)."
+        ),
+        spec!(
+            "Use Auto Pushback",
+            "AutoSkill",
+            UseAutoPushback,
+            Enum(PUSHBACK_OPTS),
+            "Knockback skill usage scope."
+        ),
+        spec!(
+            "Auto Pushback Threshold",
+            "AutoSkill",
+            AutoPushbackThreshold,
+            Int {
+                min: 1,
+                max: 6,
+                step: 1
+            },
+            "Distance that triggers pushback."
+        ),
+        spec!(
+            "Attack Time Limit",
+            "AutoSkill",
+            AttackTimeLimit,
+            Int {
+                min: 1000,
+                max: 30000,
+                step: 500
+            },
+            "Give up an unreachable target after (ms)."
+        ),
+        spec!(
+            "Use Offensive Buff",
+            "Autobuff",
+            UseOffensiveBuff,
+            Enum(BUFF_WHEN_OPTS),
+            "When to cast offensive buffs."
+        ),
+        spec!(
+            "Use Defensive Buff",
+            "Autobuff",
+            UseDefensiveBuff,
+            Enum(BUFF_WHEN_OPTS),
+            "When to cast defensive buffs."
+        ),
+        spec!(
+            "Use Provoke Owner",
+            "Autobuff",
+            UseProvokeOwner,
+            Enum(BUFF_WHEN_OPTS),
+            "Provoke the owner's attacker."
+        ),
+        spec!(
+            "Use Provoke Self",
+            "Autobuff",
+            UseProvokeSelf,
+            Enum(BUFF_WHEN_OPTS),
+            "Provoke own attacker."
+        ),
+        spec!(
+            "Use Sacrifice Owner",
+            "Autobuff",
+            UseSacrificeOwner,
+            Enum(BUFF_WHEN_OPTS),
+            "Cast Sacrifice on the owner."
+        ),
+        spec!(
+            "Use Auto Mag",
+            "Autobuff",
+            UseAutoMag,
+            Enum(BUFF_WHEN_OPTS),
+            "Cast Magnificat."
+        ),
+        spec!(
+            "Use Auto Sight",
+            "Autobuff",
+            UseAutoSight,
+            Enum(BUFF_WHEN_OPTS),
+            "Cast Sight to reveal hidden foes."
+        ),
+        spec!(
+            "Use Blessing Owner",
+            "Autobuff",
+            UseBlessingOwner,
+            Enum(BUFF_WHEN_OPTS),
+            "Bless the owner."
+        ),
+        spec!(
+            "Use Blessing Self",
+            "Autobuff",
+            UseBlessingSelf,
+            Enum(BUFF_WHEN_OPTS),
+            "Bless self."
+        ),
+        spec!(
+            "Use IncAgi Owner",
+            "Autobuff",
+            UseIncAgiOwner,
+            Enum(BUFF_WHEN_OPTS),
+            "Increase Agility on the owner."
+        ),
+        spec!(
+            "Use IncAgi Self",
+            "Autobuff",
+            UseIncAgiSelf,
+            Enum(BUFF_WHEN_OPTS),
+            "Increase Agility on self."
+        ),
+        spec!(
+            "Use Kyrie Owner",
+            "Autobuff",
+            UseKyrieOwner,
+            Enum(BUFF_WHEN_OPTS),
+            "Kyrie Eleison on the owner."
+        ),
+        spec!(
+            "Use Kyrie Self",
+            "Autobuff",
+            UseKyrieSelf,
+            Enum(BUFF_WHEN_OPTS),
+            "Kyrie Eleison on self."
+        ),
+        spec!(
+            "Follow Stay Back",
+            "Walk",
+            FollowStayBack,
+            Int {
+                min: 0,
+                max: 6,
+                step: 1
+            },
+            "Cells to keep behind the owner."
+        ),
+        spec!(
+            "Do Not Use Rest",
+            "Walk",
+            DoNotUseRest,
+            Bool,
+            "Never sit to rest at the owner."
+        ),
+        spec!(
+            "Use Idle Walk",
+            "Walk",
+            UseIdleWalk,
+            Enum(IDLE_WALK_OPTS),
+            "Idle wander / route pattern."
+        ),
+        spec!(
+            "Idle Walk Distance",
+            "Walk",
+            IdleWalkDistance,
+            Int {
+                min: 1,
+                max: 10,
+                step: 1
+            },
+            "Idle-walk radius."
+        ),
+        spec!(
+            "Kite Monsters",
+            "Kiting",
+            KiteMonsters,
+            Bool,
+            "Kite monsters flagged for kiting."
+        ),
+        spec!(
+            "Kite Bounds",
+            "Kiting",
+            KiteBounds,
+            Int {
+                min: 1,
+                max: 14,
+                step: 1
+            },
+            "Max distance to kite from the owner."
+        ),
+        spec!(
+            "Force Kite",
+            "Kiting",
+            ForceKite,
+            Bool,
+            "Always kite regardless of tactics."
+        ),
+        spec!(
+            "Flee HP %",
+            "Kiting",
+            FleeHP,
+            Int {
+                min: 0,
+                max: 100,
+                step: 5
+            },
+            "Flee below this HP percent."
+        ),
+        spec!(
+            "Sticky Standby",
+            "Standby",
+            StickyStandby,
+            Enum(STICKY_STANDBY_OPTS),
+            "Persist standby across relog."
+        ),
+        spec!(
+            "PVP Mode",
+            "PVP",
+            PVPmode,
+            Bool,
+            "Consult PVP tactics against players."
+        ),
     ]
 }
 
@@ -417,11 +1229,7 @@ impl CompanionAiConfigWindow {
         self.visible = value;
     }
 
-    fn build_body(
-        &mut self,
-        ui: &mut UiFrame,
-        config: &mut CompanionAiConfig,
-    ) -> Vec<GameEvent> {
+    fn build_body(&mut self, ui: &mut UiFrame, config: &mut CompanionAiConfig) -> Vec<GameEvent> {
         if !self.visible {
             return Vec::new();
         }
@@ -433,7 +1241,14 @@ impl CompanionAiConfigWindow {
         self.enum_dd.begin_frame();
         self.enum_overlay_cur = None;
 
-        let win = ui.window_at(COMPANION_AI_CONFIG_WINDOW_ID, WIN_W, WIN_H, TITLE_H, 160.0, 90.0);
+        let win = ui.window_at(
+            COMPANION_AI_CONFIG_WINDOW_ID,
+            WIN_W,
+            WIN_H,
+            TITLE_H,
+            160.0,
+            90.0,
+        );
         let (x, y) = (win.x, win.y);
         ui.interact(COMPANION_AI_CONFIG_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
@@ -495,34 +1310,96 @@ impl CompanionAiConfigWindow {
         match self.tab {
             0 => {
                 let specs = homun_specs();
-                self.render_fields(ui, &mut config.homunculus, &specs, x, content_y, content_h, tc, grf);
+                self.render_fields(
+                    ui,
+                    &mut config.homunculus,
+                    &specs,
+                    x,
+                    content_y,
+                    content_h,
+                    tc,
+                    grf,
+                );
             }
             1 => {
                 let specs = merc_specs();
-                self.render_fields(ui, &mut config.mercenary, &specs, x, content_y, content_h, tc, grf);
+                self.render_fields(
+                    ui,
+                    &mut config.mercenary,
+                    &specs,
+                    x,
+                    content_y,
+                    content_h,
+                    tc,
+                    grf,
+                );
             }
             2 => {
-                self.render_tactics(ui, &mut config.homunculus_tactics, x, content_y, content_h, tc, grf);
+                self.render_tactics(
+                    ui,
+                    &mut config.homunculus_tactics,
+                    x,
+                    content_y,
+                    content_h,
+                    tc,
+                    grf,
+                );
             }
             3 => {
-                self.render_tactics(ui, &mut config.mercenary_tactics, x, content_y, content_h, tc, grf);
+                self.render_tactics(
+                    ui,
+                    &mut config.mercenary_tactics,
+                    x,
+                    content_y,
+                    content_h,
+                    tc,
+                    grf,
+                );
             }
             _ => {
-                let(color, shadow) = colors::ORANGE_WITH_SHADOW;
-                ui.text_with_shadow(x + PAD, content_y + 24.0, "This tab arrives with a later tier.", color, shadow);
+                let (color, shadow) = colors::ORANGE_WITH_SHADOW;
+                ui.text_with_shadow(
+                    x + PAD,
+                    content_y + 24.0,
+                    "This tab arrives with a later tier.",
+                    color,
+                    shadow,
+                );
             }
         }
 
         // Footer buttons.
         let bw = 84.0;
         let by = footer_y + 3.0;
-        if ui.button(APPLY_BTN_ID, Rect::new(x + PAD, by, 32.0, 18.0), &OK_BTN, "Apply").clicked() {
+        if ui
+            .button(
+                APPLY_BTN_ID,
+                Rect::new(x + PAD, by, 32.0, 18.0),
+                &OK_BTN,
+                "Apply",
+            )
+            .clicked()
+        {
             events.push(GameEvent::SaveCompanionAiConfig);
         }
-        if ui.text_button(REVERT_BTN_ID, Rect::new(x + PAD + bw + 6.0, by, bw, 18.0), "Revert").clicked() {
+        if ui
+            .text_button(
+                REVERT_BTN_ID,
+                Rect::new(x + PAD + bw + 6.0, by, bw, 18.0),
+                "Revert",
+            )
+            .clicked()
+        {
             events.push(GameEvent::RevertCompanionAiConfig);
         }
-        if ui.text_button(RESET_BTN_ID, Rect::new(x + PAD + (bw + 6.0) * 2.0, by, bw, 18.0), "Defaults").clicked() {
+        if ui
+            .text_button(
+                RESET_BTN_ID,
+                Rect::new(x + PAD + (bw + 6.0) * 2.0, by, bw, 18.0),
+                "Defaults",
+            )
+            .clicked()
+        {
             events.push(GameEvent::ResetCompanionAiConfig);
         }
 
@@ -549,7 +1426,11 @@ impl CompanionAiConfigWindow {
         let prev_scroll = self.scroll_offset;
         self.scroll_offset = scrollbar::scrollbar(
             ui,
-            ScrollbarIds { up: SCROLL_UP_ID, down: SCROLL_DOWN_ID, thumb: SCROLL_THUMB_ID },
+            ScrollbarIds {
+                up: SCROLL_UP_ID,
+                down: SCROLL_DOWN_ID,
+                thumb: SCROLL_THUMB_ID,
+            },
             self.scroll_offset,
             visible_rows,
             max_scroll,
@@ -567,11 +1448,22 @@ impl CompanionAiConfigWindow {
         let widget_w = 120.0;
         let mut ry = y;
         let mut open_field: Option<usize> = None;
-        for (slot, row) in rows.iter().skip(self.scroll_offset).take(visible_rows).enumerate() {
+        for (slot, row) in rows
+            .iter()
+            .skip(self.scroll_offset)
+            .take(visible_rows)
+            .enumerate()
+        {
             match row {
                 Row::Header(name) => {
-                    push_quad(ui, x + 2.0, ry, WIN_W - SCROLLBAR_W - 4.0, ROW_H - 1.0,
-                        [0.51, 0.58, 0.78, 1.0]);
+                    push_quad(
+                        ui,
+                        x + 2.0,
+                        ry,
+                        WIN_W - SCROLLBAR_W - 4.0,
+                        ROW_H - 1.0,
+                        [0.51, 0.58, 0.78, 1.0],
+                    );
                     ui.text(x + PAD, ry + BASELINE, name, [1.0, 1.0, 1.0, 1.0]);
                 }
                 Row::Field(i) => {
@@ -579,7 +1471,8 @@ impl CompanionAiConfigWindow {
                     ui.text(label_x, ry + BASELINE, s.label, tc);
                     let wrect = Rect::new(widget_x, ry + 1.0, widget_w, ROW_H - 3.0);
                     let cur = (s.get)(cfg);
-                    let (new, is_open) = self.render_widget(ui, slot, s, cur, wrect, content_rect, tc, grf);
+                    let (new, is_open) =
+                        self.render_widget(ui, slot, s, cur, wrect, content_rect, tc, grf);
                     if new != cur {
                         (s.set)(cfg, new);
                     }
@@ -625,7 +1518,9 @@ impl CompanionAiConfigWindow {
 
         let bw = 22.0;
         let mut cx = x + PAD;
-        if ui.button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), &PREV_BTN, "<").clicked()
+        if ui
+            .button(TACT_PREV_ID, Rect::new(cx, y, bw, 16.0), &PREV_BTN, "<")
+            .clicked()
             && self.tactic_sel > 0
         {
             self.tactic_sel -= 1;
@@ -633,19 +1528,32 @@ impl CompanionAiConfigWindow {
         }
         cx += bw + 2.0;
         let sel = &rows[self.tactic_sel];
-        let label = format!("#{}  {}", sel.id, if sel.name.is_empty() { "(unnamed)" } else { &sel.name });
+        let label = format!(
+            "#{}  {}",
+            sel.id,
+            if sel.name.is_empty() {
+                "(unnamed)"
+            } else {
+                &sel.name
+            }
+        );
         let name_w = WIN_W - PAD * 2.0 - bw * 2.0 - 4.0 - 120.0;
         push_quad(ui, cx, y, name_w, 16.0, [0.95, 0.95, 0.96, 1.0]);
         ui.text(cx + 4.0, y + BASELINE, &label, tc);
         cx += name_w + 2.0;
-        if ui.button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), &NEXT_BTN, ">").clicked()
+        if ui
+            .button(TACT_NEXT_ID, Rect::new(cx, y, bw, 16.0), &NEXT_BTN, ">")
+            .clicked()
             && self.tactic_sel + 1 < rows.len()
         {
             self.tactic_sel += 1;
             self.open_enum = None;
         }
         cx += bw + 4.0;
-        if ui.text_button(TACT_ADD_ID, Rect::new(cx, y, 32.0, 18.0), "Add").clicked() {
+        if ui
+            .text_button(TACT_ADD_ID, Rect::new(cx, y, 32.0, 18.0), "Add")
+            .clicked()
+        {
             let mut t = Tactic::default_row();
             t.id = next_free_class_id(rows);
             t.name = "New".to_string();
@@ -654,7 +1562,9 @@ impl CompanionAiConfigWindow {
             self.open_enum = None;
         }
         cx += 58.0;
-        if ui.button(TACT_DEL_ID, Rect::new(cx, y, 32.0, 18.0), &DEL_BTN, "Del").clicked()
+        if ui
+            .button(TACT_DEL_ID, Rect::new(cx, y, 32.0, 18.0), &DEL_BTN, "Del")
+            .clicked()
             && rows[self.tactic_sel].id != 0
             && rows[self.tactic_sel].id != 13
         {
@@ -673,7 +1583,8 @@ impl CompanionAiConfigWindow {
             let widget_x = x + WIN_W - SCROLLBAR_W - 6.0 - 130.0;
             let wrect = Rect::new(widget_x, ry + 1.0, 130.0, ROW_H - 3.0);
             let cur = (spec.get)(sel);
-            let (new, is_open) = self.render_widget(ui, slot, spec, cur, wrect, content_bounds, tc, grf);
+            let (new, is_open) =
+                self.render_widget(ui, slot, spec, cur, wrect, content_bounds, tc, grf);
             if new != cur {
                 (spec.set)(sel, new);
             }
@@ -714,7 +1625,10 @@ impl CompanionAiConfigWindow {
                 let sz = 12.0;
                 let cb = Rect::new(rect.x + rect.w - sz, rect.y + 1.0, sz, sz);
                 let mut on = cur != 0;
-                if ui.checkbox(WidgetId(base), cb, &mut on, &CHECKBOX).clicked() {
+                if ui
+                    .checkbox(WidgetId(base), cb, &mut on, &CHECKBOX)
+                    .clicked()
+                {
                     return (if cur != 0 { 0 } else { 1 }, false);
                 }
                 (cur, false)
@@ -725,7 +1639,13 @@ impl CompanionAiConfigWindow {
                 let plus = Rect::new(rect.x + rect.w - bw, rect.y, bw, rect.h);
                 let m = ui.button(WidgetId(base), minus, &MINUS_BTN, "-");
                 let p = ui.button(WidgetId(base + 1), plus, &PLUS_BTN, "+");
-                ui.text_centered(rect.x + bw, rect.y + BASELINE - 2.0, rect.w - 2.0 * bw, &cur.to_string(), tc);
+                ui.text_centered(
+                    rect.x + bw,
+                    rect.y + BASELINE - 2.0,
+                    rect.w - 2.0 * bw,
+                    &cur.to_string(),
+                    tc,
+                );
                 let mut v = cur;
                 if m.clicked() {
                     v = (v - step).max(min);
@@ -736,12 +1656,19 @@ impl CompanionAiConfigWindow {
                 (v, false)
             }
             Widget::Enum(opts) => {
-                let label = opts.iter().find(|(v, _)| *v == cur).map(|(_, l)| *l).unwrap_or("?");
+                let label = opts
+                    .iter()
+                    .find(|(v, _)| *v == cur)
+                    .map(|(_, l)| *l)
+                    .unwrap_or("?");
                 self.enum_dd.open = self.open_enum == Some(base);
                 let (mx, my) = (ui.ctx.mouse_x, ui.ctx.mouse_y);
                 let blocked = self.open_enum.is_some()
                     && self.open_enum != Some(base)
-                    && self.enum_overlay_prev.map(|r| r.contains(mx, my)).unwrap_or(false);
+                    && self
+                        .enum_overlay_prev
+                        .map(|r| r.contains(mx, my))
+                        .unwrap_or(false);
                 let dr = self.enum_dd.show(
                     ui,
                     WidgetId(base),
@@ -836,8 +1763,13 @@ mod tests {
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
 
-    fn frame<'a>(ctx: &'a UiContext, atlas: &'a FontAtlas, state: &'a mut StateCache) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+    fn frame<'a>(
+        ctx: &'a UiContext,
+        atlas: &'a FontAtlas,
+        state: &'a mut StateCache,
+    ) -> UiFrame<'a> {
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 

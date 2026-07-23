@@ -137,7 +137,10 @@ impl GrfArchive {
     /// extracted files. `grf_paths[0]` is the primary archive; later paths only
     /// provide files the earlier ones lack. `data_dir`, when present, overrides
     /// every archive.
-    pub fn open_layered(grf_paths: &[String], data_dir: Option<&Path>) -> Result<Self, FormatError> {
+    pub fn open_layered(
+        grf_paths: &[String],
+        data_dir: Option<&Path>,
+    ) -> Result<Self, FormatError> {
         let (first, rest) = grf_paths
             .split_first()
             .ok_or(FormatError::Io(std::io::Error::new(
@@ -367,7 +370,12 @@ impl GrfArchive {
     }
 
     pub fn file_exists(&self, name: &str) -> bool {
-        if self.data_dir.as_ref().and_then(|d| d.lookup(name)).is_some() {
+        if self
+            .data_dir
+            .as_ref()
+            .and_then(|d| d.lookup(name))
+            .is_some()
+        {
             return true;
         }
         let name_lower = name.to_lowercase().replace('\\', "/");

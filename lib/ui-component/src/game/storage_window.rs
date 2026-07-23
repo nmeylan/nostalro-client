@@ -1,5 +1,6 @@
 use super::cart_window::CART_WINDOW_ID;
 use super::inventory_window::INV_WINDOW_ID;
+use super::inventory_window::{TAB_EQUIP_TEX, TAB_ETC_TEX, TAB_USABLE_TEX};
 use super::number_input::{NumberInputConfig, NumberInputDialog, NumberInputResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
@@ -7,7 +8,6 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_titlebar,
     text_color,
 };
-use super::inventory_window::{TAB_EQUIP_TEX, TAB_ETC_TEX, TAB_USABLE_TEX};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::display_name::format_equipment_display_name;
@@ -170,11 +170,7 @@ impl Window for StorageWindow {
 }
 
 impl InGameWindow for StorageWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
         if !character.storage.is_open() {
@@ -214,7 +210,8 @@ impl InGameWindow for StorageWindow {
             InventoryTab::Etc => TAB_ETC_TEX,
         };
         if grf {
-            let (v, i) = draw::quad_vertices(x, container_y, tab_w, tab_img_h, [1.0, 1.0, 1.0, 1.0]);
+            let (v, i) =
+                draw::quad_vertices(x, container_y, tab_w, tab_img_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -231,9 +228,21 @@ impl InGameWindow for StorageWindow {
             }
             if !grf {
                 let active = self.active_tab == *tab;
-                crate::helper::fallback::cell(ui, x, ty, tab_w, tab_btn_h, active || resp.hovered());
+                crate::helper::fallback::cell(
+                    ui,
+                    x,
+                    ty,
+                    tab_w,
+                    tab_btn_h,
+                    active || resp.hovered(),
+                );
                 let tw = ui.atlas.measure_text(label);
-                ui.text(x + (tab_w - tw) / 2.0, ty + tab_btn_h / 2.0 + 4.0, label, tc);
+                ui.text(
+                    x + (tab_w - tw) / 2.0,
+                    ty + tab_btn_h / 2.0 + 4.0,
+                    label,
+                    tc,
+                );
             }
             if resp.clicked() && self.active_tab != *tab {
                 self.active_tab = *tab;
@@ -300,7 +309,12 @@ impl InGameWindow for StorageWindow {
 
             let name = format_equipment_display_name(item, slot_count_table, card_name_table);
             let name_color = if !item.is_identified { GREY } else { tc };
-            ui.text(list_x + ICON + 6.0, ry + ROW_H / 2.0 + 4.0, &name, name_color);
+            ui.text(
+                list_x + ICON + 6.0,
+                ry + ROW_H / 2.0 + 4.0,
+                &name,
+                name_color,
+            );
             let count_str = item.count.to_string();
             let cw = ui.atlas.measure_text(&count_str);
             ui.text(
@@ -381,8 +395,17 @@ impl InGameWindow for StorageWindow {
         let footer_y = container_y + list_h;
         draw_footer(ui, x, footer_y, WIN_W, FOOTER_H, grf);
         let (cur, max) = (character.storage.cur_count, character.storage.max_count);
-        let count_color = if max > 0 && cur >= max { WARN_COLOR } else { tc };
-        ui.text(x + 6.0, footer_y + FOOTER_H - 9.0, &format!("{cur}/{max}"), count_color);
+        let count_color = if max > 0 && cur >= max {
+            WARN_COLOR
+        } else {
+            tc
+        };
+        ui.text(
+            x + 6.0,
+            footer_y + FOOTER_H - 9.0,
+            &format!("{cur}/{max}"),
+            count_color,
+        );
 
         let (cw, ch) = self.close_size;
         let close_rect = Rect::new(
@@ -461,9 +484,9 @@ impl InGameWindow for StorageWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use models::enums::item::ItemType;
     use ragnarok_game::item::Item;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
@@ -471,7 +494,8 @@ mod tests {
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -529,7 +553,9 @@ mod tests {
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
-            events.iter().any(|e| matches!(e, GameEvent::RequestCloseStorage)),
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestCloseStorage)),
             "close must notify the server, got {events:?}"
         );
         assert!(!character.storage.is_open());

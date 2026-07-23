@@ -144,11 +144,7 @@ impl InGameWindow for NpcShop {
         ui.set_modal(&modal_ids);
     }
 
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.shop.is_open() {
@@ -180,7 +176,13 @@ impl InGameWindow for NpcShop {
 
         let output_default_y = input_default_y + input_win_h - output_win_h;
 
-        self.build_input_window(ui, &mut events, input_default_x, input_default_y, input_win_h);
+        self.build_input_window(
+            ui,
+            &mut events,
+            input_default_x,
+            input_default_y,
+            input_win_h,
+        );
         let output_rect = self.build_output_window(
             ui,
             &mut events,
@@ -216,12 +218,18 @@ impl NpcShop {
             Some(NpcShopMode::Sell) => self.shop.visible_sell_indices().len(),
             _ => self.shop.item_count(),
         };
-        let input_rows = self.input_visible_rows.min(input_item_count).max(INPUT_MIN_ROWS);
+        let input_rows = self
+            .input_visible_rows
+            .min(input_item_count)
+            .max(INPUT_MIN_ROWS);
         let input_h =
             TITLE_H + CONTAINER_PAD_Y + input_rows as f32 * ITEM_ROW_H + CONTAINER_PAD_Y + FOOTER_H;
         let output_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.cart.len().min(5)).max(2);
-        let output_h =
-            TITLE_H + CONTAINER_PAD_Y + output_rows as f32 * ITEM_ROW_H + CONTAINER_PAD_Y + FOOTER_H;
+        let output_h = TITLE_H
+            + CONTAINER_PAD_Y
+            + output_rows as f32 * ITEM_ROW_H
+            + CONTAINER_PAD_Y
+            + FOOTER_H;
         (input_h, output_h)
     }
 
@@ -907,5 +915,4 @@ mod tests {
             GameEvent::ShowItemInfoDirect { item } if item.item_id == 501
         )));
     }
-
 }

@@ -117,7 +117,8 @@ impl KeyChord {
     /// Keys that must never be rebound to an Interface action: they drive chat
     /// typing, battle-mode letter rows, text-input navigation, or debug overlays.
     pub fn is_reserved(&self) -> bool {
-        if is_function_key(&self.key) || matches!(self.key.as_str(), "Enter" | "NumpadEnter" | "Escape")
+        if is_function_key(&self.key)
+            || matches!(self.key.as_str(), "Enter" | "NumpadEnter" | "Escape")
         {
             return true;
         }
@@ -311,7 +312,10 @@ mod tests {
         );
 
         let alt_e = KeyChord::new("KeyE", true, false, false);
-        assert_eq!(bindings.action_for(&alt_e), Some(HotkeyAction::ToggleInventory));
+        assert_eq!(
+            bindings.action_for(&alt_e),
+            Some(HotkeyAction::ToggleInventory)
+        );
 
         let alt_g = KeyChord::new("KeyG", true, false, false);
         assert_eq!(

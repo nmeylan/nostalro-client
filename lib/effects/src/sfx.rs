@@ -104,7 +104,10 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Bleeding => &[at!(Fixed("effect\\wideb.wav"), &[1])],
         E::Absorbspirits => &[fixed_at0!("effect\\흡기.wav")],
         E::Attackenergy2 => &[fixed_at0!("effect\\t_마법반사.wav")],
-        E::Napalmvalcan => &[at!(Fixed("effect\\EF_NapalmBeat.wav"), &[20, 30, 40, 50, 60])],
+        E::Napalmvalcan => &[at!(
+            Fixed("effect\\EF_NapalmBeat.wav"),
+            &[20, 30, 40, 50, 60]
+        )],
         E::Baby => &[fixed_at0!("effect\\EF_Blessing.wav")],
         E::Cartboost => &[fixed_at0!("effect\\EF_IncAgility.wav")],
         E::Rejectsword => &[fixed_at0!("effect\\kyrie_guard.wav")],
@@ -171,7 +174,10 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Blessing => &[fixed_at0!("effect\\EF_Blessing.wav")],
         E::Incagidex => &[fixed_at0!("effect\\EF_IncAgiDex.wav")],
         E::Healsp => &[fixed_at0!("_heal_effect.wav")],
-        E::Soulstrike => &[at!(Fixed("effect\\EF_SoulStrike.wav"), &[6, 17, 28, 39, 50])],
+        E::Soulstrike => &[at!(
+            Fixed("effect\\EF_SoulStrike.wav"),
+            &[6, 17, 28, 39, 50]
+        )],
         E::Bash => &[fixed_at0!("effect\\EF_Bash.wav")],
         E::Detoxication => &[fixed_at0!("effect\\EF_Detoxication.wav")],
         E::Magnumbreak => &[fixed_at0!("effect\\EF_MagnumBreak.wav")],
@@ -182,12 +188,18 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Stonecurse => &[fixed_at0!("effect\\EF_StoneCurse.wav")],
         E::Fireball => &[at!(Fixed("effect\\EF_FireBall.wav"), &[20, 24, 28, 32])],
         E::Icearrow => &[SfxCue {
-            wave: Randomized { pattern: "effect\\EF_IceArrow{}.wav", count: 3 },
+            wave: Randomized {
+                pattern: "effect\\EF_IceArrow{}.wav",
+                count: 3,
+            },
             timing: AtFrames(&[12]),
         }],
         E::Frostdiver2 => &[fixed_at0!("effect\\EF_FrostDiver2.wav")],
         E::Lightbolt => &[SfxCue {
-            wave: Randomized { pattern: "effect\\EF_LightBolt{}.wav", count: 3 },
+            wave: Randomized {
+                pattern: "effect\\EF_LightBolt{}.wav",
+                count: 3,
+            },
             timing: AtFrames(&[36]),
         }],
         E::Thunderstorm => &[
@@ -196,11 +208,17 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         ],
         E::Thunderstorm2 => &[fixed_at0!("effect\\EF_ThunderStorm.wav")],
         E::Firearrow => &[SfxCue {
-            wave: Randomized { pattern: "effect\\EF_FireArrow{}.wav", count: 3 },
+            wave: Randomized {
+                pattern: "effect\\EF_FireArrow{}.wav",
+                count: 3,
+            },
             timing: AtFrames(&[12]),
         }],
         E::Kouenka => &[SfxCue {
-            wave: Randomized { pattern: "effect\\EF_FireArrow{}.wav", count: 3 },
+            wave: Randomized {
+                pattern: "effect\\EF_FireArrow{}.wav",
+                count: 3,
+            },
             timing: AtFrames(&[12, 13, 14, 15]),
         }],
         E::Napalmbeat => &[fixed_at0!("effect\\EF_NapalmBeat.wav")],
@@ -275,19 +293,28 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Sanctuary => &[fixed_at0!("effect\\priest_sanctuary.wav")],
         // NOTE: original staged over 9 meteo + 2 blastmine phases; frames approximated
         E::Lord => &[
-            at!(Fixed("effect\\wizard_meteo.wav"), &[0, 8, 16, 24, 32, 40, 48, 56, 64]),
+            at!(
+                Fixed("effect\\wizard_meteo.wav"),
+                &[0, 8, 16, 24, 32, 40, 48, 56, 64]
+            ),
             at!(Fixed("effect\\hunter_blastmine.wav"), &[70, 80]),
         ],
         E::Stormgust => &[fixed_at0!("effect\\wizard_stormgust.wav")],
         E::Impositio => &[at!(Fixed("effect\\priest_impositio.wav"), &[60])],
         E::Suffragium => &[fixed_at0!("effect\\priest_suffragium.wav")],
-        E::Lexdivina => &[at!(Fixed("effect\\priest_lexdivina.wav"), &[0, 20, 35, 60, 70])],
+        E::Lexdivina => &[at!(
+            Fixed("effect\\priest_lexdivina.wav"),
+            &[0, 20, 35, 60, 70]
+        )],
         E::Lexaeterna => &[at!(Fixed("effect\\priest_lexaeterna.wav"), &[15])],
         E::Aspersio => &[at!(Fixed("effect\\priest_aspersio.wav"), &[70])],
         E::Benedictio => &[fixed_at0!("effect\\priest_benedictio.wav")],
         E::Quagmire => &[SfxCue {
             wave: Fixed("effect\\wizard_quagmire.wav"),
-            timing: AtFrameChance { frame: 0, one_in: 12 },
+            timing: AtFrameChance {
+                frame: 0,
+                one_in: 12,
+            },
         }],
         E::Meteorstorm => &[fixed_at0!("effect\\wizard_meteor.wav")],
         E::Firepillar => &[at!(Fixed("effect\\wizard_fire_pillar_a.wav"), &[75])],

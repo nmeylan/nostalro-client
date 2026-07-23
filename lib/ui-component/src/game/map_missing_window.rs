@@ -71,7 +71,12 @@ impl MapMissingWindow {
         let lh = ui.atlas.line_height;
         let title = "Map data missing";
         let tw = ui.atlas.measure_text(title);
-        ui.text(wx + (WIN_W - tw) / 2.0, wy + 8.0 + lh, title, [1.0, 1.0, 1.0, 1.0]);
+        ui.text(
+            wx + (WIN_W - tw) / 2.0,
+            wy + 8.0 + lh,
+            title,
+            [1.0, 1.0, 1.0, 1.0],
+        );
         ui.text(
             wx + 16.0,
             wy + 8.0 + lh * 2.6,
@@ -161,7 +166,8 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 

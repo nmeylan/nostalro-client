@@ -1,5 +1,7 @@
 use crate::banner::BannerKind;
-use crate::guild::{GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild};
+use crate::guild::{
+    GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
+};
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::mail::{MailEntry, OpenedMail};

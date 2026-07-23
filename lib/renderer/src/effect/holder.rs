@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use models::enums::EnumWithNumberValue;
 use models::enums::effect_id::EffectId;
-use ragnarok_formats::act::SpriteAnimationState;
 use ragnarok_effects::spec::EffectAnchor;
 use ragnarok_effects::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
@@ -10,6 +9,7 @@ use ragnarok_effects::{
     NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, custom_duration_ms, effect_spec,
     make_effect, spawn_camera_shake,
 };
+use ragnarok_formats::act::SpriteAnimationState;
 
 use ragnarok_effects::sfx::{SfxSchedule, effect_sound, emit};
 
@@ -459,8 +459,7 @@ impl EffectHolder {
             key,
             sfx_schedule: effect_sound(effect_id),
             sfx_last_frame: -1,
-            sfx_rng: (self.next_id as u32).wrapping_mul(2654435761)
-                ^ (effect_id.value() as u32)
+            sfx_rng: (self.next_id as u32).wrapping_mul(2654435761) ^ (effect_id.value() as u32)
                 | 1,
         });
         Some(handle)
@@ -516,7 +515,8 @@ impl EffectHolder {
     pub fn despawn_effect_on_entity(&mut self, effect_id: EffectId, entity_id: u32) {
         let backend = self.external_backend.as_ref().cloned();
         self.effects.retain(|e| {
-            if e.effect_id != effect_id || !matches!(e.attach, Attach::Entity(id) if id == entity_id)
+            if e.effect_id != effect_id
+                || !matches!(e.attach, Attach::Entity(id) if id == entity_id)
             {
                 return true;
             }
@@ -623,7 +623,14 @@ impl EffectHolder {
                 let cur_frame = (e.age * 60.0) as i32;
                 if cur_frame > e.sfx_last_frame {
                     if let Some(pos) = resolve_position(&attach, resolve_entity_pos) {
-                        emit(sched, e.sfx_last_frame, cur_frame, &mut e.sfx_rng, pos, &mut sfx_out);
+                        emit(
+                            sched,
+                            e.sfx_last_frame,
+                            cur_frame,
+                            &mut e.sfx_rng,
+                            pos,
+                            &mut sfx_out,
+                        );
                     }
                     e.sfx_last_frame = cur_frame;
                 }

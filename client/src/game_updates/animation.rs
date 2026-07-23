@@ -10,7 +10,12 @@ use ragnarok_game::sound::SoundQueue;
 /// Resolve ACT frame sound-events to queued sounds, positional at the actor.
 /// Each `.wav`-named frame event (weapon swing, hurt cry, footstep) plays on
 /// every crossing.
-fn emit_act_events(event_ids: &[i32], body_act: &ActFile, world_pos: Option<[f32; 3]>, queue: &mut SoundQueue) {
+fn emit_act_events(
+    event_ids: &[i32],
+    body_act: &ActFile,
+    world_pos: Option<[f32; 3]>,
+    queue: &mut SoundQueue,
+) {
     let Some(pos) = world_pos else { return };
     for &id in event_ids {
         let Some(name) = body_act.events.get(id as usize) else {
@@ -55,8 +60,12 @@ impl App {
                     continue;
                 }
                 if entity.forced_animation.is_none()
-                    && ailment::ailment_visual(entity.body_state, entity.health_state, entity.rooted)
-                        .motion_locked
+                    && ailment::ailment_visual(
+                        entity.body_state,
+                        entity.health_state,
+                        entity.rooted,
+                    )
+                    .motion_locked
                 {
                     continue;
                 }
@@ -73,7 +82,9 @@ impl App {
                     if !forced.started() {
                         forced.mark_started();
                         if forced.hold {
-                            entity.animation.set_action(forced.action, MotionType::Static);
+                            entity
+                                .animation
+                                .set_action(forced.action, MotionType::Static);
                             entity.animation.set_motion_index(forced.start_frame);
                         } else {
                             entity.animation.play(
@@ -89,7 +100,9 @@ impl App {
                     } else {
                         entity.animation.update(delta, &sprite.body_act, dir);
                         let action_idx = entity.animation.action_index(&sprite.body_act, dir);
-                        let events = entity.animation.crossed_event_ids(&sprite.body_act, action_idx);
+                        let events = entity
+                            .animation
+                            .crossed_event_ids(&sprite.body_act, action_idx);
                         let (cx, cy) = entity.movement.position();
                         emit_act_events(&events, &sprite.body_act, world_of(cx, cy), sound_queue);
                         (!entity.animation.is_finished()).then_some(forced)
@@ -149,12 +162,16 @@ impl App {
                     if entity.state == EntityState::Moving {
                         let (lx, ly) = entity.anim_last_pos;
                         let dist = ((cx - lx).powi(2) + (cy - ly).powi(2)).sqrt();
-                        entity.animation.update_by_distance(dist, &sprite.body_act, dir);
+                        entity
+                            .animation
+                            .update_by_distance(dist, &sprite.body_act, dir);
                     } else {
                         entity.animation.update(delta, &sprite.body_act, dir);
                     }
                     let action_idx = entity.animation.action_index(&sprite.body_act, dir);
-                    let events = entity.animation.crossed_event_ids(&sprite.body_act, action_idx);
+                    let events = entity
+                        .animation
+                        .crossed_event_ids(&sprite.body_act, action_idx);
                     emit_act_events(&events, &sprite.body_act, world_of(cx, cy), sound_queue);
                 }
                 entity.anim_last_pos = (cx, cy);
@@ -173,8 +190,10 @@ impl App {
         let Some(renderer) = &self.renderer else {
             return;
         };
-        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
-        else {
+        let (Some(gat), Some(coords)) = (
+            self.game.session.gat.as_ref(),
+            self.game.session.map_coords.as_ref(),
+        ) else {
             return;
         };
         let queue = &renderer.device.queue;

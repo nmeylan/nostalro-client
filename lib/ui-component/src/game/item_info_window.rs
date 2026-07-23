@@ -371,11 +371,7 @@ impl Window for ItemInfoWindow {
 }
 
 impl InGameWindow for ItemInfoWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let data = ctx.data;
         if self.item.is_none() && self.card_info.is_none() && self.card_illustration.is_none() {
@@ -610,7 +606,13 @@ impl InGameWindow for ItemInfoWindow {
                 let (_v, _i) =
                     draw::quad_vertices(win.x, win.y, illust_w, total_h, [1.0, 1.0, 1.0, 1.0]);
             } else {
-                crate::helper::fallback::window_body(ui, win.x, win.y + TITLE_H_ILLUS, illust_w, illust_h);
+                crate::helper::fallback::window_body(
+                    ui,
+                    win.x,
+                    win.y + TITLE_H_ILLUS,
+                    illust_w,
+                    illust_h,
+                );
             }
 
             let close_rect = Rect::new(
@@ -840,9 +842,9 @@ fn build_info_window(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_game::data_table::DataTable;
     use models::enums::EnumWithNumberValue;
     use models::enums::item::ItemType;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 
     fn make_data_table() -> DataTable {

@@ -21,7 +21,13 @@ impl App {
         self.game.friends.set_state(aid, gid, online);
     }
 
-    pub(super) fn handle_friend_add_result(&mut self, result: u8, aid: u32, gid: u32, name: String) {
+    pub(super) fn handle_friend_add_result(
+        &mut self,
+        result: u8,
+        aid: u32,
+        gid: u32,
+        name: String,
+    ) {
         let text = match result {
             0 => {
                 self.game.friends.upsert(Friend {
@@ -44,14 +50,20 @@ impl App {
         self.game.friends.remove(aid, gid);
     }
 
-    pub(super) fn handle_friend_request_received(&mut self, req_aid: u32, req_gid: u32, name: String) {
+    pub(super) fn handle_friend_request_received(
+        &mut self,
+        req_aid: u32,
+        req_gid: u32,
+        name: String,
+    ) {
         let msg = format!("{name} wishes to be friends with you. Accept?");
-        self.game.arm_confirm(&mut self.windows, &msg, move |accept| {
-            Some(GameEvent::RespondFriendRequest {
-                req_aid,
-                req_gid,
-                accept,
-            })
-        });
+        self.game
+            .arm_confirm(&mut self.windows, &msg, move |accept| {
+                Some(GameEvent::RespondFriendRequest {
+                    req_aid,
+                    req_gid,
+                    accept,
+                })
+            });
     }
 }

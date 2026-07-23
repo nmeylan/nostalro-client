@@ -60,8 +60,13 @@ impl FullscreenOverlayRenderer {
             &shader,
             &opts(wgpu::BlendState::ALPHA_BLENDING),
         );
-        let pipeline_additive =
-            build_pipeline(device, surface_format, &layout, &shader, &opts(ADDITIVE_BLEND));
+        let pipeline_additive = build_pipeline(
+            device,
+            surface_format,
+            &layout,
+            &shader,
+            &opts(ADDITIVE_BLEND),
+        );
         Self {
             pipeline_alpha,
             pipeline_additive,

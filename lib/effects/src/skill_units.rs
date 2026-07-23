@@ -185,9 +185,8 @@ pub fn skill_unit_sprite_paths() -> Vec<&'static str> {
             .flatten()
         {
             match effect_spec(id) {
-                Some(EffectSpec::Spr { sprite, .. }) | Some(EffectSpec::SprBurst { sprite, .. }) => {
-                    out.push(sprite)
-                }
+                Some(EffectSpec::Spr { sprite, .. })
+                | Some(EffectSpec::SprBurst { sprite, .. }) => out.push(sprite),
                 _ => {}
             }
         }
@@ -224,12 +223,24 @@ mod tests {
         // Placement: an RSM model, not a sprite effect.
         assert_eq!(skill_unit_effect(UNT_FREEZINGTRAP), None);
         assert_eq!(skill_unit_effect(UNT_ANKLESNARE), None);
-        assert_eq!(trap_model_name(UNT_ANKLESNARE), Some("외부소품\\트랩01.rsm"));
-        assert_eq!(trap_model_name(UNT_BLASTMINE), Some("외부소품\\트랩03_3.rsm"));
+        assert_eq!(
+            trap_model_name(UNT_ANKLESNARE),
+            Some("외부소품\\트랩01.rsm")
+        );
+        assert_eq!(
+            trap_model_name(UNT_BLASTMINE),
+            Some("외부소품\\트랩03_3.rsm")
+        );
         assert_eq!(trap_model_name(UNT_SAFETYWALL), None);
         // Trigger: the burst fires for explosive traps, not for holders.
-        assert_eq!(trap_trigger_effect(UNT_FREEZINGTRAP), Some(EffectId::Freezing));
-        assert_eq!(trap_trigger_effect(UNT_BLASTMINE), Some(EffectId::Blastminebomb));
+        assert_eq!(
+            trap_trigger_effect(UNT_FREEZINGTRAP),
+            Some(EffectId::Freezing)
+        );
+        assert_eq!(
+            trap_trigger_effect(UNT_BLASTMINE),
+            Some(EffectId::Blastminebomb)
+        );
         assert_eq!(trap_trigger_effect(UNT_ANKLESNARE), None);
         assert_eq!(trap_trigger_effect(UNT_SKIDTRAP), None);
     }

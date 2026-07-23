@@ -98,17 +98,18 @@ impl App {
 
     pub(crate) fn handle_auto_cast_skill(&mut self, skill_id: u16, level: i16) {
         let target_id = self.game.world.entities.player_id().unwrap_or(0);
-        self.channel.send_packet(ragnarok_network::build_use_skill_packet(
-            skill_id,
-            level,
-            target_id,
-            self.active_packetver,
-        ));
+        self.channel
+            .send_packet(ragnarok_network::build_use_skill_packet(
+                skill_id,
+                level,
+                target_id,
+                self.active_packetver,
+            ));
     }
 
     pub(crate) fn handle_making_arrow_list(&mut self, item_ids: Vec<u16>) {
-        let converter = self.game.pending_casts.pending_list_skill
-            == Some(SkillEnum::SaCreatecon.id() as u16);
+        let converter =
+            self.game.pending_casts.pending_list_skill == Some(SkillEnum::SaCreatecon.id() as u16);
         self.game.pending_casts.pending_list_skill = None;
         let rows: Vec<ListRow> = item_ids.iter().map(|&id| self.simple_row(id)).collect();
         let (title, context) = if converter {
@@ -157,9 +158,11 @@ impl App {
 
     pub(crate) fn handle_weapon_refine_list(&mut self, items: Vec<RefineItemRow>) {
         let rows: Vec<ListRow> = items.iter().map(|r| self.refine_row(r)).collect();
-        self.windows
-            .item_list_selection_window
-            .open("Refine Weapon", ListContext::WeaponRefine, rows);
+        self.windows.item_list_selection_window.open(
+            "Refine Weapon",
+            ListContext::WeaponRefine,
+            rows,
+        );
     }
 
     pub(crate) fn handle_weapon_refine_result(&mut self, result: i32, item_id: u16) {
@@ -200,7 +203,11 @@ impl App {
             .collect();
         // Producible items are not necessarily in the inventory, so their icons
         // are not preloaded — do it here or the make window renders blank icons.
-        self.preload_item_icons(rows.iter().filter_map(|(_, _, icon)| icon.clone()).collect());
+        self.preload_item_icons(
+            rows.iter()
+                .filter_map(|(_, _, icon)| icon.clone())
+                .collect(),
+        );
         self.windows.make_item_window.open(rows);
     }
 
@@ -226,7 +233,10 @@ impl App {
                 (it, name, icon)
             })
             .collect();
-        let icon_paths: Vec<String> = rows.iter().filter_map(|(_, _, icon)| icon.clone()).collect();
+        let icon_paths: Vec<String> = rows
+            .iter()
+            .filter_map(|(_, _, icon)| icon.clone())
+            .collect();
         self.preload_item_icons(icon_paths);
         let title = self
             .game
@@ -266,7 +276,12 @@ impl App {
         self.windows
             .chat_window
             .add_system(format!("Your shop is open ({} items).", items.len()));
-        let shop_name = self.game.pending_casts.pending_shop_name.take().unwrap_or_default();
+        let shop_name = self
+            .game
+            .pending_casts
+            .pending_shop_name
+            .take()
+            .unwrap_or_default();
 
         let rows: Vec<(VendorItem, String, Option<String>)> = items
             .into_iter()
@@ -288,9 +303,10 @@ impl App {
     }
 
     pub(crate) fn close_own_shop(&mut self) {
-        self.channel.send_packet(ragnarok_network::build_req_closestore_packet(
-            self.active_packetver,
-        ));
+        self.channel
+            .send_packet(ragnarok_network::build_req_closestore_packet(
+                self.active_packetver,
+            ));
         self.game.pending_casts.pending_shop_name = None;
         self.windows.my_shop_window.close();
         if let Some(pid) = self.game.world.entities.player_id()
@@ -313,7 +329,9 @@ impl App {
         };
         self.windows.chat_window.add_system(msg.to_string());
         if result == 0 && self.windows.vending_shop_window.is_open() {
-            self.windows.vending_shop_window.record_sale(index, curcount);
+            self.windows
+                .vending_shop_window
+                .record_sale(index, curcount);
         }
     }
 

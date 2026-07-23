@@ -267,11 +267,7 @@ impl Window for HotkeyBarWindow {
 }
 
 impl InGameWindow for HotkeyBarWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
         let mut events = Vec::new();

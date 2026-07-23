@@ -25,8 +25,10 @@ impl App {
             (1.0, 0.0),
             (1.0, 1.0),
         ];
-        let (Some(gat), Some(coords)) = (self.game.session.gat.as_ref(), self.game.session.map_coords.as_ref())
-        else {
+        let (Some(gat), Some(coords)) = (
+            self.game.session.gat.as_ref(),
+            self.game.session.map_coords.as_ref(),
+        ) else {
             return;
         };
         let mut prints: Vec<(EffectId, [f32; 3], [f32; 3])> = Vec::new();

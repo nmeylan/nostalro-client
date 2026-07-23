@@ -3,11 +3,12 @@ use ragnarok_game::entity::EntityState;
 use ragnarok_network::{
     build_action_request_packet, build_alchemist_rank_packet, build_blacksmith_rank_packet,
     build_change_direction_packet, build_chat_packet, build_config_packet, build_emotion_packet,
-    build_exit_room_packet, build_guild_chat_packet, build_leave_party_packet, build_lesseffect_packet,
-    build_make_guild, build_make_party_packet, build_party_chat_packet,
-    build_party_invite_by_name_packet, build_remember_warppoint_packet, build_req_disorganize_guild,
-    build_setting_whisper_pc_packet, build_setting_whisper_state_packet, build_stat_change_packet,
-    build_taekwon_rank_packet, build_whisper_packet,
+    build_exit_room_packet, build_guild_chat_packet, build_leave_party_packet,
+    build_lesseffect_packet, build_make_guild, build_make_party_packet, build_party_chat_packet,
+    build_party_invite_by_name_packet, build_remember_warppoint_packet,
+    build_req_disorganize_guild, build_setting_whisper_pc_packet,
+    build_setting_whisper_state_packet, build_stat_change_packet, build_taekwon_rank_packet,
+    build_whisper_packet,
 };
 
 impl App {
@@ -25,7 +26,8 @@ impl App {
             } else {
                 let char_name = self
                     .game
-                    .session.selected_character
+                    .session
+                    .selected_character
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("Unknown");
@@ -41,7 +43,8 @@ impl App {
             } else {
                 let char_name = self
                     .game
-                    .session.selected_character
+                    .session
+                    .selected_character
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("Unknown");
@@ -52,7 +55,8 @@ impl App {
         } else {
             let char_name = self
                 .game
-                .session.selected_character
+                .session
+                .selected_character
                 .as_ref()
                 .map(|c| c.name.as_str())
                 .unwrap_or("Unknown");
@@ -117,7 +121,10 @@ impl App {
             ChatCommand::BingBing => self.turn_body(1),
             ChatCommand::BangBang => self.turn_body(7),
             ChatCommand::Where => {
-                match (self.game.session.current_map.as_ref(), self.game.world.entities.player()) {
+                match (
+                    self.game.session.current_map.as_ref(),
+                    self.game.world.entities.player(),
+                ) {
                     (Some(map_name), Some(player)) => {
                         let (x, y) = player.movement.cell_position();
                         let message = format!("{map_name}.gat ({x}, {y})");
@@ -131,7 +138,8 @@ impl App {
                 }
             }
             ChatCommand::Memo => {
-                self.channel.send_packet(build_remember_warppoint_packet(pv));
+                self.channel
+                    .send_packet(build_remember_warppoint_packet(pv));
             }
             ChatCommand::ExitRoom => {
                 self.channel.send_packet(build_exit_room_packet(pv));
@@ -155,8 +163,7 @@ impl App {
                         .chat_window
                         .add_system("You are already in a party.".to_string());
                 } else {
-                    self.channel
-                        .send_packet(build_make_party_packet(&name, pv));
+                    self.channel.send_packet(build_make_party_packet(&name, pv));
                 }
             }
             ChatCommand::InviteParty(name) => {
@@ -180,7 +187,8 @@ impl App {
                     .any(|i| i.item_id == EMPERIUM_ITEM_ID);
                 let gid = self
                     .game
-                    .session.login_session
+                    .session
+                    .login_session
                     .as_ref()
                     .map(|s| s.account_id)
                     .unwrap_or(0);
@@ -252,7 +260,9 @@ impl App {
                     true,
                 );
                 let status = if fog { "ON" } else { "OFF" };
-                self.windows.chat_window.add_system(format!("Fog: {status}"));
+                self.windows
+                    .chat_window
+                    .add_system(format!("Fog: {status}"));
             }
             ChatCommand::ToggleLightmap => {
                 if let Some(renderer) = &mut self.renderer {
@@ -316,14 +326,22 @@ impl App {
             }
             ChatCommand::ToggleNoShift => {
                 self.game.prefs.noshift_mode = !self.game.prefs.noshift_mode;
-                let status = if self.game.prefs.noshift_mode { "ON" } else { "OFF" };
+                let status = if self.game.prefs.noshift_mode {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 self.windows
                     .chat_window
                     .add_system(format!("No-shift mode: {status}"));
             }
             ChatCommand::ToggleNoCtrl => {
                 self.game.prefs.noctrl_mode = !self.game.prefs.noctrl_mode;
-                let status = if self.game.prefs.noctrl_mode { "ON" } else { "OFF" };
+                let status = if self.game.prefs.noctrl_mode {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 self.windows
                     .chat_window
                     .add_system(format!("No-ctrl mode: {status}"));
@@ -376,14 +394,22 @@ impl App {
             }
             ChatCommand::ToggleShowExp => {
                 self.game.prefs.show_exp = !self.game.prefs.show_exp;
-                let status = if self.game.prefs.show_exp { "ON" } else { "OFF" };
+                let status = if self.game.prefs.show_exp {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 self.windows
                     .chat_window
                     .add_system(format!("Experience messages: {status}"));
             }
             ChatCommand::ToggleHidePublicChat => {
                 self.game.prefs.hide_public_chat = !self.game.prefs.hide_public_chat;
-                let status = if self.game.prefs.hide_public_chat { "OFF" } else { "ON" };
+                let status = if self.game.prefs.hide_public_chat {
+                    "OFF"
+                } else {
+                    "ON"
+                };
                 self.windows
                     .chat_window
                     .add_system(format!("Public chat: {status}"));
@@ -410,7 +436,11 @@ impl App {
             }
             ChatCommand::ToggleMiss => {
                 self.game.prefs.show_miss = !self.game.prefs.show_miss;
-                let status = if self.game.prefs.show_miss { "ON" } else { "OFF" };
+                let status = if self.game.prefs.show_miss {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 self.windows
                     .chat_window
                     .add_system(format!("Miss text: {status}"));
@@ -423,7 +453,11 @@ impl App {
                     self.game.prefs.equip_open as i32,
                     pv,
                 ));
-                let status = if self.game.prefs.equip_open { "ON" } else { "OFF" };
+                let status = if self.game.prefs.equip_open {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 self.windows
                     .chat_window
                     .add_system(format!("Equipment visible to others: {status}"));
@@ -440,7 +474,8 @@ impl App {
                 } else {
                     let char_name = self
                         .game
-                        .session.selected_character
+                        .session
+                        .selected_character
                         .as_ref()
                         .map(|c| c.name.as_str())
                         .unwrap_or("Unknown");

@@ -135,8 +135,14 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         positions.insert(skill_tree_window::SKILL_WINDOW_ID.0, [0.0, 800.0]);
         // Shop category renders all shop windows at once; lay them out so none
         // overlaps (in game these never appear together).
-        positions.insert(vending_setup_window::VENDING_SETUP_WINDOW_ID.0, [10.0, 60.0]);
-        positions.insert(vending_setup_window::VENDING_AVAILABLE_WINDOW_ID.0, [470.0, 60.0]);
+        positions.insert(
+            vending_setup_window::VENDING_SETUP_WINDOW_ID.0,
+            [10.0, 60.0],
+        );
+        positions.insert(
+            vending_setup_window::VENDING_AVAILABLE_WINDOW_ID.0,
+            [470.0, 60.0],
+        );
         positions.insert(my_shop_window::MY_SHOP_WINDOW_ID.0, [800.0, 60.0]);
         positions.insert(vending_shop_window::VENDING_SHOP_WINDOW_ID.0, [10.0, 470.0]);
         positions.insert(vending_shop_window::VENDING_BUY_WINDOW_ID.0, [300.0, 470.0]);

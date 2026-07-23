@@ -172,9 +172,7 @@ fn init_stream(
     let device = host
         .default_output_device()
         .ok_or("no output device".to_string())?;
-    let default = device
-        .default_output_config()
-        .map_err(|e| e.to_string())?;
+    let default = device.default_output_config().map_err(|e| e.to_string())?;
     let config = if default.sample_format() == cpal::SampleFormat::F32 {
         default
     } else {

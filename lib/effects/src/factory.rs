@@ -1796,9 +1796,7 @@ pub fn make_effect(
             effects::magic_bolt::ICE_ARROW,
         )),
 
-        EffectId::Sonicblow => {
-            Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
-        }
+        EffectId::Sonicblow => Box::new(effects::overthrust::OverthrustEffect::new(anchor.point())),
         EffectId::Callzone => Box::new(effects::callzone::CallzoneEffect::new(anchor.point())),
         EffectId::Groundsample => Box::new(effects::ground_sample::GroundSampleEffect::new(
             anchor.point(),
@@ -1853,10 +1851,7 @@ mod tests {
             (EffectId::PinkNumber, [1.0, 85.0 / 255.0, 177.0 / 255.0]),
         ] {
             assert!(
-                matches!(
-                    effect_spec(id),
-                    Some(crate::spec::EffectSpec::Custom)
-                ),
+                matches!(effect_spec(id), Some(crate::spec::EffectSpec::Custom)),
                 "{id:?} must resolve to Custom, not a shadowing str alias",
             );
             let mut e = make_effect(id, EffectAnchor::Point([0.0; 3]), None, None, None)

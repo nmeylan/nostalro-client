@@ -526,7 +526,10 @@ mod tests {
         assert!(!radii.is_empty(), "inner ring is fully transparent");
         let min = radii.iter().cloned().fold(f32::MAX, f32::min);
         let max = radii.iter().cloned().fold(0.0_f32, f32::max);
-        assert!((max - min).abs() < 1e-3, "clear ring is a circle: {min}..{max}");
+        assert!(
+            (max - min).abs() < 1e-3,
+            "clear ring is a circle: {min}..{max}"
+        );
         max
     }
 

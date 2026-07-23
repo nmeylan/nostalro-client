@@ -121,10 +121,8 @@ pub const EFST_FALCON: i16 = 28;
 
 /// OPTION bits the server delivers only as a bitmask (no status packet), paired with the
 /// status-bar icon the client synthesizes for the local player when the bit toggles.
-pub const OPTION_STATUS_ICONS: &[(i32, i16)] = &[
-    (OPTION_FALCON, EFST_FALCON),
-    (OPTION_RIDING, EFST_RIDING),
-];
+pub const OPTION_STATUS_ICONS: &[(i32, i16)] =
+    &[(OPTION_FALCON, EFST_FALCON), (OPTION_RIDING, EFST_RIDING)];
 
 pub fn has_falcon(effect_state: i32) -> bool {
     (effect_state & OPTION_FALCON) != 0
@@ -857,10 +855,22 @@ mod tests {
 
     #[test]
     fn gm_sprite_paths_per_sex() {
-        assert_eq!(gm_body_sprite_path(1), "data/sprite/인간족/몸통/남/운영자_남");
-        assert_eq!(gm_body_sprite_path(0), "data/sprite/인간족/몸통/여/운영자_여");
-        assert_eq!(gm_weapon_sprite_path(1), "data/sprite/인간족/운영자/운영자_남_검");
-        assert_eq!(gm_weapon_sprite_path(0), "data/sprite/인간족/운영자/운영자_여_검");
+        assert_eq!(
+            gm_body_sprite_path(1),
+            "data/sprite/인간족/몸통/남/운영자_남"
+        );
+        assert_eq!(
+            gm_body_sprite_path(0),
+            "data/sprite/인간족/몸통/여/운영자_여"
+        );
+        assert_eq!(
+            gm_weapon_sprite_path(1),
+            "data/sprite/인간족/운영자/운영자_남_검"
+        );
+        assert_eq!(
+            gm_weapon_sprite_path(0),
+            "data/sprite/인간족/운영자/운영자_여_검"
+        );
     }
 
     #[test]

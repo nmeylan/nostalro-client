@@ -1,16 +1,16 @@
 use crate::game_state::{GameState, TOKEN_OF_SIEGFRIED};
-use crate::ui::windows::{Dispatch, Windows, REGISTRY};
+use crate::ui::windows::{Dispatch, REGISTRY, Windows};
 use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
-use ragnarok_ui_component::{BuildCtx, InGameWindow, Window};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::hotkey_bar::HOTKEY_BAR_WINDOW_ID;
 use ragnarok_ui_component::game::inventory_window::INV_WINDOW_ID;
 use ragnarok_ui_component::game::levelup_notification_window::LevelUpClick;
 use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker};
+use ragnarok_ui_component::{BuildCtx, InGameWindow, Window};
 
 pub fn build_in_game_ui(
     game: &mut GameState,
@@ -30,7 +30,8 @@ pub fn build_in_game_ui(
     sync_party_live_state(game);
 
     let local_aid = game
-        .session.login_session
+        .session
+        .login_session
         .as_ref()
         .map(|s| s.account_id)
         .unwrap_or(0);
@@ -72,7 +73,9 @@ pub fn build_in_game_ui(
     if !deposit_intents.is_empty() {
         events.retain(|e| !matches!(e, GameEvent::RequestDepositItem { .. }));
         for index in deposit_intents {
-            let deposit = windows.storage_window.begin_deposit_body(ctx.character, index);
+            let deposit = windows
+                .storage_window
+                .begin_deposit_body(ctx.character, index);
             events.extend(deposit);
         }
     }
@@ -80,10 +83,16 @@ pub fn build_in_game_ui(
     windows.hotkey_bar.chat_is_active = windows.chat_window.is_active();
     windows.hotkey_bar.companion_skills.clear();
     if let Some(m) = ctx.mercenary {
-        windows.hotkey_bar.companion_skills.extend(m.skills.iter().cloned());
+        windows
+            .hotkey_bar
+            .companion_skills
+            .extend(m.skills.iter().cloned());
     }
     if let Some(h) = ctx.homunculus {
-        windows.hotkey_bar.companion_skills.extend(h.skills.iter().cloned());
+        windows
+            .hotkey_bar
+            .companion_skills
+            .extend(h.skills.iter().cloned());
     }
     events.extend(windows.hotkey_bar.build(ui, &mut ctx));
 
@@ -165,16 +174,16 @@ pub fn build_in_game_ui(
     events.extend(windows.warp_list_window.build(ui));
     let item_list_open = windows.item_list_selection_window.is_open();
     events.extend(windows.item_list_selection_window.build(ui));
-    let mut allow_escape = !chat_was_active
-        && !npc_dialog_open
-        && !shop_open
-        && !warp_list_open
-        && !item_list_open;
+    let mut allow_escape =
+        !chat_was_active && !npc_dialog_open && !shop_open && !warp_list_open && !item_list_open;
     if allow_escape && ui.ctx.key_escape && game.pending_casts.pending_skill_target.is_some() {
         game.pending_casts.pending_skill_target = None;
         allow_escape = false;
     }
-    if allow_escape && ui.ctx.key_escape && (game.companions.capture_targeting || game.companions.pet_roulette.is_some()) {
+    if allow_escape
+        && ui.ctx.key_escape
+        && (game.companions.capture_targeting || game.companions.pet_roulette.is_some())
+    {
         game.companions.capture_targeting = false;
         game.companions.pet_roulette = None;
         allow_escape = false;
@@ -233,7 +242,8 @@ pub fn build_in_game_ui(
         } else if cancelled.source_id == INV_WINDOW_ID && ui.hovered_window().is_none() {
             if game.combat.waiting_item_throw_ack {
             } else if windows.equipment_window.is_visible() {
-                windows.chat_window
+                windows
+                    .chat_window
                     .add_system("Please close the Equipment window.".to_string());
             } else if let Some(item) = ctx
                 .character
@@ -258,9 +268,13 @@ pub fn build_in_game_ui(
         }
     }
 
-    if run_transient_dialog(&mut windows.drop_quantity_dialog, ui, &mut ctx, &mut events, |e| {
-        matches!(e, GameEvent::RequestDropItem { .. })
-    }) {
+    if run_transient_dialog(
+        &mut windows.drop_quantity_dialog,
+        ui,
+        &mut ctx,
+        &mut events,
+        |e| matches!(e, GameEvent::RequestDropItem { .. }),
+    ) {
         game.combat.waiting_item_throw_ack = true;
     }
 
@@ -270,13 +284,21 @@ pub fn build_in_game_ui(
             dialog.set_texture_sizes(texture_size_fn);
         }
     }
-    run_transient_dialog(&mut windows.guild_expel_dialog, ui, &mut ctx, &mut events, |e| {
-        matches!(e, GameEvent::ConfirmedGuildExpel { .. })
-    });
+    run_transient_dialog(
+        &mut windows.guild_expel_dialog,
+        ui,
+        &mut ctx,
+        &mut events,
+        |e| matches!(e, GameEvent::ConfirmedGuildExpel { .. }),
+    );
 
-    run_transient_dialog(&mut windows.card_insert_dialog, ui, &mut ctx, &mut events, |e| {
-        matches!(e, GameEvent::RequestCardInsert { .. })
-    });
+    run_transient_dialog(
+        &mut windows.card_insert_dialog,
+        ui,
+        &mut ctx,
+        &mut events,
+        |e| matches!(e, GameEvent::RequestCardInsert { .. }),
+    );
 
     drop(ctx);
     update_broadcast_overlays(game, ui);
@@ -300,7 +322,11 @@ fn run_transient_dialog<D: InGameWindow>(
     };
     let dialog_events = InGameWindow::build(dialog, ui, ctx);
     let confirmed = dialog_events.iter().any(&is_confirm);
-    if confirmed || dialog_events.iter().any(|e| matches!(e, GameEvent::DialogClosed)) {
+    if confirmed
+        || dialog_events
+            .iter()
+            .any(|e| matches!(e, GameEvent::DialogClosed))
+    {
         *slot = None;
     }
     events.extend(
@@ -313,7 +339,8 @@ fn run_transient_dialog<D: InGameWindow>(
 
 fn sync_party_live_state(game: &mut GameState) {
     let local_aid = game
-        .session.login_session
+        .session
+        .login_session
         .as_ref()
         .map(|s| s.account_id)
         .unwrap_or(0);
@@ -366,8 +393,13 @@ fn draw_broadcast_poptip(game: &mut GameState, ui: &mut UiFrame) {
         let box_h = ui.atlas.line_height + PAD * 2.0;
         let box_x = x - PAD;
         let box_y = y - ui.atlas.line_height * 0.5 - PAD;
-        let (bg_v, bg_i) =
-            ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, box_h, [0.0, 0.0, 0.0, 0.8 * alpha]);
+        let (bg_v, bg_i) = ragnarok_ui::draw::quad_vertices(
+            box_x,
+            box_y,
+            box_w,
+            box_h,
+            [0.0, 0.0, 0.0, 0.8 * alpha],
+        );
         ui.draw_calls.push(ragnarok_ui::draw::DrawCall {
             vertices: bg_v.to_vec(),
             indices: bg_i.to_vec(),

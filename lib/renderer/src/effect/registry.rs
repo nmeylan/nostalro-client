@@ -379,13 +379,9 @@ impl EffectPrimitiveRegistry {
             camera_bgl,
             texture_bgl,
         )));
-        slots[PipelineKind::FullscreenOverlay as usize] =
-            Some(Box::new(FullscreenOverlayRenderer::new(
-                device,
-                surface_format,
-                camera_bgl,
-                texture_bgl,
-            )));
+        slots[PipelineKind::FullscreenOverlay as usize] = Some(Box::new(
+            FullscreenOverlayRenderer::new(device, surface_format, camera_bgl, texture_bgl),
+        ));
         Self { slots }
     }
 

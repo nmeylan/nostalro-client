@@ -421,12 +421,24 @@ mod tests {
     #[test]
     fn action_from_entity_state() {
         assert_eq!(Gr2Action::from_state(EntityState::Moving), Gr2Action::Move);
-        assert_eq!(Gr2Action::from_state(EntityState::Attacking), Gr2Action::Attack);
-        assert_eq!(Gr2Action::from_state(EntityState::SkillExec), Gr2Action::Attack);
+        assert_eq!(
+            Gr2Action::from_state(EntityState::Attacking),
+            Gr2Action::Attack
+        );
+        assert_eq!(
+            Gr2Action::from_state(EntityState::SkillExec),
+            Gr2Action::Attack
+        );
         assert_eq!(Gr2Action::from_state(EntityState::Dead), Gr2Action::Dead);
         assert_eq!(Gr2Action::from_state(EntityState::Hurt), Gr2Action::Damage);
-        assert_eq!(Gr2Action::from_state(EntityState::Standing), Gr2Action::Stand);
-        assert_eq!(Gr2Action::from_state(EntityState::Casting), Gr2Action::Stand);
+        assert_eq!(
+            Gr2Action::from_state(EntityState::Standing),
+            Gr2Action::Stand
+        );
+        assert_eq!(
+            Gr2Action::from_state(EntityState::Casting),
+            Gr2Action::Stand
+        );
     }
 
     fn empty_pose() -> SkeletonPose {
@@ -450,9 +462,8 @@ mod tests {
     fn facing_yaw_points_model_front_at_the_right_compass_direction() {
         // A model stood upright by rotate_x(90°) has its front along world -Z
         // (south); rotate_y(facing_yaw) must swing it to the entity's facing.
-        let front = |dir: u8| {
-            Mat4::from_rotation_y(model_facing_yaw(dir)).transform_vector3(Vec3::NEG_Z)
-        };
+        let front =
+            |dir: u8| Mat4::from_rotation_y(model_facing_yaw(dir)).transform_vector3(Vec3::NEG_Z);
         let north = Vec3::Z;
         let south = Vec3::NEG_Z;
         let east = Vec3::X;

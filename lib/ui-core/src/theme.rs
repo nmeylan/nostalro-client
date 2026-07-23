@@ -146,8 +146,13 @@ pub fn fallback_button(ui: &mut UiFrame, r: Rect, hovered: bool, pressed: bool, 
         let tw = ui.atlas.measure_text(label);
         let tx = r.x + (r.w - tw) / 2.0;
         let ty = r.y + r.h - (ui.atlas.line_height / 2.0);
-        let (v, i) =
-            draw::text_vertices(label, tx, ty, to_linear(FallbackPalette::TEXT_ON_LIGHT), ui.atlas);
+        let (v, i) = draw::text_vertices(
+            label,
+            tx,
+            ty,
+            to_linear(FallbackPalette::TEXT_ON_LIGHT),
+            ui.atlas,
+        );
         if !v.is_empty() {
             ui.draw_calls.push(DrawCall {
                 vertices: v,
@@ -216,6 +221,7 @@ pub fn fallback_glossy_panel(
     let half = (h * 0.5).round();
     let (v, i) = draw::rounded_rect_corners_vgrad(x, y, w, half, [ir, ir, 0.0, 0.0], top, mid);
     push_white(ui, v, i);
-    let (v, i) = draw::rounded_rect_corners_vgrad(x, y + half, w, h - half, [0.0, 0.0, ir, ir], mid, bot);
+    let (v, i) =
+        draw::rounded_rect_corners_vgrad(x, y + half, w, h - half, [0.0, 0.0, ir, ir], mid, bot);
     push_white(ui, v, i);
 }

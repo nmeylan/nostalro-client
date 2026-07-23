@@ -153,7 +153,9 @@ fn image_thumbnail(
     fmt: image::ImageFormat,
 ) -> Option<egui::ColorImage> {
     let data = archive.read_file(name).ok()?;
-    let img = image::load_from_memory_with_format(&data, fmt).ok()?.into_rgba8();
+    let img = image::load_from_memory_with_format(&data, fmt)
+        .ok()?
+        .into_rgba8();
     let (w, h) = (img.width(), img.height());
     let mut raw = img.into_raw();
     ragnarok_formats::apply_magenta_transparency(&mut raw);
@@ -175,8 +177,7 @@ fn cell_ui(
         egui::vec2(CELL_W, CELL_H),
         egui::Layout::top_down(egui::Align::Center),
         |ui| {
-            let (rect, resp) =
-                ui.allocate_exact_size(egui::vec2(BOX, BOX), egui::Sense::click());
+            let (rect, resp) = ui.allocate_exact_size(egui::vec2(BOX, BOX), egui::Sense::click());
             let painter = ui.painter();
             painter.rect_filled(rect, 2.0, egui::Color32::from_gray(30));
             match tex {

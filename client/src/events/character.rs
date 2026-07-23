@@ -13,7 +13,8 @@ impl App {
             _ => [0.0, 1.0, 0.0],
         };
         self.game
-            .combat.damage_numbers
+            .combat
+            .damage_numbers
             .add(DamageNumber::effect_number(gid, amount, color, 0));
     }
 

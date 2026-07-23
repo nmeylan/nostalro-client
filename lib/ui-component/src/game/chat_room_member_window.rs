@@ -123,7 +123,14 @@ impl ChatRoomMemberWindow {
         self.public
     }
 
-    pub fn open_created(&mut self, room_id: u32, title: &str, max_count: i16, public: bool, local_name: &str) {
+    pub fn open_created(
+        &mut self,
+        room_id: u32,
+        title: &str,
+        max_count: i16,
+        public: bool,
+        local_name: &str,
+    ) {
         self.open_common(room_id, title, max_count, public, local_name);
         self.members = vec![ChatRoomMember {
             name: local_name.to_string(),
@@ -144,7 +151,14 @@ impl ChatRoomMemberWindow {
         self.members = members;
     }
 
-    fn open_common(&mut self, room_id: u32, title: &str, max_count: i16, public: bool, local_name: &str) {
+    fn open_common(
+        &mut self,
+        room_id: u32,
+        title: &str,
+        max_count: i16,
+        public: bool,
+        local_name: &str,
+    ) {
         self.room_id = room_id;
         self.title = title.to_string();
         self.max_count = max_count;
@@ -240,11 +254,7 @@ impl Window for ChatRoomMemberWindow {
 }
 
 impl InGameWindow for ChatRoomMemberWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -262,7 +272,14 @@ impl InGameWindow for ChatRoomMemberWindow {
         let content_h = self.content_h;
         let body_h = PAD + content_h + PAD;
         let win_h = TITLE_H + body_h + FOOTER_H;
-        let win = ui.window_at(CHAT_ROOM_MEMBER_WINDOW_ID, win_w, win_h, TITLE_H, 260.0, 120.0);
+        let win = ui.window_at(
+            CHAT_ROOM_MEMBER_WINDOW_ID,
+            win_w,
+            win_h,
+            TITLE_H,
+            260.0,
+            120.0,
+        );
         let (x, y) = (win.x, win.y);
         ui.interact(CHAT_ROOM_MEMBER_WINDOW_ID, Rect::new(x, y, win_w, win_h));
 
@@ -339,7 +356,11 @@ impl InGameWindow for ChatRoomMemberWindow {
             } else {
                 format!("  {}", member.name)
             };
-            let color = if member.is_owner { OWNER_NAME_COLOR } else { tc };
+            let color = if member.is_owner {
+                OWNER_NAME_COLOR
+            } else {
+                tc
+            };
             ui.text(list_x + 2.0, row_y + ui.atlas.line_height, &label, color);
 
             let row_rect = Rect::new(list_x, row_y, list_w, LINE_H);
@@ -381,12 +402,22 @@ impl InGameWindow for ChatRoomMemberWindow {
         let btn_y = footer_y + (FOOTER_H - btn_h) / 2.0;
         let mut bx = x + win_w - PAD - RESIZE_SIZE - btn_w;
         let leave = ui
-            .button(LEAVE_BTN_ID, Rect::new(bx, btn_y, btn_w, btn_h), &CANCEL_BTN, "Leave")
+            .button(
+                LEAVE_BTN_ID,
+                Rect::new(bx, btn_y, btn_w, btn_h),
+                &CANCEL_BTN,
+                "Leave",
+            )
             .clicked();
         if i_am_owner {
             bx -= btn_w + 4.0;
             let edit = ui
-                .button(EDIT_BTN_ID, Rect::new(bx, btn_y, btn_w, btn_h), &OK_BTN, "Edit")
+                .button(
+                    EDIT_BTN_ID,
+                    Rect::new(bx, btn_y, btn_w, btn_h),
+                    &OK_BTN,
+                    "Edit",
+                )
                 .clicked();
             if edit {
                 events.push(GameEvent::RequestEditChatRoomSettings);
@@ -395,7 +426,12 @@ impl InGameWindow for ChatRoomMemberWindow {
 
         let input_w = (bx - GAP) - (x + PAD);
         let input_rect = Rect::new(x + PAD, footer_y + (FOOTER_H - 16.0) / 2.0, input_w, 16.0);
-        let input_resp = ui.text_input(INPUT_ID, input_rect, &mut self.input, TextInputBg::Transparent);
+        let input_resp = ui.text_input(
+            INPUT_ID,
+            input_rect,
+            &mut self.input,
+            TextInputBg::Transparent,
+        );
         if input_resp.hovered() {
             ui.any_interactive_hovered = true;
         }
@@ -451,7 +487,8 @@ mod tests {
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -484,11 +521,41 @@ mod tests {
         // Handle sits at the bottom-right corner of the 280x171 window at (260,120).
         let hx = 260.0 + DEFAULT_W - RESIZE_SIZE / 2.0;
         let hy = 120.0 + (TITLE_H + PAD + DEFAULT_CONTENT_H + PAD + FOOTER_H) - RESIZE_SIZE / 2.0;
-        frame(&mut win, &mut state, Input { mx: hx, my: hy, clicked: true, down: true, enter: false });
-        frame(&mut win, &mut state, Input { mx: hx + 60.0, my: hy + 40.0, clicked: false, down: true, enter: false });
+        frame(
+            &mut win,
+            &mut state,
+            Input {
+                mx: hx,
+                my: hy,
+                clicked: true,
+                down: true,
+                enter: false,
+            },
+        );
+        frame(
+            &mut win,
+            &mut state,
+            Input {
+                mx: hx + 60.0,
+                my: hy + 40.0,
+                clicked: false,
+                down: true,
+                enter: false,
+            },
+        );
         assert_eq!(win.width, DEFAULT_W + 60.0);
         assert_eq!(win.content_h, DEFAULT_CONTENT_H + 40.0);
-        frame(&mut win, &mut state, Input { mx: hx - 999.0, my: hy - 999.0, clicked: false, down: true, enter: false });
+        frame(
+            &mut win,
+            &mut state,
+            Input {
+                mx: hx - 999.0,
+                my: hy - 999.0,
+                clicked: false,
+                down: true,
+                enter: false,
+            },
+        );
         assert_eq!(win.width, MIN_W);
         assert_eq!(win.content_h, MIN_CONTENT_H);
     }
@@ -499,11 +566,33 @@ mod tests {
         win.open_created(1, "R", 20, true, "Me");
         let mut state = StateCache::new();
         // Focus the input (footer, left of the buttons) then press Enter.
-        frame(&mut win, &mut state, Input { mx: 300.0, my: 276.0, clicked: true, down: false, enter: false });
+        frame(
+            &mut win,
+            &mut state,
+            Input {
+                mx: 300.0,
+                my: 276.0,
+                clicked: true,
+                down: false,
+                enter: false,
+            },
+        );
         win.input.text = "Hello".into();
-        let events = frame(&mut win, &mut state, Input { mx: 300.0, my: 276.0, clicked: false, down: false, enter: true });
+        let events = frame(
+            &mut win,
+            &mut state,
+            Input {
+                mx: 300.0,
+                my: 276.0,
+                clicked: false,
+                down: false,
+                enter: true,
+            },
+        );
         assert!(
-            events.iter().any(|e| matches!(e, GameEvent::RequestSendChat { message } if message == "Hello")),
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestSendChat { message } if message == "Hello")),
             "expected room message send, got {events:?}"
         );
         assert!(win.input.text.is_empty());

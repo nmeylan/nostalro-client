@@ -39,7 +39,10 @@ impl QuestDisplayTable {
     }
 
     pub fn summary(&self, id: u32) -> String {
-        self.entries.get(&id).map(|q| q.summary.clone()).unwrap_or_default()
+        self.entries
+            .get(&id)
+            .map(|q| q.summary.clone())
+            .unwrap_or_default()
     }
 
     pub fn description(&self, id: u32) -> String {

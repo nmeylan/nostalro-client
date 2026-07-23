@@ -53,7 +53,9 @@ fn parse_args() -> gr2_viewer::Args {
                 println!();
                 println!("Options:");
                 println!("  --grf <path>         GRF file (defaults to {DEFAULT_GRF_PATH})");
-                println!("  --action <0-4>       Initial action: 0=stand 1=move 2=attack 3=dead 4=damage");
+                println!(
+                    "  --action <0-4>       Initial action: 0=stand 1=move 2=attack 3=dead 4=damage"
+                );
                 println!("  --screenshot <png>   Render one frame headless to a PNG and exit");
                 println!("  --time <secs>        Animation time for --screenshot");
                 println!("  --yaw <degrees>      Initial camera yaw (default 34, 0 = front-on)");

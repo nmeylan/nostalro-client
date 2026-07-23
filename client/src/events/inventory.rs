@@ -288,7 +288,12 @@ impl App {
     }
 
     pub(super) fn handle_card_insert_item_list(&mut self, equip_indices: Vec<u16>) {
-        let card_index = match self.game.pending_casts.pending_card_composition_index.take() {
+        let card_index = match self
+            .game
+            .pending_casts
+            .pending_card_composition_index
+            .take()
+        {
             Some(idx) => idx,
             None => return,
         };

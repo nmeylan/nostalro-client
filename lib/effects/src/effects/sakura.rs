@@ -209,7 +209,11 @@ mod tests {
         tick(&mut e, 400);
         let full = petals(&e).len();
         assert!(full > early, "petals accumulate ({early} → {full})");
-        assert_eq!(full, SAKURA.max_particles, "capped at {}", SAKURA.max_particles);
+        assert_eq!(
+            full, SAKURA.max_particles,
+            "capped at {}",
+            SAKURA.max_particles
+        );
     }
 
     #[test]
@@ -267,8 +271,10 @@ mod tests {
         tick(&mut e, 300);
         e.set_position([500.0, 0.0, 500.0]);
         tick(&mut e, 1500);
-        let near_new_anchor = petals(&e).iter().any(|p| matches!(p,
-            EffectPrimitiveDraw::SpriteParticle { position, .. } if position[0] > 300.0));
+        let near_new_anchor = petals(&e).iter().any(|p| {
+            matches!(p,
+            EffectPrimitiveDraw::SpriteParticle { position, .. } if position[0] > 300.0)
+        });
         assert!(
             near_new_anchor,
             "petals that reach the ground re-enter around the moved anchor"

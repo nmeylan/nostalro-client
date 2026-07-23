@@ -613,7 +613,6 @@ mod tests {
             .collect()
     }
 
-
     #[test]
     fn burst_inner_ring_is_untinted_and_lifts_off_floor() {
         let mut burst = WarpZoneEffect::new([0.0; 3], PARAMS_BURST);

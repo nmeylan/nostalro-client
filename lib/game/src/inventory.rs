@@ -1000,7 +1000,10 @@ mod tests {
             }],
             &data,
         );
-        assert!(!storage.is_open(), "buffered items must not open the window");
+        assert!(
+            !storage.is_open(),
+            "buffered items must not open the window"
+        );
 
         storage.open_with_pending(2, 600);
         assert!(storage.is_open());

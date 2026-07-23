@@ -6,11 +6,11 @@ use models::enums::status::StatusTypes;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::banner::BannerKind;
+use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::event::{
     AccessibleMap, CharacterInfo, FriendData, GameEvent, HomunculusProperty, MercenaryInfo,
     PartyMemberData, PetProperty, SelfConfigKind, ServerInfo, SkillInfo,
 };
-use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
@@ -32,7 +32,6 @@ fn server_info_from_addr(addr: &ServerAddr) -> ServerInfo {
 }
 
 fn character_info_from_neo_union(info: &CharacterInfoNeoUnion, packetver: u32) -> CharacterInfo {
-
     let name: String = info.name.iter().take_while(|c| **c != '\0').collect();
     let map: String = if packetver >= 20100720 {
         info.last_map.iter().take_while(|c| **c != '\0').collect()
@@ -1082,7 +1081,11 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .iter()
             .map(|m| PartyMemberData {
                 aid: m.aid,
-                name: m.character_name.iter().take_while(|c| **c != '\0').collect(),
+                name: m
+                    .character_name
+                    .iter()
+                    .take_while(|c| **c != '\0')
+                    .collect(),
                 map: m.map_name.iter().take_while(|c| **c != '\0').collect(),
                 leader: m.role == 0,
                 online: m.state == 0,
@@ -2785,7 +2788,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     if matches!(
         ragnarok_profiling::debug::packet_trace(),
-        ragnarok_profiling::debug::PacketTrace::All | ragnarok_profiling::debug::PacketTrace::Unhandled
+        ragnarok_profiling::debug::PacketTrace::All
+            | ragnarok_profiling::debug::PacketTrace::Unhandled
     ) {
         tracing::info!("unhandled packet: {}", packet.name());
     }
@@ -4581,9 +4585,13 @@ mod tests {
     #[test]
     fn create_chatroom_round_trips_with_ack() {
         let packetver = 20120307;
-        let raw = crate::sender::build_create_chatroom_packet("Trade", 15, false, "secret", packetver);
+        let raw =
+            crate::sender::build_create_chatroom_packet("Trade", 15, false, "secret", packetver);
         assert_eq!(u16::from_le_bytes([raw[0], raw[1]]), 0x00d5);
-        assert_eq!(i16::from_le_bytes([raw[2], raw[3]]), (15 + "Trade".len()) as i16);
+        assert_eq!(
+            i16::from_le_bytes([raw[2], raw[3]]),
+            (15 + "Trade".len()) as i16
+        );
         assert_eq!(i16::from_le_bytes([raw[4], raw[5]]), 15); // limit
         assert_eq!(raw[6], 0); // private
         assert_eq!(&raw[7..13], b"secret");
@@ -4641,25 +4649,25 @@ mod tests {
     fn guild_membermgr_decodes_online_and_offline_members() {
         let packetver = 20120307;
 
-        let member = |aid: u32, gid: u32, name: &str, job: i16, level: i16, position: i32,
-                      state: i32| {
-            let mut buf = Vec::with_capacity(110);
-            buf.extend_from_slice(&aid.to_le_bytes());
-            buf.extend_from_slice(&gid.to_le_bytes());
-            buf.extend_from_slice(&0i16.to_le_bytes()); // head
-            buf.extend_from_slice(&0i16.to_le_bytes()); // head palette
-            buf.extend_from_slice(&0i16.to_le_bytes()); // sex
-            buf.extend_from_slice(&job.to_le_bytes());
-            buf.extend_from_slice(&level.to_le_bytes());
-            buf.extend_from_slice(&500i32.to_le_bytes()); // contribution exp
-            buf.extend_from_slice(&state.to_le_bytes());
-            buf.extend_from_slice(&position.to_le_bytes());
-            buf.extend_from_slice(&[0u8; 50]); // memo
-            let mut nb = [0u8; 24];
-            nb[..name.len()].copy_from_slice(name.as_bytes());
-            buf.extend_from_slice(&nb);
-            buf
-        };
+        let member =
+            |aid: u32, gid: u32, name: &str, job: i16, level: i16, position: i32, state: i32| {
+                let mut buf = Vec::with_capacity(110);
+                buf.extend_from_slice(&aid.to_le_bytes());
+                buf.extend_from_slice(&gid.to_le_bytes());
+                buf.extend_from_slice(&0i16.to_le_bytes()); // head
+                buf.extend_from_slice(&0i16.to_le_bytes()); // head palette
+                buf.extend_from_slice(&0i16.to_le_bytes()); // sex
+                buf.extend_from_slice(&job.to_le_bytes());
+                buf.extend_from_slice(&level.to_le_bytes());
+                buf.extend_from_slice(&500i32.to_le_bytes()); // contribution exp
+                buf.extend_from_slice(&state.to_le_bytes());
+                buf.extend_from_slice(&position.to_le_bytes());
+                buf.extend_from_slice(&[0u8; 50]); // memo
+                let mut nb = [0u8; 24];
+                nb[..name.len()].copy_from_slice(name.as_bytes());
+                buf.extend_from_slice(&nb);
+                buf
+            };
         let m0 = member(101, 201, "Master", 4008, 99, 0, 1);
         let m1 = member(102, 202, "Grunt", 1, 40, 2, 0);
 
@@ -4705,8 +4713,14 @@ mod tests {
         match &dispatch_packet(parsed.as_ref(), packetver)[..] {
             [GameEvent::GuildBanList { entries }] => {
                 assert_eq!(entries.len(), 2);
-                assert_eq!((entries[0].char_name.as_str(), entries[0].reason.as_str()), ("Traitor", "Left mid-WoE"));
-                assert_eq!((entries[1].char_name.as_str(), entries[1].reason.as_str()), ("Spy", "Enemy alt"));
+                assert_eq!(
+                    (entries[0].char_name.as_str(), entries[0].reason.as_str()),
+                    ("Traitor", "Left mid-WoE")
+                );
+                assert_eq!(
+                    (entries[1].char_name.as_str(), entries[1].reason.as_str()),
+                    ("Spy", "Enemy alt")
+                );
             }
             other => panic!("expected GuildBanList, got {other:?}"),
         }
@@ -4807,7 +4821,10 @@ mod tests {
         assert_eq!(pet.intimacy, 920);
         assert_eq!(pet.job, 1002);
         assert!(!pet.renamed);
-        assert_eq!(pet.hunger_state(), ragnarok_game::pet::HungerState::Satisfied);
+        assert_eq!(
+            pet.hunger_state(),
+            ragnarok_game::pet::HungerState::Satisfied
+        );
         assert_eq!(
             pet.intimacy_state(),
             ragnarok_game::pet::IntimacyState::Loyal
@@ -4850,49 +4867,58 @@ mod tests {
         let mut log = QuestLog::default();
         let mut markers: HashMap<u32, QuestMarker> = HashMap::new();
 
-        let apply = |log: &mut QuestLog, markers: &mut HashMap<u32, QuestMarker>, pkt: &dyn Packet| {
-            for ev in dispatch_packet(pkt, packetver) {
-                match ev {
-                    GameEvent::QuestListReceived { quests } => {
-                        log.clear();
-                        for e in quests {
-                            log.set_list_entry(e);
+        let apply =
+            |log: &mut QuestLog, markers: &mut HashMap<u32, QuestMarker>, pkt: &dyn Packet| {
+                for ev in dispatch_packet(pkt, packetver) {
+                    match ev {
+                        GameEvent::QuestListReceived { quests } => {
+                            log.clear();
+                            for e in quests {
+                                log.set_list_entry(e);
+                            }
                         }
-                    }
-                    GameEvent::QuestMissionsReceived { missions } => {
-                        for m in missions {
-                            log.set_mission(m);
+                        GameEvent::QuestMissionsReceived { missions } => {
+                            for m in missions {
+                                log.set_mission(m);
+                            }
                         }
-                    }
-                    GameEvent::QuestAdded { quest } => log.add(quest),
-                    GameEvent::QuestRemoved { quest_id } => {
-                        log.remove(quest_id);
-                    }
-                    GameEvent::QuestHuntUpdated { entries } => {
-                        for e in entries {
-                            log.update_hunt(e);
+                        GameEvent::QuestAdded { quest } => log.add(quest),
+                        GameEvent::QuestRemoved { quest_id } => {
+                            log.remove(quest_id);
                         }
-                    }
-                    GameEvent::QuestActiveChanged { quest_id, active } => {
-                        log.set_active(quest_id, active)
-                    }
-                    GameEvent::QuestNpcMarker {
-                        npc_id,
-                        x,
-                        y,
-                        effect,
-                        color,
-                    } => {
-                        if color == 0 || effect == 9999 {
-                            markers.remove(&npc_id);
-                        } else {
-                            markers.insert(npc_id, QuestMarker { x, y, effect, color });
+                        GameEvent::QuestHuntUpdated { entries } => {
+                            for e in entries {
+                                log.update_hunt(e);
+                            }
                         }
+                        GameEvent::QuestActiveChanged { quest_id, active } => {
+                            log.set_active(quest_id, active)
+                        }
+                        GameEvent::QuestNpcMarker {
+                            npc_id,
+                            x,
+                            y,
+                            effect,
+                            color,
+                        } => {
+                            if color == 0 || effect == 9999 {
+                                markers.remove(&npc_id);
+                            } else {
+                                markers.insert(
+                                    npc_id,
+                                    QuestMarker {
+                                        x,
+                                        y,
+                                        effect,
+                                        color,
+                                    },
+                                );
+                            }
+                        }
+                        other => panic!("unexpected quest event: {other:?}"),
                     }
-                    other => panic!("unexpected quest event: {other:?}"),
                 }
-            }
-        };
+            };
 
         // Login burst: 0x2b1 list, 0x2b2 missions (names + current kills), 0x2b5 totals.
         let mut e0 = PacketZcQuestInfo::new(packetver);
@@ -5015,5 +5041,4 @@ mod tests {
             [GameEvent::Divorced { name }] if name == "Romeo"
         ));
     }
-
 }

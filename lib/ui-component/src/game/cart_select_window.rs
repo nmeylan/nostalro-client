@@ -78,7 +78,10 @@ impl Window for CartSelectWindow {
     }
 
     fn window_size(&self) -> (f32, f32) {
-        (WIN_W, TITLE_H + PAD + CART_MODELS.len() as f32 * ROW_H + PAD)
+        (
+            WIN_W,
+            TITLE_H + PAD + CART_MODELS.len() as f32 * ROW_H + PAD,
+        )
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
@@ -93,11 +96,7 @@ impl Window for CartSelectWindow {
 }
 
 impl InGameWindow for CartSelectWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;
         self.model_previews.clear();

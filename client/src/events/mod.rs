@@ -23,19 +23,19 @@ mod trade;
 
 use crate::App;
 use models::enums::EnumWithMaskValueU64;
-use ragnarok_formats::act::SpriteActionType;
-use ragnarok_game::entity::ForcedAnimation;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_formats::act::SpriteActionType;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::chat_room::ChatRoom;
-use ragnarok_ui_component::game::chat_room_member_window;
-use ragnarok_game::autocounter;
-use ragnarok_game::event::GameEvent;
 use ragnarok_game::app_state::AppState;
+use ragnarok_game::autocounter;
+use ragnarok_game::chat_room::ChatRoom;
+use ragnarok_game::entity::ForcedAnimation;
+use ragnarok_game::event::GameEvent;
 use ragnarok_network::*;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
+use ragnarok_ui_component::game::chat_room_member_window;
 use ragnarok_ui_component::game::guild_expel_dialog::GuildExpelDialog;
 use ragnarok_ui_component::game::party_helper_window::MODE_CREATE;
 use winit::event_loop::ActiveEventLoop;
@@ -253,7 +253,10 @@ impl App {
                         .apply_entity_direction_changed(gid, head_dir, dir);
                 }
                 GameEvent::EntityNameReceived { gid, name } => {
-                    self.game.world.entities.apply_entity_name_received(gid, name);
+                    self.game
+                        .world
+                        .entities
+                        .apply_entity_name_received(gid, name);
                 }
                 GameEvent::EntityNamesReceived {
                     gid,
@@ -346,7 +349,10 @@ impl App {
                     self.handle_entity_sprite_changed(gid, sprite_type, value, value2);
                 }
                 GameEvent::EntityEmotion { gid, emotion_type } => {
-                    self.game.world.entities.apply_entity_emotion(gid, emotion_type);
+                    self.game
+                        .world
+                        .entities
+                        .apply_entity_emotion(gid, emotion_type);
                 }
 
                 GameEvent::NpcDialogText { npc_id, text } => {
@@ -449,7 +455,11 @@ impl App {
                         if let Some((title, limit, public)) = self.game.pending_chat_room.take() {
                             let local_name = self.game.character.name.clone();
                             self.windows.chat_room_member_window.open_created(
-                                0, &title, limit, public, &local_name,
+                                0,
+                                &title,
+                                limit,
+                                public,
+                                &local_name,
                             );
                         }
                         self.windows.chat_room_create_window.close();
@@ -471,16 +481,19 @@ impl App {
                     self.windows.chat_window.add_system(msg);
                 }
                 GameEvent::ChatRoomMemberLeft { name, kicked, .. } => {
-                    let verb = if kicked { "was kicked from" } else { "has left" };
+                    let verb = if kicked {
+                        "was kicked from"
+                    } else {
+                        "has left"
+                    };
                     let msg = format!("{name} {verb} the room.");
                     if self.windows.chat_room_member_window.is_local(&name) {
                         self.windows.chat_room_member_window.close();
                     } else {
                         self.windows.chat_room_member_window.remove_member(&name);
-                        self.windows.chat_room_member_window.push_message(
-                            msg.clone(),
-                            chat_room_member_window::LEAVE_MSG_COLOR,
-                        );
+                        self.windows
+                            .chat_room_member_window
+                            .push_message(msg.clone(), chat_room_member_window::LEAVE_MSG_COLOR);
                     }
                     self.windows.chat_window.add_system(msg);
                 }
@@ -849,12 +862,17 @@ impl App {
                     {
                         self.start_autocounter_channel(gid);
                     } else {
-                        let display_name =
-                            self.game.data_table.skill_name.as_ref().map(|table| {
-                                table.get_display_name_or_internal(&skill_name.unwrap_or_default())
-                            });
+                        let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
+                            table.get_display_name_or_internal(&skill_name.unwrap_or_default())
+                        });
                         self.game.world.entities.apply_skill_casting(
-                            gid, target_gid, skill_id, delay_ms, x, y, display_name,
+                            gid,
+                            target_gid,
+                            skill_id,
+                            delay_ms,
+                            x,
+                            y,
+                            display_name,
                         );
                         self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
                     }
@@ -916,11 +934,10 @@ impl App {
                     {
                         self.start_autocounter_channel(src_gid);
                     } else {
-                        self.game.world.entities.apply_skill_no_damage(
-                            skill_id,
-                            src_gid,
-                            target_gid,
-                        );
+                        self.game
+                            .world
+                            .entities
+                            .apply_skill_no_damage(skill_id, src_gid, target_gid);
                         self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid, level);
                     }
                 }
@@ -941,7 +958,10 @@ impl App {
                             SkillEnum::from_id(skill_id as u32),
                             SkillEnum::HtDetecting | SkillEnum::SnSight
                         ) {
-                        match (self.game.session.map_coords.as_ref(), self.game.session.gat.as_ref()) {
+                        match (
+                            self.game.session.map_coords.as_ref(),
+                            self.game.session.gat.as_ref(),
+                        ) {
                             (Some(coords), Some(gat)) => {
                                 let (wx, _, wz) =
                                     coords.cell_to_world(x as f32 + 0.5, y as f32 + 0.5);
@@ -1002,10 +1022,7 @@ impl App {
                     self.handle_server_tick(server_tick, local_send_time_ms);
                 }
                 GameEvent::HotkeyListReceived { slots } => {
-                    self.game
-                        .character
-                        .hotkeys
-                        .set_from_server(&slots);
+                    self.game.character.hotkeys.set_from_server(&slots);
                 }
                 GameEvent::Disconnected(reason) => {
                     self.handle_disconnected(reason, event_loop);
@@ -1046,7 +1063,11 @@ impl App {
                     item_pickup_rule,
                     item_division_rule,
                 } => {
-                    self.handle_party_config_changed(exp_option, item_pickup_rule, item_division_rule);
+                    self.handle_party_config_changed(
+                        exp_option,
+                        item_pickup_rule,
+                        item_division_rule,
+                    );
                 }
                 GameEvent::SelfConfigChanged { kind, enabled } => {
                     self.handle_self_config_changed(kind, enabled);
@@ -1178,7 +1199,13 @@ impl App {
                     is_master,
                     name,
                 } => {
-                    self.handle_guild_identity_updated(gdid, emblem_version, right, is_master, name);
+                    self.handle_guild_identity_updated(
+                        gdid,
+                        emblem_version,
+                        right,
+                        is_master,
+                        name,
+                    );
                 }
                 GameEvent::GuildCreateResult { result } => {
                     self.handle_guild_create_result(result);
@@ -1251,11 +1278,17 @@ impl App {
                     self.handle_weapon_refine_result(result, item_id);
                 }
                 GameEvent::RepairItemList { items } => {
-                    let target_aid = self.game.pending_casts.pending_repair_target.take().unwrap_or(0);
+                    let target_aid = self
+                        .game
+                        .pending_casts
+                        .pending_repair_target
+                        .take()
+                        .unwrap_or(0);
                     self.handle_repair_item_list(target_aid, items);
                 }
                 GameEvent::RepairItemResult { index, ok } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::REPAIR);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::REPAIR);
                     self.handle_repair_item_result(index, ok);
                 }
                 GameEvent::MakableItemList { item_ids } => {
@@ -1302,8 +1335,7 @@ impl App {
                 }
                 GameEvent::CharacterCreateFailed { error_code } => {
                     if let Some(win) = &mut self.char_create_window {
-                        win.error_message =
-                            Some(char_create_error_message(error_code).to_string());
+                        win.error_message = Some(char_create_error_message(error_code).to_string());
                     }
                 }
                 GameEvent::CharacterDeleteReserved {
@@ -1382,7 +1414,13 @@ impl App {
                     attack_range,
                     upgradable,
                 } => {
-                    self.handle_mercenary_skill_update(id, level, sp_cost, attack_range, upgradable);
+                    self.handle_mercenary_skill_update(
+                        id,
+                        level,
+                        sp_cost,
+                        attack_range,
+                        upgradable,
+                    );
                 }
 
                 GameEvent::PetCaptureStart => {
@@ -1466,7 +1504,11 @@ impl App {
 }
 
 impl App {
-    pub(crate) fn handle_ui_events(&mut self, events: Vec<GameEvent>, event_loop: &ActiveEventLoop) {
+    pub(crate) fn handle_ui_events(
+        &mut self,
+        events: Vec<GameEvent>,
+        event_loop: &ActiveEventLoop,
+    ) {
         ragnarok_profiling::profile_function!();
         for event in events {
             match event {
@@ -1485,8 +1527,12 @@ impl App {
                         continue;
                     };
                     let addr = format!("{}:{}", server.host, server.port);
-                    self.channel.send_cmd(NetworkCommand::Connect { addr, expect_aid: false });
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.channel.send_cmd(NetworkCommand::Connect {
+                        addr,
+                        expect_aid: false,
+                    });
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel.send_packet(build_login_packet(
                         &username,
                         &password,
@@ -1494,19 +1540,24 @@ impl App {
                     ));
                 }
                 GameEvent::SelectLoginServer { index } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.select_login_server(index);
                     self.login_server_list_window = None;
                     self.game.session.app_state = AppState::Login;
                 }
                 GameEvent::RequestSelectServer { index } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     if let Some(server_win) = &self.server_list_window
                         && let Some(server) = server_win.servers.get(index)
                     {
                         let addr = format!("{}:{}", ip_u32_to_string(server.ip), server.port);
                         self.channel.send_cmd(NetworkCommand::Disconnect);
-                        self.channel.send_cmd(NetworkCommand::Connect { addr: addr.clone(), expect_aid: true });
+                        self.channel.send_cmd(NetworkCommand::Connect {
+                            addr: addr.clone(),
+                            expect_aid: true,
+                        });
                         if let Some(session) = &mut self.game.session.login_session {
                             session.char_server_addr = Some(addr);
                             self.channel.send_packet(build_char_enter_packet(session));
@@ -1519,7 +1570,8 @@ impl App {
                     }
                 }
                 GameEvent::RequestSelectCharacter { slot } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     if let Some(char_win) = &self.char_select_window {
                         self.game.session.selected_character = char_win
                             .characters
@@ -1535,7 +1587,8 @@ impl App {
                         .send_packet(build_select_char_packet(slot, self.active_packetver));
                 }
                 GameEvent::RequestCreateCharacter { slot } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     let with_stats = self.active_packetver < 20120307;
                     let mut win = CharCreateWindow::new(slot, with_stats);
                     if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
@@ -1559,7 +1612,8 @@ impl App {
                     hair_color,
                     stats,
                 } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     let packet = if self.active_packetver >= 20120307 {
                         build_make_char_packet(
                             &name,
@@ -1585,12 +1639,14 @@ impl App {
                     self.game.session.app_state = AppState::CharacterSelect;
                 }
                 GameEvent::RequestDeleteCharacterReserve { gid } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel
                         .send_packet(build_delete_char_reserve_packet(gid, self.active_packetver));
                 }
                 GameEvent::RequestDeleteCharacterConfirm { gid, birthdate } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel.send_packet(build_delete_char_confirm_packet(
                         gid,
                         &birthdate,
@@ -1598,7 +1654,8 @@ impl App {
                     ));
                 }
                 GameEvent::RequestDeleteCharacterCancel { gid } => {
-                    self.sound_queue.ui(ragnarok_game::sound::tables::ui::BUTTON);
+                    self.sound_queue
+                        .ui(ragnarok_game::sound::tables::ui::BUTTON);
                     self.channel
                         .send_packet(build_delete_char_cancel_packet(gid, self.active_packetver));
                 }
@@ -1638,7 +1695,8 @@ impl App {
                 GameEvent::RequestMapRecoveryWarp => {
                     let char_name = self
                         .game
-                        .session.selected_character
+                        .session
+                        .selected_character
                         .as_ref()
                         .map(|c| c.name.as_str())
                         .unwrap_or("Unknown");
@@ -1717,8 +1775,12 @@ impl App {
                 }
                 GameEvent::RequestEditChatRoomSettings => {
                     let w = &self.windows.chat_room_member_window;
-                    let (room_id, title, limit, public) =
-                        (w.room_id(), w.title().to_string(), w.max_count(), w.public());
+                    let (room_id, title, limit, public) = (
+                        w.room_id(),
+                        w.title().to_string(),
+                        w.max_count(),
+                        w.public(),
+                    );
                     self.windows
                         .chat_room_create_window
                         .open_change(room_id, &title, limit, public);
@@ -1728,10 +1790,8 @@ impl App {
                         .send_packet(build_expel_chat_member_packet(&name, self.active_packetver));
                 }
                 GameEvent::RequestChangeChatOwner { name } => {
-                    self.channel.send_packet(build_change_chat_owner_packet(
-                        &name,
-                        self.active_packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_change_chat_owner_packet(&name, self.active_packetver));
                 }
                 GameEvent::RequestOpenChatMemberMenu { name, x, y } => {
                     use ragnarok_ui_component::game::context_menu::{
@@ -1870,7 +1930,8 @@ impl App {
                     }
                     let account_id = self
                         .game
-                        .session.login_session
+                        .session
+                        .login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -1963,15 +2024,20 @@ impl App {
                         .and_then(|e| e.name.clone())
                         .unwrap_or_default();
                     self.game.pending_confirms.pending_trade_partner = Some((target_aid, name));
-                    self.channel
-                        .send_packet(build_req_exchange_item_packet(target_aid, self.active_packetver));
+                    self.channel.send_packet(build_req_exchange_item_packet(
+                        target_aid,
+                        self.active_packetver,
+                    ));
                 }
                 GameEvent::RespondExchangeRequest { accept } => {
                     self.respond_exchange_request(accept);
                 }
                 GameEvent::RequestAddExchangeItem { index, count } => {
-                    self.channel
-                        .send_packet(build_add_exchange_item_packet(index, count, self.active_packetver));
+                    self.channel.send_packet(build_add_exchange_item_packet(
+                        index,
+                        count,
+                        self.active_packetver,
+                    ));
                 }
                 GameEvent::RequestConcludeExchange => {
                     self.channel
@@ -2066,10 +2132,11 @@ impl App {
                     ));
                 }
                 GameEvent::RequestCompanionMoveToOwner { gid } => {
-                    self.channel.send_packet(build_companion_move_to_owner_packet(
-                        gid,
-                        self.active_packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_companion_move_to_owner_packet(
+                            gid,
+                            self.active_packetver,
+                        ));
                 }
                 GameEvent::RequestSetConfig { kind, enabled } => {
                     self.channel.send_packet(build_config_packet(
@@ -2079,8 +2146,10 @@ impl App {
                     ));
                 }
                 GameEvent::RequestHomunMenu { command } => {
-                    self.channel
-                        .send_packet(build_homun_menu_packet(command as i8, self.active_packetver));
+                    self.channel.send_packet(build_homun_menu_packet(
+                        command as i8,
+                        self.active_packetver,
+                    ));
                     if command == 2 {
                         self.clear_homunculus();
                     }
@@ -2106,7 +2175,8 @@ impl App {
                         .map(|h| h.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "your homunculus".to_string());
-                    self.game.arm_confirm(&mut self.windows,
+                    self.game.arm_confirm(
+                        &mut self.windows,
                         &format!("Delete {name} permanently?"),
                         |accept| accept.then_some(GameEvent::RequestHomunMenu { command: 2 }),
                     );
@@ -2150,12 +2220,14 @@ impl App {
                     }
                 }
                 GameEvent::RevertCompanionAiConfig => {
-                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::load_or_default(
-                        crate::game_state::COMPANION_AI_CONFIG_PATH,
-                    );
+                    self.game.companions.companion_ai =
+                        ragnarok_ai::config::CompanionAiConfig::load_or_default(
+                            crate::game_state::COMPANION_AI_CONFIG_PATH,
+                        );
                 }
                 GameEvent::ResetCompanionAiConfig => {
-                    self.game.companions.companion_ai = ragnarok_ai::config::CompanionAiConfig::default();
+                    self.game.companions.companion_ai =
+                        ragnarok_ai::config::CompanionAiConfig::default();
                 }
                 GameEvent::ToggleCompanionStandby { is_mercenary } => {
                     self.push_owner_command_to(
@@ -2165,10 +2237,7 @@ impl App {
                     );
                 }
                 GameEvent::HotkeyListReceived { slots } => {
-                    self.game
-                        .character
-                        .hotkeys
-                        .set_from_server(&slots);
+                    self.game.character.hotkeys.set_from_server(&slots);
                 }
                 GameEvent::RequestHotkeyChange {
                     index,
@@ -2254,8 +2323,10 @@ impl App {
                     ));
                 }
                 GameEvent::RequestSelectAutoSpell { skill_id } => {
-                    self.channel
-                        .send_packet(build_select_autospell_packet(skill_id, self.active_packetver));
+                    self.channel.send_packet(build_select_autospell_packet(
+                        skill_id,
+                        self.active_packetver,
+                    ));
                 }
                 GameEvent::RequestOpenStore { shop_name, items } => {
                     self.channel.send_packet(build_req_openstore2_packet(
@@ -2292,8 +2363,11 @@ impl App {
                     self.run_chat_command(&message);
                 }
                 GameEvent::RequestSendWhisper { name, message } => {
-                    self.channel
-                        .send_packet(build_whisper_packet(&name, &message, self.active_packetver));
+                    self.channel.send_packet(build_whisper_packet(
+                        &name,
+                        &message,
+                        self.active_packetver,
+                    ));
                     self.windows.chat_window.add_whisper_out(name, message);
                 }
                 GameEvent::ToggleShortcutList => {
@@ -2314,11 +2388,12 @@ impl App {
                     self.windows.quest_detail_window.open(quest_id);
                 }
                 GameEvent::RequestToggleQuestActive { quest_id, active } => {
-                    self.channel.send_packet(ragnarok_network::build_active_quest_packet(
-                        quest_id,
-                        active,
-                        self.active_packetver,
-                    ));
+                    self.channel
+                        .send_packet(ragnarok_network::build_active_quest_packet(
+                            quest_id,
+                            active,
+                            self.active_packetver,
+                        ));
                 }
                 GameEvent::Disconnected(ref reason) if reason == "User exit" => {
                     self.channel.send_cmd(NetworkCommand::Disconnect);
@@ -2416,7 +2491,8 @@ impl App {
                         // wait for the create ack — sending it now would be dropped.
                         let party_name = self
                             .game
-                            .session.selected_character
+                            .session
+                            .selected_character
                             .as_ref()
                             .map(|c| c.name.clone())
                             .unwrap_or_else(|| "Party".to_string());
@@ -2436,11 +2512,15 @@ impl App {
                     ));
                 }
                 GameEvent::RequestAdoption { target_aid } => {
-                    self.channel
-                        .send_packet(build_adopt_request_packet(target_aid, self.active_packetver));
+                    self.channel.send_packet(build_adopt_request_packet(
+                        target_aid,
+                        self.active_packetver,
+                    ));
                 }
                 GameEvent::RespondAdoptionRequest { accept } => {
-                    if let Some((father_aid, mother_aid)) = self.game.pending_confirms.pending_adopt_request.take() {
+                    if let Some((father_aid, mother_aid)) =
+                        self.game.pending_confirms.pending_adopt_request.take()
+                    {
                         self.channel.send_packet(build_adopt_reply_packet(
                             father_aid,
                             mother_aid,
@@ -2450,8 +2530,11 @@ impl App {
                     }
                 }
                 GameEvent::RespondGuildInvite { gdid, accept } => {
-                    self.channel
-                        .send_packet(build_ans_join_guild(gdid, accept, self.active_packetver));
+                    self.channel.send_packet(build_ans_join_guild(
+                        gdid,
+                        accept,
+                        self.active_packetver,
+                    ));
                 }
                 GameEvent::RespondGuildAlly { aid, accept } => {
                     self.channel
@@ -2482,7 +2565,8 @@ impl App {
                 GameEvent::ShowPartyHelper { mode } => {
                     let local_aid = self
                         .game
-                        .session.login_session
+                        .session
+                        .login_session
                         .as_ref()
                         .map(|s| s.account_id)
                         .unwrap_or(0);
@@ -2537,7 +2621,13 @@ impl App {
                     self.channel
                         .send_packet(build_req_guild_menu(atype, self.active_packetver));
                 }
-                GameEvent::ShowGuildMemberMenu { aid, gid, name, x, y } => {
+                GameEvent::ShowGuildMemberMenu {
+                    aid,
+                    gid,
+                    name,
+                    x,
+                    y,
+                } => {
                     self.handle_show_guild_member_menu(aid, gid, name, x, y);
                 }
                 GameEvent::RequestSetGuildNotice { subject, body } => {
@@ -2558,10 +2648,10 @@ impl App {
                         .map(|g| g.name.clone())
                         .filter(|n| !n.is_empty())
                         .unwrap_or_else(|| "the guild".to_string());
-                    self.game.arm_confirm(&mut self.windows,
-                        &format!("Leave {name}?"),
-                        |accept| accept.then_some(GameEvent::ConfirmedGuildLeave),
-                    );
+                    self.game
+                        .arm_confirm(&mut self.windows, &format!("Leave {name}?"), |accept| {
+                            accept.then_some(GameEvent::ConfirmedGuildLeave)
+                        });
                 }
                 GameEvent::RequestGuildExpel { aid, gid, name } => {
                     self.windows.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));
@@ -2570,7 +2660,8 @@ impl App {
                     if let Some(g) = &self.game.guild {
                         let aid = self
                             .game
-                            .session.login_session
+                            .session
+                            .login_session
                             .as_ref()
                             .map(|s| s.account_id)
                             .unwrap_or(0) as i32;
@@ -2583,7 +2674,12 @@ impl App {
                         ));
                     }
                 }
-                GameEvent::ConfirmedGuildExpel { aid, gid, name: _, reason } => {
+                GameEvent::ConfirmedGuildExpel {
+                    aid,
+                    gid,
+                    name: _,
+                    reason,
+                } => {
                     if let Some(gdid) = self.game.guild.as_ref().map(|g| g.gdid) {
                         self.channel.send_packet(build_req_ban_guild(
                             gdid,
@@ -2594,7 +2690,11 @@ impl App {
                         ));
                     }
                 }
-                GameEvent::RequestChangeMemberPosition { aid, gid, position_id } => {
+                GameEvent::RequestChangeMemberPosition {
+                    aid,
+                    gid,
+                    position_id,
+                } => {
                     self.channel.send_packet(build_req_change_memberpos(
                         aid as i32,
                         gid as i32,
@@ -2603,10 +2703,11 @@ impl App {
                     ));
                 }
                 GameEvent::RequestChangePositionInfo { positions } => {
-                    self.channel.send_packet(build_reg_change_guild_positioninfo(
-                        &positions,
-                        self.active_packetver,
-                    ));
+                    self.channel
+                        .send_packet(build_reg_change_guild_positioninfo(
+                            &positions,
+                            self.active_packetver,
+                        ));
                 }
                 GameEvent::RequestUpgradeGuildSkill { skid } => {
                     self.channel
@@ -2640,9 +2741,13 @@ impl App {
                     } else {
                         "Cancel this antagonist declaration?"
                     };
-                    self.game.arm_confirm(&mut self.windows, msg, move |accept| {
-                        accept.then_some(GameEvent::ConfirmedDeleteGuildRelation { gdid, relation })
-                    });
+                    self.game
+                        .arm_confirm(&mut self.windows, msg, move |accept| {
+                            accept.then_some(GameEvent::ConfirmedDeleteGuildRelation {
+                                gdid,
+                                relation,
+                            })
+                        });
                 }
                 GameEvent::ConfirmedDeleteGuildRelation { gdid, relation } => {
                     self.channel.send_packet(build_req_delete_related_guild(
@@ -2662,8 +2767,11 @@ impl App {
                         .send_packet(build_add_friend_packet(&name, self.active_packetver));
                 }
                 GameEvent::RequestDeleteFriend { aid, gid } => {
-                    self.channel
-                        .send_packet(build_delete_friend_packet(aid, gid, self.active_packetver));
+                    self.channel.send_packet(build_delete_friend_packet(
+                        aid,
+                        gid,
+                        self.active_packetver,
+                    ));
                 }
                 GameEvent::RespondFriendRequest {
                     req_aid,
@@ -2703,7 +2811,8 @@ impl App {
                         .send_packet(build_pet_act_packet(data, self.active_packetver));
                 }
                 GameEvent::RequestPetFeed => {
-                    self.game.arm_confirm(&mut self.windows,
+                    self.game.arm_confirm(
+                        &mut self.windows,
                         "Are you sure you want to feed your pet?",
                         |accept| accept.then_some(GameEvent::RequestPetCommand { csub: 1 }),
                     );

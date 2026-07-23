@@ -46,7 +46,8 @@ impl App {
         }
         let is_own = self
             .game
-            .session.selected_character
+            .session
+            .selected_character
             .as_ref()
             .zip(message.split_once(" : "))
             .is_some_and(|(c, (sender, _))| sender == c.name);
@@ -62,9 +63,13 @@ impl App {
     }
 
     pub(super) fn handle_ranking_received(&mut self, title: &str, entries: Vec<(String, i32)>) {
-        self.windows.chat_window.add_system(format!("== {title} =="));
+        self.windows
+            .chat_window
+            .add_system(format!("== {title} =="));
         if entries.is_empty() {
-            self.windows.chat_window.add_system("  (no entries)".to_string());
+            self.windows
+                .chat_window
+                .add_system("  (no entries)".to_string());
         }
         for (i, (name, point)) in entries.iter().enumerate() {
             self.windows

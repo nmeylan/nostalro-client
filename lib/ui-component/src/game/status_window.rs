@@ -160,11 +160,7 @@ impl Window for StatusWindow {
 }
 
 impl InGameWindow for StatusWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.visible {

@@ -617,7 +617,9 @@ impl Entity {
                 EntityState::Sitting => 2,
                 EntityState::Pickup => 3,
                 EntityState::ReadyFight => 4,
-                EntityState::Attacking | EntityState::SkillExec => mercenary_attack_action(self.job),
+                EntityState::Attacking | EntityState::SkillExec => {
+                    mercenary_attack_action(self.job)
+                }
                 EntityState::Hurt => 6,
                 EntityState::Dead => 8,
                 EntityState::Casting => 12,
@@ -843,8 +845,24 @@ mod tests {
     #[test]
     fn mercenary_entity_infers_weapon_from_class() {
         let merc = |job| {
-            Entity::new(1, EntityType::Mercenary, job, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 0, 150)
-                .weapon
+            Entity::new(
+                1,
+                EntityType::Mercenary,
+                job,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                100,
+                100,
+                0,
+                150,
+            )
+            .weapon
         };
         assert_eq!(merc(6017), Some(WeaponType::Bow)); // archer
         assert_eq!(merc(6027), Some(WeaponType::Spear1H)); // lancer
@@ -972,7 +990,6 @@ mod tests {
         assert!(!e.pending_death);
     }
 
-   
     #[test]
     fn update_state_preserves_sitting() {
         let mut e = make_entity();
@@ -1080,8 +1097,16 @@ mod tests {
     fn attack_motion_factor_is_native_at_average_and_capped_when_slow() {
         assert_eq!(attack_motion_factor(432), 1.0);
         assert_eq!(attack_motion_factor(216), 0.5);
-        assert_eq!(attack_motion_factor(5000), 2.0, "slow attacks cap at 2x native");
-        assert_eq!(attack_motion_factor(0), 1.0, "missing time plays at native speed");
+        assert_eq!(
+            attack_motion_factor(5000),
+            2.0,
+            "slow attacks cap at 2x native"
+        );
+        assert_eq!(
+            attack_motion_factor(0),
+            1.0,
+            "missing time plays at native speed"
+        );
     }
 
     #[test]

@@ -66,7 +66,10 @@ pub fn build_gr2_geometry(file: &Gr2File, model_index: usize) -> Option<Gr2Geome
 
     for &mi in &model.mesh_indices {
         let mesh = file.meshes.get(mi)?;
-        let Some(vd) = mesh.vertex_data_index.and_then(|i| file.vertex_datas.get(i)) else {
+        let Some(vd) = mesh
+            .vertex_data_index
+            .and_then(|i| file.vertex_datas.get(i))
+        else {
             continue;
         };
         let Some(topo) = mesh.topology_index.and_then(|i| file.tri_topologies.get(i)) else {
@@ -98,9 +101,12 @@ pub fn build_gr2_geometry(file: &Gr2File, model_index: usize) -> Option<Gr2Geome
                     .is_some_and(|t| t.from_file_name.to_ascii_lowercase().contains("emblem"))
             });
         let x_shift = if is_emblem_mesh {
-            let (min, max) = vd.vertices.iter().fold((f32::MAX, f32::MIN), |(lo, hi), v| {
-                (lo.min(v.position[0]), hi.max(v.position[0]))
-            });
+            let (min, max) = vd
+                .vertices
+                .iter()
+                .fold((f32::MAX, f32::MIN), |(lo, hi), v| {
+                    (lo.min(v.position[0]), hi.max(v.position[0]))
+                });
             (min + max) * 0.5
         } else {
             0.0
@@ -475,10 +481,14 @@ mod tests {
 
     fn load_gr2(name: &str) -> Option<Gr2File> {
         // The last candidate reaches the main checkout from a `.worktree/<name>` worktree.
-        let grf = ["data/data.grf", "../../data/data.grf", "../../../../data/data.grf"]
-            .iter()
-            .find(|p| Path::new(p).exists())
-            .map(|p| GrfArchive::open(Path::new(p)).expect("open grf"))?;
+        let grf = [
+            "data/data.grf",
+            "../../data/data.grf",
+            "../../../../data/data.grf",
+        ]
+        .iter()
+        .find(|p| Path::new(p).exists())
+        .map(|p| GrfArchive::open(Path::new(p)).expect("open grf"))?;
         let bytes = grf.read_file(name).expect("read gr2");
         let container = Gr2Container::parse(&bytes).expect("parse container");
         Some(Gr2File::parse(&container).expect("extract"))
@@ -503,7 +513,10 @@ mod tests {
         }
         assert!(g.indices.iter().all(|&i| (i as usize) < g.vertices.len()));
         assert!(g.size.iter().all(|&s| s > 0.0));
-        eprintln!("emperium bind-pose size = {:?} center = {:?}", g.size, g.center);
+        eprintln!(
+            "emperium bind-pose size = {:?} center = {:?}",
+            g.size, g.center
+        );
     }
 
     #[test]

@@ -11,25 +11,25 @@ use ragnarok_ui_component::account::login_server_list_window::LoginServerListWin
 use ragnarok_ui_component::account::login_window::LoginWindow;
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::basic_info_window::BasicInfoWindow;
-use ragnarok_ui_component::game::chat_window::ChatWindow;
+use ragnarok_ui_component::game::cart_window::CartWindow;
 use ragnarok_ui_component::game::chat_room_create_window::ChatRoomCreateWindow;
 use ragnarok_ui_component::game::chat_room_member_window::ChatRoomMemberWindow;
-use ragnarok_ui_component::game::emotion_window::EmotionWindow;
-use ragnarok_ui_component::game::shortcut_list_window::ShortcutListWindow;
-use ragnarok_ui_component::game::party_friends_window::PartyFriendsWindow;
+use ragnarok_ui_component::game::chat_window::ChatWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
+use ragnarok_ui_component::game::emotion_window::EmotionWindow;
 use ragnarok_ui_component::game::equipment_window::EquipmentWindow;
 use ragnarok_ui_component::game::guild_window::GuildWindow;
-use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
-use ragnarok_ui_component::game::cart_window::CartWindow;
 use ragnarok_ui_component::game::homun_window::HomunWindow;
+use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::inventory_window::InventoryWindow;
+use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::mercenary_skill_window::MercenarySkillWindow;
 use ragnarok_ui_component::game::mercenary_window::MercenaryWindow;
-use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::my_shop_window::MyShopWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::party_friends_window::PartyFriendsWindow;
+use ragnarok_ui_component::game::shortcut_list_window::ShortcutListWindow;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::game::vending_setup_window::VendingSetupWindow;
@@ -144,10 +144,14 @@ const SOCIAL_COMPONENTS: &[&str] = &[
     "emotion",
     "shortcut_list",
 ];
-const ACCOUNT_COMPONENTS: &[&str] =
-    &["login", "login_server_list", "server_list", "char_select", "char_create"];
-const SHOP_COMPONENTS: &[&str] =
-    &["cart", "vending_setup", "my_shop", "vending_buy"];
+const ACCOUNT_COMPONENTS: &[&str] = &[
+    "login",
+    "login_server_list",
+    "server_list",
+    "char_select",
+    "char_create",
+];
+const SHOP_COMPONENTS: &[&str] = &["cart", "vending_setup", "my_shop", "vending_buy"];
 const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
 
 fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
@@ -279,7 +283,11 @@ fn main() {
         example_name.as_str(),
         "game" | "social" | "account" | "shop" | "companion" | "guild"
     );
-    let (win_w, win_h) = if is_category { (1600, 1000) } else { (800, 600) };
+    let (win_w, win_h) = if is_category {
+        (1600, 1000)
+    } else {
+        (800, 600)
+    };
 
     shared::UiExampleApp::new("Hot Reload", win_w, win_h, move |ctx| {
         // Poll for dylib changes (mtime check is cheap)

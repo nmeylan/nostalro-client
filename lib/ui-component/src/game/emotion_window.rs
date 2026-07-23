@@ -97,11 +97,7 @@ impl Window for EmotionWindow {
 }
 
 impl InGameWindow for EmotionWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -182,8 +178,7 @@ impl InGameWindow for EmotionWindow {
             };
             let ix = cell_x + (CELL - iw) / 2.0;
             let iy = cell_y + (CELL - ih) / 2.0;
-            let (v, idx) =
-                draw::quad_vertices_uv(ix, iy, iw, ih, [0.0, 0.0], [1.0, 1.0], [1.0; 4]);
+            let (v, idx) = draw::quad_vertices_uv(ix, iy, iw, ih, [0.0, 0.0], [1.0, 1.0], [1.0; 4]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: idx.to_vec(),

@@ -86,8 +86,13 @@ impl App {
                     }
                     SoundSource::World(pos) => {
                         let l = listener.unwrap_or(pos);
-                        attenuate(pos[0] - l[0], 0.0, pos[2] - l[2], req.min_dist, req.max_dist)
-                            * req.vfactor
+                        attenuate(
+                            pos[0] - l[0],
+                            0.0,
+                            pos[2] - l[2],
+                            req.min_dist,
+                            req.max_dist,
+                        ) * req.vfactor
                     }
                 };
                 let path = format!("data/wav/{}", req.name);

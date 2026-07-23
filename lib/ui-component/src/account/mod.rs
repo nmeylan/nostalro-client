@@ -58,7 +58,11 @@ mod tests {
             TextureRef::Named(n) => assert_eq!(n, "bg.bmp"),
             _ => panic!("expected named texture"),
         }
-        let xs: Vec<f32> = ui.draw_calls[0].vertices.iter().map(|v| v.position[0]).collect();
+        let xs: Vec<f32> = ui.draw_calls[0]
+            .vertices
+            .iter()
+            .map(|v| v.position[0])
+            .collect();
         assert!(xs.iter().cloned().fold(f32::MIN, f32::max) >= 1024.0);
     }
 }

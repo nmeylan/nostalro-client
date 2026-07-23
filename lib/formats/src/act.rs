@@ -418,7 +418,11 @@ impl SpriteAnimationState {
         self.motion_type = MotionType::Loop;
         self.finished = false;
         self.motion_speed_override_ms = None;
-        self.motion_speed_factor = Some(if speed_factor > 0.0 { speed_factor } else { 1.0 });
+        self.motion_speed_factor = Some(if speed_factor > 0.0 {
+            speed_factor
+        } else {
+            1.0
+        });
         self.remaining_repeats = 0;
     }
 
@@ -747,7 +751,11 @@ mod tests {
         assert_eq!(anim.motion_index(), 1);
 
         anim.update_by_distance(0.0, &act, 0);
-        assert_eq!(anim.motion_index(), 1, "no ground travel must hold the frame");
+        assert_eq!(
+            anim.motion_index(),
+            1,
+            "no ground travel must hold the frame"
+        );
 
         anim.update_by_distance(0.7, &act, 0);
         assert_eq!(anim.motion_index(), 2);

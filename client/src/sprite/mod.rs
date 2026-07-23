@@ -17,7 +17,9 @@ use ragnarok_game::gr2_model::{self, AnimationClip, Gr2Action, Gr2ModelInstance,
 use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
 use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
-use ragnarok_renderer::{EntitySprite, SpriteTextures, build_entity_sprite, upload_sprite_textures};
+use ragnarok_renderer::{
+    EntitySprite, SpriteTextures, build_entity_sprite, upload_sprite_textures,
+};
 use std::rc::Rc;
 
 fn parse_gr2_file(bytes: &[u8], path: &str) -> Option<Gr2File> {
@@ -91,15 +93,32 @@ impl App {
             .world
             .entities
             .get(gid)
-            .map(|e| (ragnarok_game::sprite_path::is_orcish(e.effect_state), e.is_gm))
+            .map(|e| {
+                (
+                    ragnarok_game::sprite_path::is_orcish(e.effect_state),
+                    e.is_gm,
+                )
+            })
             .unwrap_or((false, false));
         if let Some(sprite) = self.build_player_entity_sprite(
-            job, sex, head, hair_color, cloth_color, weapon, head_top, head_mid, head_bottom,
-            shield_id, orc_face, is_gm,
+            job,
+            sex,
+            head,
+            hair_color,
+            cloth_color,
+            weapon,
+            head_top,
+            head_mid,
+            head_bottom,
+            shield_id,
+            orc_face,
+            is_gm,
         ) {
             self.game.sprite_caches.sprites.insert(gid, sprite);
         } else {
-            tracing::warn!("load_player_sprite: failed to load sprite data for gid={gid} job={job}");
+            tracing::warn!(
+                "load_player_sprite: failed to load sprite data for gid={gid} job={job}"
+            );
         }
     }
 
@@ -177,7 +196,12 @@ impl App {
                         .world
                         .entities
                         .get(m.gid)
-                        .or_else(|| self.game.world.entities.get(self.game.world.entities.resolve_key(m.aid)))
+                        .or_else(|| {
+                            self.game
+                                .world
+                                .entities
+                                .get(self.game.world.entities.resolve_key(m.aid))
+                        })
                         .map(|e| e.sex)
                         .unwrap_or_else(|| m.sex.max(0) as u8);
                     (
@@ -192,10 +216,13 @@ impl App {
             None => return,
         };
         for (gid, job, sex, head, hair_color) in members {
-            if let Some(sprite) = self
-                .build_player_entity_sprite(job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false, false)
-            {
-                self.game.sprite_caches.guild_head_sprites.insert(gid, sprite);
+            if let Some(sprite) = self.build_player_entity_sprite(
+                job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false, false,
+            ) {
+                self.game
+                    .sprite_caches
+                    .guild_head_sprites
+                    .insert(gid, sprite);
             }
         }
     }
@@ -301,7 +328,10 @@ impl App {
                 };
 
                 if let Some(cached) = self.game.sprite_caches.sprite_cache.get(&cache_key) {
-                    self.game.sprite_caches.sprites.insert(gid, Rc::clone(cached));
+                    self.game
+                        .sprite_caches
+                        .sprites
+                        .insert(gid, Rc::clone(cached));
                     return;
                 }
 
@@ -323,7 +353,10 @@ impl App {
                     None,
                     data.shadow,
                 ));
-                self.game.sprite_caches.sprite_cache.insert(cache_key, Rc::clone(&sprite));
+                self.game
+                    .sprite_caches
+                    .sprite_cache
+                    .insert(cache_key, Rc::clone(&sprite));
                 self.game.sprite_caches.sprites.insert(gid, sprite);
             }
         }
@@ -504,7 +537,9 @@ impl App {
                 *hair_color,
                 *direction,
             );
-            if !self.game.sprite_caches.sprites.contains_key(gid) && !self.game.sprite_caches.gr2_models.contains_key(gid) {
+            if !self.game.sprite_caches.sprites.contains_key(gid)
+                && !self.game.sprite_caches.gr2_models.contains_key(gid)
+            {
                 self.game.sprite_caches.failed_sprite_loads.insert(*gid);
             }
         }

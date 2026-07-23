@@ -68,10 +68,11 @@ impl App {
             player.guild_emblem_version = emblem_version;
         }
         if request_emblem {
-            self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
-                gdid,
-                self.active_packetver,
-            ));
+            self.channel
+                .send_packet(ragnarok_network::build_req_guild_emblem_img(
+                    gdid,
+                    self.active_packetver,
+                ));
         }
     }
 
@@ -95,10 +96,7 @@ impl App {
         Self::apply_position_names(guild);
     }
 
-    pub(super) fn handle_guild_member_positions_changed(
-        &mut self,
-        entries: Vec<(u32, u32, i32)>,
-    ) {
+    pub(super) fn handle_guild_member_positions_changed(&mut self, entries: Vec<(u32, u32, i32)>) {
         let guild = self.guild_mut();
         for (aid, gid, position_id) in entries {
             if let Some(m) = guild
@@ -153,7 +151,9 @@ impl App {
         guild.notice_subject = subject.clone();
         guild.notice_body = body.clone();
         if !subject.is_empty() {
-            self.windows.chat_window.add_system(format!("[Guild] {subject}"));
+            self.windows
+                .chat_window
+                .add_system(format!("[Guild] {subject}"));
         }
         if !body.is_empty() {
             self.windows.chat_window.add_system(body);
@@ -182,10 +182,11 @@ impl App {
         if cached || !self.game.requested_guild_emblems.insert((gdid, version)) {
             return;
         }
-        self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
-            gdid,
-            self.active_packetver,
-        ));
+        self.channel
+            .send_packet(ragnarok_network::build_req_guild_emblem_img(
+                gdid,
+                self.active_packetver,
+            ));
     }
 
     pub(super) fn handle_guild_emblem(&mut self, gdid: u32, version: i32, bmp: Vec<u8>) {
@@ -326,13 +327,17 @@ impl App {
     pub(super) fn handle_guild_invite_received(&mut self, gdid: u32, name: String) {
         let msg = format!("Join guild \"{name}\"?");
         self.game
-            .arm_confirm(&mut self.windows, &msg, move |accept| Some(GameEvent::RespondGuildInvite { gdid, accept }));
+            .arm_confirm(&mut self.windows, &msg, move |accept| {
+                Some(GameEvent::RespondGuildInvite { gdid, accept })
+            });
     }
 
     pub(super) fn handle_guild_ally_request_received(&mut self, aid: u32, name: String) {
         let msg = format!("Guild \"{name}\" requests an alliance. Accept?");
         self.game
-            .arm_confirm(&mut self.windows, &msg, move |accept| Some(GameEvent::RespondGuildAlly { aid, accept }));
+            .arm_confirm(&mut self.windows, &msg, move |accept| {
+                Some(GameEvent::RespondGuildAlly { aid, accept })
+            });
     }
 
     pub(super) fn handle_guild_join_result(&mut self, answer: u8) {
@@ -396,7 +401,8 @@ impl App {
     pub(crate) fn local_aid_gid(&self) -> (u32, u32) {
         let aid = self
             .game
-            .session.login_session
+            .session
+            .login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
@@ -461,10 +467,9 @@ impl App {
             });
         }
         if entries.is_empty() {
-            self.windows.chat_window.add_system(format!(
-                "No emblem .bmp found in '{}'.",
-                dir.display()
-            ));
+            self.windows
+                .chat_window
+                .add_system(format!("No emblem .bmp found in '{}'.", dir.display()));
         }
         self.windows.emblem_picker_window.open(entries);
     }
@@ -482,12 +487,16 @@ impl App {
         }
         let compressed = ragnarok_formats::zlib_compress(&bmp);
         self.channel
-            .send_packet(ragnarok_network::build_register_guild_emblem(compressed, self.active_packetver));
-        if let Some(guild) = &self.game.guild {
-            self.channel.send_packet(ragnarok_network::build_req_guild_emblem_img(
-                guild.gdid,
+            .send_packet(ragnarok_network::build_register_guild_emblem(
+                compressed,
                 self.active_packetver,
             ));
+        if let Some(guild) = &self.game.guild {
+            self.channel
+                .send_packet(ragnarok_network::build_req_guild_emblem_img(
+                    guild.gdid,
+                    self.active_packetver,
+                ));
         }
     }
 }

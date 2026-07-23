@@ -196,10 +196,9 @@ impl HotkeyConfigWindow {
                 .staged_interface
                 .conflict(chord, action)
                 .map(|a| a.label().to_string()),
-            CaptureTarget::Emotion(emote) => self
-                .staged_emotion
-                .conflict(chord, emote)
-                .map(emote_label),
+            CaptureTarget::Emotion(emote) => {
+                self.staged_emotion.conflict(chord, emote).map(emote_label)
+            }
         }
     }
 
@@ -259,7 +258,14 @@ impl HotkeyConfigWindow {
             [1.0, 1.0, 0.87, 1.0]
         };
         push(ui, rect.x, rect.y, rect.w, rect.h, [0.55, 0.55, 0.6, 1.0]);
-        push(ui, rect.x + 1.0, rect.y + 1.0, rect.w - 2.0, rect.h - 2.0, inner);
+        push(
+            ui,
+            rect.x + 1.0,
+            rect.y + 1.0,
+            rect.w - 2.0,
+            rect.h - 2.0,
+            inner,
+        );
     }
 }
 
@@ -310,11 +316,7 @@ impl Window for HotkeyConfigWindow {
 }
 
 impl InGameWindow for HotkeyConfigWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -328,7 +330,14 @@ impl InGameWindow for HotkeyConfigWindow {
 
         let default_x = (ui.ctx.screen_width - WIN_W) / 2.0;
         let default_y = (ui.ctx.screen_height - WIN_H) / 2.0;
-        let win = ui.window_at(HOTKEY_CONFIG_WINDOW_ID, WIN_W, WIN_H, TITLE_H, default_x, default_y);
+        let win = ui.window_at(
+            HOTKEY_CONFIG_WINDOW_ID,
+            WIN_W,
+            WIN_H,
+            TITLE_H,
+            default_x,
+            default_y,
+        );
         let (x, y) = (win.x, win.y);
         ui.interact(HOTKEY_CONFIG_WINDOW_ID, Rect::new(x, y, WIN_W, WIN_H));
 
@@ -337,7 +346,12 @@ impl InGameWindow for HotkeyConfigWindow {
         draw_container(ui, x, body_y, WIN_W, body_h, grf);
 
         draw_titlebar(ui, x, y, WIN_W, TITLE_H, grf);
-        ui.text(x + 16.0, y + TITLE_H - 3.0, "Shortcut key setting window", tc);
+        ui.text(
+            x + 16.0,
+            y + TITLE_H - 3.0,
+            "Shortcut key setting window",
+            tc,
+        );
 
         let close_rect = Rect::new(
             x + WIN_W - CLOSE_BTN_SIZE - 3.0,
@@ -477,7 +491,10 @@ impl InGameWindow for HotkeyConfigWindow {
         let (bw, bh) = self.btn_size;
         let (rw, rh) = self.reset_size;
         let reset_rect = Rect::new(x + PAD, footer_y + (FOOTER_H - rh) / 2.0, rw, rh);
-        if ui.button(RESET_BTN_ID, reset_rect, &RESET_BTN, "reset").clicked() {
+        if ui
+            .button(RESET_BTN_ID, reset_rect, &RESET_BTN, "reset")
+            .clicked()
+        {
             self.reset_active_tab();
         }
 

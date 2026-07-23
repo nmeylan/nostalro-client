@@ -190,11 +190,7 @@ impl Window for ChatRoomCreateWindow {
 }
 
 impl InGameWindow for ChatRoomCreateWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -216,7 +212,14 @@ impl InGameWindow for ChatRoomCreateWindow {
 
         let body_h = PAD + ROW_H * BODY_ROWS + PAD;
         let win_h = TITLE_H + body_h + FOOTER_H;
-        let win = ui.window_at(CHAT_ROOM_CREATE_WINDOW_ID, WIN_W, win_h, TITLE_H, 220.0, 120.0);
+        let win = ui.window_at(
+            CHAT_ROOM_CREATE_WINDOW_ID,
+            WIN_W,
+            win_h,
+            TITLE_H,
+            220.0,
+            120.0,
+        );
         let (x, y) = (win.x, win.y);
         ui.interact(CHAT_ROOM_CREATE_WINDOW_ID, Rect::new(x, y, WIN_W, win_h));
 
@@ -337,7 +340,12 @@ impl InGameWindow for ChatRoomCreateWindow {
         let btn_y = footer_y + (FOOTER_H - btn_h) / 2.0;
         let mut bx = x + WIN_W - PAD - btn_w;
         let cancel = ui
-            .button(CANCEL_ID, Rect::new(bx, btn_y, btn_w, btn_h), &CANCEL_BTN, "cancel")
+            .button(
+                CANCEL_ID,
+                Rect::new(bx, btn_y, btn_w, btn_h),
+                &CANCEL_BTN,
+                "cancel",
+            )
             .clicked()
             && !overlay_hit;
         bx -= btn_w + 4.0;
@@ -357,7 +365,8 @@ impl InGameWindow for ChatRoomCreateWindow {
             }
         }
         if let Some(rect) = type_dd.overlay_rect {
-            self.type_dropdown.show_overlay(ui, rect, TYPE_OPTION_BASE, &TYPE_OPTIONS);
+            self.type_dropdown
+                .show_overlay(ui, rect, TYPE_OPTION_BASE, &TYPE_OPTIONS);
         }
 
         if cancel {
@@ -408,11 +417,18 @@ mod tests {
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
-    fn frame(win: &mut ChatRoomCreateWindow, state: &mut StateCache, mx: f32, my: f32, click: bool) -> Vec<GameEvent> {
+    fn frame(
+        win: &mut ChatRoomCreateWindow,
+        state: &mut StateCache,
+        mx: f32,
+        my: f32,
+        click: bool,
+    ) -> Vec<GameEvent> {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut ctx = UiContext::new(800.0, 600.0);

@@ -11,7 +11,9 @@ pub const DEFAULT_MIN_DIST: f32 = 40.0;
 #[derive(Debug, Clone, Copy)]
 pub enum SoundSource {
     /// Non-positional; `depth` is the original's dy volume knob (0.0 = full volume).
-    Ui { depth: f32 },
+    Ui {
+        depth: f32,
+    },
     World([f32; 3]),
 }
 
@@ -35,7 +37,13 @@ impl SoundQueue {
     }
 
     pub fn ui(&mut self, name: impl Into<Cow<'static, str>>) {
-        self.push(name, SoundSource::Ui { depth: 0.0 }, 1.0, DEFAULT_MAX_DIST, DEFAULT_MIN_DIST);
+        self.push(
+            name,
+            SoundSource::Ui { depth: 0.0 },
+            1.0,
+            DEFAULT_MAX_DIST,
+            DEFAULT_MIN_DIST,
+        );
     }
 
     pub fn ui_at_depth(&mut self, name: impl Into<Cow<'static, str>>, depth: f32) {

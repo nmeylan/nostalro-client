@@ -4,13 +4,13 @@ use ragnarok_ai::consts::FriendClass;
 use ragnarok_ai::{AiParams, TacticTable};
 use ragnarok_game::companion::ai::{ActorView, AiContext, AiIntent, Motion};
 use ragnarok_game::entity::{EntityState, EntityType};
-use std::collections::HashMap;
 use ragnarok_game::event::SkillInfo;
 use ragnarok_game::sprite_path::{homunculus_type_index, mercenary_type_index};
 use ragnarok_network::{
     build_companion_attack_packet, build_companion_move_packet,
     build_companion_move_to_owner_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
 };
+use std::collections::HashMap;
 
 impl App {
     pub(crate) fn update_companion_ai(&mut self, delta: f32) {
@@ -60,14 +60,24 @@ impl App {
             })
             .collect();
 
-        if let Some((gid, intents)) =
-            self.tick_homunculus(owner_gid, owner_pos, owner_motion, owner_hp_pct, &actors, delta)
-        {
+        if let Some((gid, intents)) = self.tick_homunculus(
+            owner_gid,
+            owner_pos,
+            owner_motion,
+            owner_hp_pct,
+            &actors,
+            delta,
+        ) {
             self.dispatch_companion_intents(gid, &intents);
         }
-        if let Some((gid, intents)) =
-            self.tick_mercenary(owner_gid, owner_pos, owner_motion, owner_hp_pct, &actors, delta)
-        {
+        if let Some((gid, intents)) = self.tick_mercenary(
+            owner_gid,
+            owner_pos,
+            owner_motion,
+            owner_hp_pct,
+            &actors,
+            delta,
+        ) {
             self.dispatch_companion_intents(gid, &intents);
         }
     }
@@ -76,8 +86,18 @@ impl App {
     /// ack has not landed yet, so the AI doesn't silently no-op waiting for it.
     fn adopt_companion_gid(&mut self, entity_type: EntityType) {
         let missing = match entity_type {
-            EntityType::Homunculus => self.game.companions.homunculus.as_ref().is_some_and(|h| h.gid == 0),
-            EntityType::Mercenary => self.game.companions.mercenary.as_ref().is_some_and(|m| m.gid == 0),
+            EntityType::Homunculus => self
+                .game
+                .companions
+                .homunculus
+                .as_ref()
+                .is_some_and(|h| h.gid == 0),
+            EntityType::Mercenary => self
+                .game
+                .companions
+                .mercenary
+                .as_ref()
+                .is_some_and(|m| m.gid == 0),
             _ => return,
         };
         if !missing {

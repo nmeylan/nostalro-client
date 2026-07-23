@@ -10,8 +10,9 @@ impl App {
     ) {
         self.game.pending_confirms.pending_adopt_request = Some((father_aid, mother_aid));
         let msg = format!("{name} wishes to adopt you. Do you accept?");
-        self.game
-            .arm_confirm(&mut self.windows, &msg, |accept| Some(GameEvent::RespondAdoptionRequest { accept }));
+        self.game.arm_confirm(&mut self.windows, &msg, |accept| {
+            Some(GameEvent::RespondAdoptionRequest { accept })
+        });
     }
 
     pub(super) fn handle_adoption_message(&mut self, msg_no: i32) {

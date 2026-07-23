@@ -62,7 +62,8 @@ impl App {
     pub(super) fn handle_party_member_removed(&mut self, aid: u32, _name: String, _result: u8) {
         let own_aid = self
             .game
-            .session.login_session
+            .session
+            .login_session
             .as_ref()
             .map(|s| s.account_id)
             .unwrap_or(0);
@@ -118,12 +119,10 @@ impl App {
             return;
         }
         let msg = format!("Join party \"{party_name}\"?");
-        self.game.arm_confirm(&mut self.windows, &msg, move |accept| {
-            Some(GameEvent::RespondPartyInvite {
-                party_grid,
-                accept,
-            })
-        });
+        self.game
+            .arm_confirm(&mut self.windows, &msg, move |accept| {
+                Some(GameEvent::RespondPartyInvite { party_grid, accept })
+            });
     }
 
     pub(super) fn handle_party_invite_result(&mut self, name: String, answer: u8) {
@@ -144,9 +143,11 @@ impl App {
             // The party now exists server-side; send any invite that was deferred
             // while waiting for this ack.
             if let Some(aid) = self.game.pending_confirms.pending_invite_aid.take() {
-                self.channel.send_packet(
-                    ragnarok_network::build_req_join_party_packet(aid, self.active_packetver),
-                );
+                self.channel
+                    .send_packet(ragnarok_network::build_req_join_party_packet(
+                        aid,
+                        self.active_packetver,
+                    ));
             }
         } else {
             self.game.pending_confirms.pending_invite_aid = None;

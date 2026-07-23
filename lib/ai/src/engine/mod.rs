@@ -207,7 +207,14 @@ impl OwnerCommand {
         Self::with(CommandKind::SkillArea, x, y, skill_id, level, 0)
     }
 
-    fn with(kind: CommandKind, x: i32, y: i32, skill_id: u16, skill_level: u8, target_gid: u32) -> Self {
+    fn with(
+        kind: CommandKind,
+        x: i32,
+        y: i32,
+        skill_id: u16,
+        skill_level: u8,
+        target_gid: u32,
+    ) -> Self {
         Self {
             kind,
             x,
@@ -313,9 +320,7 @@ impl CompanionAi {
     }
 
     fn aggro_flag(&self, ctx: &AiContext) -> i32 {
-        if ctx.hp_pct() > ctx.params.aggro_hp
-            && ctx.sp_pct() > ctx.params.aggro_sp
-            && !self.standby
+        if ctx.hp_pct() > ctx.params.aggro_hp && ctx.sp_pct() > ctx.params.aggro_sp && !self.standby
         {
             1
         } else {
@@ -449,7 +454,13 @@ impl CompanionAi {
         }
     }
 
-    fn on_move_command(&mut self, mut x: i32, mut y: i32, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+    fn on_move_command(
+        &mut self,
+        mut x: i32,
+        mut y: i32,
+        ctx: &AiContext,
+        out: &mut Vec<AiIntent>,
+    ) {
         if x == self.dest_x && y == self.dest_y && ctx.my_motion == Motion::Move {
             return;
         }
@@ -515,8 +526,7 @@ impl CompanionAi {
         if self.do_idle_upkeep(ctx, out) {
             return;
         }
-        let resting =
-            ctx.owner_motion == Motion::Sit && !ctx.params.do_not_use_rest;
+        let resting = ctx.owner_motion == Motion::Sit && !ctx.params.do_not_use_rest;
         if !ctx.params.super_passive && !resting {
             let object = self.select_enemy(ctx, &self.friend_targets(ctx), None);
             if object != 0 {
@@ -564,8 +574,16 @@ impl CompanionAi {
             return;
         };
         self.idle_walk_ms = self.clock_ms;
-        const OFF: [(i32, i32); 8] =
-            [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)];
+        const OFF: [(i32, i32); 8] = [
+            (1, 0),
+            (1, 1),
+            (0, 1),
+            (-1, 1),
+            (-1, 0),
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+        ];
         let (dx, dy) = OFF[((self.clock_ms / IDLE_WALK_INTERVAL_MS) % 8) as usize];
         let (nx, ny) = (ox + dx * IDLE_WALK_RADIUS, oy + dy * IDLE_WALK_RADIUS);
         if get_distance(ox, oy, nx, ny) < ctx.move_bounds() {
@@ -598,8 +616,7 @@ impl CompanionAi {
         }
         if ctx.params.opportunistic && self.skill == 0 && !ctx.params.super_passive {
             let aggro = self.aggro_flag(ctx);
-            let object =
-                self.select_enemy(ctx, &self.enemy_list(ctx, aggro), Some(self.enemy));
+            let object = self.select_enemy(ctx, &self.enemy_list(ctx, aggro), Some(self.enemy));
             if object != 0 {
                 self.enemy = object;
             }
@@ -749,8 +766,10 @@ impl CompanionAi {
             self.auto_skill_ready_ms = self
                 .clock_ms
                 .wrapping_add(ctx.params.auto_skill_delay.max(0) as u32);
-            self.skill_cooldown =
-                Some((skill_id, self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level))));
+            self.skill_cooldown = Some((
+                skill_id,
+                self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level)),
+            ));
             self.pending_cast = Some(PendingCast {
                 sp_before: ctx.my_sp,
                 at_ms: self.clock_ms,
@@ -828,7 +847,10 @@ impl CompanionAi {
         } else {
             main_attack_skill(ctx.companion_type)?
         };
-        let known = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0)?;
+        let known = ctx
+            .skills
+            .iter()
+            .find(|s| s.id == skill_id && s.level > 0)?;
 
         let tactic = self
             .actor(ctx, self.enemy)
@@ -892,7 +914,11 @@ impl CompanionAi {
         if !ctx.params.use_castle_defend || homun_type(ctx.companion_type) != Some(2) {
             return false;
         }
-        let Some(known) = ctx.skills.iter().find(|s| s.id == HAMI_CASTLE && s.level > 0) else {
+        let Some(known) = ctx
+            .skills
+            .iter()
+            .find(|s| s.id == HAMI_CASTLE && s.level > 0)
+        else {
             return false;
         };
         if (ctx.my_sp as i32) < known.sp_cost as i32 || self.clock_ms < self.castle_ms {
@@ -967,7 +993,11 @@ impl CompanionAi {
             }
             ctx.owner_gid
         };
-        out.push(AiIntent::SkillObject { skill_id, level: known.level, target_gid: target });
+        out.push(AiIntent::SkillObject {
+            skill_id,
+            level: known.level,
+            target_gid: target,
+        });
         self.arm_skill_cooldown(skill_id, known.level, ctx);
         true
     }
@@ -979,7 +1009,11 @@ impl CompanionAi {
             && self.clock_ms >= self.offensive_buff_ms
             && let Some((id, lvl)) = self.buff_ready(ctx, self.offensive_buff_id(ctx))
         {
-            out.push(AiIntent::SkillObject { skill_id: id, level: lvl, target_gid: ctx.my_gid });
+            out.push(AiIntent::SkillObject {
+                skill_id: id,
+                level: lvl,
+                target_gid: ctx.my_gid,
+            });
             self.offensive_buff_ms = self.next_buff_ms(id, lvl, ctx);
             self.arm_skill_cooldown(id, lvl, ctx);
             return true;
@@ -988,7 +1022,11 @@ impl CompanionAi {
             && self.clock_ms >= self.defensive_buff_ms
             && let Some((id, lvl)) = self.buff_ready(ctx, self.defensive_buff_id(ctx))
         {
-            out.push(AiIntent::SkillObject { skill_id: id, level: lvl, target_gid: ctx.my_gid });
+            out.push(AiIntent::SkillObject {
+                skill_id: id,
+                level: lvl,
+                target_gid: ctx.my_gid,
+            });
             self.defensive_buff_ms = self.next_buff_ms(id, lvl, ctx);
             self.arm_skill_cooldown(id, lvl, ctx);
             return true;
@@ -1025,7 +1063,10 @@ impl CompanionAi {
     /// A buff skill the companion has learned and can currently afford.
     fn buff_ready(&self, ctx: &AiContext, skill: Option<u16>) -> Option<(u16, u8)> {
         let skill_id = skill?;
-        let known = ctx.skills.iter().find(|s| s.id == skill_id && s.level > 0)?;
+        let known = ctx
+            .skills
+            .iter()
+            .find(|s| s.id == skill_id && s.level > 0)?;
         if (ctx.my_sp as i32) < known.sp_cost as i32 {
             return None;
         }
@@ -1042,8 +1083,10 @@ impl CompanionAi {
         self.auto_skill_ready_ms = self
             .clock_ms
             .wrapping_add(ctx.params.auto_skill_delay.max(0) as u32);
-        self.skill_cooldown =
-            Some((skill_id, self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level))));
+        self.skill_cooldown = Some((
+            skill_id,
+            self.clock_ms.wrapping_add(reuse_delay_ms(skill_id, level)),
+        ));
     }
 
     fn on_move_cmd(&mut self, ctx: &AiContext) {
@@ -1281,10 +1324,10 @@ fn adjust_ccw(x: i32, y: i32, ox: i32, oy: i32) -> (i32, i32) {
 
 /// MVP and other dangerous classes to flee from (reference avoid list).
 const AVOID_CLASSES: &[u16] = &[
-    1511, 1785, 1039, 1272, 1719, 1046, 1389, 1112, 1115, 1658, 1418, 1768, 1086, 1252, 1832,
-    1734, 1779, 1688, 1373, 1147, 1708, 1059, 1150, 1087, 1190, 1038, 1157, 1159, 1623, 1492,
-    1251, 1583, 1312, 1751, 1685, 1630, 1873, 1874, 1871, 1765, 1829, 1831, 1704, 1706, 1705,
-    1707, 1720, 1754, 1755, 1830, 1839, 1700, 1833, 1837, 1635, 1636, 1634, 1637, 1639, 1638,
+    1511, 1785, 1039, 1272, 1719, 1046, 1389, 1112, 1115, 1658, 1418, 1768, 1086, 1252, 1832, 1734,
+    1779, 1688, 1373, 1147, 1708, 1059, 1150, 1087, 1190, 1038, 1157, 1159, 1623, 1492, 1251, 1583,
+    1312, 1751, 1685, 1630, 1873, 1874, 1871, 1765, 1829, 1831, 1704, 1706, 1705, 1707, 1720, 1754,
+    1755, 1830, 1839, 1700, 1833, 1837, 1635, 1636, 1634, 1637, 1639, 1638,
 ];
 
 fn is_avoid_class(class_id: u16) -> bool {
@@ -1346,12 +1389,18 @@ mod tests {
             let mut t = Tactic::default_row();
             t.id = class_id;
             t.basic = basic;
-            self.tactics = TacticTable::from_rows(&[Tactic::default_row(), Tactic::treasure_row(), t]);
+            self.tactics =
+                TacticTable::from_rows(&[Tactic::default_row(), Tactic::treasure_row(), t]);
             self
         }
 
         fn with_skill(mut self, id: u16, level: u8, sp_cost: u16, range: i32) -> Self {
-            self.skills.push(crate::context::CompanionSkill { id, level, sp_cost, range });
+            self.skills.push(crate::context::CompanionSkill {
+                id,
+                level,
+                sp_cost,
+                range,
+            });
             self
         }
 
@@ -1465,7 +1514,12 @@ mod tests {
         // rather than one per tick (4 ticks = 560ms < 2 * retry window).
         let c = fx.ctx((100, 100), Motion::Stand, Some((115, 100)), &[], &noskill);
         let emitted: usize = (0..4)
-            .map(|_| one_step(&mut ai, &c).iter().filter(|i| matches!(i, AiIntent::MoveToOwner)).count())
+            .map(|_| {
+                one_step(&mut ai, &c)
+                    .iter()
+                    .filter(|i| matches!(i, AiIntent::MoveToOwner))
+                    .count()
+            })
             .sum();
         assert_eq!(emitted, 1);
     }
@@ -1478,13 +1532,25 @@ mod tests {
 
         // Default tactic (Attack) → a free monster in aggro range is chased.
         let actors = [monster(500, 1002, 105, 100, None)];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Chase);
         assert_eq!(ai.enemy, 500);
 
         let actors = [monster(500, 1002, 101, 100, None)];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Attack);
 
@@ -1502,7 +1568,13 @@ mod tests {
 
         // Free React-Low monster is left alone → falls through to following.
         let actors = [monster(500, 2000, 103, 100, None)];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_ne!(ai.state(), AiState::Chase);
 
@@ -1510,7 +1582,13 @@ mod tests {
         let mut atk = monster(500, 2000, 103, 100, Some(ME));
         atk.motion = Motion::Attack;
         let actors = [atk];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Chase);
         assert_eq!(ai.enemy, 500);
@@ -1526,7 +1604,13 @@ mod tests {
         let mut mob = monster(500, 1002, 103, 100, Some(9)); // targeting player 9
         mob.motion = Motion::Attack;
         let actors = [mob, player(9, 104, 100, Some(500))];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_ne!(ai.state(), AiState::Chase);
     }
@@ -1539,7 +1623,13 @@ mod tests {
         let mut ai = CompanionAi::new(false);
 
         let actors = [monster(500, 1002, 101, 100, None)];
-        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let mut c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         c.companion_type = 3;
 
         // Chase → Attack (in melee range).
@@ -1549,14 +1639,21 @@ mod tests {
 
         // First attack tick casts Moonlight, not a melee.
         let out = one_step(&mut ai, &c);
-        assert!(out.contains(&AiIntent::SkillObject { skill_id: HFLI_MOON, level: 5, target_gid: 500 }));
+        assert!(out.contains(&AiIntent::SkillObject {
+            skill_id: HFLI_MOON,
+            level: 5,
+            target_gid: 500
+        }));
         assert!(!out.contains(&AiIntent::Attack { target_gid: 500 }));
 
         // Immediately after, the reuse cooldown gates the skill → it melees.
         let mut melee_seen = false;
         for _ in 0..4 {
             let out = one_step(&mut ai, &c);
-            assert!(!out.iter().any(|i| matches!(i, AiIntent::SkillObject { .. })));
+            assert!(
+                !out.iter()
+                    .any(|i| matches!(i, AiIntent::SkillObject { .. }))
+            );
             if out.contains(&AiIntent::Attack { target_gid: 500 }) {
                 melee_seen = true;
             }
@@ -1571,7 +1668,13 @@ mod tests {
         let mut ai = CompanionAi::new(false);
 
         let actors = [monster(500, 1002, 101, 100, None)];
-        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let mut c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         c.companion_type = 3;
         c.my_sp = 100; // never drops → every cast looks failed
 
@@ -1601,7 +1704,12 @@ mod tests {
         for _ in 0..12 {
             let out = one_step(&mut ai, &c);
             for it in &out {
-                if let AiIntent::SkillObject { skill_id: 8223, target_gid, .. } = it {
+                if let AiIntent::SkillObject {
+                    skill_id: 8223,
+                    target_gid,
+                    ..
+                } = it
+                {
                     assert_eq!(*target_gid, ME);
                     buffed = true;
                 }
@@ -1618,14 +1726,20 @@ mod tests {
         let mut ai = CompanionAi::new(true);
 
         let actors = [monster(500, 1002, 101, 100, None)];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c); // idle -> chase
         one_step(&mut ai, &c); // chase -> attack
         let out = one_step(&mut ai, &c);
-        assert!(out.iter().any(|i| matches!(
-            i,
-            AiIntent::SkillObject { skill_id: 8201, .. }
-        )));
+        assert!(
+            out.iter()
+                .any(|i| matches!(i, AiIntent::SkillObject { skill_id: 8201, .. }))
+        );
     }
 
     #[test]
@@ -1636,7 +1750,13 @@ mod tests {
         let mut ai = CompanionAi::new(false);
 
         let actors = [monster(500, 1002, 101, 100, None)];
-        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let mut c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         c.companion_type = 1;
 
         one_step(&mut ai, &c);
@@ -1644,7 +1764,10 @@ mod tests {
         assert_eq!(ai.state(), AiState::Attack);
         let out = one_step(&mut ai, &c);
         assert!(out.contains(&AiIntent::Attack { target_gid: 500 }));
-        assert!(!out.iter().any(|i| matches!(i, AiIntent::SkillObject { .. })));
+        assert!(
+            !out.iter()
+                .any(|i| matches!(i, AiIntent::SkillObject { .. }))
+        );
     }
 
     #[test]
@@ -1664,7 +1787,12 @@ mod tests {
         for _ in 0..12 {
             let out = one_step(&mut ai, &c);
             for it in &out {
-                if let AiIntent::SkillObject { skill_id, target_gid, .. } = it {
+                if let AiIntent::SkillObject {
+                    skill_id,
+                    target_gid,
+                    ..
+                } = it
+                {
                     assert_eq!(*target_gid, ME);
                     if *skill_id == HFLI_FLEET {
                         off = true;
@@ -1689,7 +1817,13 @@ mod tests {
 
         // Vanilmirth (type 4 → %4==0) meleeing a monster adjacent to the owner.
         let actors = [monster(500, 1002, 101, 100, None)];
-        let mut c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let mut c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         c.companion_type = 4;
 
         one_step(&mut ai, &c); // idle → chase
@@ -1738,7 +1872,13 @@ mod tests {
         // Normal mode: players are never enemies.
         let fx = Fixture::new();
         let mut ai = CompanionAi::new(false);
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_ne!(ai.state(), AiState::Chase);
 
@@ -1746,7 +1886,13 @@ mod tests {
         let mut fx = Fixture::new();
         fx.params.pvp_mode = true;
         let mut ai = CompanionAi::new(false);
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &noskill,
+        );
         one_step(&mut ai, &c);
         assert_eq!(ai.state(), AiState::Chase);
         assert_eq!(ai.enemy, 9);
@@ -1761,7 +1907,13 @@ mod tests {
 
         // Baphomet (class 1039, on the avoid list) right next to us.
         let actors = [monster(500, 1039, 103, 100, None)];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((95, 100)), &actors, &noskill);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((95, 100)),
+            &actors,
+            &noskill,
+        );
 
         let out = one_step(&mut ai, &c);
         assert_ne!(ai.state(), AiState::Chase);
@@ -1779,7 +1931,13 @@ mod tests {
         // A monster attacking the owner (gid OWNER).
         let mob = monster(500, 1002, 96, 100, Some(OWNER));
         let actors = [mob];
-        let mut c = fx.ctx((100, 100), Motion::Stand, Some((95, 100)), &actors, &noskill);
+        let mut c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((95, 100)),
+            &actors,
+            &noskill,
+        );
         c.companion_type = 2; // Amistr
 
         let out = one_step(&mut ai, &c);
@@ -1828,7 +1986,13 @@ mod tests {
             target_gid: None,
         };
         let actors = [me_actor];
-        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &actors, &selfbuff_range);
+        let c = fx.ctx(
+            (100, 100),
+            Motion::Stand,
+            Some((100, 100)),
+            &actors,
+            &selfbuff_range,
+        );
 
         let mut fired = 0;
         for _ in 0..6 {

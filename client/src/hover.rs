@@ -84,14 +84,19 @@ impl App {
         let entities = &self.game.world.entities;
         let map = &self.game.session.map_properties;
 
-        hover.hovered_player_id = ragnarok_game::cursor::hovered_player(mouse, entities, render_list);
+        hover.hovered_player_id =
+            ragnarok_game::cursor::hovered_player(mouse, entities, render_list);
 
         if let Some(gat) = &self.game.session.gat {
             hover.cell_cursor = cursor_type_for_cell(gat, hovered_cell);
         }
 
-        let companion_target_armed =
-            self.game.companions.companion_attack_target.iter().any(Option::is_some);
+        let companion_target_armed = self
+            .game
+            .companions
+            .companion_attack_target
+            .iter()
+            .any(Option::is_some);
         let suppressed = self.input.right_mouse_down
             || ui_any_interactive_hovered
             || ui_any_hovered

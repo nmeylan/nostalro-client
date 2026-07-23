@@ -383,7 +383,11 @@ mod tests {
         let mut r = PetRoulette::new(42);
 
         r.advance(&act, delay_ms, 0.0);
-        assert_eq!(r.state, RouletteState::Idle, "idles until the result arrives");
+        assert_eq!(
+            r.state,
+            RouletteState::Idle,
+            "idles until the result arrives"
+        );
 
         r.resolve(false);
         assert_eq!(r.state, RouletteState::Spinning);

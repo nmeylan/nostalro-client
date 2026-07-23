@@ -177,11 +177,7 @@ impl VendingSetupWindow {
             .collect()
     }
 
-    pub fn build_available(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    pub fn build_available(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -199,12 +195,24 @@ impl VendingSetupWindow {
         let win_w = AVAIL_PAD + grid_w + SCROLLBAR_W + AVAIL_PAD;
         let win_h = TITLE_H + AVAIL_PAD + grid_h + AVAIL_PAD;
 
-        let win = ui.window_at(VENDING_AVAILABLE_WINDOW_ID, win_w, win_h, TITLE_H, 560.0, 70.0);
+        let win = ui.window_at(
+            VENDING_AVAILABLE_WINDOW_ID,
+            win_w,
+            win_h,
+            TITLE_H,
+            560.0,
+            70.0,
+        );
         let (wx, wy) = (win.x, win.y);
         ui.interact(VENDING_AVAILABLE_WINDOW_ID, Rect::new(wx, wy, win_w, win_h));
 
         draw_titlebar(ui, wx, wy, win_w, TITLE_H, grf);
-        ui.text(wx + 17.0, wy + TITLE_H - 3.0, "Available items for Vending", tc);
+        ui.text(
+            wx + 17.0,
+            wy + TITLE_H - 3.0,
+            "Available items for Vending",
+            tc,
+        );
 
         let body_y = wy + TITLE_H;
         draw_container(ui, wx, body_y, win_w, AVAIL_PAD + grid_h + AVAIL_PAD, grf);
@@ -237,15 +245,26 @@ impl VendingSetupWindow {
             let resp = ui.interact(WidgetId(AVAIL_CELL_BASE_ID + slot as u32), cell_rect);
 
             if grf {
-                let (v, i) =
-                    draw::quad_vertices(cx + CELL_PAD, cy + CELL_PAD, CELL_ICON, CELL_ICON, [1.0; 4]);
+                let (v, i) = draw::quad_vertices(
+                    cx + CELL_PAD,
+                    cy + CELL_PAD,
+                    CELL_ICON,
+                    CELL_ICON,
+                    [1.0; 4],
+                );
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
                     texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                 });
             } else {
-                crate::helper::fallback::slot_cell(ui, cx + CELL_PAD, cy + CELL_PAD, CELL_ICON, CELL_ICON);
+                crate::helper::fallback::slot_cell(
+                    ui,
+                    cx + CELL_PAD,
+                    cy + CELL_PAD,
+                    CELL_ICON,
+                    CELL_ICON,
+                );
             }
 
             let item_idx = start + slot;
@@ -333,7 +352,10 @@ impl Window for VendingSetupWindow {
     }
     fn window_size(&self) -> (f32, f32) {
         let list_h = VISIBLE_ROWS as f32 * ROW_H;
-        (WIN_W, TITLE_H + PAD + NAME_ROW_H + PAD + list_h + PAD + FOOTER_H)
+        (
+            WIN_W,
+            TITLE_H + PAD + NAME_ROW_H + PAD + list_h + PAD + FOOTER_H,
+        )
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
@@ -358,11 +380,7 @@ impl Window for VendingSetupWindow {
 }
 
 impl InGameWindow for VendingSetupWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -450,14 +468,25 @@ impl InGameWindow for VendingSetupWindow {
                     texture: TextureRef::Named(ITEMWIN_MID_TEX.to_string()),
                 });
             } else {
-                crate::helper::fallback::slot_cell(ui, cell_rect.x, cell_rect.y, ICON_SIZE, ICON_SIZE);
+                crate::helper::fallback::slot_cell(
+                    ui,
+                    cell_rect.x,
+                    cell_rect.y,
+                    ICON_SIZE,
+                    ICON_SIZE,
+                );
             }
 
             let handle = ui.interact(WidgetId(ROW_DRAG_BASE_ID + vis as u32), cell_rect);
             if let Some(item) = self.slots[slot].item.as_ref() {
                 if let Some(icon) = &item.icon {
-                    let (v, i) =
-                        draw::quad_vertices(cell_rect.x, cell_rect.y, ICON_SIZE, ICON_SIZE, [1.0; 4]);
+                    let (v, i) = draw::quad_vertices(
+                        cell_rect.x,
+                        cell_rect.y,
+                        ICON_SIZE,
+                        ICON_SIZE,
+                        [1.0; 4],
+                    );
                     ui.draw_calls.push(DrawCall {
                         vertices: v.to_vec(),
                         indices: i.to_vec(),
@@ -510,7 +539,12 @@ impl InGameWindow for VendingSetupWindow {
                 && source_id == VENDING_AVAILABLE_WINDOW_ID
                 && let Some(cart_item) = character.cart.get_item(cart_index as u16)
             {
-                self.place_item(slot, cart_item.index, cart_item.count, cart_item.icon_path());
+                self.place_item(
+                    slot,
+                    cart_item.index,
+                    cart_item.count,
+                    cart_item.icon_path(),
+                );
             }
         }
 
@@ -523,7 +557,12 @@ impl InGameWindow for VendingSetupWindow {
 
         let mut bx = dx + WIN_W - PAD - btn_w;
         let cancel = ui
-            .button(CANCEL_ID, Rect::new(bx, btn_y, btn_w, btn_h), &CANCEL_BTN, "cancel")
+            .button(
+                CANCEL_ID,
+                Rect::new(bx, btn_y, btn_w, btn_h),
+                &CANCEL_BTN,
+                "cancel",
+            )
             .clicked();
         bx -= btn_w + 4.0;
         let ok = ui
@@ -531,7 +570,12 @@ impl InGameWindow for VendingSetupWindow {
             .clicked();
         bx -= reset_w + 4.0;
         let reset = ui
-            .button(RESET_ID, Rect::new(bx, reset_y, reset_w, reset_h), &RESET_BTN, "Reset")
+            .button(
+                RESET_ID,
+                Rect::new(bx, reset_y, reset_w, reset_h),
+                &RESET_BTN,
+                "Reset",
+            )
             .clicked();
 
         if ok {

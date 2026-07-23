@@ -187,12 +187,18 @@ mod tests {
     fn energy_coat_and_overthrust_change_the_body_not_a_detached_effect() {
         let ec = BodyBuffEffect::new(ENERGY_COAT);
         assert!(ec.body_tint().is_some(), "energy coat tints the body");
-        assert!(ec.body_afterimage().is_some(), "energy coat sheds afterimages");
+        assert!(
+            ec.body_afterimage().is_some(),
+            "energy coat sheds afterimages"
+        );
         assert_eq!(ec.str_overlay(), Some("energycoat"));
 
         let ot = BodyBuffEffect::new(OVERTHRUST);
         assert!(ot.body_tint().is_some(), "overthrust tints the body");
-        assert!(ot.body_afterimage().is_some(), "overthrust sheds afterimages");
+        assert!(
+            ot.body_afterimage().is_some(),
+            "overthrust sheds afterimages"
+        );
     }
 
     #[test]

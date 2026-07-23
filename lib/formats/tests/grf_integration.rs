@@ -132,11 +132,17 @@ fn open_layered_first_archive_wins() {
 
     write_grf(
         &primary,
-        &[("data/shared.txt", b"primary"), ("data/only_primary.txt", b"P")],
+        &[
+            ("data/shared.txt", b"primary"),
+            ("data/only_primary.txt", b"P"),
+        ],
     );
     write_grf(
         &overlay,
-        &[("data/shared.txt", b"overlay"), ("data/only_overlay.txt", b"O")],
+        &[
+            ("data/shared.txt", b"overlay"),
+            ("data/only_overlay.txt", b"O"),
+        ],
     );
 
     let grf = GrfArchive::open_layered(
@@ -163,17 +169,17 @@ fn open_layered_data_dir_overrides_archives() {
 
     write_grf(
         &primary,
-        &[("data/sub/shared.txt", b"from_grf"), ("data/only_grf.txt", b"G")],
+        &[
+            ("data/sub/shared.txt", b"from_grf"),
+            ("data/only_grf.txt", b"G"),
+        ],
     );
 
     std::fs::create_dir_all(dir.join("Sub")).unwrap();
     std::fs::write(dir.join("Sub/Shared.txt"), b"from_disk").unwrap();
 
-    let grf = GrfArchive::open_layered(
-        &[primary.to_string_lossy().into_owned()],
-        Some(&dir),
-    )
-    .unwrap();
+    let grf =
+        GrfArchive::open_layered(&[primary.to_string_lossy().into_owned()], Some(&dir)).unwrap();
 
     // Disk file wins over the archive, matched case-insensitively without the data/ prefix.
     assert_eq!(grf.read_file("data/sub/shared.txt").unwrap(), b"from_disk");

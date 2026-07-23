@@ -4,7 +4,11 @@ use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::grf::GrfArchive;
 
 fn open_any_grf() -> Option<GrfArchive> {
-    for p in ["data/data.grf", "../../data/data.grf", "../../../../data/data.grf"] {
+    for p in [
+        "data/data.grf",
+        "../../data/data.grf",
+        "../../../../data/data.grf",
+    ] {
         if Path::new(p).exists() {
             return Some(GrfArchive::open(Path::new(p)).expect("open grf"));
         }
@@ -76,7 +80,11 @@ fn extract_gr2_model() {
     assert_eq!(vd.vertices.len(), 159);
     assert_eq!(topo.indices.len(), 414);
     assert_eq!(topo.groups[0].tri_count, 138);
-    assert!(topo.indices.iter().all(|&i| (i as usize) < vd.vertices.len()));
+    assert!(
+        topo.indices
+            .iter()
+            .all(|&i| (i as usize) < vd.vertices.len())
+    );
 
     let tex = f.textures.first().expect("texture");
     assert_eq!((tex.width, tex.height), (256, 256));
@@ -103,7 +111,11 @@ fn extract_gr2_model() {
         let vd = &f.vertex_datas[mesh.vertex_data_index.expect("vertexdata bound")];
         let topo = &f.tri_topologies[mesh.topology_index.expect("topology bound")];
         assert!(!vd.vertices.is_empty());
-        assert!(topo.indices.iter().all(|&i| (i as usize) < vd.vertices.len()));
+        assert!(
+            topo.indices
+                .iter()
+                .all(|&i| (i as usize) < vd.vertices.len())
+        );
     }
 
     // A skeleton-only animation file: an animation with tracks but no meshes.
@@ -117,7 +129,3 @@ fn extract_gr2_model() {
     let tg = &f.track_groups[anim.track_group_indices[0]];
     assert!(!tg.transform_tracks.is_empty());
 }
-
-
-
-

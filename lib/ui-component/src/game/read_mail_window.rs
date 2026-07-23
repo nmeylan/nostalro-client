@@ -18,9 +18,21 @@ const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/maillis
 macro_rules! btn {
     ($name:literal) => {
         ButtonTextures {
-            normal: concat!("data/texture/유저인터페이스/basic_interface/", $name, ".bmp"),
-            hover: concat!("data/texture/유저인터페이스/basic_interface/", $name, "_a.bmp"),
-            pressed: concat!("data/texture/유저인터페이스/basic_interface/", $name, "_a.bmp"),
+            normal: concat!(
+                "data/texture/유저인터페이스/basic_interface/",
+                $name,
+                ".bmp"
+            ),
+            hover: concat!(
+                "data/texture/유저인터페이스/basic_interface/",
+                $name,
+                "_a.bmp"
+            ),
+            pressed: concat!(
+                "data/texture/유저인터페이스/basic_interface/",
+                $name,
+                "_a.bmp"
+            ),
         }
     };
 }
@@ -120,11 +132,7 @@ impl Window for ReadMailWindow {
 }
 
 impl InGameWindow for ReadMailWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
         if !character.mail.read_open || character.mail.opened.is_none() {
@@ -172,17 +180,17 @@ impl InGameWindow for ReadMailWindow {
         // Body (wrapped, read-only).
         let lines = wrap_lines(ui, &body, BODY_W);
         for (i, line) in lines.iter().take(14).enumerate() {
-            ui.text(
-                x + BODY_X_OFF,
-                y + BODY_Y_OFF + i as f32 * LINE_H,
-                line,
-                tc,
-            );
+            ui.text(x + BODY_X_OFF, y + BODY_Y_OFF + i as f32 * LINE_H, line, tc);
         }
 
         // Attachment row.
         let attach_y = y + WIN_H - 68.0;
-        let slot_rect = Rect::new(x + WIN_W - BODY_X_OFF - SLOT_SIZE - 8.0, attach_y, SLOT_SIZE, SLOT_SIZE);
+        let slot_rect = Rect::new(
+            x + WIN_W - BODY_X_OFF - SLOT_SIZE - 8.0,
+            attach_y,
+            SLOT_SIZE,
+            SLOT_SIZE,
+        );
         if !grf {
             crate::helper::fallback::slot_cell(ui, slot_rect.x, slot_rect.y, SLOT_SIZE, SLOT_SIZE);
         }
@@ -202,7 +210,8 @@ impl InGameWindow for ReadMailWindow {
                     .map(|s| s.to_string())
             });
             if let Some(res) = &resource_name {
-                let (v, i) = draw::quad_vertices(slot_rect.x, slot_rect.y, SLOT_SIZE, SLOT_SIZE, [1.0; 4]);
+                let (v, i) =
+                    draw::quad_vertices(slot_rect.x, slot_rect.y, SLOT_SIZE, SLOT_SIZE, [1.0; 4]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
@@ -214,7 +223,12 @@ impl InGameWindow for ReadMailWindow {
             if mail_item.amount > 1 {
                 let cnt = mail_item.amount.to_string();
                 let cw = ui.atlas.measure_text(&cnt);
-                ui.text(slot_rect.x + SLOT_SIZE - cw, slot_rect.y + SLOT_SIZE, &cnt, [0.0, 0.0, 0.0, 1.0]);
+                ui.text(
+                    slot_rect.x + SLOT_SIZE - cw,
+                    slot_rect.y + SLOT_SIZE,
+                    &cnt,
+                    [0.0, 0.0, 0.0, 1.0],
+                );
             }
             if slot_resp.hovered() {
                 ui.tooltip(slot_rect.x, slot_rect.y - 16.0, &name);
@@ -244,14 +258,25 @@ impl InGameWindow for ReadMailWindow {
         let reply_rect = Rect::new(x + WIN_W - 100.0, btn_y, 43.0, 21.0);
         let delete_rect = Rect::new(x + WIN_W - 52.0, btn_y, 43.0, 21.0);
 
-        if ui.button(READ_RETURN_BTN_ID, return_rect, &RETURN_BTN, "Return").clicked() {
+        if ui
+            .button(READ_RETURN_BTN_ID, return_rect, &RETURN_BTN, "Return")
+            .clicked()
+        {
             events.push(GameEvent::RequestMailReturn {
                 mail_id,
                 sender: sender.clone(),
             });
         }
-        if ui.button(READ_REPLY_BTN_ID, reply_rect, &REPLY_BTN, "Reply").clicked() {
-            let title = character.mail.opened.as_ref().map(|o| o.title.clone()).unwrap_or_default();
+        if ui
+            .button(READ_REPLY_BTN_ID, reply_rect, &REPLY_BTN, "Reply")
+            .clicked()
+        {
+            let title = character
+                .mail
+                .opened
+                .as_ref()
+                .map(|o| o.title.clone())
+                .unwrap_or_default();
             character.mail.window_open = true;
             character.mail.mode = ragnarok_game::mail::MailboxMode::Compose;
             character.mail.compose_prefill = Some((sender.clone(), format!("RE:{title}")));
@@ -273,7 +298,10 @@ impl InGameWindow for ReadMailWindow {
 
         // Close.
         let close_rect = Rect::new(x + WIN_W - 17.0, y + 3.0, 16.0, 11.0);
-        if ui.button(READ_CLOSE_BTN_ID, close_rect, &CLOSE_BTN, "x").clicked() {
+        if ui
+            .button(READ_CLOSE_BTN_ID, close_rect, &CLOSE_BTN, "x")
+            .clicked()
+        {
             character.mail.read_open = false;
             character.mail.opened = None;
         }

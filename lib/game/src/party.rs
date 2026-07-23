@@ -107,7 +107,10 @@ mod tests {
         assert_eq!((m.hp, m.max_hp), (Some(80), Some(200)));
 
         party.set_position(2, 150, 160);
-        assert_eq!((party.member(2).unwrap().x, party.member(2).unwrap().y), (150, 160));
+        assert_eq!(
+            (party.member(2).unwrap().x, party.member(2).unwrap().y),
+            (150, 160)
+        );
 
         party.remove_member(1);
         assert_eq!(party.members.len(), 1);

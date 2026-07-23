@@ -1,9 +1,9 @@
-use crate::{BuildCtx, InGameWindow, Window};
 use crate::helper::colors;
 use crate::helper::dropdown::{self, Dropdown};
 use crate::helper::window_chrome::{
     TITLEBAR_TEX, draw_container, draw_sys_button, draw_titlebar, label_color, text_color,
 };
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::pet::PetState;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
@@ -127,7 +127,8 @@ impl PetWindow {
         let ill_x = x + PAD;
         let ill_y = y + TITLE_H + PAD;
         if grf {
-            let (v, i) = draw::quad_vertices(ill_x, ill_y, ILLUST_W, ILLUST_H, [1.0, 1.0, 1.0, 1.0]);
+            let (v, i) =
+                draw::quad_vertices(ill_x, ill_y, ILLUST_W, ILLUST_H, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),
@@ -193,11 +194,19 @@ impl PetWindow {
         // Command dropdown.
         let dd_rect = Rect::new(rx, ry, right_edge - rx, 16.0);
         let labels: Vec<&str> = COMMANDS.iter().map(|(l, _)| *l).collect();
-        let dd = self
-            .command
-            .show(ui, COMMAND_DROPDOWN_ID, dd_rect, "Command", labels.len(), bounds, false);
+        let dd = self.command.show(
+            ui,
+            COMMAND_DROPDOWN_ID,
+            dd_rect,
+            "Command",
+            labels.len(),
+            bounds,
+            false,
+        );
         if let Some(rect) = dd.overlay_rect
-            && let Some(idx) = self.command.show_overlay(ui, rect, COMMAND_OPTION_BASE, &labels)
+            && let Some(idx) = self
+                .command
+                .show_overlay(ui, rect, COMMAND_OPTION_BASE, &labels)
         {
             let csub = COMMANDS[idx].1;
             if csub == 1 {

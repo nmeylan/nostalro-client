@@ -14,7 +14,10 @@ impl BookContent {
             Some(rest)
                 if rest.len() >= 6 && rest.as_bytes()[..6].iter().all(u8::is_ascii_hexdigit) =>
             {
-                (parse_hex_color(&rest[..6]).unwrap_or(DEFAULT_BG), &rest[6..])
+                (
+                    parse_hex_color(&rest[..6]).unwrap_or(DEFAULT_BG),
+                    &rest[6..],
+                )
             }
             _ => (DEFAULT_BG, text.as_str()),
         };
@@ -41,8 +44,18 @@ mod tests {
     fn parses_bg_color_and_body_lines() {
         let raw = b"%f5f5dc^000088First line\nsecond line\r\nthird";
         let book = BookContent::parse(raw);
-        assert_eq!(book.bg_color, [0xf5 as f32 / 255.0, 0xf5 as f32 / 255.0, 0xdc as f32 / 255.0]);
-        assert_eq!(book.lines, vec!["^000088First line", "second line", "third"]);
+        assert_eq!(
+            book.bg_color,
+            [
+                0xf5 as f32 / 255.0,
+                0xf5 as f32 / 255.0,
+                0xdc as f32 / 255.0
+            ]
+        );
+        assert_eq!(
+            book.lines,
+            vec!["^000088First line", "second line", "third"]
+        );
     }
 
     #[test]

@@ -131,11 +131,7 @@ impl Window for GraphicOptionsWindow {
 }
 
 impl InGameWindow for GraphicOptionsWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -148,15 +144,35 @@ impl InGameWindow for GraphicOptionsWindow {
 
         let default_x = (ui.ctx.screen_width - WIN_W) / 2.0;
         let default_y = (ui.ctx.screen_height - WIN_H) / 2.0;
-        let win = ui.window_at(GRAPHIC_OPTIONS_WINDOW_ID, WIN_W, WIN_H, TITLE_H, default_x, default_y);
-        ui.interact(GRAPHIC_OPTIONS_WINDOW_ID, Rect::new(win.x, win.y, WIN_W, WIN_H));
+        let win = ui.window_at(
+            GRAPHIC_OPTIONS_WINDOW_ID,
+            WIN_W,
+            WIN_H,
+            TITLE_H,
+            default_x,
+            default_y,
+        );
+        ui.interact(
+            GRAPHIC_OPTIONS_WINDOW_ID,
+            Rect::new(win.x, win.y, WIN_W, WIN_H),
+        );
 
         crate::helper::fallback::window_body(ui, win.x, win.y + TITLE_H, WIN_W, WIN_H - TITLE_H);
 
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
-        ui.text(win.x + 20.0, win.y + TITLE_H - 5.0, "Graphic Settings", text_color(grf));
+        ui.text(
+            win.x + 20.0,
+            win.y + TITLE_H - 5.0,
+            "Graphic Settings",
+            text_color(grf),
+        );
 
-        let close_rect = Rect::new(win.x + WIN_W - CLOSE_SIZE - 4.0, win.y + 4.0, CLOSE_SIZE, CLOSE_SIZE);
+        let close_rect = Rect::new(
+            win.x + WIN_W - CLOSE_SIZE - 4.0,
+            win.y + 4.0,
+            CLOSE_SIZE,
+            CLOSE_SIZE,
+        );
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
         if close_resp.hovered() {
             ui.any_interactive_hovered = true;
@@ -205,15 +221,22 @@ impl InGameWindow for GraphicOptionsWindow {
         );
 
         let fs_cb = Rect::new(win.x + 185.0, cb_y(0), CB_SIZE, CB_SIZE);
-        changed |= ui.checkbox(FULLSCREEN_CB_ID, fs_cb, &mut self.fullscreen, &CHECKBOX).clicked();
-        ui.text(fs_cb.x + CB_SIZE + 4.0, text_y(0), "Full Screen", label_color);
+        changed |= ui
+            .checkbox(FULLSCREEN_CB_ID, fs_cb, &mut self.fullscreen, &CHECKBOX)
+            .clicked();
+        ui.text(
+            fs_cb.x + CB_SIZE + 4.0,
+            text_y(0),
+            "Full Screen",
+            label_color,
+        );
 
         let check_row = |ui: &mut UiFrame,
-                             n: usize,
-                             id: WidgetId,
-                             x: f32,
-                             label: &str,
-                             value: &mut bool|
+                         n: usize,
+                         id: WidgetId,
+                         x: f32,
+                         label: &str,
+                         value: &mut bool|
          -> bool {
             let rect = Rect::new(x, cb_y(n), CB_SIZE, CB_SIZE);
             let clicked = ui.checkbox(id, rect, value, &CHECKBOX).clicked();
@@ -223,8 +246,22 @@ impl InGameWindow for GraphicOptionsWindow {
 
         let x0 = win.x + 10.0;
         changed |= check_row(ui, 1, FOG_CB_ID, x0, "Fog", &mut self.fog);
-        changed |= check_row(ui, 2, EFFECTS_CB_ID, x0, "Skill effects", &mut self.show_skill_effects);
-        changed |= check_row(ui, 3, AURA_CB_ID, x0, "Level 99 aura", &mut self.display.show_level_aura);
+        changed |= check_row(
+            ui,
+            2,
+            EFFECTS_CB_ID,
+            x0,
+            "Skill effects",
+            &mut self.show_skill_effects,
+        );
+        changed |= check_row(
+            ui,
+            3,
+            AURA_CB_ID,
+            x0,
+            "Level 99 aura",
+            &mut self.display.show_level_aura,
+        );
         changed |= check_row(
             ui,
             4,
@@ -246,9 +283,22 @@ impl InGameWindow for GraphicOptionsWindow {
         let mut show_player = !self.display.hide_name_player;
         let mut show_monster = !self.display.hide_name_monster;
         let mut show_npc = !self.display.hide_name_npc;
-        let names_changed = check_row(ui, 6, NAME_PLAYER_CB_ID, win.x + 92.0, "Player", &mut show_player)
-            | check_row(ui, 6, NAME_MONSTER_CB_ID, win.x + 152.0, "Monster", &mut show_monster)
-            | check_row(ui, 6, NAME_NPC_CB_ID, win.x + 220.0, "NPC", &mut show_npc);
+        let names_changed =
+            check_row(
+                ui,
+                6,
+                NAME_PLAYER_CB_ID,
+                win.x + 92.0,
+                "Player",
+                &mut show_player,
+            ) | check_row(
+                ui,
+                6,
+                NAME_MONSTER_CB_ID,
+                win.x + 152.0,
+                "Monster",
+                &mut show_monster,
+            ) | check_row(ui, 6, NAME_NPC_CB_ID, win.x + 220.0, "NPC", &mut show_npc);
         if names_changed {
             self.display.hide_name_player = !show_player;
             self.display.hide_name_monster = !show_monster;
@@ -257,7 +307,14 @@ impl InGameWindow for GraphicOptionsWindow {
         }
 
         ui.text(x0, text_y(7), "Auto-refuse:", label_color);
-        changed |= check_row(ui, 7, REFUSE_TRADE_CB_ID, win.x + 92.0, "Trade", &mut self.refuse_trade);
+        changed |= check_row(
+            ui,
+            7,
+            REFUSE_TRADE_CB_ID,
+            win.x + 92.0,
+            "Trade",
+            &mut self.refuse_trade,
+        );
         changed |= check_row(
             ui,
             7,
@@ -269,9 +326,9 @@ impl InGameWindow for GraphicOptionsWindow {
 
         if let Some(overlay) = dd_resp.overlay_rect {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
-            if let Some(idx) = self
-                .dropdown
-                .show_overlay(ui, overlay, UI_SCALE_OPTION_BASE, &label_refs)
+            if let Some(idx) =
+                self.dropdown
+                    .show_overlay(ui, overlay, UI_SCALE_OPTION_BASE, &label_refs)
             {
                 if idx != self.selected_ui_scale {
                     self.selected_ui_scale = idx;
@@ -292,9 +349,9 @@ impl InGameWindow for GraphicOptionsWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InGameWindow;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use crate::InGameWindow;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -354,7 +411,12 @@ mod tests {
         );
         assert_eq!(events.len(), 1);
         match &events[0] {
-            GameEvent::GraphicsSettingsChanged { fog, persist, ui_scale, .. } => {
+            GameEvent::GraphicsSettingsChanged {
+                fog,
+                persist,
+                ui_scale,
+                ..
+            } => {
                 assert!(*fog);
                 assert!(*persist);
                 assert_eq!(*ui_scale, 100.0);

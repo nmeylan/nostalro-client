@@ -174,7 +174,12 @@ impl TradeWindow {
             let name = format_equipment_display_name(item, slot_count_table, card_name_table);
             let short: String = name.chars().take(NAME_MAX_CHARS).collect();
             let name_color = if item.is_identified { tc } else { GREY };
-            ui.text(col_x + ICON + 5.0, ry + ROW_H / 2.0 + 4.0, &short, name_color);
+            ui.text(
+                col_x + ICON + 5.0,
+                ry + ROW_H / 2.0 + 4.0,
+                &short,
+                name_color,
+            );
             let cnt = item.count.to_string();
             let cw = ui.atlas.measure_text(&cnt);
             ui.text(
@@ -206,7 +211,12 @@ fn draw_disabled(ui: &mut UiFrame, rect: Rect, tex: &str, label: &str, grf: bool
     } else {
         crate::helper::fallback::cell(ui, rect.x, rect.y, rect.w, rect.h, false);
         let lw = ui.atlas.measure_text(label);
-        ui.text(rect.x + (rect.w - lw) / 2.0, rect.y + rect.h / 2.0 + 4.0, label, tc);
+        ui.text(
+            rect.x + (rect.w - lw) / 2.0,
+            rect.y + rect.h / 2.0 + 4.0,
+            label,
+            tc,
+        );
     }
 }
 
@@ -246,11 +256,7 @@ impl Window for TradeWindow {
 }
 
 impl InGameWindow for TradeWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
         if !character.trade.is_active() {
@@ -302,8 +308,28 @@ impl InGameWindow for TradeWindow {
         let items_top = body_y + HEADER_H;
         let my_items: Vec<Item> = character.trade.my_items().to_vec();
         let other_items: Vec<Item> = character.trade.other_items().to_vec();
-        self.draw_item_column(ui, &my_items, x, items_top, MY_ROW_BASE, data, grf, tc, my_locked);
-        self.draw_item_column(ui, &other_items, right_x, items_top, OTHER_ROW_BASE, data, grf, tc, other_locked);
+        self.draw_item_column(
+            ui,
+            &my_items,
+            x,
+            items_top,
+            MY_ROW_BASE,
+            data,
+            grf,
+            tc,
+            my_locked,
+        );
+        self.draw_item_column(
+            ui,
+            &other_items,
+            right_x,
+            items_top,
+            OTHER_ROW_BASE,
+            data,
+            grf,
+            tc,
+            other_locked,
+        );
 
         // --- Add items from inventory onto my column (drop zone) ---
         let my_col_rect = Rect::new(x, items_top, COL_W, TRADE_MAX_SLOTS as f32 * ROW_H);
@@ -334,8 +360,13 @@ impl InGameWindow for TradeWindow {
             let mw = ui.atlas.measure_text(&my_zeny_txt);
             ui.text(x + COL_W - 36.0 - mw, baseline, &my_zeny_txt, tc);
         } else {
-            let input_rect = Rect::new(x + COL_W / 2.0 - 32.0, zeny_y + -18.0 , COL_W / 2.0 , 18.0);
-            ui.text_input(ZENY_INPUT_ID, input_rect, &mut self.zeny_input, TextInputBg::Gray);
+            let input_rect = Rect::new(x + COL_W / 2.0 - 32.0, zeny_y + -18.0, COL_W / 2.0, 18.0);
+            ui.text_input(
+                ZENY_INPUT_ID,
+                input_rect,
+                &mut self.zeny_input,
+                TextInputBg::Gray,
+            );
         }
         let other_zeny_txt = format!("{}z", character.trade.other_zeny());
         let ow = ui.atlas.measure_text(&other_zeny_txt);
@@ -347,7 +378,10 @@ impl InGameWindow for TradeWindow {
         let lock_rect = Rect::new(x + 6.0, by, BTN_W, BTN_H);
         if my_locked {
             draw_disabled(ui, lock_rect, LOCK_BTN_DIS, "Lock", grf, tc);
-        } else if ui.button(LOCK_BTN_ID, lock_rect, &LOCK_BTN, "Lock").clicked() {
+        } else if ui
+            .button(LOCK_BTN_ID, lock_rect, &LOCK_BTN, "Lock")
+            .clicked()
+        {
             let amount: i64 = self
                 .zeny_input
                 .text
@@ -358,7 +392,9 @@ impl InGameWindow for TradeWindow {
                 .unwrap_or(0);
             let capped = amount.min(character.inventory.zeny as i64).max(0);
             if capped > 0 {
-                character.trade.set_pending_add(TRADE_ZENY_INDEX, capped as i32);
+                character
+                    .trade
+                    .set_pending_add(TRADE_ZENY_INDEX, capped as i32);
                 events.push(GameEvent::RequestAddExchangeItem {
                     index: TRADE_ZENY_INDEX,
                     count: capped as i32,
@@ -369,7 +405,10 @@ impl InGameWindow for TradeWindow {
 
         let trade_rect = Rect::new(x + (WIN_W - BTN_W) / 2.0, by, BTN_W, BTN_H);
         if character.trade.both_locked() {
-            if ui.button(TRADE_BTN_ID, trade_rect, &TRADE_BTN, "Trade").clicked() {
+            if ui
+                .button(TRADE_BTN_ID, trade_rect, &TRADE_BTN, "Trade")
+                .clicked()
+            {
                 events.push(GameEvent::RequestExecExchange);
             }
         } else {
@@ -424,7 +463,8 @@ mod tests {
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -454,7 +494,9 @@ mod tests {
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
-            events.iter().any(|e| matches!(e, GameEvent::RequestConcludeExchange)),
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestConcludeExchange)),
             "lock must send conclude, got {events:?}"
         );
 
@@ -468,7 +510,9 @@ mod tests {
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
-            events.iter().any(|e| matches!(e, GameEvent::RequestCancelExchange)),
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestCancelExchange)),
             "cancel must notify server, got {events:?}"
         );
         assert!(!character.trade.is_active());

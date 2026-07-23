@@ -15,7 +15,9 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 impl App {
     pub(crate) fn capture_window_state(&mut self) {
         let positions = self.ui_state_cache.extract_window_positions();
-        let open_collapsed = self.game.extract_window_state(&self.windows, &self.ui_state_cache);
+        let open_collapsed = self
+            .game
+            .extract_window_state(&self.windows, &self.ui_state_cache);
         let mut window_state = HashMap::new();
         for (id, pos) in &positions {
             let (open, collapsed) = open_collapsed.get(id).copied().unwrap_or((false, false));
@@ -71,7 +73,8 @@ impl App {
                                     self.has_mercenary(),
                                     self.input.right_press_target,
                                 );
-                            } else if !self.open_companion_context_menu(self.input.right_press_target)
+                            } else if !self
+                                .open_companion_context_menu(self.input.right_press_target)
                                 && !self.open_pet_context_menu(self.input.right_press_target)
                             {
                                 self.open_entity_context_menu(self.input.right_press_entity);
@@ -132,7 +135,9 @@ impl App {
             vec![
                 ContextMenuItem {
                     label: "Homunculus Info".to_string(),
-                    action: ContextMenuAction::CompanionShowInfo { is_mercenary: false },
+                    action: ContextMenuAction::CompanionShowInfo {
+                        is_mercenary: false,
+                    },
                 },
                 ContextMenuItem {
                     label: "Feed".to_string(),
@@ -140,7 +145,9 @@ impl App {
                 },
                 ContextMenuItem {
                     label: "Standby".to_string(),
-                    action: ContextMenuAction::CompanionStandby { is_mercenary: false },
+                    action: ContextMenuAction::CompanionStandby {
+                        is_mercenary: false,
+                    },
                 },
                 ContextMenuItem {
                     label: "AI Settings".to_string(),
@@ -163,7 +170,9 @@ impl App {
                 },
             ]
         };
-        self.windows.context_menu.open_at(mx as f32, my as f32, items);
+        self.windows
+            .context_menu
+            .open_at(mx as f32, my as f32, items);
         true
     }
 
@@ -206,7 +215,9 @@ impl App {
                 action: ContextMenuAction::PetCommand { csub: 3 },
             },
         ];
-        self.windows.context_menu.open_at(mx as f32, my as f32, items);
+        self.windows
+            .context_menu
+            .open_at(mx as f32, my as f32, items);
         true
     }
 
@@ -250,7 +261,8 @@ impl App {
         if let Some(g) = &self.game.guild {
             let local_gid = self
                 .game
-                .session.login_session
+                .session
+                .login_session
                 .as_ref()
                 .map(|s| s.account_id)
                 .unwrap_or(0);
@@ -314,7 +326,9 @@ impl App {
                 MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
             };
             if let Some(renderer) = &mut self.renderer {
-                renderer.camera.apply_zoom(scroll, self.game.session.camera_locked);
+                renderer
+                    .camera
+                    .apply_zoom(scroll, self.game.session.camera_locked);
             }
         }
     }

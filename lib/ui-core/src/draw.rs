@@ -1,6 +1,6 @@
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::ui_renderer::UiVertex;
 pub use ragnarok_renderer::texture::EMOTION_ICON_PREFIX;
+use ragnarok_renderer::ui_renderer::UiVertex;
 pub use ragnarok_renderer::{UiDrawCall as DrawCall, UiTextureRef as TextureRef};
 
 pub fn quad_vertices(x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) -> ([UiVertex; 4], [u32; 6]) {
@@ -656,13 +656,17 @@ mod tests {
     #[test]
     fn per_corner_radii_keep_sharp_corners_and_round_others() {
         // footer style: sharp top (TL,TR = 0), rounded bottom (BR,BL = 4)
-        let (v, _) = rounded_rect_corners_vgrad(0.0, 0.0, 20.0, 10.0, [0.0, 0.0, 4.0, 4.0], WHITE, WHITE);
+        let (v, _) =
+            rounded_rect_corners_vgrad(0.0, 0.0, 20.0, 10.0, [0.0, 0.0, 4.0, 4.0], WHITE, WHITE);
         let has = |x: f32, y: f32| {
             v.iter()
                 .any(|vt| (vt.position[0] - x).abs() < 1e-3 && (vt.position[1] - y).abs() < 1e-3)
         };
         assert!(has(0.0, 0.0) && has(20.0, 0.0), "top corners stay sharp");
-        assert!(!has(0.0, 10.0) && !has(20.0, 10.0), "bottom corners are rounded away");
+        assert!(
+            !has(0.0, 10.0) && !has(20.0, 10.0),
+            "bottom corners are rounded away"
+        );
     }
 
     fn char_count_measure(s: &str) -> f32 {

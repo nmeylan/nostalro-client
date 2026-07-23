@@ -1,7 +1,7 @@
 mod render_list;
 
-use crate::{App, ClipData};
 use crate::game_updates::CREATE_PREVIEW_GID;
+use crate::{App, ClipData};
 use ragnarok_game::ailment;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
@@ -137,7 +137,8 @@ impl App {
                             // feet. So effects occlude against the body at foot level.
                             // Skip for the dead: their big death-pop frame would stamp
                             // that depth over a ground effect they lie in and erase it.
-                            if render == HiddenRender::Visible && entity.state != EntityState::Dead {
+                            if render == HiddenRender::Visible && entity.state != EntityState::Dead
+                            {
                                 let mut sil = sprite.build_batches(
                                     &entity.animation,
                                     Some(entry.camera_dir),
@@ -378,7 +379,8 @@ impl App {
                         for overlay in
                             ailment::ailment_overlays(entity.body_state, entity.health_state)
                         {
-                            let Some((tex, act)) = self.game.assets.status_overlay_sprites.get(&overlay)
+                            let Some((tex, act)) =
+                                self.game.assets.status_overlay_sprites.get(&overlay)
                             else {
                                 continue;
                             };
@@ -861,7 +863,8 @@ impl App {
             };
             let entries: Vec<DamageNumberRenderEntry> = self
                 .game
-                .combat.damage_numbers
+                .combat
+                .damage_numbers
                 .numbers
                 .iter_mut()
                 .filter_map(|dmg| {
@@ -1017,7 +1020,12 @@ impl App {
                     no_depth: false,
                 })
                 .collect();
-            let zoom = self.game.session.map_coords.as_ref().map_or(10.0, |c| c.zoom());
+            let zoom = self
+                .game
+                .session
+                .map_coords
+                .as_ref()
+                .map_or(10.0, |c| c.zoom());
             let entities = &self.game.world.entities;
             let gat = self.game.session.gat.as_ref();
             let map_coords = self.game.session.map_coords.as_ref();

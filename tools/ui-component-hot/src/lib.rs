@@ -5,7 +5,9 @@ static GLOBAL: std::alloc::System = std::alloc::System;
 
 use models::enums::EnumWithNumberValue;
 use models::enums::item::ItemType;
+use ragnarok_ai::config::CompanionAiConfig;
 use ragnarok_game::character::Character;
+use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
 use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
@@ -14,93 +16,91 @@ use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::data_table::skill_name_table::SkillNameTable;
 use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
+use ragnarok_game::event::SkillInfo;
 use ragnarok_game::event::{CharacterInfo, GameEvent, ServerInfo, VendorItem};
-use ragnarok_game::item::Item;
-use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
+use ragnarok_game::friends::FriendList;
 use ragnarok_game::guild::{
     Guild, GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill,
 };
+use ragnarok_game::item::Item;
+use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_game::party::{Party, PartyMember};
-use ragnarok_ai::config::CompanionAiConfig;
-use ragnarok_game::friends::FriendList;
-use ragnarok_ui_component::BuildCtx;
+use ragnarok_game::pet::PetState;
+use ragnarok_game::quest::{Quest, QuestLog, QuestObjective};
+use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
+use ragnarok_ui_component::BuildCtx;
 use ragnarok_ui_component::account::char_create_window::{CHAR_CREATE_WINDOW_ID, CharCreateWindow};
 use ragnarok_ui_component::account::char_select_window::{CHAR_SELECT_WINDOW_ID, CharSelectWindow};
 use ragnarok_ui_component::account::login_window::{LOGIN_WINDOW_ID, LoginWindow};
 use ragnarok_ui_component::account::server_list_window::{SERVER_LIST_WINDOW_ID, ServerListWindow};
 use ragnarok_ui_component::game::basic_info_window::{BASIC_INFO_WINDOW_ID, BasicInfoWindow};
+use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
 use ragnarok_ui_component::game::card_insert_dialog::{
     CARD_INSERT_WINDOW_ID, CardInsertDialog, EligibleItem,
 };
 use ragnarok_ui_component::game::cart_select_window::{CART_SELECT_WINDOW_ID, CartSelectWindow};
 use ragnarok_ui_component::game::cart_window::{CART_WINDOW_ID, CartWindow};
-use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
-use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
-use ragnarok_ui_component::game::mailbox_window::{MAILBOX_WINDOW_ID, MailboxWindow};
-use ragnarok_ui_component::game::read_mail_window::{READ_MAIL_WINDOW_ID, ReadMailWindow};
-use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
-use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
-use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
-use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
-use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
-use ragnarok_ui_component::game::book_window::{BOOK_WINDOW_ID, BookWindow};
+use ragnarok_ui_component::game::chat_room_board;
 use ragnarok_ui_component::game::chat_room_create_window::{
     CHAT_ROOM_CREATE_WINDOW_ID, ChatRoomCreateWindow,
 };
-use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
-use ragnarok_ui_component::game::graphic_options::{
-    GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow,
-};
-use ragnarok_ui_component::game::hotkey_config_window::{
-    HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
-};
-use ragnarok_ui_component::game::shortcut_list_window::{
-    SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
-};
-use ragnarok_ui_component::game::quest_window::{
-    QUEST_DETAIL_WINDOW_ID, QUEST_WINDOW_ID, QuestDetailWindow, QuestWindow,
-};
-use ragnarok_game::quest::{Quest, QuestLog, QuestObjective};
 use ragnarok_ui_component::game::chat_room_member_window::{
     CHAT_ROOM_MEMBER_WINDOW_ID, ChatRoomMemberWindow,
 };
+use ragnarok_ui_component::game::chat_window::{CHAT_WINDOW_ID, ChatWindow};
+use ragnarok_ui_component::game::companion_ai_config_window::{
+    COMPANION_AI_CONFIG_WINDOW_ID, CompanionAiConfigWindow,
+};
+use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
+use ragnarok_ui_component::game::emotion_window::{EMOTION_WINDOW_ID, EmotionWindow};
+use ragnarok_ui_component::game::equipment_window::{EQ_WINDOW_ID, EquipmentWindow};
+use ragnarok_ui_component::game::graphic_options::{
+    GRAPHIC_OPTIONS_WINDOW_ID, GraphicOptionsWindow,
+};
+use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
+use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
+use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
+use ragnarok_ui_component::game::hotkey_config_window::{
+    HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
+};
+use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::{ITEM_INFO_WINDOW_ID, ItemInfoWindow};
+use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
+use ragnarok_ui_component::game::mailbox_window::{MAILBOX_WINDOW_ID, MailboxWindow};
+use ragnarok_ui_component::game::mercenary_skill_window::{
+    MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
+};
+use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
 use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
+use ragnarok_ui_component::game::npc_dialog::{NPC_DIALOG_WINDOW_ID, NpcDialog};
+use ragnarok_ui_component::game::npc_shop::NpcShop;
+use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
+use ragnarok_ui_component::game::party_friends_window::{
+    PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow,
+};
+use ragnarok_ui_component::game::pet_window::{PET_WINDOW_ID, PetWindow};
+use ragnarok_ui_component::game::quest_window::{
+    QUEST_DETAIL_WINDOW_ID, QUEST_WINDOW_ID, QuestDetailWindow, QuestWindow,
+};
+use ragnarok_ui_component::game::read_mail_window::{READ_MAIL_WINDOW_ID, ReadMailWindow};
+use ragnarok_ui_component::game::shortcut_list_window::{
+    SHORTCUT_LIST_WINDOW_ID, ShortcutListWindow,
+};
+use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
+use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
+use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
+use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
 use ragnarok_ui_component::game::vending_board;
-use ragnarok_ui_component::game::chat_room_board;
-use ragnarok_ui_component::helper::head_board::BOARD_W;
-use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use ragnarok_ui_component::game::vending_setup_window::{
     VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
 };
 use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
-use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
-use ragnarok_ui_component::game::npc_dialog::{NPC_DIALOG_WINDOW_ID, NpcDialog};
-use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::number_input::{NumberInputConfig, NumberInputDialog};
-use ragnarok_ui_component::game::guild_window::{GUILD_WINDOW_ID, GuildWindow};
-use ragnarok_ui_component::game::party_friends_window::{
-    PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow,
-};
-use ragnarok_ui_component::game::companion_ai_config_window::{
-    COMPANION_AI_CONFIG_WINDOW_ID, CompanionAiConfigWindow,
-};
-use ragnarok_ui_component::game::homun_window::{HOMUN_WINDOW_ID, HomunWindow};
-use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
-use ragnarok_ui_component::game::pet_window::{PET_WINDOW_ID, PetWindow};
-use ragnarok_ui_component::game::mercenary_skill_window::{
-    MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
-};
-use ragnarok_game::companion::{HomunculusState, MercenaryState};
-use ragnarok_game::pet::PetState;
-use ragnarok_game::event::SkillInfo;
-use ragnarok_game::skill::SkillTargetType;
-use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
-use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
-use ragnarok_ui_component::game::system_menu::SystemMenu;
+use ragnarok_ui_component::helper::dialog_container::DialogContainer;
+use ragnarok_ui_component::helper::head_board::BOARD_W;
 use ragnarok_ui_component::{InGameWindow, Window};
 use std::collections::HashMap;
 
@@ -144,12 +144,15 @@ const CHAT_COMPONENTS: &[&str] = &[
     "chat_room_member",
     "chat_room_board",
 ];
-const ACCOUNT_COMPONENTS: &[&str] =
-    &["login", "server_list", "char_select", "char_create"];
-const SHOP_COMPONENTS: &[&str] =
-    &["cart", "vending_setup", "my_shop", "vending_buy"];
-const COMPANION_COMPONENTS: &[&str] =
-    &["mercenary", "mercenary_skill", "homun", "companion_ai_config", "pet"];
+const ACCOUNT_COMPONENTS: &[&str] = &["login", "server_list", "char_select", "char_create"];
+const SHOP_COMPONENTS: &[&str] = &["cart", "vending_setup", "my_shop", "vending_buy"];
+const COMPANION_COMPONENTS: &[&str] = &[
+    "mercenary",
+    "mercenary_skill",
+    "homun",
+    "companion_ai_config",
+    "pet",
+];
 
 enum State {
     Inventory {
@@ -633,7 +636,9 @@ fn create_single(name: &str) -> State {
             let mut win = MyShopWindow::new();
             win.open(
                 shop_name.clone(),
-                src.iter().map(|(it, n)| (it.clone(), n.clone(), None)).collect(),
+                src.iter()
+                    .map(|(it, n)| (it.clone(), n.clone(), None))
+                    .collect(),
             );
             State::MyShop {
                 win,
@@ -650,7 +655,9 @@ fn create_single(name: &str) -> State {
                 2000101,
                 1,
                 "store02".to_string(),
-                src.iter().map(|(it, n)| (it.clone(), n.clone(), None)).collect(),
+                src.iter()
+                    .map(|(it, n)| (it.clone(), n.clone(), None))
+                    .collect(),
             );
             State::VendingBuy {
                 win,
@@ -1165,7 +1172,10 @@ fn create_single(name: &str) -> State {
             };
             win.push_message("You entered the room.".to_string(), SYSTEM_MSG_COLOR);
             win.push_message("Owner : Welcome, everyone!".to_string(), OTHER_MSG_COLOR);
-            win.push_message("Guest : hello, selling gear here".to_string(), OWN_MSG_COLOR);
+            win.push_message(
+                "Guest : hello, selling gear here".to_string(),
+                OWN_MSG_COLOR,
+            );
             State::ChatRoomMember {
                 win,
                 character: Character::new(),
@@ -1458,10 +1468,9 @@ fn create_single(name: &str) -> State {
                     level: 10,
                 },
             );
-            character.hotkeys.set_slot(
-                1,
-                HotkeySlotContent::Item { inventory_index: 0 },
-            );
+            character
+                .hotkeys
+                .set_slot(1, HotkeySlotContent::Item { inventory_index: 0 });
 
             let mut skill_names = HashMap::new();
             skill_names.insert("AC_OWL".into(), "Owl's Eye".into());
@@ -1653,23 +1662,108 @@ fn create_single(name: &str) -> State {
                 ..Default::default()
             };
             guild.positions = vec![
-                GuildPosition { id: 0, name: "Master".to_string(), right: 0x111, ranking: 0, pay_rate: 50 },
-                GuildPosition { id: 1, name: "Officer".to_string(), right: 0x001, ranking: 1, pay_rate: 10 },
-                GuildPosition { id: 2, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 0 },
-                GuildPosition { id: 3, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 4, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 5, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 6, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 7, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 8, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 20 },
-                GuildPosition { id: 9, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 10, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 10 },
-                GuildPosition { id: 11, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 20 },
-                GuildPosition { id: 12, name: "Member".to_string(), right: 0x000, ranking: 2, pay_rate: 30 },
+                GuildPosition {
+                    id: 0,
+                    name: "Master".to_string(),
+                    right: 0x111,
+                    ranking: 0,
+                    pay_rate: 50,
+                },
+                GuildPosition {
+                    id: 1,
+                    name: "Officer".to_string(),
+                    right: 0x001,
+                    ranking: 1,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 2,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 0,
+                },
+                GuildPosition {
+                    id: 3,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 4,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 5,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 6,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 7,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 8,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 20,
+                },
+                GuildPosition {
+                    id: 9,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 10,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 10,
+                },
+                GuildPosition {
+                    id: 11,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 20,
+                },
+                GuildPosition {
+                    id: 12,
+                    name: "Member".to_string(),
+                    right: 0x000,
+                    ranking: 2,
+                    pay_rate: 30,
+                },
             ];
             #[allow(clippy::too_many_arguments)]
-            let gmember = |gid: u32, name: &str, job: i16, level: i16, position_id: i32,
-                           pos_name: &str, online: bool, note: &str, contrib: i32| GuildMember {
+            let gmember = |gid: u32,
+                           name: &str,
+                           job: i16,
+                           level: i16,
+                           position_id: i32,
+                           pos_name: &str,
+                           online: bool,
+                           note: &str,
+                           contrib: i32| GuildMember {
                 aid: gid,
                 gid,
                 name: name.to_string(),
@@ -1693,18 +1787,55 @@ fn create_single(name: &str) -> State {
                 gmember(2000005, "Poring", 1, 42, 2, "Member", false, "", 60),
             ];
             guild.relations = vec![
-                GuildRelation { gdid: 7, name: "Geffen Mages".to_string(), relation: 0 },
-                GuildRelation { gdid: 9, name: "Payon Archers".to_string(), relation: 1 },
+                GuildRelation {
+                    gdid: 7,
+                    name: "Geffen Mages".to_string(),
+                    relation: 0,
+                },
+                GuildRelation {
+                    gdid: 9,
+                    name: "Payon Archers".to_string(),
+                    relation: 1,
+                },
             ];
             guild.skill_point = 2;
             guild.skills = vec![
-                GuildSkill { skid: 10000, name: "GD_APPROVAL".to_string(), level: 1, upgradable: false, passive: true, ..Default::default() },
-                GuildSkill { skid: 10014, name: "GD_GUARDUP".to_string(), level: 0, upgradable: true, passive: false, ..Default::default() },
-                GuildSkill { skid: 10005, name: "GD_EXTENSION".to_string(), level: 2, upgradable: true, passive: true, ..Default::default() },
+                GuildSkill {
+                    skid: 10000,
+                    name: "GD_APPROVAL".to_string(),
+                    level: 1,
+                    upgradable: false,
+                    passive: true,
+                    ..Default::default()
+                },
+                GuildSkill {
+                    skid: 10014,
+                    name: "GD_GUARDUP".to_string(),
+                    level: 0,
+                    upgradable: true,
+                    passive: false,
+                    ..Default::default()
+                },
+                GuildSkill {
+                    skid: 10005,
+                    name: "GD_EXTENSION".to_string(),
+                    level: 2,
+                    upgradable: true,
+                    passive: true,
+                    ..Default::default()
+                },
             ];
             guild.ban_list = vec![
-                GuildBanEntry { char_name: "Traitor".to_string(), reason: "Left mid-WoE".to_string(), ..Default::default() },
-                GuildBanEntry { char_name: "Spy".to_string(), reason: "Enemy alt".to_string(), ..Default::default() },
+                GuildBanEntry {
+                    char_name: "Traitor".to_string(),
+                    reason: "Left mid-WoE".to_string(),
+                    ..Default::default()
+                },
+                GuildBanEntry {
+                    char_name: "Spy".to_string(),
+                    reason: "Enemy alt".to_string(),
+                    ..Default::default()
+                },
             ];
             let mut win = GuildWindow::new();
             win.toggle();
@@ -1894,7 +2025,12 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
             if let Some(table) = table {
-                win.open(2000101, 1, "store02".to_string(), resolve_stock_icons(src, table));
+                win.open(
+                    2000101,
+                    1,
+                    "store02".to_string(),
+                    resolve_stock_icons(src, table),
+                );
             }
         }
         State::VendingBoard { container, .. } => {
@@ -2210,7 +2346,10 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::NpcShop { shop, .. } => return shop.gallery_windows(),
         _ => None,
     };
-    single.map(|(id, win)| (id, win.window_size())).into_iter().collect()
+    single
+        .map(|(id, win)| (id, win.window_size()))
+        .into_iter()
+        .collect()
 }
 
 /// Centered modal dialogs a component owns, with their nominal size. The tool
@@ -2360,15 +2499,29 @@ fn pack_gallery(
 /// routed around these. The centred modal dialogs are drawn on top and are not
 /// reserved, so they never fragment the free space out from under large windows.
 fn fixed_ui_zones(sw: f32, sh: f32) -> Vec<FreeRect> {
-    let hotkey = ((sw * 0.25).max(0.0), 0.0, (sw * 0.5).min(sw), 92.0f32.min(sh));
-    let chat = (0.0, (sh - 200.0).max(0.0), 360.0f32.min(sw), 200.0f32.min(sh));
+    let hotkey = (
+        (sw * 0.25).max(0.0),
+        0.0,
+        (sw * 0.5).min(sw),
+        92.0f32.min(sh),
+    );
+    let chat = (
+        0.0,
+        (sh - 200.0).max(0.0),
+        360.0f32.min(sw),
+        200.0f32.min(sh),
+    );
     vec![hotkey, chat]
 }
 
 fn gallery_placements(components: &[State], ui: &UiFrame) -> Vec<(WidgetId, f32, f32)> {
     let items: Vec<(WidgetId, f32, f32)> = components
         .iter()
-        .flat_map(|comp| gallery_windows(comp).into_iter().map(|(id, (w, h))| (id, w, h)))
+        .flat_map(|comp| {
+            gallery_windows(comp)
+                .into_iter()
+                .map(|(id, (w, h))| (id, w, h))
+        })
         .collect();
     if items.is_empty() {
         return Vec::new();
@@ -2381,7 +2534,12 @@ fn gallery_placements(components: &[State], ui: &UiFrame) -> Vec<(WidgetId, f32,
 
 /// Print the packer input/output to stderr once per screen-size change, so a
 /// reported overlap can be reproduced with the exact logical dimensions used.
-fn log_gallery_layout(sw: f32, sh: f32, items: &[(WidgetId, f32, f32)], placed: &[(WidgetId, f32, f32)]) {
+fn log_gallery_layout(
+    sw: f32,
+    sh: f32,
+    items: &[(WidgetId, f32, f32)],
+    placed: &[(WidgetId, f32, f32)],
+) {
     use std::sync::atomic::{AtomicU64, Ordering};
     static LAST: AtomicU64 = AtomicU64::new(0);
     let key = ((sw as u64) << 32) | (sh as u64);
@@ -2477,13 +2635,11 @@ mod tests {
             assert!(ax + aw <= screen_w && ay + ah <= screen_h);
             for j in (i + 1)..sizes.len() {
                 let (bx, by, bw, bh) = rect(sizes[j].0);
-                let disjoint =
-                    ax + aw <= bx || bx + bw <= ax || ay + ah <= by || by + bh <= ay;
+                let disjoint = ax + aw <= bx || bx + bw <= ax || ay + ah <= by || by + bh <= ay;
                 assert!(disjoint, "windows {i} and {j} overlap");
             }
         }
     }
-
 }
 
 /// Bottom-right anchor for a head board, stacked upward by `index`. Head boards
@@ -2570,8 +2726,7 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
                         if let Some((idx, cnt)) = character.trade.take_pending_add() {
                             if idx == TRADE_ZENY_INDEX {
                                 character.trade.add_my_zeny(cnt as i64);
-                                character.inventory.zeny =
-                                    (character.inventory.zeny - cnt).max(0);
+                                character.inventory.zeny = (character.inventory.zeny - cnt).max(0);
                             } else if let Some(src) = character.inventory.get_item(idx) {
                                 let mut item = src.clone();
                                 item.count = cnt as i16;
@@ -3029,21 +3184,53 @@ fn build_fallback_gallery(ui: &mut UiFrame, name_field: &mut TextInput) {
     fallback::container(ui, wx, wy + 18.0, ww, 56.0);
     ui.text(wx + 10.0, wy + 40.0, "10,240 z", P::TEXT_ON_LIGHT);
     fallback::footer(ui, wx, wy + 74.0, ww, 22.0);
-    theme::fallback_button(ui, Rect::new(wx + ww - 54.0, wy + 78.0, 46.0, 16.0), false, false, "Close");
+    theme::fallback_button(
+        ui,
+        Rect::new(wx + ww - 54.0, wy + 78.0, 46.0, 16.0),
+        false,
+        false,
+        "Close",
+    );
 
     // Buttons
     let bx = 280.0;
     ui.text(bx, 48.0, "BUTTONS  normal / hover / pressed", heading);
     theme::fallback_button(ui, Rect::new(bx, 56.0, 60.0, 21.0), false, false, "OK");
-    theme::fallback_button(ui, Rect::new(bx + 70.0, 56.0, 60.0, 21.0), true, false, "OK");
-    theme::fallback_button(ui, Rect::new(bx + 140.0, 56.0, 60.0, 21.0), false, true, "OK");
+    theme::fallback_button(
+        ui,
+        Rect::new(bx + 70.0, 56.0, 60.0, 21.0),
+        true,
+        false,
+        "OK",
+    );
+    theme::fallback_button(
+        ui,
+        Rect::new(bx + 140.0, 56.0, 60.0, 21.0),
+        false,
+        true,
+        "OK",
+    );
     ui.text(bx, 96.0, "live:", heading);
-    let btn = ButtonTextures { normal: "", hover: "", pressed: "" };
-    ui.button(WidgetId(60001), Rect::new(bx + 34.0, 88.0, 90.0, 21.0), &btn, "Hover / click");
+    let btn = ButtonTextures {
+        normal: "",
+        hover: "",
+        pressed: "",
+    };
+    ui.button(
+        WidgetId(60001),
+        Rect::new(bx + 34.0, 88.0, 90.0, 21.0),
+        &btn,
+        "Hover / click",
+    );
 
     // Text field
     ui.text(bx, 132.0, "TEXT FIELD  (click to focus)", heading);
-    ui.text_input(WidgetId(60002), Rect::new(bx, 140.0, 150.0, 20.0), name_field, TextInputBg::Default);
+    ui.text_input(
+        WidgetId(60002),
+        Rect::new(bx, 140.0, 150.0, 20.0),
+        name_field,
+        TextInputBg::Default,
+    );
 
     // Slot cells + system buttons
     ui.text(wx, 176.0, "SLOT CELLS / SYS BUTTONS", heading);

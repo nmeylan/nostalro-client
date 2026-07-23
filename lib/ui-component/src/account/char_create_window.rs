@@ -327,12 +327,24 @@ impl CharCreateWindow {
         let (ox, oy) = (win.x, win.y);
 
         if self.has_grf_textures {
-            push_quad(ui, ox, oy, WIN_W, WIN_H, TextureRef::Named(WIN_TEXTURE.to_string()));
+            push_quad(
+                ui,
+                ox,
+                oy,
+                WIN_W,
+                WIN_H,
+                TextureRef::Named(WIN_TEXTURE.to_string()),
+            );
         } else {
             push_color_quad(ui, ox, oy, WIN_W, WIN_H, [0.08, 0.08, 0.12, 0.95]);
             let title = "Create Character";
             let tw = ui.atlas.measure_text(title);
-            ui.text(ox + (WIN_W - tw) / 2.0, oy + ui.atlas.line_height, title, [1.0; 4]);
+            ui.text(
+                ox + (WIN_W - tw) / 2.0,
+                oy + ui.atlas.line_height,
+                title,
+                [1.0; 4],
+            );
         }
 
         let name_bg = if self.has_grf_textures {
@@ -345,10 +357,16 @@ impl CharCreateWindow {
 
         let head_prev = Rect::new(ox + HEAD_PREV_X, oy + HEAD_ARROW_Y, ARROW_W, ARROW_H);
         let head_next = Rect::new(ox + HEAD_NEXT_X, oy + HEAD_ARROW_Y, ARROW_W, ARROW_H);
-        if ui.button(STYLE_L_ID, head_prev, &ARROW_L_BTN, "<").clicked() {
+        if ui
+            .button(STYLE_L_ID, head_prev, &ARROW_L_BTN, "<")
+            .clicked()
+        {
             self.cycle_head(-1);
         }
-        if ui.button(STYLE_R_ID, head_next, &ARROW_R_BTN, ">").clicked() {
+        if ui
+            .button(STYLE_R_ID, head_next, &ARROW_R_BTN, ">")
+            .clicked()
+        {
             self.cycle_head(1);
         }
         let hair_up = Rect::new(ox + HAIR_UP_X, oy + HAIR_UP_Y, ARROW_W, ARROW_H);
@@ -359,7 +377,12 @@ impl CharCreateWindow {
         self.build_stats(ui, ox, oy);
 
         if let Some(msg) = &self.error_message {
-            ui.text(ox + NAME_X, oy + NAME_Y + NAME_H + ui.atlas.line_height, msg, ERROR_COLOR);
+            ui.text(
+                ox + NAME_X,
+                oy + NAME_Y + NAME_H + ui.atlas.line_height,
+                msg,
+                ERROR_COLOR,
+            );
         }
 
         let btn_y = oy + WIN_H - BTN_BOTTOM - BTN_H;
@@ -367,7 +390,11 @@ impl CharCreateWindow {
         let cancel = Rect::new(ox + WIN_W - CANCEL_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
         let submit = ui.button(MAKE_ID, make, &MAKE_BTN, "Make").clicked() || ui.ctx.key_enter;
         self.try_submit(submit, events);
-        if ui.button(CANCEL_ID, cancel, &CANCEL_BTN, "Cancel").clicked() || ui.ctx.key_escape {
+        if ui
+            .button(CANCEL_ID, cancel, &CANCEL_BTN, "Cancel")
+            .clicked()
+            || ui.ctx.key_escape
+        {
             events.push(GameEvent::CancelCreateCharacter);
         }
     }
@@ -377,7 +404,12 @@ impl CharCreateWindow {
         for (i, &(sx, sy)) in STAT_POS.iter().enumerate() {
             let rect = Rect::new(ox + sx, oy + sy, STAT_ARROW_W, STAT_ARROW_H);
             if ui
-                .button(WidgetId(STAT_ARROW_BASE + i as u32), rect, &STAT_ARROWS[i], "+")
+                .button(
+                    WidgetId(STAT_ARROW_BASE + i as u32),
+                    rect,
+                    &STAT_ARROWS[i],
+                    "+",
+                )
                 .clicked()
             {
                 self.raise_stat(i);
@@ -462,19 +494,44 @@ impl CharCreateWindow {
         } else {
             TextInputBg::Default
         };
-        let name_rect = Rect::new(ox + V2_NAME_X, content_y + V2_NAME_Y - V2_NAME_H, V2_NAME_W, V2_NAME_H);
+        let name_rect = Rect::new(
+            ox + V2_NAME_X,
+            content_y + V2_NAME_Y - V2_NAME_H,
+            V2_NAME_W,
+            V2_NAME_H,
+        );
         ui.text_input(NAME_ID, name_rect, &mut self.name, name_bg);
 
-        let style_l = Rect::new(ox + V2_ARROW_L_X, content_y + V2_STYLE_Y - ARROW_H, ARROW_W, ARROW_H);
-        let style_r = Rect::new(ox + V2_ARROW_R_X, content_y + V2_STYLE_Y - ARROW_H, ARROW_W, ARROW_H);
+        let style_l = Rect::new(
+            ox + V2_ARROW_L_X,
+            content_y + V2_STYLE_Y - ARROW_H,
+            ARROW_W,
+            ARROW_H,
+        );
+        let style_r = Rect::new(
+            ox + V2_ARROW_R_X,
+            content_y + V2_STYLE_Y - ARROW_H,
+            ARROW_W,
+            ARROW_H,
+        );
         if ui.button(STYLE_L_ID, style_l, &ARROW_L_BTN, "<").clicked() {
             self.cycle_head(-1);
         }
         if ui.button(STYLE_R_ID, style_r, &ARROW_R_BTN, ">").clicked() {
             self.cycle_head(1);
         }
-        let color_l = Rect::new(ox + V2_ARROW_L_X, content_y + V2_COLOR_Y - ARROW_H, ARROW_W, ARROW_H);
-        let color_r = Rect::new(ox + V2_ARROW_R_X, content_y + V2_COLOR_Y - ARROW_H, ARROW_W, ARROW_H);
+        let color_l = Rect::new(
+            ox + V2_ARROW_L_X,
+            content_y + V2_COLOR_Y - ARROW_H,
+            ARROW_W,
+            ARROW_H,
+        );
+        let color_r = Rect::new(
+            ox + V2_ARROW_R_X,
+            content_y + V2_COLOR_Y - ARROW_H,
+            ARROW_W,
+            ARROW_H,
+        );
         if ui.button(COLOR_L_ID, color_l, &ARROW_L_BTN, "<").clicked() {
             self.cycle_color(-1);
         }
@@ -483,7 +540,12 @@ impl CharCreateWindow {
         }
 
         if let Some(msg) = &self.error_message {
-            ui.text(ox + 8.0, content_y + V2_NAME_Y + V2_NAME_H + ui.atlas.line_height, msg, ERROR_COLOR);
+            ui.text(
+                ox + 8.0,
+                content_y + V2_NAME_Y + V2_NAME_H + ui.atlas.line_height,
+                msg,
+                ERROR_COLOR,
+            );
         }
 
         let btn_y = footer_y + V2_FOOTER_H - BTN_BOTTOM - BTN_H;
@@ -491,7 +553,11 @@ impl CharCreateWindow {
         let cancel = Rect::new(ox + V2_W - CANCEL_RIGHT - BTN_W, btn_y, BTN_W, BTN_H);
         let submit = ui.button(MAKE_ID, make, &MAKE_BTN, "Make").clicked() || ui.ctx.key_enter;
         self.try_submit(submit, events);
-        if ui.button(CANCEL_ID, cancel, &CANCEL_BTN, "Cancel").clicked() || ui.ctx.key_escape {
+        if ui
+            .button(CANCEL_ID, cancel, &CANCEL_BTN, "Cancel")
+            .clicked()
+            || ui.ctx.key_escape
+        {
             events.push(GameEvent::CancelCreateCharacter);
         }
     }
@@ -651,6 +717,10 @@ mod tests {
         let events = win.build(&mut ui);
 
         assert!(win.error_message.is_some());
-        assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestMakeCharacter { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMakeCharacter { .. }))
+        );
     }
 }

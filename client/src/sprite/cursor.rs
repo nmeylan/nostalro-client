@@ -86,7 +86,10 @@ impl App {
             .assets
             .lock_cursor_animation
             .set_cursor_type(CursorType::SemiLock);
-        self.game.assets.lock_cursor_animation.update(dt, cursor_act);
+        self.game
+            .assets
+            .lock_cursor_animation
+            .update(dt, cursor_act);
         let action_idx = self.game.assets.lock_cursor_animation.action_index();
         let action_idx = if action_idx < cursor_act.actions.len() {
             action_idx
@@ -97,7 +100,8 @@ impl App {
         if action.motions.is_empty() {
             return Vec::new();
         }
-        let motion_idx = self.game.assets.lock_cursor_animation.motion_index() % action.motions.len();
+        let motion_idx =
+            self.game.assets.lock_cursor_animation.motion_index() % action.motions.len();
         let motion = &action.motions[motion_idx];
 
         let mut clips = Vec::new();

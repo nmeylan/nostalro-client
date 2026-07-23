@@ -8,16 +8,25 @@ use std::path::Path;
 use ragnarok_formats::grf::GrfArchive;
 
 fn main() {
-    let list = std::env::args().nth(1).expect("usage: check_wavs <name-list>");
+    let list = std::env::args()
+        .nth(1)
+        .expect("usage: check_wavs <name-list>");
     let grf = GrfArchive::open(Path::new("data/data.grf")).expect("open data/data.grf");
     // Extract mode: `check_wavs --extract <out-dir>` reads GRF-internal wav paths
     // (one per line) from stdin-less arg — pass them via a file as arg 3 — and
     // dumps each to <out-dir> so the candidate can be played and ear-verified.
     if list == "--extract" {
-        let out = std::env::args().nth(2).expect("usage: --extract <out-dir> <path-list>");
-        let paths = std::env::args().nth(3).expect("usage: --extract <out-dir> <path-list>");
+        let out = std::env::args()
+            .nth(2)
+            .expect("usage: --extract <out-dir> <path-list>");
+        let paths = std::env::args()
+            .nth(3)
+            .expect("usage: --extract <out-dir> <path-list>");
         std::fs::create_dir_all(&out).expect("create out dir");
-        for p in std::fs::read_to_string(&paths).expect("read path list").lines() {
+        for p in std::fs::read_to_string(&paths)
+            .expect("read path list")
+            .lines()
+        {
             let p = p.trim();
             if p.is_empty() {
                 continue;

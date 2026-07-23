@@ -95,8 +95,8 @@ impl Dictionary {
         pos: usize,
     ) -> Result<usize, FormatError> {
         let size_idx = self.backref_size as usize;
-        self.backref_size = self.size_windows[size_idx]
-            .decode_symbol(decoder, |d| d.decode_commit(65)) as u32;
+        self.backref_size =
+            self.size_windows[size_idx].decode_symbol(decoder, |d| d.decode_commit(65)) as u32;
 
         if self.backref_size > 0 {
             // Length codes 0..=60 map directly to lengths 1..=61; codes 61..=64
@@ -163,7 +163,9 @@ pub(crate) fn decompress(
         return Ok(());
     }
     if compressed.len() < 36 {
-        return Err(FormatError::DecompressionFailed("oodle: short header".into()));
+        return Err(FormatError::DecompressionFailed(
+            "oodle: short header".into(),
+        ));
     }
     let params = [
         Parameter::read(&compressed[0..12]),

@@ -44,9 +44,21 @@ const ENVELOPE_TEX: &str = "data/texture/유저인터페이스/basic_interface/e
 macro_rules! btn {
     ($name:literal) => {
         ButtonTextures {
-            normal: concat!("data/texture/유저인터페이스/basic_interface/", $name, ".bmp"),
-            hover: concat!("data/texture/유저인터페이스/basic_interface/", $name, "_a.bmp"),
-            pressed: concat!("data/texture/유저인터페이스/basic_interface/", $name, "_a.bmp"),
+            normal: concat!(
+                "data/texture/유저인터페이스/basic_interface/",
+                $name,
+                ".bmp"
+            ),
+            hover: concat!(
+                "data/texture/유저인터페이스/basic_interface/",
+                $name,
+                "_a.bmp"
+            ),
+            pressed: concat!(
+                "data/texture/유저인터페이스/basic_interface/",
+                $name,
+                "_a.bmp"
+            ),
         }
     };
 }
@@ -164,11 +176,7 @@ impl Window for MailboxWindow {
 }
 
 impl InGameWindow for MailboxWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
         if !character.mail.window_open {
@@ -214,12 +222,19 @@ impl InGameWindow for MailboxWindow {
             crate::helper::fallback::window_body(ui, x, y, WIN_W, WIN_H);
             crate::helper::fallback::titlebar(ui, x, y, WIN_W, TITLE_H);
         }
-        let title = if mode == MailboxMode::Inbox { "Mail" } else { "Write Mail" };
+        let title = if mode == MailboxMode::Inbox {
+            "Mail"
+        } else {
+            "Write Mail"
+        };
         ui.text(x + 25.0, y + TITLE_H - 4.0, title, tc);
 
         // Close button (top-right).
         let close_rect = Rect::new(x + WIN_W - 17.0, y + 3.0, 16.0, 11.0);
-        if ui.button(MAIL_CLOSE_BTN_ID, close_rect, &CLOSE_BTN, "x").clicked() {
+        if ui
+            .button(MAIL_CLOSE_BTN_ID, close_rect, &CLOSE_BTN, "x")
+            .clicked()
+        {
             character.mail.window_open = false;
             character.mail.read_open = false;
             ui.has_grf_textures = prev_grf;
@@ -235,8 +250,22 @@ impl InGameWindow for MailboxWindow {
             ui.any_interactive_hovered = true;
         }
         if !grf {
-            crate::helper::fallback::cell(ui, inbox_zone.x, inbox_zone.y, inbox_zone.w, inbox_zone.h, mode == MailboxMode::Inbox);
-            crate::helper::fallback::cell(ui, write_zone.x, write_zone.y, write_zone.w, write_zone.h, mode == MailboxMode::Compose);
+            crate::helper::fallback::cell(
+                ui,
+                inbox_zone.x,
+                inbox_zone.y,
+                inbox_zone.w,
+                inbox_zone.h,
+                mode == MailboxMode::Inbox,
+            );
+            crate::helper::fallback::cell(
+                ui,
+                write_zone.x,
+                write_zone.y,
+                write_zone.w,
+                write_zone.h,
+                mode == MailboxMode::Compose,
+            );
             ui.text(inbox_zone.x + 3.0, inbox_zone.y + 30.0, "In", tc);
             ui.text(write_zone.x + 3.0, write_zone.y + 30.0, "Wr", tc);
         }
@@ -418,7 +447,13 @@ impl MailboxWindow {
         // Item attach slot.
         let slot_rect = Rect::new(x + 247.0, y + 333.0, 24.0, 24.0);
         if !grf {
-            crate::helper::fallback::slot_cell(ui, slot_rect.x, slot_rect.y, slot_rect.w, slot_rect.h);
+            crate::helper::fallback::slot_cell(
+                ui,
+                slot_rect.x,
+                slot_rect.y,
+                slot_rect.w,
+                slot_rect.h,
+            );
         }
         let slot_resp = ui.interact(ITEM_SLOT_ID, slot_rect);
         if slot_resp.hovered() {
@@ -442,7 +477,12 @@ impl MailboxWindow {
             if attach.amount > 1 {
                 let cnt = attach.amount.to_string();
                 let cw = ui.atlas.measure_text(&cnt);
-                ui.text(slot_rect.x + 24.0 - cw, slot_rect.y + 24.0, &cnt, [0.0, 0.0, 0.0, 1.0]);
+                ui.text(
+                    slot_rect.x + 24.0 - cw,
+                    slot_rect.y + 24.0,
+                    &cnt,
+                    [0.0, 0.0, 0.0, 1.0],
+                );
             }
             // Click the filled slot to detach.
             if slot_resp.clicked() {
@@ -506,18 +546,29 @@ impl MailboxWindow {
         // Send / Cancel.
         let send_rect = Rect::new(x + WIN_W - 100.0, y + WIN_H - 27.0, 43.0, 21.0);
         let cancel_rect = Rect::new(x + WIN_W - 52.0, y + WIN_H - 27.0, 43.0, 21.0);
-        let send_clicked = ui.button(SEND_BTN_ID, send_rect, &SEND_BTN, "Send").clicked();
-        let cancel_clicked = ui.button(CANCEL_BTN_ID, cancel_rect, &CANCEL_BTN, "Cancel").clicked();
+        let send_clicked = ui
+            .button(SEND_BTN_ID, send_rect, &SEND_BTN, "Send")
+            .clicked();
+        let cancel_clicked = ui
+            .button(CANCEL_BTN_ID, cancel_rect, &CANCEL_BTN, "Cancel")
+            .clicked();
 
         if send_clicked && !character.mail.send_pending {
             let title = self.title_input.text.clone();
             if title.trim().is_empty() {
-                ui.tooltip(send_rect.x - 40.0, send_rect.y - 16.0, "Please enter a title.");
+                ui.tooltip(
+                    send_rect.x - 40.0,
+                    send_rect.y - 16.0,
+                    "Please enter a title.",
+                );
             } else {
                 character.mail.send_pending = true;
                 let zeny: u32 = self.zeny_input.text.trim().parse().unwrap_or(0);
                 if zeny > 0 {
-                    events.push(GameEvent::RequestMailAddItem { index: 0, amount: zeny });
+                    events.push(GameEvent::RequestMailAddItem {
+                        index: 0,
+                        amount: zeny,
+                    });
                 }
                 events.push(GameEvent::RequestMailSend {
                     to: self.to_input.text.clone(),
@@ -547,7 +598,8 @@ mod tests {
 
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
@@ -566,8 +618,8 @@ mod tests {
 
     #[test]
     fn dropping_inventory_item_on_slot_attaches_it() {
-        use ragnarok_game::item::Item;
         use models::enums::item::ItemType;
+        use ragnarok_game::item::Item;
 
         let mut win = MailboxWindow::new();
         let mut character = open_inbox();
@@ -623,9 +675,13 @@ mod tests {
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
-            events
-                .iter()
-                .any(|e| matches!(e, GameEvent::RequestMailAddItem { index: 5, amount: 1 })),
+            events.iter().any(|e| matches!(
+                e,
+                GameEvent::RequestMailAddItem {
+                    index: 5,
+                    amount: 1
+                }
+            )),
             "expected attach request, got {events:?}"
         );
         assert!(character.mail.compose.pending_item.is_some());
@@ -676,7 +732,11 @@ mod tests {
             let mut ui = make_frame(&ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
-        assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestMailSend { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMailSend { .. }))
+        );
         assert!(!character.mail.send_pending);
 
         // With a title, the first click sends and latches.
@@ -699,6 +759,10 @@ mod tests {
             let mut ui = make_frame(&ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
-        assert!(!events.iter().any(|e| matches!(e, GameEvent::RequestMailSend { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMailSend { .. }))
+        );
     }
 }

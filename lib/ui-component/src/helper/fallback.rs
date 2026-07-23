@@ -15,7 +15,11 @@ fn fill(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
     });
 }
 
-fn rounded(ui: &mut UiFrame, verts: Vec<ragnarok_renderer::ui_renderer::UiVertex>, indices: Vec<u32>) {
+fn rounded(
+    ui: &mut UiFrame,
+    verts: Vec<ragnarok_renderer::ui_renderer::UiVertex>,
+    indices: Vec<u32>,
+) {
     ui.draw_calls.push(DrawCall {
         vertices: verts,
         indices,
@@ -66,7 +70,14 @@ pub fn window_body(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32) {
     rounded(ui, v, i);
     fill(ui, x, y, 1.0, h, P::WIN_BORDER);
     fill(ui, x + w - 1.0, y, 1.0, h, P::WIN_BORDER);
-    fill(ui, x + CORNER_RADIUS, y + h - 1.0, w - 2.0 * CORNER_RADIUS, 1.0, P::WIN_BORDER);
+    fill(
+        ui,
+        x + CORNER_RADIUS,
+        y + h - 1.0,
+        w - 2.0 * CORNER_RADIUS,
+        1.0,
+        P::WIN_BORDER,
+    );
 }
 
 /// Light footer with rounded bottom corners and a gray edge border.
@@ -104,7 +115,11 @@ pub fn cell(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, active: bool) {
 
 /// Small rounded blue system button (close/minimize) with a dark-navy glyph.
 pub fn sys_button(ui: &mut UiFrame, x: f32, y: f32, size: f32, hovered: bool, glyph: Option<char>) {
-    let color = if hovered { P::SYS_BTN_HOVER } else { P::SYS_BTN };
+    let color = if hovered {
+        P::SYS_BTN_HOVER
+    } else {
+        P::SYS_BTN
+    };
     let (v, i) = draw::rounded_rect(x, y, size, size, 2.0, color);
     rounded(ui, v, i);
     if let Some(ch) = glyph {

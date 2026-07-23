@@ -1,9 +1,9 @@
-use crate::{BuildCtx, InGameWindow, Window};
 use crate::game::homun_window::{GaugeKind, bar};
 use crate::helper::window_chrome::{
     GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_hline, draw_sys_button, draw_titlebar,
     gauge_texture_paths, label_color, text_color,
 };
+use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::MercenaryState;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -154,10 +154,16 @@ impl MercenaryWindow {
         let (fw, fh) = self.fired_size;
         let skill_rect = Rect::new(right_edge - sw, ry, sw, sh);
         let dismiss_rect = Rect::new(right_edge - sw - 4.0 - fw, ry, fw, fh);
-        if ui.button(DISMISS_BTN_ID, dismiss_rect, &FIRED_BTN, "Dismiss").clicked() {
+        if ui
+            .button(DISMISS_BTN_ID, dismiss_rect, &FIRED_BTN, "Dismiss")
+            .clicked()
+        {
             events.push(GameEvent::RequestMercenaryCommand { command: 2 });
         }
-        if ui.button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill").clicked() {
+        if ui
+            .button(SKILL_BTN_ID, skill_rect, &SKILL_BTN, "Skill")
+            .clicked()
+        {
             events.push(GameEvent::ToggleMercenarySkillWindow);
         }
         ry += 24.0;
@@ -194,7 +200,12 @@ impl MercenaryWindow {
         ry += 6.0;
 
         ui.text(rx, ry + BASELINE, "Expiration", tc);
-        ui.text(rx + 60.0, ry + BASELINE, &format_expire(merc.expire_date), EXPIRE_COLOR);
+        ui.text(
+            rx + 60.0,
+            ry + BASELINE,
+            &format_expire(merc.expire_date),
+            EXPIRE_COLOR,
+        );
         ry += 22.0;
 
         let mid = rx + (right_edge - rx) * 0.5;

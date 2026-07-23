@@ -1,7 +1,5 @@
 use crate::App;
-use ragnarok_game::quest::{
-    QuestHuntEntry, QuestListEntry, QuestMarker, QuestMissionData,
-};
+use ragnarok_game::quest::{QuestHuntEntry, QuestListEntry, QuestMarker, QuestMissionData};
 use ragnarok_ui_component::game::chat_window::ChatChannel;
 
 const QUEST_MARKER_NONE: i16 = 9999;
@@ -86,9 +84,15 @@ impl App {
         if color == 0 || effect == QUEST_MARKER_NONE {
             self.game.quest_markers.remove(&npc_id);
         } else {
-            self.game
-                .quest_markers
-                .insert(npc_id, QuestMarker { x, y, effect, color });
+            self.game.quest_markers.insert(
+                npc_id,
+                QuestMarker {
+                    x,
+                    y,
+                    effect,
+                    color,
+                },
+            );
         }
     }
 }

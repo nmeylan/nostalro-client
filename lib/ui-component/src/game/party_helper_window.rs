@@ -80,7 +80,14 @@ impl PartyHelperWindow {
         self.open
     }
 
-    pub fn open(&mut self, mode: u8, exp_share: bool, item_pickup: u8, item_division: u8, editable: bool) {
+    pub fn open(
+        &mut self,
+        mode: u8,
+        exp_share: bool,
+        item_pickup: u8,
+        item_division: u8,
+        editable: bool,
+    ) {
         if self.open && self.mode == mode {
             self.open = false;
             return;
@@ -118,7 +125,11 @@ impl PartyHelperWindow {
     ) {
         let on = *current == value;
         Self::draw_radio(ui, x, y, on, grf);
-        let color = if editable { tc } else { [0.53, 0.53, 0.53, 1.0] };
+        let color = if editable {
+            tc
+        } else {
+            [0.53, 0.53, 0.53, 1.0]
+        };
         ui.text(x + 16.0, y + 11.0, label, color);
         let rect = Rect::new(x, y, 110.0, ROW_H);
         let resp = ui.interact(WidgetId(id_off), rect);
@@ -179,11 +190,7 @@ impl Window for PartyHelperWindow {
 }
 
 impl InGameWindow for PartyHelperWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -260,32 +267,103 @@ impl InGameWindow for PartyHelperWindow {
             ui.text(x + 10.0, cy + 11.0, label, lc);
             cy += 16.0;
             let input_rect = Rect::new(x + 10.0, cy, 120.0, 20.0);
-            ui.text_input(NAME_INPUT_ID, input_rect, &mut self.name_input, TextInputBg::Gray);
+            ui.text_input(
+                NAME_INPUT_ID,
+                input_rect,
+                &mut self.name_input,
+                TextInputBg::Gray,
+            );
             cy += 24.0;
         }
         if has_exp {
             ui.text(x + 10.0, cy + 11.0, "How to share EXP", lc);
             cy += 16.0;
             let mut v = if self.exp_share { 1 } else { 0 };
-            Self::radio_row(ui, RADIO_BASE_ID, x + 10.0, cy, "Each Take", 0, &mut v, self.editable, grf, tc);
+            Self::radio_row(
+                ui,
+                RADIO_BASE_ID,
+                x + 10.0,
+                cy,
+                "Each Take",
+                0,
+                &mut v,
+                self.editable,
+                grf,
+                tc,
+            );
             cy += ROW_H;
-            Self::radio_row(ui, RADIO_BASE_ID + 1, x + 10.0, cy, "Even Share", 1, &mut v, self.editable, grf, tc);
+            Self::radio_row(
+                ui,
+                RADIO_BASE_ID + 1,
+                x + 10.0,
+                cy,
+                "Even Share",
+                1,
+                &mut v,
+                self.editable,
+                grf,
+                tc,
+            );
             cy += ROW_H + 6.0;
             self.exp_share = v == 1;
         }
         if has_items {
             ui.text(x + 10.0, cy + 11.0, "How to share Items", lc);
             cy += 16.0;
-            Self::radio_row(ui, RADIO_BASE_ID + 2, x + 10.0, cy, "Each Take", 0, &mut self.item_pickup, self.editable, grf, tc);
+            Self::radio_row(
+                ui,
+                RADIO_BASE_ID + 2,
+                x + 10.0,
+                cy,
+                "Each Take",
+                0,
+                &mut self.item_pickup,
+                self.editable,
+                grf,
+                tc,
+            );
             cy += ROW_H;
-            Self::radio_row(ui, RADIO_BASE_ID + 3, x + 10.0, cy, "Party Share", 1, &mut self.item_pickup, self.editable, grf, tc);
+            Self::radio_row(
+                ui,
+                RADIO_BASE_ID + 3,
+                x + 10.0,
+                cy,
+                "Party Share",
+                1,
+                &mut self.item_pickup,
+                self.editable,
+                grf,
+                tc,
+            );
             cy += ROW_H + 6.0;
 
             ui.text(x + 10.0, cy + 11.0, "Item Sharing type", lc);
             cy += 16.0;
-            Self::radio_row(ui, RADIO_BASE_ID + 4, x + 10.0, cy, "Individual", 0, &mut self.item_division, self.editable, grf, tc);
+            Self::radio_row(
+                ui,
+                RADIO_BASE_ID + 4,
+                x + 10.0,
+                cy,
+                "Individual",
+                0,
+                &mut self.item_division,
+                self.editable,
+                grf,
+                tc,
+            );
             cy += ROW_H;
-            Self::radio_row(ui, RADIO_BASE_ID + 5, x + 10.0, cy, "Shared", 1, &mut self.item_division, self.editable, grf, tc);
+            Self::radio_row(
+                ui,
+                RADIO_BASE_ID + 5,
+                x + 10.0,
+                cy,
+                "Shared",
+                1,
+                &mut self.item_division,
+                self.editable,
+                grf,
+                tc,
+            );
         }
 
         // Footer: OK / Cancel

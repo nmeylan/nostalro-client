@@ -88,7 +88,9 @@ const INITIAL_INDEX_CAPACITY: usize = 2048;
 #[derive(Clone, Copy, PartialEq)]
 enum SpriteDepth {
     None,
-    Test { write: bool },
+    Test {
+        write: bool,
+    },
     Overlay,
     /// Depth-write only, no colour. Stamps the opaque body silhouette so later
     /// passes (effects) occlude against it, while the colour pass itself writes
@@ -629,7 +631,8 @@ impl SpriteRenderer {
             self.silhouette_vertex_capacity = total_verts.next_power_of_two();
             self.silhouette_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("sprite_silhouette_vertices"),
-                size: (self.silhouette_vertex_capacity * std::mem::size_of::<SpriteVertex>()) as u64,
+                size: (self.silhouette_vertex_capacity * std::mem::size_of::<SpriteVertex>())
+                    as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -1736,7 +1739,13 @@ pub fn compose_actor_batches<'a>(
         } else {
             copy.scale
         };
-        transform_batch_vertices_with_depth(&mut batches, body_center, 0.0, scale_xy, depth_gradient);
+        transform_batch_vertices_with_depth(
+            &mut batches,
+            body_center,
+            0.0,
+            scale_xy,
+            depth_gradient,
+        );
         if copy.offset_px != [0.0, 0.0] {
             let offset_dz =
                 depth_gradient[0] * copy.offset_px[0] + depth_gradient[1] * copy.offset_px[1];
@@ -1857,8 +1866,16 @@ mod tests {
     // action has 3 doridori-pose motions whose neck anchor differs by ~17px.
     #[test]
     fn doridori_keeps_head_attached_to_body() {
-        let body = [idle_motion((-4, -57)), idle_motion((11, -74)), idle_motion((-3, -57))];
-        let head = [idle_motion((-6, -57)), idle_motion((10, -73)), idle_motion((-5, -56))];
+        let body = [
+            idle_motion((-4, -57)),
+            idle_motion((11, -74)),
+            idle_motion((-3, -57)),
+        ];
+        let head = [
+            idle_motion((-6, -57)),
+            idle_motion((10, -73)),
+            idle_motion((-5, -56)),
+        ];
 
         // Idle: every part follows head_dir, not the (0) animation frame.
         assert_eq!(part_motion_index(true, 1, 0, 3), 1);
@@ -1870,7 +1887,10 @@ mod tests {
             let bi = part_motion_index(true, head_dir, 0, 3);
             let hi = part_motion_index(true, head_dir, 0, 3);
             let (ox, oy) = attachment_offset(&body[bi], &head[hi]);
-            assert!(ox.abs() <= 2 && oy.abs() <= 2, "head_dir {head_dir}: ({ox},{oy})");
+            assert!(
+                ox.abs() <= 2 && oy.abs() <= 2,
+                "head_dir {head_dir}: ({ox},{oy})"
+            );
         }
 
         // The old bug: body stuck on frame 0 while the head turned -> big gap.
@@ -1929,7 +1949,10 @@ mod tests {
         let width = verts[2].position[0] - verts[0].position[0];
         let center_x = (verts[0].position[0] + verts[2].position[0]) / 2.0;
         assert!((width - 48.0).abs() < 0.01, "24px sprite doubles to 48px");
-        assert!((center_x - 120.0).abs() < 0.01, "clip offset scales about anchor");
+        assert!(
+            (center_x - 120.0).abs() < 0.01,
+            "clip offset scales about anchor"
+        );
     }
 
     #[test]

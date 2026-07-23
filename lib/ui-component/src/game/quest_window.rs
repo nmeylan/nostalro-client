@@ -166,7 +166,14 @@ impl QuestWindow {
 
     fn tab_strip(&mut self, ui: &mut UiFrame, x: f32, y: f32, grf: bool) {
         if grf {
-            textured(ui, x, y, TAB_STRIP_W, TAB_STRIP_H, TAB_QUE_TEX[self.tab as usize]);
+            textured(
+                ui,
+                x,
+                y,
+                TAB_STRIP_W,
+                TAB_STRIP_H,
+                TAB_QUE_TEX[self.tab as usize],
+            );
         } else {
             fill(ui, x, y, TAB_STRIP_W, TAB_STRIP_H, TAB_BAR_BG);
         }
@@ -197,7 +204,16 @@ impl QuestWindow {
         }
     }
 
-    fn list_panel(&mut self, ui: &mut UiFrame, quest_log: &QuestLog, x: f32, y: f32, w: f32, h: f32, data: &DataTable) {
+    fn list_panel(
+        &mut self,
+        ui: &mut UiFrame,
+        quest_log: &QuestLog,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        data: &DataTable,
+    ) {
         fill(ui, x, y, w, h, PANEL_BG);
 
         let ids: Vec<u32> = quest_log
@@ -235,7 +251,14 @@ impl QuestWindow {
             let row_y = y + row as f32 * ROW_H;
             let row_rect = Rect::new(x, row_y, w - bar_w, ROW_H);
             if self.selected == Some(id) {
-                fill(ui, row_rect.x, row_rect.y, row_rect.w, row_rect.h, SELECTION_COLOR);
+                fill(
+                    ui,
+                    row_rect.x,
+                    row_rect.y,
+                    row_rect.w,
+                    row_rect.h,
+                    SELECTION_COLOR,
+                );
             }
             fill(ui, x, row_y + ROW_H - 1.0, w - bar_w, 1.0, BORDER);
 
@@ -252,7 +275,12 @@ impl QuestWindow {
             }
 
             let title = quest_title(data, id);
-            ui.text(x + 4.0 + ICON + 6.0, row_y + ROW_H / 2.0 + 4.0, &title, TEXT);
+            ui.text(
+                x + 4.0 + ICON + 6.0,
+                row_y + ROW_H / 2.0 + 4.0,
+                &title,
+                TEXT,
+            );
 
             let resp = ui.interact(WidgetId(ROW_BASE_ID + row as u32), row_rect);
             if resp.hovered() {
@@ -263,7 +291,12 @@ impl QuestWindow {
             }
             if resp.right_clicked() {
                 self.selected = Some(id);
-                let active = quest_log.quests.iter().find(|q| q.id == id).map(|q| q.active).unwrap_or(false);
+                let active = quest_log
+                    .quests
+                    .iter()
+                    .find(|q| q.id == id)
+                    .map(|q| q.active)
+                    .unwrap_or(false);
                 self.pending_toggle = Some((id, !active));
             }
         }
@@ -304,11 +337,7 @@ impl Window for QuestWindow {
 }
 
 impl InGameWindow for QuestWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let data = ctx.data;
         let quest_log = ctx.quest_log;
         if !self.open {
@@ -370,13 +399,19 @@ impl InGameWindow for QuestWindow {
         let footer_y = y + WIN_H - FOOTER_H;
         draw_footer(ui, x, footer_y, WIN_W, FOOTER_H, grf);
         let view_rect = Rect::new(x + 6.0, footer_y + 2.0, 42.0, 20.0);
-        if ui.button(VIEW_BTN_ID, view_rect, &VIEW_BTN, "View").clicked() {
+        if ui
+            .button(VIEW_BTN_ID, view_rect, &VIEW_BTN, "View")
+            .clicked()
+        {
             if let Some(id) = self.selected {
                 events.push(GameEvent::OpenQuestDetail { quest_id: id });
             }
         }
         let close2_rect = Rect::new(x + WIN_W - 48.0, footer_y + 2.0, 42.0, 20.0);
-        if ui.button(FOOTER_CLOSE_BTN_ID, close2_rect, &CLOSE_BTN, "Close").clicked() {
+        if ui
+            .button(FOOTER_CLOSE_BTN_ID, close2_rect, &CLOSE_BTN, "Close")
+            .clicked()
+        {
             self.open = false;
             ui.has_grf_textures = prev_grf;
             return events;
@@ -434,7 +469,6 @@ impl QuestDetailWindow {
     pub fn close(&mut self) {
         self.open = false;
     }
-
 }
 
 impl Window for QuestDetailWindow {
@@ -453,11 +487,7 @@ impl Window for QuestDetailWindow {
 }
 
 impl InGameWindow for QuestDetailWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let data = ctx.data;
         if !self.open {
             return Vec::new();
@@ -471,7 +501,14 @@ impl InGameWindow for QuestDetailWindow {
         ui.has_grf_textures = self.has_grf_textures;
         let grf = self.has_grf_textures;
 
-        let win = ui.window_at(QUEST_DETAIL_WINDOW_ID, DETAIL_W, DETAIL_H, 20.0, 370.0, 60.0);
+        let win = ui.window_at(
+            QUEST_DETAIL_WINDOW_ID,
+            DETAIL_W,
+            DETAIL_H,
+            20.0,
+            370.0,
+            60.0,
+        );
         let (x, y) = (win.x, win.y);
         ui.interact(QUEST_DETAIL_WINDOW_ID, Rect::new(x, y, DETAIL_W, DETAIL_H));
 
@@ -512,7 +549,14 @@ impl InGameWindow for QuestDetailWindow {
                 .unwrap_or_default();
             textured(ui, x + 15.0, y + 30.0, DETAIL_IMG_W, DETAIL_IMG_H, &img);
         } else {
-            fill(ui, x + 15.0, y + 30.0, DETAIL_IMG_W, DETAIL_IMG_H, TAB_INACTIVE);
+            fill(
+                ui,
+                x + 15.0,
+                y + 30.0,
+                DETAIL_IMG_W,
+                DETAIL_IMG_H,
+                TAB_INACTIVE,
+            );
         }
 
         ui.text(x + 120.0, y + 70.0, &quest_title(data, id), TEXT);
@@ -549,7 +593,12 @@ impl InGameWindow for QuestDetailWindow {
         for (i, obj) in quest.objectives.iter().take(3).enumerate() {
             let oy = y + 338.0 + i as f32 * 14.0;
             ui.text(x + 25.0, oy, &obj.name, TEXT);
-            ui.text(x + 180.0, oy, &format!("{}/{}", obj.current, obj.required), TEXT);
+            ui.text(
+                x + 180.0,
+                oy,
+                &format!("{}/{}", obj.current, obj.required),
+                TEXT,
+            );
         }
 
         ui.has_grf_textures = prev_grf;
@@ -591,14 +640,18 @@ mod tests {
     fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> = Box::leak(Box::default());
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
         UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     #[test]
     fn right_click_row_requests_active_toggle() {
         let mut log = QuestLog::default();
-        log.set_list_entry(QuestListEntry { id: 500, active: true });
+        log.set_list_entry(QuestListEntry {
+            id: 500,
+            active: true,
+        });
         log.set_mission(ragnarok_game::quest::QuestMissionData {
             id: 500,
             end_time: None,
@@ -629,7 +682,10 @@ mod tests {
         assert!(
             events.iter().any(|e| matches!(
                 e,
-                GameEvent::RequestToggleQuestActive { quest_id: 500, active: false }
+                GameEvent::RequestToggleQuestActive {
+                    quest_id: 500,
+                    active: false
+                }
             )),
             "expected toggle-active event, got {events:?}"
         );

@@ -96,7 +96,6 @@ impl DamageNumber {
         }
     }
 
-
     pub fn is_expired(&self) -> bool {
         self.elapsed >= self.number_type.duration()
     }
@@ -549,11 +548,17 @@ mod tests {
 
         let mut player = DamageNumberManager::new();
         player.emit(1, 0, &hit, true);
-        assert_eq!(player.numbers.last().unwrap().number_type, DamageNumberType::Enemy);
+        assert_eq!(
+            player.numbers.last().unwrap().number_type,
+            DamageNumberType::Enemy
+        );
 
         let mut monster = DamageNumberManager::new();
         monster.emit(1, 0, &hit, false);
-        assert_eq!(monster.numbers.last().unwrap().number_type, DamageNumberType::Skill);
+        assert_eq!(
+            monster.numbers.last().unwrap().number_type,
+            DamageNumberType::Skill
+        );
     }
 
     #[test]
@@ -628,10 +633,17 @@ mod tests {
         assert!(mgr.numbers.is_empty());
 
         mgr.emit(1, 0, &ScheduledHit::single(0, 0, false), false);
-        assert_eq!(mgr.numbers.last().unwrap().number_type, DamageNumberType::Miss);
+        assert_eq!(
+            mgr.numbers.last().unwrap().number_type,
+            DamageNumberType::Miss
+        );
 
         mgr.add(DamageNumber::new(1, 42, DamageNumberType::Heal, 0));
-        assert!(mgr.numbers.iter().any(|n| n.number_type == DamageNumberType::Heal));
+        assert!(
+            mgr.numbers
+                .iter()
+                .any(|n| n.number_type == DamageNumberType::Heal)
+        );
 
         mgr.combat_hidden = false;
         let before = mgr.numbers.len();

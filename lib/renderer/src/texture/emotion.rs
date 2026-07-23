@@ -13,9 +13,10 @@ pub(super) fn load_emotion_icons(
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
 ) -> Vec<(String, wgpu::BindGroup, u32, u32)> {
-    let (Ok(spr_data), Ok(act_data)) =
-        (grf.read_file(EMOTION_SPR_PATH), grf.read_file(EMOTION_ACT_PATH))
-    else {
+    let (Ok(spr_data), Ok(act_data)) = (
+        grf.read_file(EMOTION_SPR_PATH),
+        grf.read_file(EMOTION_ACT_PATH),
+    ) else {
         return Vec::new();
     };
     let (Ok(spr), Ok(act)) = (SprFile::parse(&spr_data), ActFile::parse(&act_data)) else {
@@ -80,8 +81,16 @@ fn composite_emote_frame(
 
     let min_l = placed.iter().map(|(_, l, _)| *l).min().unwrap();
     let min_t = placed.iter().map(|(_, _, t)| *t).min().unwrap();
-    let max_r = placed.iter().map(|(im, l, _)| l + im.width as i32).max().unwrap();
-    let max_b = placed.iter().map(|(im, _, t)| t + im.height as i32).max().unwrap();
+    let max_r = placed
+        .iter()
+        .map(|(im, l, _)| l + im.width as i32)
+        .max()
+        .unwrap();
+    let max_b = placed
+        .iter()
+        .map(|(im, _, t)| t + im.height as i32)
+        .max()
+        .unwrap();
     let w = (max_r - min_l) as u32;
     let h = (max_b - min_t) as u32;
     if w == 0 || h == 0 {

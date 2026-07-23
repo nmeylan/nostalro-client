@@ -204,11 +204,7 @@ impl Window for MinimapWindow {
 }
 
 impl InGameWindow for MinimapWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if self.visibility == MinimapVisibility::Hidden {

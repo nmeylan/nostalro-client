@@ -38,7 +38,10 @@ mod tests {
                     \n\
                     // trailing comment\n";
         let table = parse_mp3_name_table(text);
-        assert_eq!(table.get("prt_church.rsw").map(String::as_str), Some("10.mp3"));
+        assert_eq!(
+            table.get("prt_church.rsw").map(String::as_str),
+            Some("10.mp3")
+        );
         assert_eq!(table.get("geffen.rsw").map(String::as_str), Some("05.mp3"));
         assert_eq!(table.len(), 2);
     }
@@ -46,6 +49,9 @@ mod tests {
     #[test]
     fn lookup_is_case_insensitive_on_key() {
         let table = parse_mp3_name_table("Prontera.rsw#bgm\\01.mp3#\n");
-        assert_eq!(table.get("prontera.rsw").map(String::as_str), Some("01.mp3"));
+        assert_eq!(
+            table.get("prontera.rsw").map(String::as_str),
+            Some("01.mp3")
+        );
     }
 }

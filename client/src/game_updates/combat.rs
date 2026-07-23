@@ -6,11 +6,14 @@ use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_network::{build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet};
+use ragnarok_network::{
+    build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
+};
 
 impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
-        self.game.combat.attack_request_cooldown = (self.game.combat.attack_request_cooldown - delta).max(0.0);
+        self.game.combat.attack_request_cooldown =
+            (self.game.combat.attack_request_cooldown - delta).max(0.0);
 
         if self.game.pending_casts.pending_skill_id.is_some() {
             return;
@@ -103,7 +106,10 @@ impl App {
     }
 
     pub(crate) fn check_pending_skill(&mut self) {
-        let (skill_id, level) = match (self.game.pending_casts.pending_skill_id, self.game.pending_casts.pending_skill_level) {
+        let (skill_id, level) = match (
+            self.game.pending_casts.pending_skill_id,
+            self.game.pending_casts.pending_skill_level,
+        ) {
             (Some(sid), Some(lvl)) => (sid, lvl),
             _ => return,
         };
@@ -455,7 +461,8 @@ impl App {
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)
             .unwrap_or(false);
         self.game
-            .combat.damage_numbers
+            .combat
+            .damage_numbers
             .emit(display_entity, dir, hit, is_player_target);
     }
 }

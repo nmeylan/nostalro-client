@@ -106,7 +106,7 @@ impl Effect for TurnUndeadEffect {
         let before = self.age_frames;
         self.age_frames += ctx.delta * FRAMES_PER_SECOND;
         self.spikes.tick(ctx.delta);
-        
+
         if self.age_frames >= TOTAL_FRAMES {
             EffectStatus::Dead
         } else {

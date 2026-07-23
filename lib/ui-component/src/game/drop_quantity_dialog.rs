@@ -29,11 +29,7 @@ impl DropQuantityDialog {
 }
 
 impl InGameWindow for DropQuantityDialog {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         self.inner.has_grf_textures = self.has_grf_textures;
@@ -96,7 +92,10 @@ mod tests {
     ) -> Vec<GameEvent> {
         let mut ui = make_frame(ctx, state);
         let mut character = Character::new();
-        dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::default()))
+        dialog.build(
+            &mut ui,
+            &mut crate::BuildCtx::test(&mut character, &DataTable::default()),
+        )
     }
 
     #[test]

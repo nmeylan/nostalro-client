@@ -32,7 +32,7 @@ pub use effect::{
     prepare_texture3d_records, prepare_world_quad_records,
 };
 pub use effect_sprite::{
-    EffectSpriteCache, EffectSpriteEntry, EmitterDraw, BurstParticle, SpriteEffectEmitter,
+    BurstParticle, EffectSpriteCache, EffectSpriteEntry, EmitterDraw, SpriteEffectEmitter,
     build_emitter_batches, collect_sprite_effect_draws, prepare_sprite_particle_records,
     project_billboard,
 };
@@ -45,9 +45,8 @@ pub use model::ModelRenderer;
 pub use sprite::{
     BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
     SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_clip_quad_scaled,
-    build_composite_clips,
-    build_entity_sprite, compose_actor_batches, scale_clip_vertices, transform_batch_vertices,
-    upload_sprite_textures,
+    build_composite_clips, build_entity_sprite, compose_actor_batches, scale_clip_vertices,
+    transform_batch_vertices, upload_sprite_textures,
 };
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};
@@ -307,7 +306,8 @@ impl Renderer {
                 *c = (*c * 1.5).min(1.0);
             }
         }
-        self.global_uniforms.update_light(&self.device.queue, &light);
+        self.global_uniforms
+            .update_light(&self.device.queue, &light);
     }
 
     pub fn set_fog(&mut self, fog: Option<FogEntry>) {

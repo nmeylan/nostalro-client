@@ -370,7 +370,11 @@ impl VendingShopWindow {
         if let Some((source_id, row_idx)) = ui.drop_zone(slots_rect)
             && source_id == VENDING_SHOP_WINDOW_ID
         {
-            let stock = self.rows.get(row_idx).map(|r| r.item.amount.max(0)).unwrap_or(0);
+            let stock = self
+                .rows
+                .get(row_idx)
+                .map(|r| r.item.amount.max(0))
+                .unwrap_or(0);
             if stock > 1 {
                 let mut dialog = NumberInputDialog::new(
                     NumberInputConfig {
@@ -463,11 +467,7 @@ impl Window for VendingShopWindow {
 }
 
 impl InGameWindow for VendingShopWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -522,7 +522,12 @@ fn draw_amount(ui: &mut UiFrame, icon_x: f32, icon_y: f32, amount: i16) {
     }
     let s = amount.to_string();
     let w = ui.atlas.measure_text(&s);
-    ui.text(icon_x + ICON_SIZE - w, icon_y + ICON_SIZE - 1.0, &s, [0.0, 0.0, 0.0, 1.0]);
+    ui.text(
+        icon_x + ICON_SIZE - w,
+        icon_y + ICON_SIZE - 1.0,
+        &s,
+        [0.0, 0.0, 0.0, 1.0],
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -666,14 +671,23 @@ mod tests {
         let mut character = Character::new();
         let mut state = StateCache::new();
         let win_h = TITLE_H + PAD + STAGED_SLOTS as f32 * ROW_H + PAD + TOTAL_H + FOOTER_H;
-        let buy_rect = Rect::new(550.0, 120.0, WIN_W, win_h)
-            .buttons_bottom_right(2, FALLBACK_BTN_W, FALLBACK_BTN_H, 5.0, 5.0, 3.0)[1];
+        let buy_rect = Rect::new(550.0, 120.0, WIN_W, win_h).buttons_bottom_right(
+            2,
+            FALLBACK_BTN_W,
+            FALLBACK_BTN_H,
+            5.0,
+            5.0,
+            3.0,
+        )[1];
         let mut ctx = UiContext::new(1024.0, 768.0);
         ctx.mouse_x = buy_rect.x + buy_rect.w / 2.0;
         ctx.mouse_y = buy_rect.y + buy_rect.h / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        let events = win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &DataTable::new()));
+        let events = win.build(
+            &mut ui,
+            &mut crate::BuildCtx::test(&mut character, &DataTable::new()),
+        );
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestPurchaseFromVendor { items, .. } => {

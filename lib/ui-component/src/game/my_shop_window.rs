@@ -121,11 +121,7 @@ impl Window for MyShopWindow {
 }
 
 impl InGameWindow for MyShopWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -212,7 +208,8 @@ impl InGameWindow for MyShopWindow {
             let price_label = format!("{}z", format_thousands(row.item.price as i64));
             let price_x = list_x + list_w - PRICE_W - STOCK_W;
             let price_y = row_y + ROW_H - 6.0;
-            let (price_color, price_shadow) = crate::helper::colors::price_style(row.item.price as i64);
+            let (price_color, price_shadow) =
+                crate::helper::colors::price_style(row.item.price as i64);
             if let Some(shadow) = price_shadow {
                 ui.text(price_x + 1.0, price_y, &price_label, shadow);
             }

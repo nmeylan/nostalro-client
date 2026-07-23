@@ -9,6 +9,7 @@ use models::enums::effect_id::EffectId;
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::damage_number::{
     DamageNumber, DamageNumberManager, DamageNumberRenderEntry, build_damage_number_quads,
 };
@@ -18,7 +19,6 @@ use ragnarok_game::effect::{
     EffectQueue, EffectSpec, body_attached, effect_spec, effect_texture_paths, is_link_effect,
     is_trail_effect, str_aliases,
 };
-use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::map_loader::{self, MapData};
 use ragnarok_game::sprite_loader as game_sprite_loader;
 use ragnarok_game::sprite_path::weapon_view_id_to_type;
@@ -262,6 +262,7 @@ impl App {
             0,
             0,
             self.shield_view_id,
+            false,
             false,
         ) {
             Some(d) => d,

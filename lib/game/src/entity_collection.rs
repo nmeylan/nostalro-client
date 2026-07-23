@@ -217,12 +217,7 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_skill_no_damage(
-        &mut self,
-        skill_id: u16,
-        src_gid: u32,
-        target_gid: u32,
-    ) {
+    pub fn apply_skill_no_damage(&mut self, skill_id: u16, src_gid: u32, target_gid: u32) {
         if skill_id == SkillEnum::TkRun.id() as u16
             && !self.entities.get(&src_gid).is_some_and(|e| e.is_running)
         {

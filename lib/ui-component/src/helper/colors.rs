@@ -16,7 +16,7 @@ pub const BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 pub const CYAN: [f32; 4] = [0.0, 1.0, 1.0, 1.0];
 pub const MAGENTA1: [f32; 4] = [0.807_843_1, 0.0, 0.807_843_1, 1.0];
 pub const YELLOW: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
-pub const MAGENTA: [f32; 4] =[1.0, 0.09411765, 1.0, 1.0];
+pub const MAGENTA: [f32; 4] = [1.0, 0.09411765, 1.0, 1.0];
 
 pub const PINK: [f32; 4] = [1.0, 0.0, 0.48235294, 1.0];
 

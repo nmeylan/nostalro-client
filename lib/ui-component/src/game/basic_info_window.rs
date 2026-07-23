@@ -489,7 +489,13 @@ impl BasicInfoWindow {
             (BTN_MAP_ID, col1_x, row_y(2), &BTN_MAP, "Map"),
             (BTN_SKILL_ID, col2_x, row_y(2), &BTN_SKILL, "Skills (Alt+S)"),
             (BTN_PARTY_ID, col1_x, row_y(3), &BTN_PARTY, "Party"),
-            (BTN_CHAT_ID, col2_x, row_y(3), &BTN_CHAT, "Chat Room (Alt+C)"),
+            (
+                BTN_CHAT_ID,
+                col2_x,
+                row_y(3),
+                &BTN_CHAT,
+                "Chat Room (Alt+C)",
+            ),
         ];
 
         for &(id, bx, by, textures, tooltip_text) in menu_buttons {
@@ -653,11 +659,7 @@ impl Window for BasicInfoWindow {
 }
 
 impl InGameWindow for BasicInfoWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;
         if self.hidden {

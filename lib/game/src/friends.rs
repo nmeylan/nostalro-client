@@ -13,7 +13,9 @@ pub struct Friend {
 
 impl FriendList {
     pub fn index_of(&self, aid: u32, gid: u32) -> Option<usize> {
-        self.friends.iter().position(|f| f.aid == aid && f.gid == gid)
+        self.friends
+            .iter()
+            .position(|f| f.aid == aid && f.gid == gid)
     }
 
     pub fn set_all(&mut self, friends: Vec<Friend>) {
@@ -54,7 +56,10 @@ mod tests {
     #[test]
     fn friend_list_add_update_state_remove() {
         let mut list = FriendList::default();
-        list.set_all(vec![friend(1, 10, "Alice", true), friend(2, 20, "Bob", false)]);
+        list.set_all(vec![
+            friend(1, 10, "Alice", true),
+            friend(2, 20, "Bob", false),
+        ]);
         assert_eq!(list.friends.len(), 2);
 
         list.upsert(friend(3, 30, "Carol", true));

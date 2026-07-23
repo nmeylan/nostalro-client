@@ -79,16 +79,18 @@ impl Window for SoundOptionsWindow {
         self.has_grf_textures = value;
     }
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![TITLEBAR_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX]
+        vec![
+            TITLEBAR_TEX,
+            SYS_BASE_OFF_TEX,
+            SYS_BASE_ON_TEX,
+            CLOSE_OFF_TEX,
+            CLOSE_ON_TEX,
+        ]
     }
 }
 
 impl InGameWindow for SoundOptionsWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         if !self.open {
@@ -101,15 +103,35 @@ impl InGameWindow for SoundOptionsWindow {
 
         let default_x = (ui.ctx.screen_width - WIN_W) / 2.0;
         let default_y = (ui.ctx.screen_height - WIN_H) / 2.0;
-        let win = ui.window_at(SOUND_OPTIONS_WINDOW_ID, WIN_W, WIN_H, TITLE_H, default_x, default_y);
-        ui.interact(SOUND_OPTIONS_WINDOW_ID, Rect::new(win.x, win.y, WIN_W, WIN_H));
+        let win = ui.window_at(
+            SOUND_OPTIONS_WINDOW_ID,
+            WIN_W,
+            WIN_H,
+            TITLE_H,
+            default_x,
+            default_y,
+        );
+        ui.interact(
+            SOUND_OPTIONS_WINDOW_ID,
+            Rect::new(win.x, win.y, WIN_W, WIN_H),
+        );
 
         crate::helper::fallback::window_body(ui, win.x, win.y + TITLE_H, WIN_W, WIN_H - TITLE_H);
 
         draw_titlebar(ui, win.x, win.y, WIN_W, TITLE_H, grf);
-        ui.text(win.x + 20.0, win.y + TITLE_H - 5.0, "Sound", text_color(grf));
+        ui.text(
+            win.x + 20.0,
+            win.y + TITLE_H - 5.0,
+            "Sound",
+            text_color(grf),
+        );
 
-        let close_rect = Rect::new(win.x + WIN_W - CLOSE_SIZE - 4.0, win.y + 4.0, CLOSE_SIZE, CLOSE_SIZE);
+        let close_rect = Rect::new(
+            win.x + WIN_W - CLOSE_SIZE - 4.0,
+            win.y + 4.0,
+            CLOSE_SIZE,
+            CLOSE_SIZE,
+        );
         let close_resp = ui.interact(CLOSE_BTN_ID, close_rect);
         if close_resp.hovered() {
             ui.any_interactive_hovered = true;
@@ -145,11 +167,24 @@ impl InGameWindow for SoundOptionsWindow {
         if bgm_resp.released {
             events.push(self.changed_event(true));
         }
-        let bgm_cb = Rect::new(mute_x, row(0) + (SLIDER_H - CB_SIZE) / 2.0, CB_SIZE, CB_SIZE);
-        if ui.checkbox(BGM_MUTE_ID, bgm_cb, &mut self.bgm_enabled, &CHECKBOX).clicked() {
+        let bgm_cb = Rect::new(
+            mute_x,
+            row(0) + (SLIDER_H - CB_SIZE) / 2.0,
+            CB_SIZE,
+            CB_SIZE,
+        );
+        if ui
+            .checkbox(BGM_MUTE_ID, bgm_cb, &mut self.bgm_enabled, &CHECKBOX)
+            .clicked()
+        {
             events.push(self.changed_event(true));
         }
-        ui.text(bgm_cb.x + CB_SIZE + 4.0, row(0) + SLIDER_H - 4.0, "On", label_color);
+        ui.text(
+            bgm_cb.x + CB_SIZE + 4.0,
+            row(0) + SLIDER_H - 4.0,
+            "On",
+            label_color,
+        );
 
         // SFX row
         ui.text(win.x + 12.0, row(1) + SLIDER_H - 4.0, "SFX", label_color);
@@ -161,11 +196,24 @@ impl InGameWindow for SoundOptionsWindow {
         if sfx_resp.released {
             events.push(self.changed_event(true));
         }
-        let sfx_cb = Rect::new(mute_x, row(1) + (SLIDER_H - CB_SIZE) / 2.0, CB_SIZE, CB_SIZE);
-        if ui.checkbox(SFX_MUTE_ID, sfx_cb, &mut self.sfx_enabled, &CHECKBOX).clicked() {
+        let sfx_cb = Rect::new(
+            mute_x,
+            row(1) + (SLIDER_H - CB_SIZE) / 2.0,
+            CB_SIZE,
+            CB_SIZE,
+        );
+        if ui
+            .checkbox(SFX_MUTE_ID, sfx_cb, &mut self.sfx_enabled, &CHECKBOX)
+            .clicked()
+        {
             events.push(self.changed_event(true));
         }
-        ui.text(sfx_cb.x + CB_SIZE + 4.0, row(1) + SLIDER_H - 4.0, "On", label_color);
+        ui.text(
+            sfx_cb.x + CB_SIZE + 4.0,
+            row(1) + SLIDER_H - 4.0,
+            "On",
+            label_color,
+        );
 
         ui.has_grf_textures = prev_grf;
         events

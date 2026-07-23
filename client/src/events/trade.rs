@@ -30,7 +30,12 @@ impl App {
     pub(super) fn handle_exchange_ack_result(&mut self, result: u8, level: i16) {
         match result {
             3 => {
-                let (aid, name) = self.game.pending_confirms.pending_trade_partner.take().unwrap_or((0, String::new()));
+                let (aid, name) = self
+                    .game
+                    .pending_confirms
+                    .pending_trade_partner
+                    .take()
+                    .unwrap_or((0, String::new()));
                 let my_level = self.game.character.base_level as i16;
                 self.game.character.trade.begin(name, aid, level, my_level);
                 self.game.character.inventory.open();
@@ -43,12 +48,18 @@ impl App {
                 .windows
                 .chat_window
                 .add_error("The character does not exist.".to_string()),
-            4 => self.windows.chat_window.add_error("The deal was rejected.".to_string()),
+            4 => self
+                .windows
+                .chat_window
+                .add_error("The deal was rejected.".to_string()),
             5 => self
                 .windows
                 .chat_window
                 .add_error("The other player is busy dealing.".to_string()),
-            _ => self.windows.chat_window.add_error("Trade has failed.".to_string()),
+            _ => self
+                .windows
+                .chat_window
+                .add_error("Trade has failed.".to_string()),
         }
     }
 
@@ -67,7 +78,16 @@ impl App {
             self.game.character.trade.set_other_zeny(count as i64);
             return;
         }
-        let item = self.build_trade_item(0, item_id, count as i16, item_type, is_identified, is_damaged, refining_level, slot);
+        let item = self.build_trade_item(
+            0,
+            item_id,
+            count as i16,
+            item_type,
+            is_identified,
+            is_damaged,
+            refining_level,
+            slot,
+        );
         if let Some(path) = item.icon_path() {
             self.preload_item_icons(vec![path]);
         }
@@ -120,9 +140,13 @@ impl App {
 
     pub(super) fn handle_exchange_completed(&mut self, result: u8) {
         if result == 0 {
-            self.windows.chat_window.add_system("Deal successful.".to_string());
+            self.windows
+                .chat_window
+                .add_system("Deal successful.".to_string());
         } else {
-            self.windows.chat_window.add_error("The deal has failed.".to_string());
+            self.windows
+                .chat_window
+                .add_error("The deal has failed.".to_string());
         }
         self.game.character.trade.reset();
         self.windows.trade_window.reset_input();
