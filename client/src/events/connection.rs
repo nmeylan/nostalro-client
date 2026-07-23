@@ -230,6 +230,9 @@ impl App {
         if ragnarok_game::sprite_path::has_falcon(effect_state) {
             self.spawn_falcon_visual(account_id);
         }
+        if let Some((pid, design)) = self.game.player_cart_from_option() {
+            self.spawn_cart_visual(pid, design);
+        }
 
         self.position_camera_at(x as f32, y as f32);
         self.char_select_window = None;

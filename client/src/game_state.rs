@@ -468,6 +468,23 @@ impl GameState {
         None
     }
 
+    /// Reads the player's cart design out of the `OPTION_CART` bits carried in
+    /// `effect_state` and records it on the entity and character. Returns the
+    /// `(player gid, design)` to spawn, or `None` when the player has no cart.
+    /// Servers that deliver the cart as a status change instead leave these
+    /// bits clear, so this is a no-op there and the status path takes over.
+    pub fn player_cart_from_option(&mut self) -> Option<(u32, u8)> {
+        let pid = self.world.entities.player_id()?;
+        let design = ragnarok_game::sprite_path::cart_design_from_option(
+            self.world.entities.get(pid)?.effect_state,
+        )?;
+        self.character.cart_design = Some(design);
+        if let Some(entity) = self.world.entities.get_mut(pid) {
+            entity.cart_type = Some(design);
+        }
+        Some((pid, design))
+    }
+
     /// The queue and the key-maps must be wiped together: a key left behind
     /// points into a now-empty queue and blocks the alive-gated auras from ever
     /// re-spawning.
@@ -610,6 +627,36 @@ impl GameState {
             (size_index > 0, size_index == 1),
         );
         result
+    }
+}
+
+#[cfg(test)]
+mod cart_option_tests {
+    use super::*;
+    use ragnarok_game::entity::Entity;
+
+    fn with_player(effect_state: i32) -> GameState {
+        let mut game = GameState::new();
+        let mut player = Entity::new_player(1000, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0);
+        player.effect_state = effect_state;
+        game.world.entities.set_player_id(1000);
+        game.world.entities.insert(player);
+        game
+    }
+
+    #[test]
+    fn spawns_player_cart_from_option_bit() {
+        let mut game = with_player(0x100);
+        assert_eq!(game.player_cart_from_option(), Some((1000, 3)));
+        assert_eq!(game.character.cart_design, Some(3));
+        assert_eq!(game.world.entities.get(1000).unwrap().cart_type, Some(3));
+    }
+
+    #[test]
+    fn no_cart_when_option_bit_clear() {
+        let mut game = with_player(0);
+        assert_eq!(game.player_cart_from_option(), None);
+        assert_eq!(game.character.cart_design, None);
     }
 }
 

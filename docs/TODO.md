@@ -59,7 +59,7 @@ TODO:
 ~~- Refining UI~~
 - ~~Mail/Rodex~~
 - Loading screen
-- Login background
+- ~~Login background~~
 - 
 # Entities
 - ~~Multiple entity management (spawn, despawn, update)~~ (done — entity_collection.rs)
