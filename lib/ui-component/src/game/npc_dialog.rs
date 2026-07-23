@@ -247,10 +247,6 @@ impl InGameWindow for NpcDialog {
             }
             NpcDialogState::WaitingForDealType => {
                 if ui.ctx.key_escape {
-                    events.push(GameEvent::RequestNpcDealType {
-                        npc_id: self.dialog.npc_id,
-                        deal_type: 255,
-                    });
                     self.dialog.close();
                     return events;
                 }
@@ -648,10 +644,6 @@ impl NpcDialog {
             self.dialog.close();
         }
         if cancel.clicked() {
-            events.push(GameEvent::RequestNpcDealType {
-                npc_id: self.dialog.npc_id,
-                deal_type: 255,
-            });
             self.dialog.close();
         }
 
@@ -736,14 +728,7 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
 
         let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            GameEvent::RequestNpcDealType { npc_id, deal_type } => {
-                assert_eq!(*npc_id, 100);
-                assert_eq!(*deal_type, 255);
-            }
-            other => panic!("expected RequestNpcDealType, got {other:?}"),
-        }
+        assert!(events.is_empty());
         assert!(!npc.dialog.is_open());
     }
 
