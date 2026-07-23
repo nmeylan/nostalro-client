@@ -8,11 +8,11 @@ It reuses many parts of [rust-ro](https://github.com/nmeylan/rust-ro): packets, 
 See [TODO](docs/TODO.md) and [Features.md](Features.md). Architecture is documented in [docs/internal/architecture.md](docs/internal/architecture.md) and [docs/internal/rendering.md](docs/internal/rendering.md).
 
 # Why yet another client?
-We wanted to run the game as it was in 2005~2008, but the original client from that period does not handle high dpi screens well. It is also painful to find the right game resources and the right exe diff to make it work with a server.
+I wanted to run the game as it was in 2005~2008, but the original client from that period does not handle high dpi screens well. It is also painful to find the right game resources and the right exe diff to make it work with a server.
 
 Other implementations either do not focus on this version of the client, or do not aim for an exact match.
 
-We also wanted a clear view on what is implemented and what is not.
+I also wanted a clear view on what is implemented and what is not.
 
 # Principles
 - Support any game resources up to EP 12 (included)
@@ -24,21 +24,19 @@ We also wanted a clear view on what is implemented and what is not.
 
 # Prerequisites
 
-A newcomer needs four things before running anything.
-
-- **Rust toolchain.** The workspace pins Rust `1.92.0` through a `rust-toolchain.toml` file. Install [rustup](https://rustup.rs) and the correct toolchain is selected automatically when we build from the repository root.
+- **Rust toolchain.** The workspace pins Rust `1.97.0` through a `rust-toolchain.toml` file. Install [rustup](https://rustup.rs) and the correct toolchain is selected automatically when we build from the repository root.
 - **`cargo-watch`** (only for the hot-reload development tools). Install it with `cargo install cargo-watch`. The game client and the standalone viewers do not need it.
-- **A running server.** The client is a network client: it connects to a login server. We use [rathena](https://github.com/rathena/rathena) (referenced as `../rathena`), and it can also talk to [rust-ro](https://github.com/nmeylan/rust-ro). Nothing but the map and sprite viewers work without a server to log into.
-- **Game resources.** We provide none. See the next section.
+- **A running server.** The client is a network client: it connects to a login server.
+- **Game resources.** this repository provides none. See the next section.
 
-# Game resources we need to supply
+# Game resources you need to supply
 
-None of the resource files are committed (they are git-ignored). We place them under `data/` at the repository root before building or running.
+None of the resource files are committed (they are git-ignored). Place them under `data/` at the repository root before building or running.
 
 ```
 classic-client/
   data/
-    data.grf        # required: GRF archive with maps, sprites, effects, textures
+    data.grf        # required: GRF archive with maps, sprites, effects, textureswe
     BGM/            # optional: background music files (.mp3 / .wav)
     emblem/         # optional: guild emblem .bmp files (24-bit, 24x24)
     extracted/      # optional: loose files that override the archive (see data_dir)
@@ -59,7 +57,6 @@ flowchart LR
     bgm[data/BGM] -->|music| client
     emblem[data/emblem] -->|guild emblems| client
     config[config.json] -->|settings| client
-    client <-->|packets, packetver| server[login/char/map server]
 ```
 
 # Build
@@ -67,12 +64,9 @@ flowchart LR
 Build every crate from the repository root.
 
 ```bash
-cargo build            # debug build of the whole workspace
-cargo build --release  # optimized build
-cargo test             # run all tests
+cargo build --release 
+cargo test           
 ```
-
-The workspace depends on the server `models`, `movement`, and `packets` crates. By default `Cargo.toml` pulls them from the `rust-ro` git repository at a pinned revision, so a plain `cargo build` works with no extra checkout. If we are developing the server side in parallel, a commented `[patch]` block at the bottom of `Cargo.toml` can be uncommented to point those three crates at a local `../rust-ragnarok-server` checkout.
 
 # Configure
 
