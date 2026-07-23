@@ -645,6 +645,9 @@ impl App {
                 Some(design) => self.spawn_cart_visual(gid, design),
                 None => self.despawn_cart_visual(gid),
             }
+            if is_player {
+                self.game.character.cart_design = new_cart;
+            }
         }
         if old_falcon != new_falcon {
             if new_falcon {

@@ -1571,6 +1571,9 @@ impl App {
                 GameEvent::ToggleGraphicOptions => {
                     self.open_graphic_options();
                 }
+                GameEvent::ToggleSystemMenu => {
+                    self.windows.system_menu.open = !self.windows.system_menu.open;
+                }
                 GameEvent::GraphicsSettingsChanged {
                     ui_scale,
                     fullscreen,

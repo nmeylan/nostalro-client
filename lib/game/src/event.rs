@@ -864,6 +864,7 @@ pub enum GameEvent {
         persist: bool,
     },
     ToggleGraphicOptions,
+    ToggleSystemMenu,
     ToggleHotkeyConfig,
     GraphicsSettingsChanged {
         ui_scale: f32,
