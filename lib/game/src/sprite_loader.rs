@@ -46,10 +46,12 @@ pub fn load_sprite_data(grf: &GrfArchive, spr_path: &str, act_path: &str) -> Opt
     let rgba_count = spr.rgba_sprites.len();
     let (images, indexed_count) = spr.to_rgba_images();
 
-    tracing::info!(
-        "Loaded sprite: {spr_path} ({indexed_count} indexed + {rgba_count} rgba, {} actions)",
-        act.actions.len()
-    );
+    if ragnarok_profiling::debug::trace_texture_load() {
+        tracing::info!(
+            "Loaded sprite: {spr_path} ({indexed_count} indexed + {rgba_count} rgba, {} actions)",
+            act.actions.len()
+        );
+    }
 
     Some(SpriteData {
         images,
@@ -124,10 +126,12 @@ pub fn load_body_sprite(
     let rgba_count = spr.rgba_sprites.len();
     let (images, indexed_count) = spr.to_rgba_images_with_palette(override_palette.as_ref());
 
-    tracing::info!(
-        "Loaded sprite: {spr_path} ({indexed_count} indexed + {rgba_count} rgba, {} actions)",
-        act.actions.len()
-    );
+    if ragnarok_profiling::debug::trace_texture_load() {
+        tracing::info!(
+            "Loaded sprite: {spr_path} ({indexed_count} indexed + {rgba_count} rgba, {} actions)",
+            act.actions.len()
+        );
+    }
 
     Some(SpriteData {
         images,
@@ -203,10 +207,12 @@ pub fn load_head_sprite(
     let rgba_count = spr.rgba_sprites.len();
     let (images, indexed_count) = spr.to_rgba_images_with_palette(override_palette.as_ref());
 
-    tracing::info!(
-        "Loaded sprite: {spr_path} ({indexed_count} indexed + {rgba_count} rgba, {} actions)",
-        act.actions.len()
-    );
+    if ragnarok_profiling::debug::trace_texture_load() {
+        tracing::info!(
+            "Loaded sprite: {spr_path} ({indexed_count} indexed + {rgba_count} rgba, {} actions)",
+            act.actions.len()
+        );
+    }
 
     Some(SpriteData {
         images,

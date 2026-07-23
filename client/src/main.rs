@@ -477,8 +477,6 @@ impl App {
 
         let packetver = self.active_packetver;
         let debug_delay_ms = self.config.debug_network_delay_ms;
-        let trace_packets_send = self.config.trace_packets_send;
-        let trace_packets_recv = self.config.trace_packets_recv;
         let start_time = self.start_time;
         // Spawn on dedicated thread with single-threaded runtime
         // because network_loop uses non-Send packet types
@@ -492,8 +490,6 @@ impl App {
                 event_tx,
                 packetver,
                 debug_delay_ms,
-                trace_packets_send,
-                trace_packets_recv,
                 start_time,
             ));
         });
@@ -3637,6 +3633,12 @@ fn main() {
         .init();
 
     let config = Config::load_or_default("config.json");
+    ragnarok_profiling::debug::init(
+        config.debug.trace_packet,
+        config.debug.trace_effects,
+        config.debug.trace_input,
+        config.debug.trace_texture_load,
+    );
     println!("ragnarok-client (packetver: {})", config.packetver);
 
     let event_loop = EventLoop::new().unwrap();

@@ -289,7 +289,9 @@ impl App {
                 let cache_key = match entity_sprite_base_path(name_table, job) {
                     Some(p) => p,
                     None => {
-                        tracing::warn!("No sprite path for job {job}");
+                        if job != 45 {
+                            tracing::warn!("No sprite path for id {job}");
+                        }
                         return;
                     }
                 };
@@ -430,7 +432,6 @@ impl App {
             .sprite_caches
             .gr2_models
             .insert(gid, Gr2ModelInstance::new(pose, clips));
-        tracing::info!("Loaded gr2 model {path} for gid={gid}");
     }
 
     pub(crate) fn remove_gr2_model(&mut self, gid: u32) {

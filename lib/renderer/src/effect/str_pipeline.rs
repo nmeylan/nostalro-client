@@ -62,8 +62,8 @@ impl StrEffectCache {
         for candidate in std::iter::once(name).chain(aliases.iter().copied()) {
             match try_load(candidate, grf, texture_cache, device, queue) {
                 Ok(entry) => {
-                    if candidate != name {
-                        tracing::debug!("STR resolved via alias: {name} -> {candidate}");
+                    if candidate != name && ragnarok_profiling::debug::trace_effects() {
+                        tracing::info!("STR resolved via alias: {name} -> {candidate}");
                     }
                     self.entries.insert(name.to_string(), entry);
                     return true;

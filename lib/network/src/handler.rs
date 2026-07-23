@@ -32,20 +32,7 @@ fn server_info_from_addr(addr: &ServerAddr) -> ServerInfo {
 }
 
 fn character_info_from_neo_union(info: &CharacterInfoNeoUnion, packetver: u32) -> CharacterInfo {
-    tracing::debug!(
-        "CharInfo raw: gid={} class={} level={} joblevel={} name_raw={:?} slot={} hp={}/{} sp={}/{} speed={}",
-        info.gid,
-        info.class,
-        info.level,
-        info.joblevel,
-        &info.name_raw[..16],
-        info.char_num,
-        info.hp,
-        info.maxhp,
-        info.sp,
-        info.maxsp,
-        info.speed,
-    );
+   
     let name: String = info.name.iter().take_while(|c| **c != '\0').collect();
     let map: String = if packetver >= 20100720 {
         info.last_map.iter().take_while(|c| **c != '\0').collect()
@@ -2796,7 +2783,12 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
-    debug!("unhandled packet: {}", packet.name());
+    if matches!(
+        ragnarok_profiling::debug::packet_trace(),
+        ragnarok_profiling::debug::PacketTrace::All | ragnarok_profiling::debug::PacketTrace::Unhandled
+    ) {
+        tracing::info!("unhandled packet: {}", packet.name());
+    }
     vec![]
 }
 

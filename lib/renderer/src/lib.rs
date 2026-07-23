@@ -485,17 +485,19 @@ impl Renderer {
                 None => missing.push(path),
             }
         }
-        eprintln!(
-            "[effect-preload] {} loaded, {} missing (of {} requested)",
-            loaded.len(),
-            missing.len(),
-            paths.len()
-        );
-        for p in &loaded {
-            eprintln!("[effect-preload]   ok    {p}");
-        }
-        for p in &missing {
-            eprintln!("[effect-preload]   MISS  {p}");
+        if ragnarok_profiling::debug::trace_texture_load() {
+            tracing::info!(
+                "[effect-preload] {} loaded, {} missing (of {} requested)",
+                loaded.len(),
+                missing.len(),
+                paths.len()
+            );
+            for p in &loaded {
+                tracing::info!("[effect-preload]   ok    {p}");
+            }
+            for p in &missing {
+                tracing::info!("[effect-preload]   MISS  {p}");
+            }
         }
     }
 

@@ -105,10 +105,14 @@ impl AmbientEffectScheduler {
                 spawned: false,
             });
         }
-        if skipped > 0 {
-            tracing::debug!("AmbientEffectScheduler: skipped {skipped} RSW effects (unknown/noop)");
+        if ragnarok_profiling::debug::trace_effects() {
+            if skipped > 0 {
+                tracing::info!(
+                    "AmbientEffectScheduler: skipped {skipped} RSW effects (unknown/noop)"
+                );
+            }
+            tracing::info!("AmbientEffectScheduler: {} emitters", emitters.len());
         }
-        tracing::info!("AmbientEffectScheduler: {} emitters", emitters.len());
         Self { emitters }
     }
 

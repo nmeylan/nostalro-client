@@ -3,6 +3,7 @@ use std::panic;
 
 use packets::packets::Packet;
 use packets::packets_parser;
+use ragnarok_profiling::debug::{self, PacketTrace};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -19,41 +20,41 @@ impl From<io::Error> for ConnectionError {
     }
 }
 
+/// Periodic keepalive/time packets excluded from packet tracing regardless of mode.
+fn is_muted_packet(name: &str) -> bool {
+    matches!(
+        name,
+        "PacketCzRequestTime" | "PacketCzPing" | "PacketZcNotifyTime"
+    )
+}
+
 pub struct Connection {
     reader: OwnedReadHalf,
     writer: OwnedWriteHalf,
     recv_buffer: Vec<u8>,
-    trace_packets_send: bool,
-    trace_packets_recv: bool,
     expect_aid_preamble: bool,
 }
 
 impl Connection {
-    pub async fn connect(
-        addr: &str,
-        expect_aid_preamble: bool,
-        trace_packets_send: bool,
-        trace_packets_recv: bool,
-    ) -> io::Result<Self> {
+    pub async fn connect(addr: &str, expect_aid_preamble: bool) -> io::Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let (reader, writer) = stream.into_split();
         Ok(Self {
             reader,
             writer,
             recv_buffer: Vec::with_capacity(4096),
-            trace_packets_send,
-            trace_packets_recv,
             expect_aid_preamble,
         })
     }
 
     pub async fn send_packet(&mut self, data: &[u8], packetver: u32) -> io::Result<()> {
-        if self.trace_packets_send {
+        if debug::packet_trace() == PacketTrace::All {
             let name =
                 panic::catch_unwind(|| packets_parser::parse(data, packetver).name().to_string())
                     .unwrap_or_else(|_| "<parse panic>".to_string());
-            let preview: Vec<String> = data.iter().take(16).map(|b| format!("{b:02x}")).collect();
-            if name != "PacketCzRequestTime" {
+            if !is_muted_packet(&name) {
+                let preview: Vec<String> =
+                    data.iter().take(16).map(|b| format!("{b:02x}")).collect();
                 tracing::info!(
                     "send packet: {} ({} bytes) [{}]",
                     name,
@@ -96,11 +97,15 @@ impl Connection {
         }
         self.recv_buffer.extend_from_slice(&buf[..n]);
 
-        tracing::info!(
-            "TCP read: {n} bytes, buffer_total={}, first_16={:02x?}",
-            self.recv_buffer.len(),
-            &buf[..n.min(16)]
-        );
+        let trace = debug::packet_trace();
+
+        if trace == PacketTrace::All {
+            tracing::info!(
+                "TCP read: {n} bytes, buffer_total={}, first_16={:02x?}",
+                self.recv_buffer.len(),
+                &buf[..n.min(16)]
+            );
+        }
 
         if self.expect_aid_preamble {
             if self.recv_buffer.len() < 4 {
@@ -112,7 +117,9 @@ impl Connection {
                 self.recv_buffer[2],
                 self.recv_buffer[3],
             ]);
-            tracing::info!("consumed account_id preamble: {aid}");
+            if trace == PacketTrace::All {
+                tracing::info!("consumed account_id preamble: {aid}");
+            }
             self.recv_buffer.drain(..4);
             self.expect_aid_preamble = false;
         }
@@ -141,7 +148,7 @@ impl Connection {
                             remaining[1],
                             remaining.len()
                         );
-                        if self.trace_packets_recv {
+                        if trace == PacketTrace::All {
                             let dump_len = skip.min(remaining.len());
                             tracing::debug!("unknown packet dump: {:02x?}", &remaining[..dump_len]);
                         }
@@ -155,7 +162,7 @@ impl Connection {
                     } else {
                         packet.raw().len()
                     };
-                    if self.trace_packets_recv {
+                    if trace == PacketTrace::All && !is_muted_packet(packet.name()) {
                         tracing::info!(
                             "recv {} ({consumed} bytes, remaining={})",
                             packet.name(),

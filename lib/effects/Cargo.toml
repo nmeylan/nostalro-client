@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 models = { workspace = true }
 tracing = { workspace = true }
+ragnarok-profiling = { workspace = true }

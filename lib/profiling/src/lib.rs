@@ -1,3 +1,5 @@
+pub mod debug;
+
 #[cfg(feature = "puffin")]
 mod server;
 

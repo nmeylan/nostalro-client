@@ -280,7 +280,6 @@ impl App {
             VanishType::OutOfSight => {
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.start_vanish_fade();
-                    tracing::debug!("EntityVanished(outofsight): gid={gid}");
                 }
             }
             _ => {
@@ -306,7 +305,6 @@ impl App {
                 let r1 = self.game.world.entities.remove(gid).is_some();
                 let r2 = self.game.sprite_caches.sprites.remove(&gid).is_some();
                 self.remove_gr2_model(gid);
-                tracing::debug!("EntityVanished: gid={gid} type={vanish_type:?} r1={r1} r2={r2}");
             }
         }
     }

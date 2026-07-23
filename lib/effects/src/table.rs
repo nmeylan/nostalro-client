@@ -842,7 +842,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
     if is_custom_bucket(id) {
         EffectSpec::Custom
     } else {
-        default_str_spec(id)
+         EffectSpec::Noop
     }
 }
 

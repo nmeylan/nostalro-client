@@ -25,6 +25,16 @@ impl Default for WindowStateEntry {
 
 pub use ragnarok_game::display::DisplayOptions;
 pub use ragnarok_game::keybinding::{EmotionKeys, KeyBindings};
+pub use ragnarok_profiling::debug::PacketTrace;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DebugConfig {
+    pub trace_packet: PacketTrace,
+    pub trace_effects: bool,
+    pub trace_input: bool,
+    pub trace_texture_load: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginServer {
@@ -75,8 +85,7 @@ pub struct Config {
     pub data_dir: Option<String>,
     pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
-    pub trace_packets_send: bool,
-    pub trace_packets_recv: bool,
+    pub debug: DebugConfig,
     pub window_state: HashMap<u32, WindowStateEntry>,
     pub hotkey_visible_rows: u8,
     pub battle_mode: bool,
@@ -145,8 +154,7 @@ impl Default for Config {
             data_dir: None,
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,
-            trace_packets_send: false,
-            trace_packets_recv: false,
+            debug: DebugConfig::default(),
             window_state: HashMap::new(),
             hotkey_visible_rows: 1,
             battle_mode: false,
@@ -301,6 +309,30 @@ mod tests {
         assert_eq!(config.login_servers.len(), 1);
         assert_eq!(config.login_servers[0].port, 6900);
         assert_eq!(config.screen_width, 1024);
+    }
+
+    #[test]
+    fn debug_section_parses_and_legacy_trace_keys_ignored() {
+        let json = r#"{
+            "trace_packets_send": true,
+            "trace_packets_recv": true,
+            "debug": {"trace_packet": "unhandled", "trace_input": true}
+        }"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.debug.trace_packet, PacketTrace::Unhandled);
+        assert!(config.debug.trace_input);
+        assert!(!config.debug.trace_effects);
+        assert!(!config.debug.trace_texture_load);
+
+        let reparsed: Config =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        assert_eq!(reparsed.debug.trace_packet, PacketTrace::Unhandled);
+    }
+
+    #[test]
+    fn missing_debug_section_defaults_to_none() {
+        let config: Config = serde_json::from_str(r#"{"packetver": 20120307}"#).unwrap();
+        assert_eq!(config.debug.trace_packet, PacketTrace::None);
     }
 
     #[test]

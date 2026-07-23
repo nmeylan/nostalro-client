@@ -18,11 +18,13 @@ impl App {
         if self.try_pet_modal_click() {
             return;
         }
-        tracing::info!(
-            "handle_left_click: pending_companion={:?} hovered_entity={:?}",
-            self.game.pending_casts.pending_companion_skill.is_some(),
-            self.game.hover.hovered_entity_id
-        );
+        if ragnarok_profiling::debug::trace_input() {
+            tracing::info!(
+                "handle_left_click: pending_companion={:?} hovered_entity={:?}",
+                self.game.pending_casts.pending_companion_skill.is_some(),
+                self.game.hover.hovered_entity_id
+            );
+        }
         if self.windows.npc_dialog.dialog.is_open() || self.windows.npc_shop.shop.is_open() {
             return;
         }

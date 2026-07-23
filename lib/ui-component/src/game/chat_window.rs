@@ -83,11 +83,8 @@ enum SendChannel {
     Whisper,
 }
 
-const SEND_CHANNELS: [SendChannel; 3] = [
-    SendChannel::Public,
-    SendChannel::Party,
-    SendChannel::Guild,
-];
+const SEND_CHANNELS: [SendChannel; 3] =
+    [SendChannel::Public, SendChannel::Party, SendChannel::Guild];
 
 impl SendChannel {
     fn color(self) -> [f32; 4] {
@@ -571,7 +568,12 @@ impl ChatWindow {
                     texture: draw::TextureRef::White,
                 });
             }
-            ui.text(item.x + 4.0, item.y + MENU_TEXT_BASELINE, ch.label(), ch.color());
+            ui.text(
+                item.x + 4.0,
+                item.y + MENU_TEXT_BASELINE,
+                ch.label(),
+                ch.color(),
+            );
             if r.clicked() {
                 picked = Some(*ch);
             }
@@ -633,14 +635,20 @@ impl ChatWindow {
             let r = ui.interact(WidgetId(WHISPER_MENU_ITEM_BASE + idx as u32), item);
             if r.hovered() {
                 ui.any_interactive_hovered = true;
-                let (v, i) = draw::quad_vertices(item.x, item.y, item.w, item.h, [0.28, 0.28, 0.36, 1.0]);
+                let (v, i) =
+                    draw::quad_vertices(item.x, item.y, item.w, item.h, [0.28, 0.28, 0.36, 1.0]);
                 ui.draw_calls.push(draw::DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
                     texture: draw::TextureRef::White,
                 });
             }
-            ui.text(item.x + 3.0, item.y + MENU_TEXT_BASELINE, name, [0.9, 0.9, 0.9, 1.0]);
+            ui.text(
+                item.x + 3.0,
+                item.y + MENU_TEXT_BASELINE,
+                name,
+                [0.9, 0.9, 0.9, 1.0],
+            );
             if r.clicked() {
                 picked = Some(idx);
             }
@@ -707,11 +715,7 @@ impl Window for ChatWindow {
 }
 
 impl InGameWindow for ChatWindow {
-    fn build(
-        &mut self,
-        ui: &mut UiFrame,
-        ctx: &mut BuildCtx,
-    ) -> Vec<GameEvent> {
+    fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         let mut events = Vec::new();
@@ -1060,7 +1064,7 @@ impl InGameWindow for ChatWindow {
                     indices: i.to_vec(),
                     texture: ragnarok_ui::draw::TextureRef::Named(DIALOG_BG.to_string()),
                 });
-                TextInputBg::Gray
+                TextInputBg::Transparent
             } else {
                 let (v, i) = ragnarok_ui::draw::quad_vertices(
                     chat_x,
@@ -1098,7 +1102,12 @@ impl InGameWindow for ChatWindow {
                 }
             }
 
-            ui.text_input(WHISPER_INPUT_ID, whisper_rect, &mut self.whisper_target, input_bg);
+            ui.text_input(
+                WHISPER_INPUT_ID,
+                whisper_rect,
+                &mut self.whisper_target,
+                input_bg,
+            );
             let popup_anchor = Rect::new(
                 whisper_rect.x,
                 input_y,
@@ -1146,10 +1155,7 @@ impl InGameWindow for ChatWindow {
                 drag_area.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
             };
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            if (in_input || in_msg_area)
-                && ui.ctx.mouse_clicked
-                && !state.dragging
-            {
+            if (in_input || in_msg_area) && ui.ctx.mouse_clicked && !state.dragging {
                 state.dragging = true;
                 state.drag_offset_x = ui.ctx.mouse_x - state.pos_x;
                 state.drag_offset_y = ui.ctx.mouse_y - state.pos_y;
@@ -1608,10 +1614,13 @@ mod tests {
                 .channel_menu_open
         );
 
-        let party_idx = SEND_CHANNELS.iter().position(|c| *c == SendChannel::Party).unwrap();
-        let item_y = bubble_cy - BUBBLE_SIZE / 2.0
-            - SEND_CHANNELS.len() as f32 * CHANNEL_MENU_ITEM_H
-            + (party_idx as f32 + 0.5) * CHANNEL_MENU_ITEM_H;
+        let party_idx = SEND_CHANNELS
+            .iter()
+            .position(|c| *c == SendChannel::Party)
+            .unwrap();
+        let item_y =
+            bubble_cy - BUBBLE_SIZE / 2.0 - SEND_CHANNELS.len() as f32 * CHANNEL_MENU_ITEM_H
+                + (party_idx as f32 + 0.5) * CHANNEL_MENU_ITEM_H;
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = channel_cx - 20.0;
         ctx.mouse_y = item_y;
@@ -1625,7 +1634,10 @@ mod tests {
                 .send_channel,
             SendChannel::Party
         );
-        assert!(chat.whisper_target.text.is_empty(), "changing channel clears whisper");
+        assert!(
+            chat.whisper_target.text.is_empty(),
+            "changing channel clears whisper"
+        );
     }
 
     #[test]
@@ -1639,7 +1651,10 @@ mod tests {
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-        let before = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().size_index;
+        let before = state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .unwrap()
+            .size_index;
 
         let (_, height_cx, bubble_cy) = bubble_centers(&mut state);
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1648,7 +1663,10 @@ mod tests {
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-        let after = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().size_index;
+        let after = state
+            .get::<ChatWindowState>(CHAT_WINDOW_ID)
+            .unwrap()
+            .size_index;
         assert_ne!(after, before, "height bubble should cycle size_index");
     }
 
@@ -1694,7 +1712,10 @@ mod tests {
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(chat.is_active());
         assert_eq!(
-            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .send_channel,
             SendChannel::Party
         );
         assert!(chat.whisper_target.text.is_empty());
@@ -1706,7 +1727,10 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
-            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .send_channel,
             SendChannel::Guild
         );
     }
@@ -1722,7 +1746,9 @@ mod tests {
         chat.active = true;
         chat.whisper_target.text = "Bob".to_string();
         chat.input.text = "psst".to_string();
-        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Public;
+        state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .send_channel = SendChannel::Public;
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
@@ -1735,7 +1761,9 @@ mod tests {
         chat.active = true;
         chat.whisper_target.text = "Bob".to_string();
         chat.input.text = "%to party".to_string();
-        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Public;
+        state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .send_channel = SendChannel::Public;
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
@@ -1745,16 +1773,24 @@ mod tests {
             GameEvent::RequestSendChat { message } if message == "%to party"
         )));
         assert_eq!(
-            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .send_channel,
             SendChannel::Party,
             "override switches the sticky channel"
         );
-        assert!(chat.whisper_target.text.is_empty(), "override clears whisper");
+        assert!(
+            chat.whisper_target.text.is_empty(),
+            "override clears whisper"
+        );
 
         chat.active = true;
         chat.whisper_target.text.clear();
         chat.input.text = "team up".to_string();
-        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Party;
+        state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .send_channel = SendChannel::Party;
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         let mut ui = make_frame(&ctx, &atlas, &mut state);
@@ -1766,7 +1802,9 @@ mod tests {
 
         chat.active = true;
         chat.input.text = "hi".to_string();
-        state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID).send_channel = SendChannel::Public;
+        state
+            .get_or_default::<ChatWindowState>(CHAT_WINDOW_ID)
+            .send_channel = SendChannel::Public;
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         ctx.ctrl_pressed = true;
@@ -1777,7 +1815,10 @@ mod tests {
             GameEvent::RequestSendChat { message } if message == "%hi"
         )));
         assert_eq!(
-            state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap().send_channel,
+            state
+                .get::<ChatWindowState>(CHAT_WINDOW_ID)
+                .unwrap()
+                .send_channel,
             SendChannel::Party,
             "ctrl+enter switches the sticky channel to party"
         );
@@ -1785,19 +1826,52 @@ mod tests {
 
     #[test]
     fn effective_channel_overrides_sticky() {
-        assert_eq!(effective_channel("hi", SendChannel::Public, false, false, false), SendChannel::Public);
-        assert_eq!(effective_channel("hi", SendChannel::Guild, false, false, false), SendChannel::Guild);
-        assert_eq!(effective_channel("%hi", SendChannel::Public, false, false, false), SendChannel::Party);
-        assert_eq!(effective_channel("$hi", SendChannel::Public, false, false, false), SendChannel::Guild);
-        assert_eq!(effective_channel("hi", SendChannel::Public, true, false, false), SendChannel::Party);
-        assert_eq!(effective_channel("hi", SendChannel::Public, false, true, false), SendChannel::Guild);
+        assert_eq!(
+            effective_channel("hi", SendChannel::Public, false, false, false),
+            SendChannel::Public
+        );
+        assert_eq!(
+            effective_channel("hi", SendChannel::Guild, false, false, false),
+            SendChannel::Guild
+        );
+        assert_eq!(
+            effective_channel("%hi", SendChannel::Public, false, false, false),
+            SendChannel::Party
+        );
+        assert_eq!(
+            effective_channel("$hi", SendChannel::Public, false, false, false),
+            SendChannel::Guild
+        );
+        assert_eq!(
+            effective_channel("hi", SendChannel::Public, true, false, false),
+            SendChannel::Party
+        );
+        assert_eq!(
+            effective_channel("hi", SendChannel::Public, false, true, false),
+            SendChannel::Guild
+        );
         // filled whisper target overrides the sticky channel...
-        assert_eq!(effective_channel("hi", SendChannel::Public, false, false, true), SendChannel::Whisper);
+        assert_eq!(
+            effective_channel("hi", SendChannel::Public, false, false, true),
+            SendChannel::Whisper
+        );
         // ...but explicit prefix/modifier still wins over whisper
-        assert_eq!(effective_channel("%hi", SendChannel::Public, false, false, true), SendChannel::Party);
-        assert_eq!(effective_channel("$hi", SendChannel::Public, false, false, true), SendChannel::Guild);
-        assert_eq!(effective_channel("hi", SendChannel::Public, true, false, true), SendChannel::Party);
-        assert_eq!(effective_channel("hi", SendChannel::Public, false, true, true), SendChannel::Guild);
+        assert_eq!(
+            effective_channel("%hi", SendChannel::Public, false, false, true),
+            SendChannel::Party
+        );
+        assert_eq!(
+            effective_channel("$hi", SendChannel::Public, false, false, true),
+            SendChannel::Guild
+        );
+        assert_eq!(
+            effective_channel("hi", SendChannel::Public, true, false, true),
+            SendChannel::Party
+        );
+        assert_eq!(
+            effective_channel("hi", SendChannel::Public, false, true, true),
+            SendChannel::Guild
+        );
     }
 
     #[test]
@@ -1815,7 +1889,10 @@ mod tests {
             chat.remember_whisper(format!("P{i}"));
         }
         assert_eq!(chat.whisper_history.len(), MAX_WHISPER_HISTORY);
-        assert_eq!(chat.whisper_history[0], format!("P{}", MAX_WHISPER_HISTORY + 2));
+        assert_eq!(
+            chat.whisper_history[0],
+            format!("P{}", MAX_WHISPER_HISTORY + 2)
+        );
     }
 
     #[test]
@@ -1823,7 +1900,10 @@ mod tests {
         assert_eq!(route_message("hi".to_string(), SendChannel::Public), "hi");
         assert_eq!(route_message("hi".to_string(), SendChannel::Party), "%hi");
         assert_eq!(route_message("hi".to_string(), SendChannel::Guild), "$hi");
-        assert_eq!(route_message("/sit".to_string(), SendChannel::Party), "/sit");
+        assert_eq!(
+            route_message("/sit".to_string(), SendChannel::Party),
+            "/sit"
+        );
         assert_eq!(route_message("%x".to_string(), SendChannel::Guild), "%x");
     }
 

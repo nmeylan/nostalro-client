@@ -461,12 +461,14 @@ impl App {
         let casting = casting_skill(skill);
         let hide_aura = casting.hide_cast_aura;
         for e in casting.begin {
-            tracing::info!(
-                "[effect-timing t={}ms] cast-start begin effect {} queued (skill={}, caster={caster_gid}, cast_ms={cast_ms})",
-                self.start_time.elapsed().as_millis(),
-                e.as_str(),
-                skill.to_name(),
-            );
+            if ragnarok_profiling::debug::trace_effects() {
+                tracing::info!(
+                    "[effect-timing t={}ms] cast-start begin effect {} queued (skill={}, caster={caster_gid}, cast_ms={cast_ms})",
+                    self.start_time.elapsed().as_millis(),
+                    e.as_str(),
+                    skill.to_name(),
+                );
+            }
             if is_cast_circle(*e) {
                 // The cast circle's lifetime is the cast time; an instant cast
                 // or a skill that hides its aura shows no circle.

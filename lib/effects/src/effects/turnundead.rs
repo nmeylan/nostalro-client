@@ -106,14 +106,7 @@ impl Effect for TurnUndeadEffect {
         let before = self.age_frames;
         self.age_frames += ctx.delta * FRAMES_PER_SECOND;
         self.spikes.tick(ctx.delta);
-        // TEMP DIAGNOSTIC: log once when the phase-2 ground ring begins, with
-        // its world anchor, to confirm in-game spawn/lifetime/position.
-        if before < RING_SPAWN_FRAME && self.age_frames >= RING_SPAWN_FRAME {
-            eprintln!(
-                "[turnundead] ground ring spawns at world_pos={:?} (age_frames={})",
-                self.world_pos, self.age_frames
-            );
-        }
+        
         if self.age_frames >= TOTAL_FRAMES {
             EffectStatus::Dead
         } else {

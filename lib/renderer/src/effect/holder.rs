@@ -401,10 +401,12 @@ impl EffectHolder {
                         HeldPayload::CustomExternal { handle }
                     } else {
                         self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
-                        tracing::debug!(
-                            "EffectHolder: external backend has no impl for {:?}",
-                            effect_id
-                        );
+                        if ragnarok_profiling::debug::trace_effects() {
+                            tracing::info!(
+                                "EffectHolder: external backend has no impl for {:?}",
+                                effect_id
+                            );
+                        }
                         return None;
                     }
                 } else {
@@ -422,7 +424,9 @@ impl EffectHolder {
                         }
                         None => {
                             self.last_spawn = Some(SpawnOutcome::CustomNotImpl);
-                            tracing::debug!("EffectHolder: no factory impl for {:?}", effect_id);
+                            if ragnarok_profiling::debug::trace_effects() {
+                                tracing::info!("EffectHolder: no factory impl for {:?}", effect_id);
+                            }
                             return None;
                         }
                     }

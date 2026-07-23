@@ -112,11 +112,13 @@ impl App {
         if !self.effect_queue.pending.is_empty() {
             let t = self.start_time.elapsed().as_millis();
             for req in &self.effect_queue.pending {
-                tracing::debug!(
-                    "[effect-timing t={t}ms] queue drain -> spawn {} (attach={:?})",
-                    req.effect_id.as_str(),
-                    req.attach,
-                );
+                if ragnarok_profiling::debug::trace_effects() {
+                    tracing::debug!(
+                        "[effect-timing t={t}ms] queue drain -> spawn {} (attach={:?})",
+                        req.effect_id.as_str(),
+                        req.attach,
+                    );
+                }
             }
         }
         self.game

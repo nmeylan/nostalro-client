@@ -3044,6 +3044,7 @@ name = "ragnarok-effects"
 version = "0.1.0"
 dependencies = [
  "models",
+ "ragnarok-profiling",
  "tracing",
 ]
 
@@ -3068,6 +3069,7 @@ dependencies = [
  "ragnarok-ai",
  "ragnarok-effects",
  "ragnarok-formats",
+ "ragnarok-profiling",
  "serde",
  "tracing",
 ]
@@ -3107,6 +3109,7 @@ version = "0.1.0"
 dependencies = [
  "puffin",
  "puffin_http",
+ "serde",
  "tracing",
 ]
 
