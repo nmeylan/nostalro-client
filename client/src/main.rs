@@ -332,6 +332,7 @@ impl App {
         let was_locked = self.game.session.camera_locked;
         self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {
+            renderer.clear_color = ragnarok_renderer::wgpu::Color::BLACK;
             if map_data.indoor {
                 if !was_locked {
                     self.game.session.saved_camera_yaw = Some(renderer.camera.yaw);

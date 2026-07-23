@@ -1193,6 +1193,10 @@ impl App {
 
     pub(super) fn handle_mvp_reward(&mut self, gid: u32) {
         self.effect_queue.spawn_on(EffectId::Mvp, gid);
+        match self.entity_world_pos(gid) {
+            Some(pos) => self.sound_queue.world("effect\\st_mvp.wav".to_string(), pos),
+            None => self.sound_queue.ui("effect\\st_mvp.wav"),
+        }
     }
 
     pub(super) fn handle_skill_unit_entered(

@@ -361,6 +361,23 @@ impl App {
             if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite) {
                 self.game.sprite_caches.sprites.insert(pid, sprite);
             }
+            self.game.sprite_caches.carts.clear();
+            self.game.sprite_caches.falcons.clear();
+            if let Some(pid) = self.game.world.entities.player_id() {
+                let (cart, falcon) = self
+                    .game
+                    .world
+                    .entities
+                    .get(pid)
+                    .map(|e| (e.cart_type, ragnarok_game::sprite_path::has_falcon(e.effect_state)))
+                    .unwrap_or((None, false));
+                if let Some(design) = cart {
+                    self.spawn_cart_visual(pid, design);
+                }
+                if falcon {
+                    self.spawn_falcon_visual(pid);
+                }
+            }
 
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", map_name);

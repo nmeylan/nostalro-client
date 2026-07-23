@@ -41,6 +41,8 @@ impl App {
                 self.game.character.clear();
                 self.game.world.entities.clear();
                 self.game.sprite_caches.sprites.clear();
+                self.game.sprite_caches.carts.clear();
+                self.game.sprite_caches.falcons.clear();
                 self.game.sprite_caches.gr2_models.clear();
                 if let Some(renderer) = &mut self.renderer {
                     renderer.gr2_models.clear();

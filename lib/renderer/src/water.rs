@@ -48,6 +48,7 @@ pub struct WaterRenderer {
     wave_pitch: f32,
     wave_speed: f32,
     anim_speed: f32,
+    opacity: f32,
 }
 
 impl WaterRenderer {
@@ -62,15 +63,19 @@ impl WaterRenderer {
         surface_format: wgpu::TextureFormat,
     ) -> Option<Self> {
         let raw_level = water.level?;
+        let water_type = water.water_type.unwrap_or(0);
+        if water_type < 0 {
+            return None;
+        }
         let zoom = gnd.zoom;
         let scale_factor = zoom / 10.0;
         let water_y = raw_level * scale_factor;
 
-        let water_type = water.water_type.unwrap_or(0);
         let wave_height = water.wave_height.unwrap_or(1.0) * scale_factor;
         let wave_speed = water.wave_speed.unwrap_or(2.0);
         let wave_pitch = water.wave_pitch.unwrap_or(50.0);
         let anim_speed = water.anim_speed.unwrap_or(3) as f32;
+        let opacity = if water_type == 4 || water_type == 6 { 1.0 } else { 0.6 };
 
         let texture_names: Vec<String> = (0..WATER_FRAMES)
             .map(|i| {
@@ -84,7 +89,7 @@ impl WaterRenderer {
             texture_cache.get_or_load(name, grf, device, queue, false);
         }
 
-        let (vertices, indices) = build_water_mesh(gnd, water_y);
+        let (vertices, indices) = build_water_mesh(gnd, water_y, wave_height);
         if vertices.is_empty() {
             return None;
         }
@@ -102,7 +107,7 @@ impl WaterRenderer {
             wave_height,
             wave_pitch,
             wave_offset: 0.0,
-            opacity: 0.6,
+            opacity,
         };
 
         let uniform_buffer = {
@@ -158,6 +163,7 @@ impl WaterRenderer {
             wave_pitch,
             wave_speed,
             anim_speed,
+            opacity,
         })
     }
 
@@ -166,7 +172,7 @@ impl WaterRenderer {
             wave_height: self.wave_height,
             wave_pitch: self.wave_pitch,
             wave_offset: elapsed * self.wave_speed * 100.0,
-            opacity: 0.6,
+            opacity: self.opacity,
         };
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
     }
@@ -200,10 +206,19 @@ impl WaterRenderer {
     }
 }
 
-pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u32>) {
+pub fn build_water_mesh(
+    gnd: &GndFile,
+    water_y: f32,
+    wave_height: f32,
+) -> (Vec<WaterVertex>, Vec<u32>) {
     let zoom = gnd.zoom;
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
+
+    // In native RO coords more negative = higher, so a corner "below" the water
+    // surface has a larger height value. A cell gets a water quad when any of
+    // its corners dips below the wave troughs (water_y - wave_height).
+    let submerged = water_y - wave_height;
 
     for y in 0..gnd.height {
         for x in 0..gnd.width {
@@ -214,10 +229,11 @@ pub fn build_water_mesh(gnd: &GndFile, water_y: f32) -> (Vec<WaterVertex>, Vec<u
                 continue;
             }
 
-            let avg_height =
-                (cell.height_sw + cell.height_se + cell.height_nw + cell.height_ne) / 4.0;
-            // In native RO coords, more negative = higher; skip cells far above water
-            if avg_height < water_y - 5.0 * zoom {
+            if cell.height_sw < submerged
+                && cell.height_se < submerged
+                && cell.height_nw < submerged
+                && cell.height_ne < submerged
+            {
                 continue;
             }
 
@@ -366,7 +382,7 @@ mod tests {
     fn water_mesh_generates_quads_for_cells_below_water() {
         let gnd = make_gnd(4, 4, -5.0);
         let water_y = -10.0;
-        let (vertices, indices) = build_water_mesh(&gnd, water_y);
+        let (vertices, indices) = build_water_mesh(&gnd, water_y, 1.0);
         assert_eq!(vertices.len(), 16 * 4);
         assert_eq!(indices.len(), 16 * 6);
     }
@@ -381,15 +397,23 @@ mod tests {
                 }
             }
         }
-        let (vertices, indices) = build_water_mesh(&gnd, -10.0);
+        let (vertices, indices) = build_water_mesh(&gnd, -10.0, 1.0);
         assert_eq!(vertices.len(), 4);
         assert_eq!(indices.len(), 6);
     }
 
     #[test]
+    fn water_mesh_skips_cells_entirely_above_water() {
+        let gnd = make_gnd(4, 4, -100.0);
+        let (vertices, indices) = build_water_mesh(&gnd, -10.0, 1.0);
+        assert!(vertices.is_empty());
+        assert!(indices.is_empty());
+    }
+
+    #[test]
     fn water_mesh_uv_tiling_repeats_every_5_cells() {
         let gnd = make_gnd(6, 1, -5.0);
-        let (vertices, _) = build_water_mesh(&gnd, -10.0);
+        let (vertices, _) = build_water_mesh(&gnd, -10.0, 1.0);
         assert!((vertices[0].tex_coord[0] - 0.0).abs() < 0.01);
         let cell5_base = 5 * 4;
         assert!((vertices[cell5_base].tex_coord[0] - 0.0).abs() < 0.01);
