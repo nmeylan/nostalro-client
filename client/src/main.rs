@@ -165,11 +165,6 @@ impl App {
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);
         let sound = SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
-        let active_packetver = config
-            .login_servers
-            .first()
-            .and_then(|s| s.packetver)
-            .unwrap_or(config.packetver);
         Self {
             config,
             saved_window_positions,
@@ -189,7 +184,7 @@ impl App {
             account_dialog: ConfirmDialog::new(),
             login_server_list_window: None,
             selected_login_server: 0,
-            active_packetver,
+            active_packetver: 0,
             server_list_window: None,
             char_select_window: None,
             char_create_window: None,
@@ -243,7 +238,7 @@ impl App {
     fn select_login_server(&mut self, index: usize) {
         if let Some(server) = self.config.login_servers.get(index) {
             self.selected_login_server = index;
-            self.active_packetver = server.packetver.unwrap_or(self.config.packetver);
+            self.active_packetver = server.packetver;
             self.channel
                 .send_cmd(NetworkCommand::SetPacketver(self.active_packetver));
         }
@@ -957,7 +952,6 @@ fn main() {
         config.debug.trace_input,
         config.debug.trace_texture_load,
     );
-    println!("ragnarok-client (packetver: {})", config.packetver);
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(config);

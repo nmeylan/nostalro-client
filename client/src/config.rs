@@ -41,9 +41,7 @@ pub struct LoginServer {
     pub name: String,
     pub host: String,
     pub port: u16,
-    /// Overrides the top-level `packetver` while this server is selected.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub packetver: Option<u32>,
+    pub packetver: u32,
 }
 
 impl Default for LoginServer {
@@ -52,7 +50,7 @@ impl Default for LoginServer {
             name: "Local".to_string(),
             host: "127.0.0.1".to_string(),
             port: 6900,
-            packetver: None,
+            packetver: 20111102,
         }
     }
 }
@@ -60,7 +58,6 @@ impl Default for LoginServer {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub packetver: u32,
     /// Selectable connection (login) servers. The first is used by default; when
     /// more than one is present the client shows a selection screen before login.
     pub login_servers: Vec<LoginServer>,
@@ -144,7 +141,6 @@ fn default_shortcut_commands() -> Vec<String> {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            packetver: 20120307,
             login_servers: vec![LoginServer::default()],
             keep_login_id: false,
             saved_username: String::new(),
@@ -247,10 +243,10 @@ mod tests {
         let config = Config::default();
         let json = serde_json::to_string_pretty(&config).unwrap();
         let parsed: Config = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.packetver, 20120307);
         assert_eq!(parsed.login_servers.len(), 1);
         assert_eq!(parsed.login_servers[0].host, "127.0.0.1");
         assert_eq!(parsed.login_servers[0].port, 6900);
+        assert_eq!(parsed.login_servers[0].packetver, 20111102);
         assert_eq!(parsed.screen_width, 1024);
         assert_eq!(parsed.grf_paths, vec!["data/data.grf"]);
         assert_eq!(parsed.account_backgrounds.len(), 3);
@@ -264,8 +260,7 @@ mod tests {
         ]}"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.login_servers.len(), 2);
-        assert_eq!(config.login_servers[0].packetver, None);
-        assert_eq!(config.login_servers[1].packetver, Some(20040101));
+        assert_eq!(config.login_servers[1].packetver, 20040101);
         assert_eq!(config.login_servers[1].host, "10.0.0.1");
     }
 
@@ -327,7 +322,6 @@ mod tests {
     fn partial_json_uses_defaults() {
         let json = r#"{"packetver": 20200401}"#;
         let config: Config = serde_json::from_str(json).unwrap();
-        assert_eq!(config.packetver, 20200401);
         assert_eq!(config.login_servers.len(), 1);
         assert_eq!(config.login_servers[0].port, 6900);
         assert_eq!(config.screen_width, 1024);
@@ -360,6 +354,5 @@ mod tests {
     #[test]
     fn load_nonexistent_returns_default() {
         let config = Config::load_or_default("/tmp/nonexistent_ragnarok_config.json");
-        assert_eq!(config.packetver, 20120307);
     }
 }
