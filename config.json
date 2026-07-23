@@ -35,10 +35,10 @@
   "trace_packets_send": true,
   "trace_packets_recv": true,
   "window_state": {
-    "1300": {
+    "701": {
       "position": [
-        476.6667,
-        0.0
+        100.0,
+        100.0
       ],
       "open": false,
       "collapsed": false
@@ -47,14 +47,6 @@
       "position": [
         0.0,
         0.0
-      ],
-      "open": false,
-      "collapsed": false
-    },
-    "10": {
-      "position": [
-        490.0,
-        635.0
       ],
       "open": false,
       "collapsed": false
@@ -79,6 +71,30 @@
       "position": [
         342.0,
         524.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "1300": {
+      "position": [
+        476.6667,
+        0.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "10": {
+      "position": [
+        490.0,
+        635.0
+      ],
+      "open": false,
+      "collapsed": false
+    },
+    "702": {
+      "position": [
+        390.0,
+        196.0
       ],
       "open": false,
       "collapsed": false
@@ -114,14 +130,26 @@
     "/..."
   ],
   "keybindings": {
-    "ToggleCart": {
-      "key": "KeyW",
+    "ToggleChatRoomCreate": {
+      "key": "KeyC",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleStatus": {
-      "key": "KeyA",
+    "ToggleSoundOptions": {
+      "key": "KeyO",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleSkillTree": {
+      "key": "KeyS",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleParty": {
+      "key": "KeyZ",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -132,15 +160,15 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleQuest": {
-      "key": "KeyU",
+    "ToggleHomunculus": {
+      "key": "KeyR",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "SitStand": {
-      "key": "Insert",
-      "alt": false,
+    "ToggleEquipment": {
+      "key": "KeyQ",
+      "alt": true,
       "ctrl": false,
       "shift": false
     },
@@ -156,14 +184,8 @@
       "ctrl": true,
       "shift": false
     },
-    "ToggleEmotion": {
-      "key": "KeyL",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleSoundOptions": {
-      "key": "KeyO",
+    "ToggleFriends": {
+      "key": "KeyH",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -180,20 +202,8 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleFriends": {
-      "key": "KeyH",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "TogglePet": {
-      "key": "KeyJ",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleEquipment": {
-      "key": "KeyQ",
+    "ToggleBasicInfo": {
+      "key": "KeyV",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -204,26 +214,20 @@
       "ctrl": true,
       "shift": false
     },
-    "ToggleSkillTree": {
-      "key": "KeyS",
+    "SitStand": {
+      "key": "Insert",
+      "alt": false,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleEmotion": {
+      "key": "KeyL",
       "alt": true,
       "ctrl": false,
       "shift": false
     },
-    "ToggleHomunculus": {
-      "key": "KeyR",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleBasicInfo": {
-      "key": "KeyV",
-      "alt": true,
-      "ctrl": false,
-      "shift": false
-    },
-    "ToggleChatRoomCreate": {
-      "key": "KeyC",
+    "ToggleStatus": {
+      "key": "KeyA",
       "alt": true,
       "ctrl": false,
       "shift": false
@@ -234,8 +238,20 @@
       "ctrl": false,
       "shift": false
     },
-    "ToggleParty": {
-      "key": "KeyZ",
+    "TogglePet": {
+      "key": "KeyJ",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleQuest": {
+      "key": "KeyU",
+      "alt": true,
+      "ctrl": false,
+      "shift": false
+    },
+    "ToggleCart": {
+      "key": "KeyW",
       "alt": true,
       "ctrl": false,
       "shift": false

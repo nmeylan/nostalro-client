@@ -240,10 +240,10 @@ pub fn build_water_mesh(
             let wx = x as f32 * zoom;
             let wz = y as f32 * zoom;
 
-            let u0 = (x as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
-            let u1 = ((x + 1) as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
-            let v0 = (y as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
-            let v1 = ((y + 1) as f32 % WATER_TEXTURE_REPEAT) / WATER_TEXTURE_REPEAT;
+            let u0 = x as f32 / WATER_TEXTURE_REPEAT;
+            let u1 = (x + 1) as f32 / WATER_TEXTURE_REPEAT;
+            let v0 = y as f32 / WATER_TEXTURE_REPEAT;
+            let v1 = (y + 1) as f32 / WATER_TEXTURE_REPEAT;
 
             let base = vertices.len() as u32;
             vertices.push(WaterVertex {
@@ -411,11 +411,11 @@ mod tests {
     }
 
     #[test]
-    fn water_mesh_uv_tiling_repeats_every_5_cells() {
+    fn water_mesh_uv_is_continuous_and_tiles_every_5_cells() {
         let gnd = make_gnd(6, 1, -5.0);
         let (vertices, _) = build_water_mesh(&gnd, -10.0, 1.0);
         assert!((vertices[0].tex_coord[0] - 0.0).abs() < 0.01);
         let cell5_base = 5 * 4;
-        assert!((vertices[cell5_base].tex_coord[0] - 0.0).abs() < 0.01);
+        assert!((vertices[cell5_base].tex_coord[0] - 1.0).abs() < 0.01);
     }
 }
