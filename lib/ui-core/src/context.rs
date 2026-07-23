@@ -42,6 +42,10 @@ pub struct UiContext {
     pub scroll_delta: f32,
     pub dpi_scale: f32,
     pub now_ms: u64,
+    /// When set, `UiFrame::window_account` locks account-flow windows to a fixed
+    /// centered position instead of the draggable default. The game turns this on;
+    /// the component dev tool leaves it off so those windows stay draggable.
+    pub lock_account_windows: bool,
 }
 
 impl UiContext {
@@ -84,6 +88,7 @@ impl UiContext {
             alt_pressed: false,
             scroll_delta: 0.0,
             dpi_scale: 1.0,
+            lock_account_windows: false,
         }
     }
 

@@ -102,7 +102,7 @@ impl ServerListWindow {
         let header_h = HEADER_H;
         let list_x = LIST_X;
         let row_h = ROW_H;
-        let win = ui.window(SERVER_LIST_WINDOW_ID, win_w, win_h, header_h);
+        let win = ui.window_account(SERVER_LIST_WINDOW_ID, win_w, win_h, header_h);
 
         let (v, i) = draw::quad_vertices(win.x, win.y, win_w, win_h, [1.0, 1.0, 1.0, 1.0]);
         ui.draw_calls.push(DrawCall {
@@ -220,7 +220,7 @@ impl ServerListWindow {
         let padding = 8.0;
         let title_h = 30.0;
         let win_h = title_h + list_h + padding + btn_h + padding;
-        let win = ui.window(SERVER_LIST_WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H);
+        let win = ui.window_account(SERVER_LIST_WINDOW_ID, win_w, win_h, FALLBACK_TITLE_BAR_H);
 
         let (v, i) = draw::quad_vertices(win.x, win.y, win.w, win_h, [0.08, 0.08, 0.12, 0.95]);
         ui.draw_calls.push(DrawCall {

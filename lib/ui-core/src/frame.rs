@@ -504,6 +504,20 @@ impl<'a> UiFrame<'a> {
         rect
     }
 
+    pub fn window_centered(&mut self, id: WidgetId, w: f32, h: f32) -> Rect {
+        let x = ((self.ctx.screen_width - w) / 2.0).floor();
+        let y = ((self.ctx.screen_height - h) / 2.0).floor();
+        self.window_fixed(id, w, h, x, y)
+    }
+
+    pub fn window_account(&mut self, id: WidgetId, w: f32, h: f32, title_bar_h: f32) -> Rect {
+        if self.ctx.lock_account_windows {
+            self.window_centered(id, w, h)
+        } else {
+            self.window(id, w, h, title_bar_h)
+        }
+    }
+
     pub fn cancel_window_drag(&mut self, id: WidgetId) {
         self.state.get_or_default::<WindowState>(id).dragging = false;
     }
@@ -1105,6 +1119,57 @@ mod tests {
         assert_eq!(rect.y, 250.0);
         assert_eq!(rect.w, 200.0);
         assert_eq!(rect.h, 100.0);
+    }
+
+    #[test]
+    fn window_account_locked_is_centered_and_ignores_drag() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let id = WidgetId(999);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.lock_account_windows = true;
+        ctx.mouse_x = 350.0;
+        ctx.mouse_y = 260.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect = ui.window_account(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (300.0, 250.0));
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.lock_account_windows = true;
+        ctx.mouse_x = 400.0;
+        ctx.mouse_y = 280.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect = ui.window_account(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (300.0, 250.0));
+    }
+
+    #[test]
+    fn window_account_unlocked_is_draggable() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let id = WidgetId(999);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 350.0;
+        ctx.mouse_y = 260.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_account(id, 200.0, 100.0, 25.0);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 400.0;
+        ctx.mouse_y = 280.0;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect = ui.window_account(id, 200.0, 100.0, 25.0);
+        assert_eq!((rect.x, rect.y), (350.0, 270.0));
     }
 
     #[test]

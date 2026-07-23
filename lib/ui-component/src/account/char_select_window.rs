@@ -290,7 +290,7 @@ impl CharSelectWindow {
     }
 
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
+        let win = ui.window_account(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
 
         push_quad(ui, win.x, win.y, WIN_W, WIN_H, TextureRef::Named(WIN_TEXTURE.to_string()));
@@ -302,7 +302,7 @@ impl CharSelectWindow {
     }
 
     fn build_fallback(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
+        let win = ui.window_account(CHAR_SELECT_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
 
         push_color_quad(ui, win.x, win.y, WIN_W, WIN_H, [0.08, 0.08, 0.12, 0.95]);

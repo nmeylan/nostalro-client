@@ -101,7 +101,7 @@ impl LoginWindow {
             ((FALLBACK_BTN_W), (FALLBACK_BTN_H))
         };
         let field_w = win_w - (FIELD_X) - (FIELD_RIGHT_MARGIN);
-        let win = ui.window(LOGIN_WINDOW_ID, win_w, win_h, TITLE_BAR_H);
+        let win = ui.window_account(LOGIN_WINDOW_ID, win_w, win_h, TITLE_BAR_H);
 
         if ui.ctx.key_tab {
             self.focus = match self.focus {

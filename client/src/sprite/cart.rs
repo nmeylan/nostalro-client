@@ -93,6 +93,12 @@ impl App {
         self.game.sprite_caches.carts.remove(&owner_gid);
     }
 
+    pub(crate) fn ensure_player_cart_visual(&mut self) {
+        if let Some((pid, design)) = self.game.ensure_player_cart_design() {
+            self.spawn_cart_visual(pid, design);
+        }
+    }
+
     pub(crate) fn preload_cart_previews(&mut self, designs: &[u8]) {
         let (grf, renderer) = match (&self.grf, &self.renderer) {
             (Some(g), Some(r)) => (g, r),

@@ -101,6 +101,19 @@ pub struct Config {
     pub keybindings: KeyBindings,
     #[serde(default)]
     pub emotion_keys: EmotionKeys,
+    /// GRF texture paths for the account-screen background. One is picked (at
+    /// random) per session and stretched behind the login/server/character
+    /// screens. Empty or all-missing falls back to the solid clear color.
+    #[serde(default = "default_account_backgrounds")]
+    pub account_backgrounds: Vec<String>,
+}
+
+fn default_account_backgrounds() -> Vec<String> {
+    vec![
+        "data/texture/유저인터페이스/rag_title.bmp".to_string(),
+        "data/texture/유저인터페이스/rag_title2.bmp".to_string(),
+        "data/texture/유저인터페이스/rag_title3.bmp".to_string(),
+    ]
 }
 
 fn default_map_recovery_command() -> String {
@@ -148,6 +161,7 @@ impl Default for Config {
             shortcut_commands: default_shortcut_commands(),
             keybindings: KeyBindings::defaults(),
             emotion_keys: EmotionKeys::default(),
+            account_backgrounds: default_account_backgrounds(),
         }
     }
 }
@@ -209,6 +223,7 @@ mod tests {
         assert_eq!(parsed.login_servers[0].port, 6900);
         assert_eq!(parsed.screen_width, 1024);
         assert_eq!(parsed.grf_paths, vec!["data/data.grf"]);
+        assert_eq!(parsed.account_backgrounds.len(), 3);
     }
 
     #[test]

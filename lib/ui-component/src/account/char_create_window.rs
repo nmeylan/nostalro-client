@@ -322,7 +322,7 @@ impl CharCreateWindow {
     }
 
     fn build_stat_layout(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(CHAR_CREATE_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
+        let win = ui.window_account(CHAR_CREATE_WINDOW_ID, WIN_W, WIN_H, TITLE_BAR_H);
         self.win_origin = (win.x, win.y);
         let (ox, oy) = (win.x, win.y);
 
@@ -435,7 +435,7 @@ impl CharCreateWindow {
     }
 
     fn build_compact_layout(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
-        let win = ui.window(CHAR_CREATE_WINDOW_ID, V2_W, V2_H, V2_HEADER_H);
+        let win = ui.window_account(CHAR_CREATE_WINDOW_ID, V2_W, V2_H, V2_HEADER_H);
         self.win_origin = (win.x, win.y);
         let (ox, oy) = (win.x, win.y);
         let has_grf = self.has_grf_textures;

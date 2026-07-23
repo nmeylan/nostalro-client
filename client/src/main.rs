@@ -188,6 +188,7 @@ struct App {
     server_list_window: Option<ServerListWindow>,
     char_select_window: Option<CharSelectWindow>,
     char_create_window: Option<CharCreateWindow>,
+    account_background: Option<String>,
     account_anims: HashMap<u32, SpriteAnimationState>,
     char_create_built_appearance: Option<(u16, u16)>,
     roulette_act: Option<ragnarok_formats::act::ActFile>,
@@ -257,6 +258,7 @@ impl App {
             server_list_window: None,
             char_select_window: None,
             char_create_window: None,
+            account_background: None,
             account_anims: HashMap::new(),
             char_create_built_appearance: None,
             roulette_act: None,
@@ -2742,6 +2744,7 @@ impl App {
         if let Some(ui_ctx) = &mut self.ui_context {
             ui_ctx.now_ms = now_ms;
         }
+        let account_bg = self.account_background.clone();
         match self.game.session.app_state {
             AppState::LoginServerSelect => {
                 if let (Some(ui_ctx), Some(renderer), Some(server_win)) = (
@@ -2757,6 +2760,10 @@ impl App {
                         server_win.has_grf_textures,
                         None,
                         &self.saved_window_positions,
+                    );
+                    ragnarok_ui_component::account::draw_background(
+                        &mut ui,
+                        account_bg.as_deref(),
                     );
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
@@ -2785,6 +2792,10 @@ impl App {
                         initial_focus,
                         &self.saved_window_positions,
                     );
+                    ragnarok_ui_component::account::draw_background(
+                        &mut ui,
+                        account_bg.as_deref(),
+                    );
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -2811,6 +2822,10 @@ impl App {
                         server_win.has_grf_textures,
                         None,
                         &self.saved_window_positions,
+                    );
+                    ragnarok_ui_component::account::draw_background(
+                        &mut ui,
+                        account_bg.as_deref(),
                     );
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
@@ -2839,6 +2854,10 @@ impl App {
                         None,
                         &self.saved_window_positions,
                     );
+                    ragnarok_ui_component::account::draw_background(
+                        &mut ui,
+                        account_bg.as_deref(),
+                    );
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
                     }
@@ -2865,6 +2884,10 @@ impl App {
                         create_win.has_grf_textures,
                         None,
                         &self.saved_window_positions,
+                    );
+                    ragnarok_ui_component::account::draw_background(
+                        &mut ui,
+                        account_bg.as_deref(),
                     );
                     if self.account_dialog.state.is_some() {
                         ui.block_keyboard();
@@ -3358,6 +3381,7 @@ impl ApplicationHandler for App {
             physical_size.height as f32 / dpi_scale,
         );
         ui_ctx.dpi_scale = dpi_scale;
+        ui_ctx.lock_account_windows = true;
         self.ui_context = Some(ui_ctx);
 
         if !self.config.grf_paths.is_empty() {
@@ -3376,6 +3400,13 @@ impl ApplicationHandler for App {
                         renderer.try_load_grf_font(&grf);
                         events::preload_window(&mut self.login_window, renderer, &grf);
                         events::preload_window(&mut self.account_dialog, renderer, &grf);
+                        self.account_background =
+                            pick_account_background(&self.config.account_backgrounds)
+                                .and_then(|path| {
+                                    renderer
+                                        .preload_textures(&[path.as_str()], &grf)
+                                        .then_some(path)
+                                });
                     }
                     self.login_window.keep_id = self.config.keep_login_id;
                     if self.config.keep_login_id {
@@ -3580,6 +3611,18 @@ impl ApplicationHandler for App {
         }
         event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
+}
+
+fn pick_account_background(paths: &[String]) -> Option<String> {
+    if paths.is_empty() {
+        return None;
+    }
+    let idx = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() as usize)
+        .unwrap_or(0)
+        % paths.len();
+    Some(paths[idx].clone())
 }
 
 fn main() {

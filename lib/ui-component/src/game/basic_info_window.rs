@@ -497,6 +497,7 @@ impl BasicInfoWindow {
             let resp = ui.button(id, rect, textures, "");
             if resp.clicked() {
                 match id {
+                    BTN_OPTION_ID => events.push(GameEvent::ToggleGraphicOptions),
                     BTN_EQUIP_ID => events.push(GameEvent::ToggleEquipment),
                     BTN_INVENTORY_ID => events.push(GameEvent::ToggleInventory),
                     BTN_MAP_ID => events.push(GameEvent::ToggleMinimap),
