@@ -96,6 +96,7 @@ pub struct EmitterDraw<'a> {
     pub depth: f32,
     pub depth_gradient: [f32; 2],
     pub no_depth: bool,
+    pub clip_offset: [i32; 2],
     pub sprite_scale: f32,
     pub motion_index: usize,
     pub action_index: usize,
@@ -120,7 +121,7 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
                 &draw.sprite.textures,
                 draw.screen_anchor,
                 draw.depth,
-                [0, 0],
+                draw.clip_offset,
             ) else {
                 continue;
             };
@@ -327,6 +328,7 @@ pub enum SpriteEffectEmitter<'a> {
         anim_time: f32,
         action_index: usize,
         no_depth: bool,
+        clip_offset: [i32; 2],
     },
     ParticleBurst {
         sprite_path: &'a str,
@@ -350,6 +352,7 @@ fn push_billboard_draw<'cache>(
     size: f32,
     color: [f32; 4],
     no_depth: bool,
+    clip_offset: [i32; 2],
     screen_w: f32,
     screen_h: f32,
 ) -> Option<EmitterDraw<'cache>> {
@@ -361,6 +364,7 @@ fn push_billboard_draw<'cache>(
         depth,
         depth_gradient: grad,
         no_depth,
+        clip_offset,
         sprite_scale: (ppu / 7.5) * size,
         motion_index,
         action_index,
@@ -390,6 +394,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                 anim_time,
                 action_index,
                 no_depth,
+                clip_offset,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else {
                     continue;
@@ -419,6 +424,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                     *size_scale,
                     *color,
                     *no_depth,
+                    *clip_offset,
                     screen_w,
                     screen_h,
                 ) {
@@ -483,6 +489,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                         *size_scale * per_particle_size,
                         [color[0], color[1], color[2], color[3] * alpha],
                         false,
+                        [0, 0],
                         screen_w,
                         screen_h,
                     ) {

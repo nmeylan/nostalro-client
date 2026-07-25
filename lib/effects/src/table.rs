@@ -960,6 +960,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             pos_y: def.pos_y,
             action_index: def.action,
             no_depth: def.no_depth,
+            clip_offset: def.clip_offset,
         };
     }
     if let Some((sprite, burst)) = spr_burst_params(id) {
@@ -1058,8 +1059,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
-            action_index: _,
-            no_depth: _,
+            ..
         }) = effect_spec(EffectId::Torch)
         else {
             panic!("Torch should resolve to EffectSpec::Spr");
@@ -1083,8 +1083,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
-            action_index: _,
-            no_depth: _,
+            ..
         }) = effect_spec(EffectId::Aqua)
         else {
             panic!("Aqua should resolve to EffectSpec::Spr");
@@ -1266,8 +1265,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
-            action_index: _,
-            no_depth: _,
+            ..
         }) = effect_spec(EffectId::Poisonhit)
         else {
             panic!("Poisonhit should resolve to EffectSpec::Spr");
@@ -1291,8 +1289,7 @@ mod tests {
             repeat,
             tint,
             pos_y,
-            action_index: _,
-            no_depth: _,
+            ..
         }) = effect_spec(EffectId::Darkbreath)
         else {
             panic!("Darkbreath should resolve to EffectSpec::Spr");
@@ -1419,6 +1416,18 @@ mod tests {
             assert_eq!(anim_speed, speed, "{id:?} anim_speed");
             assert_eq!(spec_no_depth, no_depth, "{id:?} no_depth");
         }
+    }
+
+    /// The mat is drawn standing on its cell's west edge (clip x -45, about half a
+    /// cell once scaled); the offset cancels that so it stands on the cell a skill
+    /// unit actually occupies.
+    #[test]
+    fn tatami_mat_is_recentred_on_its_cell() {
+        let Some(EffectSpec::Spr { clip_offset, .. }) = effect_spec(EffectId::Tatami) else {
+            panic!("Tatami should resolve to EffectSpec::Spr");
+        };
+        let settled_mat_x = -45;
+        assert_eq!(clip_offset, [-settled_mat_x, 0]);
     }
 
     #[test]

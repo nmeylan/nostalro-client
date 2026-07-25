@@ -10,6 +10,7 @@ pub struct SprDef {
     pub pos_y: f32,
     pub action: usize,
     pub no_depth: bool,
+    pub clip_offset: [i32; 2],
 }
 
 impl SprDef {
@@ -23,6 +24,7 @@ impl SprDef {
             pos_y: 0.0,
             action: 0,
             no_depth: false,
+            clip_offset: [0, 0],
         }
     }
     const fn with_size(mut self, size_scale: f32) -> Self {
@@ -51,6 +53,10 @@ impl SprDef {
     }
     const fn no_depth(mut self) -> Self {
         self.no_depth = true;
+        self
+    }
+    const fn with_clip_offset(mut self, x: i32, y: i32) -> Self {
+        self.clip_offset = [x, y];
         self
     }
 }
@@ -115,7 +121,8 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::Tatami => SprDef::new("data/sprite/이팩트/다다미 뒤집기")
             .with_anim_speed(6.0)
             .one_shot()
-            .with_pos_y(-6.0),
+            .with_pos_y(-6.0)
+            .with_clip_offset(45, 0),
         EffectId::Kasumikiri => SprDef::new("data/sprite/이팩트/안개베기")
             .one_shot()
             .no_depth(),

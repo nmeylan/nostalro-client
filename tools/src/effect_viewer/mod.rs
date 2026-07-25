@@ -1456,6 +1456,7 @@ impl App {
                 anim_time: s.anim_time,
                 action_index: s.action_index,
                 no_depth: s.no_depth,
+                clip_offset: s.clip_offset,
             })
             .collect();
         spr_inputs.extend(

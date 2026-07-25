@@ -45,6 +45,10 @@ pub enum EffectSpec {
         tint: [f32; 4],
         pos_y: f32,
         action_index: usize,
+        /// Screen-space nudge added to every ACT clip offset before scaling, so it
+        /// stays put at any zoom. Used to recentre sprites the ACT authored off to
+        /// one side of their anchor.
+        clip_offset: [i32; 2],
         /// Drawn with no depth test at all, as the original's `Effect_SPR` family
         /// does (`m_renderFlag |= RF_NODEPTHCHECK`).
         no_depth: bool,

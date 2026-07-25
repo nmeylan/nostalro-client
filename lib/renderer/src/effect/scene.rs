@@ -54,6 +54,7 @@ pub fn compose_effect_frame<'cache, 'tmp>(
             anim_time: s.anim_time,
             action_index: s.action_index,
             no_depth: s.no_depth,
+            clip_offset: s.clip_offset,
         })
         .collect();
     holder_spr_inputs.extend(
