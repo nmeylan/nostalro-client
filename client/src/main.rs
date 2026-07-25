@@ -847,6 +847,7 @@ impl ApplicationHandler for App {
                         right_mouse_down: self.input.right_mouse_down,
                         ui_any_hovered,
                         ui_any_interactive_hovered: ui_any_interactive,
+                        item_drag_active: ragnarok_ui::frame::drag_active(&self.ui_state_cache),
                     },
                     CursorPending {
                         companion_target_armed: self

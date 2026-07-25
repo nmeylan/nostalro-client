@@ -19,12 +19,14 @@ pub enum DamageNumberType {
 
 const DIGIT_SPACING: f32 = 8.0;
 const FRAME_MS: f32 = 24.0; // ms per animation tick
+/// Shared by damage taken by the player and by the player's own misses.
+const PLAYER_RED: [f32; 3] = [1.0, 0.0, 0.0];
 
 impl DamageNumberType {
     pub fn color(&self) -> [f32; 3] {
         match self {
             Self::Critical | Self::Combo | Self::ComboFinal => [0.9, 0.9, 0.15],
-            Self::Enemy => [1.0, 0.0, 0.0],
+            Self::Enemy => PLAYER_RED,
             Self::Heal => [0.0, 1.0, 0.0],
             _ => [1.0, 1.0, 1.0],
         }
@@ -72,7 +74,7 @@ pub struct DamageNumber {
     pub elapsed: f32,
     pub direction: u8,
     pub last_screen_pos: Option<(f32, f32, f32)>,
-    /// RGB override for `EffectNumber`; falls back to `number_type.color()`.
+    /// RGB override; falls back to `number_type.color()`.
     pub color_override: Option<[f32; 3]>,
 }
 
@@ -396,6 +398,7 @@ impl DamageNumberManager {
         direction: u8,
         hit: &ScheduledHit,
         is_player_target: bool,
+        is_player_attacker: bool,
     ) {
         let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
         let is_skill = hit.skill_id > 0;
@@ -410,12 +413,11 @@ impl DamageNumberManager {
         };
         if total_zero {
             if hit.hit_index == 0 {
-                self.add(DamageNumber::new(
-                    entity_id,
-                    0,
-                    DamageNumberType::Miss,
-                    direction,
-                ));
+                let mut miss = DamageNumber::new(entity_id, 0, DamageNumberType::Miss, direction);
+                if is_player_attacker {
+                    miss.color_override = Some(PLAYER_RED);
+                }
+                self.add(miss);
             }
             return;
         }
@@ -547,14 +549,14 @@ mod tests {
         let hit = ScheduledHit::single(100, 17, false);
 
         let mut player = DamageNumberManager::new();
-        player.emit(1, 0, &hit, true);
+        player.emit(1, 0, &hit, true, false);
         assert_eq!(
             player.numbers.last().unwrap().number_type,
             DamageNumberType::Enemy
         );
 
         let mut monster = DamageNumberManager::new();
-        monster.emit(1, 0, &hit, false);
+        monster.emit(1, 0, &hit, false, false);
         assert_eq!(
             monster.numbers.last().unwrap().number_type,
             DamageNumberType::Skill
@@ -564,10 +566,37 @@ mod tests {
     #[test]
     fn fully_missed_multi_hit_shows_single_miss() {
         let mut mgr = DamageNumberManager::new();
-        mgr.emit(1, 0, &ScheduledHit::multi_hit(0, 0, 10, 0, false), false);
-        mgr.emit(1, 0, &ScheduledHit::multi_hit(0, 0, 10, 1, true), false);
+        mgr.emit(
+            1,
+            0,
+            &ScheduledHit::multi_hit(0, 0, 10, 0, false),
+            false,
+            false,
+        );
+        mgr.emit(
+            1,
+            0,
+            &ScheduledHit::multi_hit(0, 0, 10, 1, true),
+            false,
+            false,
+        );
         assert_eq!(mgr.numbers.len(), 1);
         assert_eq!(mgr.numbers[0].number_type, DamageNumberType::Miss);
+    }
+
+    #[test]
+    fn own_miss_is_red_others_stay_white() {
+        let miss = ScheduledHit::single(0, 0, false);
+
+        let mut mine = DamageNumberManager::new();
+        mine.emit(1, 0, &miss, false, true);
+        let data = mine.numbers[0].render_data().unwrap();
+        assert_eq!(data.color[..3], PLAYER_RED);
+
+        let mut other = DamageNumberManager::new();
+        other.emit(1, 0, &miss, true, false);
+        let data = other.numbers[0].render_data().unwrap();
+        assert_eq!(data.color[..3], [1.0, 1.0, 1.0]);
     }
 
     #[test]
@@ -629,10 +658,10 @@ mod tests {
         let mut mgr = DamageNumberManager::new();
         mgr.combat_hidden = true;
 
-        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false);
+        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false, false);
         assert!(mgr.numbers.is_empty());
 
-        mgr.emit(1, 0, &ScheduledHit::single(0, 0, false), false);
+        mgr.emit(1, 0, &ScheduledHit::single(0, 0, false), false, false);
         assert_eq!(
             mgr.numbers.last().unwrap().number_type,
             DamageNumberType::Miss
@@ -647,7 +676,7 @@ mod tests {
 
         mgr.combat_hidden = false;
         let before = mgr.numbers.len();
-        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false);
+        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false, false);
         assert_eq!(mgr.numbers.len(), before + 1);
     }
 

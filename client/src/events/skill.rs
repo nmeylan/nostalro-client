@@ -22,6 +22,7 @@ use ragnarok_game::sound::tables::{
 };
 use ragnarok_game::sprite_path::hide_allows_skill;
 use ragnarok_network::build_change_direction_packet;
+use ragnarok_network::build_shortcut_key_change_packet;
 use ragnarok_network::build_use_skill_packet;
 
 /// AL_HEAL's green heal sparkle size by healed amount, matching the original
@@ -45,8 +46,53 @@ impl App {
     }
 
     pub(super) fn handle_skill_added(&mut self, skill: ragnarok_game::event::SkillInfo) {
+        let (id, level) = (skill.id, skill.level);
+        let before_level = self.skill_level(id);
         let icon_path = self.game.character.skills.apply_skill_added(skill);
         self.preload_item_icons(vec![icon_path]);
+        self.sync_hotkey_skill_level(id, before_level, level);
+    }
+
+    pub(super) fn handle_skill_updated(
+        &mut self,
+        id: u16,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        upgradable: bool,
+    ) {
+        let before_level = self.skill_level(id);
+        self.game
+            .character
+            .skills
+            .update_skill(id, level, sp_cost, attack_range, upgradable);
+        self.sync_hotkey_skill_level(id, before_level, level);
+    }
+
+    fn skill_level(&self, id: u16) -> i16 {
+        self.game
+            .character
+            .skills
+            .get_skill(id)
+            .map_or(0, |s| s.level)
+    }
+
+    fn sync_hotkey_skill_level(&mut self, id: u16, before_level: i16, level: i16) {
+        let changed = self
+            .game
+            .character
+            .hotkeys
+            .apply_skill_level_change(id, before_level, level);
+        for index in changed {
+            let (is_skill, id, count) = self.game.character.hotkeys.to_server_format(index);
+            self.channel.send_packet(build_shortcut_key_change_packet(
+                index as u16,
+                is_skill,
+                id,
+                count,
+                self.active_packetver,
+            ));
+        }
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -730,7 +730,6 @@ fn create_single(name: &str) -> State {
         }
         "npc_dialog" => {
             let mut npc = NpcDialog::new();
-            npc.movable = true;
             npc.dialog.open_text(
                 100,
                 "Hello adventurer!\nWelcome to Prontera.\nHow can I help you today?",

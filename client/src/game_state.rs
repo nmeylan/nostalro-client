@@ -159,6 +159,7 @@ pub struct CursorInput {
     pub right_mouse_down: bool,
     pub ui_any_hovered: bool,
     pub ui_any_interactive_hovered: bool,
+    pub item_drag_active: bool,
 }
 
 pub struct CursorPending {
@@ -182,6 +183,8 @@ pub fn cursor_type_from_hover(
     }
     let base = if input.right_mouse_down {
         CursorType::Rotate
+    } else if input.item_drag_active {
+        CursorType::Default
     } else if input.ui_any_interactive_hovered {
         CursorType::Click
     } else if input.ui_any_hovered {
@@ -201,7 +204,7 @@ pub fn cursor_type_from_hover(
     } else {
         hover.cell_cursor
     };
-    if hover.hovered_floor_item_id.is_some() {
+    if hover.hovered_floor_item_id.is_some() && !input.item_drag_active {
         CursorType::Pick
     } else {
         base
@@ -798,6 +801,7 @@ mod cursor_from_hover_tests {
             right_mouse_down: false,
             ui_any_hovered: false,
             ui_any_interactive_hovered: false,
+            item_drag_active: false,
         }
     }
 
@@ -870,6 +874,44 @@ mod cursor_from_hover_tests {
         assert_eq!(
             cursor_type_from_hover(&hover, out_of_game, no_pending()),
             CursorType::Click
+        );
+    }
+
+    #[test]
+    fn item_drag_keeps_default_cursor_over_world_targets() {
+        let mut hover = HoverState::default();
+        hover.cell_cursor = CursorType::NoWalk;
+        hover.hovered_entity_cursor = Some(CursorType::Attack);
+        hover.hovered_floor_item_id = Some(1);
+
+        let dragging = CursorInput {
+            item_drag_active: true,
+            ..in_game()
+        };
+        assert_eq!(
+            cursor_type_from_hover(&hover, dragging, no_pending()),
+            CursorType::Default
+        );
+
+        let dragging_over_ui = CursorInput {
+            item_drag_active: true,
+            ui_any_interactive_hovered: true,
+            ..in_game()
+        };
+        assert_eq!(
+            cursor_type_from_hover(&hover, dragging_over_ui, no_pending()),
+            CursorType::Default
+        );
+
+        let rotating = CursorInput {
+            item_drag_active: true,
+            right_mouse_down: true,
+            ..in_game()
+        };
+        assert_eq!(
+            cursor_type_from_hover(&hover, rotating, no_pending()),
+            CursorType::Rotate,
+            "camera rotation feedback still wins over a drag"
         );
     }
 }

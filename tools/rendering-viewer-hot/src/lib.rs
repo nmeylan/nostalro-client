@@ -55,6 +55,7 @@ impl State {
                     self.direction,
                     &GameHit::single(self.damage_value, 0, false),
                     false,
+                    false,
                 );
             }
             2 => {
@@ -62,6 +63,7 @@ impl State {
                     2,
                     self.direction,
                     &GameHit::single(self.damage_value, 1, false),
+                    false,
                     false,
                 );
             }
@@ -71,6 +73,7 @@ impl State {
                     self.direction,
                     &GameHit::single(self.damage_value, 0, true),
                     false,
+                    false,
                 );
             }
             4 => {
@@ -79,6 +82,7 @@ impl State {
                     self.direction,
                     &GameHit::single(self.damage_value, 0, false),
                     true,
+                    false,
                 );
             }
             5 => {
@@ -111,11 +115,17 @@ impl State {
                     self.direction,
                     &GameHit::single(-(self.damage_value), 0, false),
                     false,
+                    false,
                 );
             }
             8 => {
-                self.damage_numbers
-                    .emit(8, self.direction, &GameHit::single(0, 0, false), false);
+                self.damage_numbers.emit(
+                    8,
+                    self.direction,
+                    &GameHit::single(0, 0, false),
+                    false,
+                    true,
+                );
             }
             9 => {
                 self.damage_numbers.add(DamageNumber::new(
@@ -151,7 +161,7 @@ impl State {
         });
         for (entity_id, hit, is_player_target) in ready {
             self.damage_numbers
-                .emit(entity_id, self.direction, &hit, is_player_target);
+                .emit(entity_id, self.direction, &hit, is_player_target, false);
         }
     }
 }

@@ -122,6 +122,14 @@ pub struct DragState {
     pub icon_size: (f32, f32),
 }
 
+/// Whether an item drag is in flight, readable outside a `UiFrame` (the frame is
+/// already dropped by the time the world decides which cursor to show).
+pub fn drag_active(state: &StateCache) -> bool {
+    state
+        .get::<DragState>(DRAG_STATE_ID)
+        .is_some_and(|drag| drag.active)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WindowOrder {
     Middle,

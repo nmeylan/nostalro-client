@@ -100,7 +100,7 @@ const LEGEND_ENTRIES: &[(&str, &str)] = &[
     ("5", "Skill Multi-Hit"),
     ("6", "Normal Multi-Hit"),
     ("7", "Heal"),
-    ("8", "Miss"),
+    ("8", "Miss (our attack)"),
     ("9", "Lucky Dodge"),
     ("0", "All Scenarios"),
     ("", ""),

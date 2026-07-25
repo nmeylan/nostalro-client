@@ -91,6 +91,54 @@ impl HotkeyBar {
         self.battle_mode = enabled;
     }
 
+    /// Realigns slots holding `skill_id` after the server changed its learned
+    /// level, returning the indexes that moved so the caller can persist them.
+    ///
+    /// A one-level gain carries along the slots that sat at the old learned
+    /// level — the only level a skill that cannot be down-ranked can hold — and
+    /// leaves a deliberately down-ranked slot where it is. Any other change
+    /// (reset, unlearn) only pulls slots back down to what is still castable.
+    pub fn apply_skill_level_change(
+        &mut self,
+        skill_id: u16,
+        before_level: i16,
+        new_level: i16,
+    ) -> Vec<usize> {
+        let mut changed = Vec::new();
+        for index in 0..HOTKEY_TOTAL {
+            let HotkeySlotContent::Skill {
+                skill_id: id,
+                level,
+            } = self.slots[index]
+            else {
+                continue;
+            };
+            if id != skill_id {
+                continue;
+            }
+            if new_level == before_level + 1 {
+                if level == before_level {
+                    self.slots[index] = HotkeySlotContent::Skill {
+                        skill_id,
+                        level: new_level,
+                    };
+                    changed.push(index);
+                }
+            } else if level > new_level {
+                self.slots[index] = if new_level == 0 {
+                    HotkeySlotContent::Empty
+                } else {
+                    HotkeySlotContent::Skill {
+                        skill_id,
+                        level: new_level,
+                    }
+                };
+                changed.push(index);
+            }
+        }
+        changed
+    }
+
     pub fn to_server_format(&self, index: usize) -> (i8, u32, i16) {
         match self.get_slot(index) {
             HotkeySlotContent::Empty => (0, 0, 0),
@@ -182,6 +230,34 @@ mod tests {
 
         bar.clear_slot(5);
         assert_eq!(bar.get_slot(5), HotkeySlotContent::Empty);
+    }
+
+    #[test]
+    fn skill_level_change_follows_slots_at_the_learned_level() {
+        let mut bar = HotkeyBar::new();
+        bar.set_from_server(&[
+            (1, 5, 5),  // SM_BASH at the learned level
+            (1, 5, 2),  // SM_BASH deliberately down-ranked
+            (1, 10, 5), // another skill, same level
+            (0, 7, 0),  // an item
+        ]);
+
+        assert_eq!(bar.apply_skill_level_change(5, 5, 6), vec![0]);
+        assert_eq!(bar.to_server_format(0), (1, 5, 6));
+        assert_eq!(bar.to_server_format(1), (1, 5, 2));
+        assert_eq!(bar.to_server_format(2), (1, 10, 5));
+        assert_eq!(bar.to_server_format(3), (0, 7, 0));
+
+        // A reset pulls every slot back to what is still castable.
+        assert_eq!(bar.apply_skill_level_change(5, 6, 1), vec![0, 1]);
+        assert_eq!(bar.to_server_format(0), (1, 5, 1));
+        assert_eq!(bar.to_server_format(1), (1, 5, 1));
+
+        // Unlearning empties them.
+        assert_eq!(bar.apply_skill_level_change(5, 1, 0), vec![0, 1]);
+        assert_eq!(bar.get_slot(0), HotkeySlotContent::Empty);
+        assert_eq!(bar.get_slot(1), HotkeySlotContent::Empty);
+        assert_eq!(bar.to_server_format(2), (1, 10, 5));
     }
 
     #[test]

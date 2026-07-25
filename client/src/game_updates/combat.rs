@@ -460,9 +460,13 @@ impl App {
             .get(entity_id)
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)
             .unwrap_or(false);
-        self.game
-            .combat
-            .damage_numbers
-            .emit(display_entity, dir, hit, is_player_target);
+        let is_player_attacker = self.game.world.entities.player_id() == Some(hit.attacker_gid);
+        self.game.combat.damage_numbers.emit(
+            display_entity,
+            dir,
+            hit,
+            is_player_target,
+            is_player_attacker,
+        );
     }
 }

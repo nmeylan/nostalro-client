@@ -11,6 +11,7 @@ use ragnarok_ui::text_input::TextInput;
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
 pub const NPC_DIALOG_WINDOW_ID: WidgetId = WidgetId(610);
+pub const NPC_MENU_WINDOW_ID: WidgetId = WidgetId(611);
 const NEXT_BTN_ID: WidgetId = WidgetId(601);
 const CLOSE_BTN_ID: WidgetId = WidgetId(602);
 const INPUT_ID: WidgetId = WidgetId(603);
@@ -25,14 +26,18 @@ const SCROLL_UP_ID: WidgetId = WidgetId(640);
 const SCROLL_DOWN_ID: WidgetId = WidgetId(641);
 const SCROLL_THUMB_ID: WidgetId = WidgetId(642);
 
-const DIALOG_W: f32 = 276.0;
-const DIALOG_H: f32 = 176.0;
-const MENU_W: f32 = 276.0;
-const MENU_MIN_H: f32 = 116.0;
+const DIALOG_W: f32 = 280.0;
+const DIALOG_H: f32 = 180.0;
+const DIALOG_DEFAULT_X: f32 = 200.0;
+const DIALOG_DEFAULT_Y: f32 = 100.0;
+const MENU_W: f32 = 280.0;
+const MENU_H: f32 = 120.0;
+const MENU_DEFAULT_X: f32 = 200.0;
+const MENU_DEFAULT_Y: f32 = 300.0;
 const PADDING: f32 = 8.0;
 const TEXT_LINE_HEIGHT: f32 = 16.0;
-const MENU_ITEM_HEIGHT: f32 = 18.0;
-const MENU_VISIBLE_ROWS: usize = 5;
+const MENU_ITEM_HEIGHT: f32 = 20.0;
+const MENU_VISIBLE_ROWS: usize = 4;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
@@ -77,9 +82,18 @@ const BTN_BOTTOM: f32 = 4.0;
 const BTN_FIRST_RIGHT: f32 = 5.0;
 const BTN_SPACING: f32 = 3.0;
 
+fn cancel_drag_on_press(ui: &mut UiFrame, window: WidgetId, rects: &[Rect]) {
+    if !ui.ctx.mouse_clicked {
+        return;
+    }
+    let (mx, my) = (ui.ctx.mouse_x, ui.ctx.mouse_y);
+    if rects.iter().any(|r| r.contains(mx, my)) {
+        ui.cancel_window_drag(window);
+    }
+}
+
 pub struct NpcDialog {
     pub has_grf_textures: bool,
-    pub movable: bool,
     pub dialog: NpcDialogData,
     pub string_input: TextInput,
     number_input_dialog: Option<InputDialog>,
@@ -98,7 +112,6 @@ impl NpcDialog {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
-            movable: false,
             dialog: NpcDialogData::new(),
             string_input: TextInput::new(70, false),
             number_input_dialog: None,
@@ -263,16 +276,11 @@ impl InGameWindow for NpcDialog {
             return result;
         }
 
-        let default_dx = (ui.ctx.screen_width / 3.0).max(20.0).floor();
-        let default_dy = (ui.ctx.screen_height / 2.0 - 200.0).max(100.0).floor();
-
         let has_text = !self.dialog.text.is_empty();
         let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
 
         let padding = PADDING;
         let dialog_w = DIALOG_W;
-
-        let mut dx = default_dx;
 
         if !menu_only {
             let text_area_w = dialog_w - padding * 2.0;
@@ -302,20 +310,15 @@ impl InGameWindow for NpcDialog {
 
             let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H);
 
-            let dy = if self.movable {
-                let win = ui.window_at(
-                    NPC_DIALOG_WINDOW_ID,
-                    dialog_w,
-                    dialog_h,
-                    dialog_h,
-                    default_dx,
-                    default_dy,
-                );
-                dx = win.x;
-                win.y
-            } else {
-                default_dy
-            };
+            let win = ui.window_at(
+                NPC_DIALOG_WINDOW_ID,
+                dialog_w,
+                dialog_h,
+                dialog_h,
+                DIALOG_DEFAULT_X,
+                DIALOG_DEFAULT_Y,
+            );
+            let (dx, dy) = (win.x, win.y);
 
             self.container.draw(
                 &mut ui.draw_calls,
@@ -348,6 +351,7 @@ impl InGameWindow for NpcDialog {
                 );
 
                 let ok_rect = Rect::new(dx + dialog_w - padding - btn_w, input_y, btn_w, btn_h);
+                cancel_drag_on_press(ui, NPC_DIALOG_WINDOW_ID, &[input_rect, ok_rect]);
                 let ok = ui.button(OK_BTN_ID, ok_rect, &OK_BTN, "OK");
                 if ok.clicked() {
                     let text = self.string_input.text.clone();
@@ -373,6 +377,10 @@ impl InGameWindow for NpcDialog {
                 BTN_SPACING,
             );
 
+            if has_button {
+                cancel_drag_on_press(ui, NPC_DIALOG_WINDOW_ID, &btns);
+            }
+
             if state == NpcDialogState::WaitingForNext {
                 let response = ui.button(NEXT_BTN_ID, btns[0], &NEXT_BTN, "Next");
                 if response.clicked() {
@@ -394,7 +402,7 @@ impl InGameWindow for NpcDialog {
         } // !menu_only
 
         if state == NpcDialogState::WaitingForMenu {
-            let menu_events = self.build_menu_window(ui, dx);
+            let menu_events = self.build_menu_window(ui);
             events.extend(menu_events);
         }
 
@@ -435,21 +443,28 @@ impl InGameWindow for NpcDialog {
 }
 
 impl NpcDialog {
-    fn build_menu_window(&mut self, ui: &mut UiFrame, dx: f32) -> Vec<GameEvent> {
+    fn build_menu_window(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
         let (btn_w, btn_h) = self.btn_size;
         let menu_w = MENU_W;
+        let menu_h = MENU_H;
         let padding = PADDING;
         let menu_item_h = MENU_ITEM_HEIGHT;
         let text_area_w = menu_w - padding * 2.0;
 
         let total_items = self.dialog.menu_items.len();
-        let visible_rows = total_items.min(MENU_VISIBLE_ROWS);
         let needs_scroll = total_items > MENU_VISIBLE_ROWS;
-        let content_h = visible_rows as f32 * menu_item_h;
+        let content_h = MENU_VISIBLE_ROWS as f32 * menu_item_h;
 
-        let menu_y = (ui.ctx.screen_height / 2.0 + (76.0)).max(376.0).floor();
-        let menu_h = (padding + content_h + padding + btn_h + padding).max(MENU_MIN_H);
+        let win = ui.window_at(
+            NPC_MENU_WINDOW_ID,
+            menu_w,
+            menu_h,
+            menu_h,
+            MENU_DEFAULT_X,
+            MENU_DEFAULT_Y,
+        );
+        let (dx, menu_y) = (win.x, win.y);
 
         self.container.draw(
             &mut ui.draw_calls,
@@ -459,6 +474,9 @@ impl NpcDialog {
             menu_h,
             [1.0, 1.0, 1.0, 0.95],
         );
+
+        let content_rect = Rect::new(dx + padding, menu_y + padding, text_area_w, content_h);
+        cancel_drag_on_press(ui, NPC_MENU_WINDOW_ID, &[content_rect]);
 
         let text_color = self.container.text_color();
         let offset = self.dialog.menu_scroll_offset;
@@ -517,7 +535,6 @@ impl NpcDialog {
                 down: SCROLL_DOWN_ID,
                 thumb: SCROLL_THUMB_ID,
             };
-            let content_rect = Rect::new(dx + padding, menu_y + padding, text_area_w, content_h);
             let scroll_x = dx + menu_w - scrollbar::SCROLLBAR_W - padding;
             self.dialog.menu_scroll_offset = scrollbar::scrollbar(
                 ui,
@@ -541,6 +558,8 @@ impl NpcDialog {
             BTN_FIRST_RIGHT,
             BTN_SPACING,
         );
+
+        cancel_drag_on_press(ui, NPC_MENU_WINDOW_ID, &menu_btns);
 
         let cancel = ui.button(CANCEL_BTN_ID, menu_btns[0], &CANCEL_BTN, "Cancel");
         let ok = ui.button(MENU_OK_BTN_ID, menu_btns[1], &OK_BTN, "OK");
@@ -753,7 +772,68 @@ mod tests {
             npc.build(&mut ui2, &mut crate::BuildCtx::test(&mut character, &data));
         }
         assert_eq!(npc.dialog.selected_menu_index, 6);
-        assert_eq!(npc.dialog.menu_scroll_offset, 2);
+        assert_eq!(npc.dialog.menu_scroll_offset, 3);
+    }
+
+    #[test]
+    fn menu_defaults_to_fixed_rect_and_drags_by_body_only() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.show_menu(100, vec!["Buy".into(), "Sell".into()]);
+
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &mut state);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert_eq!(
+            state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
+            Some(&[MENU_DEFAULT_X, MENU_DEFAULT_Y])
+        );
+
+        let mut press_body = UiContext::new(800.0, 600.0);
+        press_body.mouse_x = 210.0;
+        press_body.mouse_y = 400.0;
+        press_body.mouse_clicked = true;
+        press_body.mouse_down = true;
+        let mut ui = make_frame(&press_body, &mut state);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+
+        let mut drag = UiContext::new(800.0, 600.0);
+        drag.mouse_x = 250.0;
+        drag.mouse_y = 440.0;
+        drag.mouse_down = true;
+        let mut ui = make_frame(&drag, &mut state);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert_eq!(
+            state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
+            Some(&[MENU_DEFAULT_X + 40.0, MENU_DEFAULT_Y + 40.0])
+        );
+
+        let release = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&release, &mut state);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+
+        let mut press_row = UiContext::new(800.0, 600.0);
+        press_row.mouse_x = 340.0;
+        press_row.mouse_y = 355.0;
+        press_row.mouse_clicked = true;
+        press_row.mouse_down = true;
+        let mut ui = make_frame(&press_row, &mut state);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+
+        let mut drag_row = UiContext::new(800.0, 600.0);
+        drag_row.mouse_x = 400.0;
+        drag_row.mouse_y = 415.0;
+        drag_row.mouse_down = true;
+        let mut ui = make_frame(&drag_row, &mut state);
+        npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert_eq!(
+            state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
+            Some(&[MENU_DEFAULT_X + 40.0, MENU_DEFAULT_Y + 40.0]),
+            "pressing a menu row must not drag the window"
+        );
     }
 
     #[test]
@@ -773,7 +853,7 @@ mod tests {
 
         let mut ctx2 = UiContext::new(800.0, 600.0);
         ctx2.mouse_x = 300.0;
-        ctx2.mouse_y = 400.0;
+        ctx2.mouse_y = 340.0;
         ctx2.scroll_delta = -1.0; // scroll down
         let mut ui2 = make_frame(&ctx2, &mut state);
         npc.build(&mut ui2, &mut crate::BuildCtx::test(&mut character, &data));

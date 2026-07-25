@@ -683,12 +683,16 @@ impl NpcShop {
         let name = self.shop.item_name(item_idx);
         let price = self.shop.item_price(item_idx);
         let label = format!("{} ({}z)", name, format_thousands(price as i64));
+        let default_qty = match self.shop.mode {
+            Some(NpcShopMode::Sell) => self.shop.sell_item_remaining(item_idx).max(1),
+            _ => 1,
+        };
         let mut dialog = InputDialog::new(
             InputDialogConfig {
                 label: Some(label),
                 show_cancel: false,
                 escape_cancels: false,
-                default_value: "1".to_string(),
+                default_value: default_qty.to_string(),
                 max_len: 6,
                 numeric_only: true,
             },
@@ -773,7 +777,7 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
-    use ragnarok_game::npc_shop::ShopBuyItem;
+    use ragnarok_game::npc_shop::{ShopBuyItem, ShopSellItem};
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -822,6 +826,44 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::RequestNpcShopClose));
         assert!(shop_ui.shop.is_open());
+    }
+
+    #[test]
+    fn sell_qty_popup_defaults_to_remaining_stack() {
+        let mut shop_ui = NpcShop::new();
+        shop_ui.shop.open_sell(
+            100,
+            vec![ShopSellItem {
+                item: Item {
+                    index: 3,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 16,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
+                },
+                price: 25,
+                overcharge_price: 25,
+            }],
+        );
+
+        shop_ui.open_qty_popup(0);
+        assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_i16(), Some(16));
+
+        shop_ui.qty_popup = None;
+        shop_ui.shop.add_to_cart(0, 6);
+        shop_ui.open_qty_popup(0);
+        assert_eq!(
+            shop_ui.qty_popup.as_ref().unwrap().1.value_i16(),
+            Some(10),
+            "default must follow what is left after the cart"
+        );
     }
 
     #[test]

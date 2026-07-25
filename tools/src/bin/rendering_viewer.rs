@@ -197,7 +197,7 @@ const SCENARIO_LABELS: &[(u32, &str)] = &[
     (5, "Skill Multi"),
     (6, "Normal Multi"),
     (7, "Heal"),
-    (8, "Miss"),
+    (8, "Miss (our attack)"),
     (9, "Lucky"),
 ];
 

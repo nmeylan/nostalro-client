@@ -889,13 +889,7 @@ impl App {
                     attack_range,
                     upgradable,
                 } => {
-                    self.game.character.skills.update_skill(
-                        id,
-                        level,
-                        sp_cost,
-                        attack_range,
-                        upgradable,
-                    );
+                    self.handle_skill_updated(id, level, sp_cost, attack_range, upgradable);
                 }
                 GameEvent::SkillAdded { skill } => {
                     self.handle_skill_added(skill);
