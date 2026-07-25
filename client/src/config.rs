@@ -355,4 +355,17 @@ mod tests {
     fn load_nonexistent_returns_default() {
         let config = Config::load_or_default("/tmp/nonexistent_ragnarok_config.json");
     }
+
+    #[test]
+    fn sample_config_parses() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../config.sample.json");
+        let config: Config = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+
+        assert_eq!(config.login_servers.len(), 1);
+        assert_eq!(config.login_servers[0].packetver, 20111102);
+        assert_eq!(config.grf_paths, vec!["data/data.grf".to_string()]);
+        assert!(config.saved_username.is_empty());
+        assert!(config.admin_account_ids.is_empty());
+        assert!(config.window_state.is_empty());
+    }
 }

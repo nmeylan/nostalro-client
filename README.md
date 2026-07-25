@@ -72,6 +72,14 @@ cargo test
 
 Settings live in `config.json` at the repository root. The client reads it on start and writes it back on quit (and when settings change in game), so most fields are managed at runtime. The file is parsed with serde; any missing field falls back to its default, so a partial file is valid.
 
+`config.json` is per-developer and not versioned. Copy the sample to create it:
+
+```bash
+cp config.sample.json config.json
+```
+
+Starting the client without the file is also fine: it writes one with the defaults. Changes that should reach everyone go in `config.sample.json`.
+
 The fields a newcomer sets by hand:
 
 | Field | Type | Default | Meaning |

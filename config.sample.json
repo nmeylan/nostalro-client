@@ -1,0 +1,31 @@
+{
+  "login_servers": [
+    {
+      "name": "Local",
+      "host": "127.0.0.1",
+      "port": 6900,
+      "packetver": 20111102
+    }
+  ],
+  "keep_login_id": true,
+  "fullscreen": false,
+  "dpi_scale": 125.0,
+  "grf_paths": [
+    "data/data.grf"
+  ],
+  "data_dir": null,
+  "bgm_path": "data/BGM",
+  "emblem_path": "data/emblem",
+  "bgm_volume": 0.2,
+  "sfx_volume": 0.2,
+  "bgm_enabled": true,
+  "sfx_enabled": true,
+  "map_recovery_command": "@go prontera",
+  "admin_account_ids": [],
+  "debug": {
+    "trace_packet": "unhandled",
+    "trace_effects": false,
+    "trace_input": false,
+    "trace_texture_load": false
+  }
+}
