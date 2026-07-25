@@ -33,6 +33,7 @@ impl App {
                 self.game.pending_casts.pending_skill_id = None;
                 self.game.pending_casts.pending_skill_level = None;
                 self.game.combat.attack_target_id = None;
+                self.game.combat.queued_move = None;
                 self.game.npc_cutins = [None, None, None];
             }
             SessionChange::Logout => {
@@ -58,6 +59,7 @@ impl App {
                 self.game.pending_casts.pending_card_composition_index = None;
                 self.game.pending_casts.pending_pickup_item_id = None;
                 self.game.combat.attack_target_id = None;
+                self.game.combat.queued_move = None;
                 self.game.companions.homunculus = None;
                 self.game.companions.mercenary = None;
                 self.game.companions.pet = ragnarok_game::pet::PetState::default();

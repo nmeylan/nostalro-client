@@ -62,6 +62,7 @@ impl App {
         self.update_movement(delta, elapsed);
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);
+        self.flush_queued_move();
         self.update_companion_ai(delta);
         self.game.combat.damage_numbers.update(delta);
         self.process_scheduled_hits();

@@ -130,6 +130,7 @@ impl App {
             return;
         }
         self.game.pending_casts.pending_pickup_item_id = None;
+        self.game.combat.queued_move = None;
         let locked = self.game.prefs.noctrl_mode || self.input.ctrl_pressed;
         self.game.combat.attack_is_locked = locked;
 

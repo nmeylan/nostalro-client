@@ -2,7 +2,9 @@ use crate::App;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::EntityState;
+use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::OPTION_CHASEWALK;
+use ragnarok_network::build_request_move_packet;
 
 impl App {
     /// Running and Chase Walking characters stamp alternating left/right
@@ -68,6 +70,42 @@ impl App {
         }
         for (id, from, to) in prints {
             self.effect_queue.spawn_trail(id, from, to);
+        }
+    }
+
+    pub(crate) fn flush_queued_move(&mut self) {
+        if self
+            .game
+            .world
+            .entities
+            .player()
+            .is_some_and(|p| p.is_move_locked())
+        {
+            return;
+        }
+        self.send_queued_move();
+    }
+
+    pub(crate) fn send_queued_move(&mut self) {
+        let Some((dest_x, dest_y)) = self.game.combat.queued_move.take() else {
+            return;
+        };
+        let Some(player) = self.game.world.entities.player() else {
+            return;
+        };
+        if player.state == EntityState::Dead {
+            return;
+        }
+        let (src_x, src_y) = player.movement.cell_position();
+        let Some(gat) = &self.game.session.gat else {
+            return;
+        };
+        if let Some(move_action) = try_move_to(gat, src_x, src_y, dest_x, dest_y) {
+            self.channel.send_packet(build_request_move_packet(
+                move_action.dest_x,
+                move_action.dest_y,
+                self.active_packetver,
+            ));
         }
     }
 

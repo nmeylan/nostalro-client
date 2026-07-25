@@ -3,7 +3,7 @@ use models::enums::class::JobName;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::item::ItemType;
 use models::enums::weapon::WeaponType;
-use ragnarok_formats::act::SpriteAnimationState;
+use ragnarok_formats::act::{ActFile, SpriteActionType, SpriteAnimationState};
 
 use crate::movement::MovementState;
 use crate::scheduled_hit::ScheduledHitQueue;
@@ -414,7 +414,15 @@ impl Entity {
     }
 
     pub fn is_move_locked(&self) -> bool {
-        matches!(self.state, EntityState::Hurt | EntityState::Pickup)
+        matches!(
+            self.state,
+            EntityState::Hurt | EntityState::Pickup | EntityState::Attacking
+        )
+    }
+
+    pub fn begin_move(&mut self, path: Vec<crate::path::PathNode>, now: f32) {
+        self.movement.start_move(path, now);
+        self.state_timer = 0.0;
     }
 
     pub fn enter_hurt(&mut self, damage_motion_secs: f32) {
@@ -603,7 +611,7 @@ impl Entity {
                 EntityState::Sitting => 2,
                 EntityState::Pickup => 3,
                 EntityState::ReadyFight => 4,
-                EntityState::Attacking => self.attack_action_for_weapon(),
+                EntityState::Attacking => self.attack_action_index(),
                 EntityState::Hurt => 6,
                 EntityState::Dead => 8,
                 EntityState::Casting => 12,
@@ -634,6 +642,33 @@ impl Entity {
                 EntityState::Hurt => 3,
                 EntityState::Dead => 4,
             },
+        }
+    }
+
+    fn redirect_filler_attack1(&self, group: usize, body_act: &ActFile) -> usize {
+        if self.entity_type == EntityType::Player
+            && group == SpriteActionType::Attack1 as usize
+            && body_act.action_group_is_static(group)
+        {
+            return SpriteActionType::Attack2 as usize;
+        }
+        group
+    }
+
+    pub fn resolved_action_index(&self, body_act: &ActFile) -> usize {
+        self.redirect_filler_attack1(self.action_index(), body_act)
+    }
+
+    pub fn resolved_attack_action_index(&self, body_act: &ActFile) -> usize {
+        self.redirect_filler_attack1(self.attack_action_index(), body_act)
+    }
+
+    /// Action group the entity swings with, whatever its current state.
+    pub fn attack_action_index(&self) -> usize {
+        match self.entity_type {
+            EntityType::Player => self.attack_action_for_weapon(),
+            EntityType::Mercenary => mercenary_attack_action(self.job),
+            EntityType::Monster | EntityType::Npc | EntityType::Homunculus => 2,
         }
     }
 
@@ -827,6 +862,45 @@ mod tests {
 
     fn make_entity() -> Entity {
         Entity::new_player(1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0)
+    }
+
+    fn make_body_act(frames: usize, filler: &[usize]) -> ActFile {
+        use ragnarok_formats::act::{Action, Motion, SpriteFrame};
+        let frame = |spr: i32| SpriteFrame {
+            x: 0,
+            y: 0,
+            sprite_index: spr,
+            mirror: 0,
+            color: [255; 4],
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle: 0,
+            sprite_type: 0,
+            width: None,
+            height: None,
+        };
+        let actions = (0..13 * 8)
+            .map(|flat| {
+                let is_filler = filler.contains(&(flat / 8));
+                Action {
+                    motions: (0..frames)
+                        .map(|f| Motion {
+                            range1: [0; 4],
+                            range2: [0; 4],
+                            clips: vec![frame(if is_filler { 0 } else { f as i32 })],
+                            event_id: -1,
+                            attach_points: Vec::new(),
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
+        ActFile {
+            version: (2, 5),
+            actions,
+            events: Vec::new(),
+            delays: vec![4.0; 13 * 8],
+        }
     }
 
     fn make_path_node(x: u16, y: u16, is_diagonal: bool) -> PathNode {
@@ -1234,15 +1308,51 @@ mod tests {
         let mut e = make_entity();
         e.enter_attack(0.5, 1.0);
         assert_eq!(e.state, EntityState::Attacking);
+        assert!(e.is_move_locked());
 
         e.update_state(0.6);
         assert_eq!(e.state, EntityState::ReadyFight);
         assert_eq!(e.action_index(), 4);
+        assert!(!e.is_move_locked());
 
         e.update_state(0.4);
         assert_eq!(e.state, EntityState::ReadyFight);
         e.update_state(0.2);
         assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn barehand_swing_avoids_a_filler_attack1_group() {
+        let mut e = make_entity();
+        e.state = EntityState::Attacking;
+        assert_eq!(e.action_index(), 5, "barehand picks ATTACK1");
+
+        let with_attack1 = make_body_act(5, &[]);
+        assert_eq!(e.resolved_action_index(&with_attack1), 5);
+        assert_eq!(e.resolved_attack_action_index(&with_attack1), 5);
+
+        let filler_attack1 = make_body_act(5, &[5]);
+        assert_eq!(e.resolved_action_index(&filler_attack1), 10);
+        assert_eq!(e.resolved_attack_action_index(&filler_attack1), 10);
+    }
+
+    #[test]
+    fn move_during_standby_switches_to_walking() {
+        let mut e = make_entity();
+        e.enter_attack(0.9, 1.0);
+        e.update_state(1.0);
+        assert_eq!(e.state, EntityState::ReadyFight);
+
+        e.begin_move(
+            vec![
+                make_path_node(101, 100, false),
+                make_path_node(102, 100, false),
+            ],
+            0.0,
+        );
+        e.update_state(0.016);
+        assert_eq!(e.state, EntityState::Moving);
+        assert_eq!(e.action_index(), 1);
     }
 
     #[test]

@@ -287,15 +287,6 @@ impl App {
         {
             return;
         }
-        if self
-            .game
-            .world
-            .entities
-            .player()
-            .is_some_and(|e| e.is_move_locked())
-        {
-            return;
-        }
         if self.player_hide_move_blocked() {
             return;
         }
@@ -303,6 +294,16 @@ impl App {
             Some(c) => c,
             None => return,
         };
+        if self
+            .game
+            .world
+            .entities
+            .player()
+            .is_some_and(|e| e.is_move_locked())
+        {
+            self.game.combat.queued_move = Some((dest_x, dest_y));
+            return;
+        }
         let gat = match &self.game.session.gat {
             Some(g) => g,
             None => return,

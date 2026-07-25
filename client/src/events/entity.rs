@@ -241,8 +241,7 @@ impl App {
             if !path.is_empty() {
                 let now = local_ms as f32 / 1000.0;
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
-                    entity.movement.start_move(path, now);
-                    entity.state_timer = 0.0;
+                    entity.begin_move(path, now);
                 }
             }
         }
@@ -374,6 +373,18 @@ impl App {
                     .get(target_gid)
                     .map(|e| e.movement.cell_position());
                 let mut shooter_cell = None;
+                let motion_factor = ragnarok_game::entity::attack_motion_factor(attack_mt);
+                let swing_secs = self
+                    .game
+                    .world
+                    .entities
+                    .get(gid)
+                    .zip(self.game.sprite_caches.sprites.get(&gid))
+                    .and_then(|(entity, sprite)| {
+                        let group = entity.resolved_attack_action_index(&sprite.body_act);
+                        sprite.body_act.action_group_duration_ms(group)
+                    })
+                    .map(|ms| ms * motion_factor / 1000.0);
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     if let Some(tp) = target_pos {
                         let sp = entity.movement.cell_position();
@@ -381,15 +392,16 @@ impl App {
                             entity.direction = dir;
                         }
                     }
-                    let duration = ((attack_mt as f32 / 1000.0) - age).max(0.5);
-                    entity.enter_attack(
-                        duration,
-                        ragnarok_game::entity::attack_motion_factor(attack_mt),
-                    );
+                    let duration =
+                        swing_secs.unwrap_or_else(|| ((attack_mt as f32 / 1000.0) - age).max(0.5));
+                    entity.enter_attack(duration, motion_factor);
                     entity.target_gid = Some(target_gid);
                     if entity.weapon == Some(WeaponType::Bow) {
                         shooter_cell = Some(entity.movement.cell_position());
                     }
+                }
+                if Some(gid) == self.game.world.entities.player_id() {
+                    self.send_queued_move();
                 }
                 let is_endure = matches!(
                     action,

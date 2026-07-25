@@ -110,11 +110,10 @@ impl App {
                     continue;
                 }
 
-                let action = entity.action_index();
+                let action = entity.resolved_action_index(&sprite.body_act);
                 let is_transient = matches!(
                     entity.state,
                     EntityState::Hurt
-                        | EntityState::Attacking
                         | EntityState::SkillExec
                         | EntityState::Dead
                         | EntityState::Pickup
@@ -128,7 +127,7 @@ impl App {
                         }
                     });
                     if entity.state == EntityState::Attacking {
-                        entity.animation.play_attack_loop(
+                        entity.animation.play_attack(
                             action,
                             entity.attack_motion_factor,
                             start_frame,
@@ -142,12 +141,13 @@ impl App {
                     entity.animation.set_action(action, MotionType::Static);
                     entity.animation.set_direction(entity.direction);
                     continue;
-                } else if entity.state == EntityState::Attacking {
-                    entity.animation.set_action(action, MotionType::Loop);
-                } else if is_transient {
-                    entity.animation.set_action(action, MotionType::OneShot);
-                } else {
-                    entity.animation.set_action(action, MotionType::Loop);
+                } else if entity.state != EntityState::Attacking {
+                    let motion = if is_transient {
+                        MotionType::OneShot
+                    } else {
+                        MotionType::Loop
+                    };
+                    entity.animation.set_action(action, motion);
                 }
                 entity.animation.set_direction(entity.direction);
                 let is_composite = matches!(

@@ -488,7 +488,7 @@ impl App {
                     .movement
                     .correct_to_cell(start_x as f32, start_y as f32);
                 if !path.is_empty() {
-                    entity.movement.start_move(path, now);
+                    entity.begin_move(path, now);
                 }
             }
         }

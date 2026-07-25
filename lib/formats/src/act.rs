@@ -4,6 +4,9 @@ use byteorder::{LittleEndian as LE, ReadBytesExt};
 
 use crate::{Color, FormatError, read_string, version_at_least};
 
+/// Frame delay used when the ACT carries no delay table (pre-2.2).
+const DEFAULT_FRAME_DELAY_MS: f32 = 150.0;
+
 pub struct AnchorPoint {
     pub ignored: u32,
     pub x: i32,
@@ -183,6 +186,37 @@ impl ActFile {
             events,
             delays,
         })
+    }
+
+    /// True when every frame of `action_group` draws the same clips, so playing
+    /// it shows a frozen pose. Job bodies that never fight barehanded ship
+    /// ATTACK1 this way, as copies of the idle frame.
+    pub fn action_group_is_static(&self, action_group: usize) -> bool {
+        let idx = action_group * 8;
+        let Some(action) = self.actions.get(idx) else {
+            return true;
+        };
+        let Some(first) = action.motions.first() else {
+            return true;
+        };
+        let sprites = |m: &Motion| -> Vec<i32> { m.clips.iter().map(|c| c.sprite_index).collect() };
+        let reference = sprites(first);
+        action.motions.iter().all(|m| sprites(m) == reference)
+    }
+
+    /// Play time of one full pass of `action_group` at the ACT's native frame
+    /// delay, in ms. `None` when the group holds no frames.
+    pub fn action_group_duration_ms(&self, action_group: usize) -> Option<f32> {
+        let idx = action_group * 8;
+        let frames = self.actions.get(idx)?.motions.len();
+        if frames == 0 {
+            return None;
+        }
+        let delay_ms = match self.delays.get(idx) {
+            Some(&d) if d > 0.0 => d * 25.0,
+            _ => DEFAULT_FRAME_DELAY_MS,
+        };
+        Some(frames as f32 * delay_ms)
     }
 }
 
@@ -408,14 +442,14 @@ impl SpriteAnimationState {
         self.remaining_repeats = 0;
     }
 
-    /// Plays `action` looping at the ACT's native frame delay multiplied by
-    /// `speed_factor` (attack-speed relative to average). The attack state is
-    /// ended by the entity state machine, so the swing simply loops meanwhile.
-    pub fn play_attack_loop(&mut self, action: usize, speed_factor: f32, start_frame: usize) {
+    /// Plays `action` once at the ACT's native frame delay multiplied by
+    /// `speed_factor` (attack-speed relative to average), holding the last frame
+    /// when it ends.
+    pub fn play_attack(&mut self, action: usize, speed_factor: f32, start_frame: usize) {
         self.action = action;
         self.motion_index = start_frame;
         self.accumulated_ms = 0.0;
-        self.motion_type = MotionType::Loop;
+        self.motion_type = MotionType::OneShot;
         self.finished = false;
         self.motion_speed_override_ms = None;
         self.motion_speed_factor = Some(if speed_factor > 0.0 {
@@ -529,13 +563,13 @@ impl SpriteAnimationState {
         let native_delay = if action_idx < act.delays.len() && act.delays[action_idx] > 0.0 {
             act.delays[action_idx] * 25.0
         } else {
-            150.0
+            DEFAULT_FRAME_DELAY_MS
         };
         let delay_ms = if let Some(total_ms) = self.motion_speed_override_ms {
             if motion_count > 0 {
                 total_ms / motion_count as f32
             } else {
-                150.0
+                DEFAULT_FRAME_DELAY_MS
             }
         } else {
             native_delay * self.motion_speed_factor.unwrap_or(1.0)
@@ -730,6 +764,28 @@ mod tests {
         assert_eq!(anim.flat_action_index(&act), 3);
         anim.set_action(1, MotionType::Loop);
         assert_eq!(anim.flat_action_index(&act), 11);
+    }
+
+    #[test]
+    fn attack_swing_lasts_exactly_its_reported_duration() {
+        let act = make_act(16, 9);
+        let factor = 1.5;
+        let total_secs = act.action_group_duration_ms(1).unwrap() * factor / 1000.0;
+        assert_eq!(total_secs, 9.0 * 100.0 * 1.5 / 1000.0);
+
+        let mut anim = SpriteAnimationState::new(0);
+        anim.play_attack(1, factor, 0);
+
+        let step = 1.0 / 60.0;
+        let mut elapsed = 0.0;
+        while elapsed + 2.0 * step < total_secs {
+            anim.update_flat(step, &act);
+            elapsed += step;
+            assert!(!anim.is_finished(), "swing ended early at {elapsed}s");
+        }
+        anim.update_flat(3.0 * step, &act);
+        assert!(anim.is_finished());
+        assert_eq!(anim.motion_index(), 8, "holds the last frame");
     }
 
     #[test]
