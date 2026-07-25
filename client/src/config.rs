@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn per_server_packetver_parses_and_defaults_to_none() {
         let json = r#"{"login_servers":[
-            {"name":"Live","host":"live.example.com","port":6900},
+            {"name":"Live","host":"live.example.com","port":6900, "packetver": 20120307},
             {"name":"Old","host":"10.0.0.1","port":6901,"packetver":20040101}
         ]}"#;
         let config: Config = serde_json::from_str(json).unwrap();
