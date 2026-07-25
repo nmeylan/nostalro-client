@@ -849,6 +849,21 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             value: p.point as i32,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcStatusChange>() {
+        return vec![GameEvent::ParameterChanged {
+            var_id: p.status_id,
+            value: p.value as i32,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcStatusChangeAck>() {
+        if !p.result {
+            return vec![];
+        }
+        return vec![GameEvent::ParameterChanged {
+            var_id: p.status_id,
+            value: p.value as i32,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcAttackRange>() {
         return vec![GameEvent::AttackRangeChanged {
             range: p.current_att_range,
@@ -4010,6 +4025,45 @@ mod tests {
             }
             other => panic!("expected ParameterChanged, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn dispatch_stat_up_ack_and_cost_update_character() {
+        let packetver = 20120307;
+        let mut character = ragnarok_game::character::Character::new();
+
+        let mut ack = PacketZcStatusChangeAck::new(packetver);
+        ack.set_status_id(StatusTypes::Str.value() as u16);
+        ack.set_result(true);
+        ack.set_value(11);
+        ack.fill_raw();
+
+        let mut cost = PacketZcStatusChange::new(packetver);
+        cost.set_status_id(StatusTypes::StrNextLevelIncreaseCost.value() as u16);
+        cost.set_value(3);
+        cost.fill_raw();
+
+        for event in dispatch_packet(&ack, packetver)
+            .into_iter()
+            .chain(dispatch_packet(&cost, packetver))
+        {
+            match event {
+                GameEvent::ParameterChanged { var_id, value } => {
+                    character.apply_parameter_changed(var_id, value);
+                }
+                other => panic!("expected ParameterChanged, got {other:?}"),
+            }
+        }
+        assert_eq!(character.str, 11);
+        assert_eq!(character.str_cost, 3);
+
+        let mut rejected = PacketZcStatusChangeAck::new(packetver);
+        rejected.set_status_id(StatusTypes::Str.value() as u16);
+        rejected.set_result(false);
+        rejected.set_value(0);
+        rejected.fill_raw();
+        assert!(dispatch_packet(&rejected, packetver).is_empty());
+        assert_eq!(character.str, 11);
     }
 
     #[test]
