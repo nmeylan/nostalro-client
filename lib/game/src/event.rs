@@ -201,6 +201,8 @@ pub enum GameEvent {
     EntityNamesReceived {
         gid: u32,
         name: String,
+        /// Monsters carry their `show_mob_info` string here instead of a party name.
+        party_name: String,
         guild_name: String,
         position_name: String,
     },

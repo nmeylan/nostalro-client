@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::entity::{EmotionState, Entity, EntityState, EntityType};
+use crate::mob_info::MobInfo;
 use crate::movement::direction_from_positions;
 use models::enums::skill_enums::SkillEnum;
 
@@ -144,6 +145,7 @@ impl EntityCollection {
         &mut self,
         gid: u32,
         name: String,
+        party_name: String,
         guild_name: String,
         position_name: String,
     ) {
@@ -152,6 +154,9 @@ impl EntityCollection {
             entity.name = Some(name);
             entity.guild_name = (!guild_name.is_empty()).then_some(guild_name);
             entity.position_name = (!position_name.is_empty()).then_some(position_name);
+            if entity.entity_type == EntityType::Monster {
+                entity.mob_info = MobInfo::parse(&party_name);
+            }
         }
     }
 
@@ -339,6 +344,7 @@ mod tests {
         col.apply_entity_names_received(
             2000101,
             "Stalker".to_string(),
+            String::new(),
             "rg".to_string(),
             "GuildMaster".to_string(),
         );
@@ -352,6 +358,33 @@ mod tests {
         col.insert(make_entity(2000101));
         col.apply_entity_name_received(2000101, "Other".to_string());
         assert_eq!(col.get(2000101).unwrap().name.as_deref(), Some("Other"));
+    }
+
+    #[test]
+    fn mob_info_string_is_parsed_for_monsters_only() {
+        let mut col = EntityCollection::new();
+        let mut monster = make_entity(100);
+        monster.entity_type = EntityType::Monster;
+        col.insert(monster);
+        col.insert(make_entity(200));
+
+        for id in [100, 200] {
+            col.apply_entity_names_received(
+                id,
+                "Poring".to_string(),
+                "HP: 100/200".to_string(),
+                String::new(),
+                String::new(),
+            );
+        }
+
+        let monster = col.get(100).unwrap();
+        assert_eq!(monster.mob_info.as_ref().unwrap().hp_ratio(), Some(0.5));
+        assert_eq!(monster.hp, None);
+
+        let player = col.get(200).unwrap();
+        assert!(player.mob_info.is_none());
+        assert_eq!(player.name.as_deref(), Some("Poring"));
     }
 
     #[test]

@@ -707,11 +707,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     if let Some(p) = any.downcast_ref::<PacketZcAckReqnameall>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
+        let party_name: String = p.pname.iter().take_while(|c| **c != '\0').collect();
         let guild_name: String = p.gname.iter().take_while(|c| **c != '\0').collect();
         let position_name: String = p.rname.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::EntityNamesReceived {
             gid: p.aid,
             name,
+            party_name,
             guild_name,
             position_name,
         }];
@@ -3988,6 +3990,7 @@ mod tests {
             buf
         };
         pkt.set_cname(fill("Alice"));
+        pkt.set_pname(fill("HP: 100/200"));
         pkt.set_gname(fill("Knights"));
         pkt.set_rname(fill("Leader"));
         pkt.fill_raw();
@@ -3997,11 +4000,13 @@ mod tests {
             GameEvent::EntityNamesReceived {
                 gid,
                 name,
+                party_name,
                 guild_name,
                 position_name,
             } => {
                 assert_eq!(*gid, 42);
                 assert_eq!(name, "Alice");
+                assert_eq!(party_name, "HP: 100/200");
                 assert_eq!(guild_name, "Knights");
                 assert_eq!(position_name, "Leader");
             }

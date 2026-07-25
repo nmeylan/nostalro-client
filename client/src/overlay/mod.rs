@@ -31,6 +31,7 @@ const HP_BAR_WIDTH: f32 = 60.0;
 pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
 const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
 const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
+const MOB_INFO_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const EMBLEM_HOVER_SIZE: f32 = 24.0;
 const EMBLEM_HEAD_SIZE: f32 = 24.0;
 
@@ -137,28 +138,12 @@ impl App {
             );
 
             let mut leftmost_x = text_x;
-            if let Some(guild_name) = &entity.guild_name {
-                let guild_text = match &entity.position_name {
-                    Some(pos) if !pos.is_empty() => format!("<{guild_name}> [{pos}]"),
-                    _ => format!("<{guild_name}>"),
-                };
-                let guild_width = renderer.font_atlas.measure_text(&guild_text);
-                let guild_x = entry.screen_anchor[0] - guild_width / 2.0;
-                leftmost_x = leftmost_x.min(guild_x);
+            if let Some((line, color)) = second_plate_line(entity) {
+                let line_width = renderer.font_atlas.measure_text(&line);
+                let line_x = entry.screen_anchor[0] - line_width / 2.0;
+                leftmost_x = leftmost_x.min(line_x);
                 text_y += renderer.font_atlas.line_height;
-                let guild_color = if entity.is_gm {
-                    GM_TEXT_COLOR
-                } else {
-                    GUILD_NAME_COLOR
-                };
-                build_outlined_text(
-                    &guild_text,
-                    guild_x,
-                    text_y,
-                    guild_color,
-                    &renderer.font_atlas,
-                    calls,
-                );
+                build_outlined_text(&line, line_x, text_y, color, &renderer.font_atlas, calls);
             }
 
             if entity.guild_id != 0 && entity.guild_emblem_version != 0 {
@@ -241,7 +226,8 @@ impl App {
     }
 
     /// HP ratio for an entity, sourcing companion HP from companion state (which is not
-    /// mirrored onto `Entity.hp`) and party-member HP from `Entity.hp`.
+    /// mirrored onto `Entity.hp`), monster HP from `Entity.mob_info` and party-member
+    /// HP from `Entity.hp`.
     fn entity_hp_ratio(&self, entity_id: u32) -> Option<f32> {
         if self.game.world.entities.is_player(entity_id) {
             return Some(self.game.character.hp_percentage());
@@ -264,11 +250,12 @@ impl App {
         {
             return Some(m.hp_percentage());
         }
-        self.game
-            .world
-            .entities
-            .get(entity_id)
-            .and_then(|e| e.hp_percentage())
+        self.game.world.entities.get(entity_id).and_then(|e| {
+            e.mob_info
+                .as_ref()
+                .and_then(|info| info.hp_ratio())
+                .or_else(|| e.hp_percentage())
+        })
     }
 
     /// SP ratio for an entity that shows an SP bar below it: the player and the
@@ -735,6 +722,27 @@ fn push_emblem(
         indices: indices.to_vec(),
         texture: UiTextureRef::Named(key),
     });
+}
+
+/// Text drawn under an entity's name: the guild tag, or the monster info the server
+/// sends when `show_mob_info` is on. A monster never has both.
+fn second_plate_line(entity: &Entity) -> Option<(String, [f32; 4])> {
+    if let Some(guild_name) = &entity.guild_name {
+        let text = match &entity.position_name {
+            Some(pos) if !pos.is_empty() => format!("<{guild_name}> [{pos}]"),
+            _ => format!("<{guild_name}>"),
+        };
+        let color = if entity.is_gm {
+            GM_TEXT_COLOR
+        } else {
+            GUILD_NAME_COLOR
+        };
+        return Some((text, color));
+    }
+    entity
+        .mob_info
+        .as_ref()
+        .map(|info| (info.label(), MOB_INFO_COLOR))
 }
 
 fn entity_name_color(entity: &Entity) -> [f32; 4] {

@@ -35,6 +35,7 @@ pub mod keybinding;
 pub mod level_aura;
 pub mod mail;
 pub mod map_loader;
+pub mod mob_info;
 pub mod movement;
 pub mod npc_dialog;
 pub mod npc_shop;

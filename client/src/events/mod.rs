@@ -261,12 +261,14 @@ impl App {
                 GameEvent::EntityNamesReceived {
                     gid,
                     name,
+                    party_name,
                     guild_name,
                     position_name,
                 } => {
                     self.game.world.entities.apply_entity_names_received(
                         gid,
                         name,
+                        party_name,
                         guild_name,
                         position_name,
                     );

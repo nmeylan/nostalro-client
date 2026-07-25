@@ -5,6 +5,7 @@ use models::enums::item::ItemType;
 use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::{ActFile, SpriteActionType, SpriteAnimationState};
 
+use crate::mob_info::MobInfo;
 use crate::movement::MovementState;
 use crate::scheduled_hit::ScheduledHitQueue;
 use crate::sprite_path::weapon_view_id_to_type;
@@ -189,6 +190,7 @@ pub struct Entity {
     pub name_requested: bool,
     pub hp: Option<u32>,
     pub max_hp: Option<u32>,
+    pub mob_info: Option<MobInfo>,
     pub direction: u8,
     pub head_dir: u8,
     pub speed: u16,
@@ -283,6 +285,7 @@ impl Entity {
             name_requested: false,
             hp: None,
             max_hp: None,
+            mob_info: None,
             direction,
             head_dir: 0,
             speed,
