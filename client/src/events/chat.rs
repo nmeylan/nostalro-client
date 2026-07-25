@@ -133,7 +133,6 @@ impl App {
         is_base: bool,
         is_quest: bool,
     ) {
-        tracing::debug!(aid, amount, is_base, is_quest, "exp gained");
         if !self.game.prefs.show_exp {
             return;
         }
