@@ -1,3 +1,5 @@
+![build status](https://github.com/nmeylan/nostalro-client/actions/workflows/ci.yml/badge.svg)
+
 The goal is to have a playable client to retrieve the classic RO experience (2004-2008) for nostalgic players.
 
 It reuses many parts of [rust-ro](https://github.com/nmeylan/rust-ro): packets, data structures, proc-macros.
