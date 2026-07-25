@@ -519,6 +519,7 @@ impl SpriteRenderer {
             index_start: u32,
             index_count: u32,
             additive: bool,
+            no_depth: bool,
         }
 
         let mut all_verts = Vec::with_capacity(total_verts);
@@ -535,6 +536,7 @@ impl SpriteRenderer {
                 index_start,
                 index_count: batch.indices.len() as u32,
                 additive: batch.additive,
+                no_depth: batch.no_depth,
             });
         }
 
@@ -577,24 +579,22 @@ impl SpriteRenderer {
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            let mut current_additive = false;
-            let initial_pipeline = if has_depth {
-                &self.pipeline
-            } else {
-                &self.pipeline_no_depth
+            let pipeline_for = |additive: bool, no_depth: bool| match (additive, has_depth, no_depth)
+            {
+                (false, true, false) => &self.pipeline,
+                (false, true, true) => &self.pipeline_overlay,
+                (false, false, _) => &self.pipeline_no_depth,
+                (true, true, false) => &self.pipeline_additive,
+                (true, true, true) => &self.pipeline_additive_overlay,
+                (true, false, _) => &self.pipeline_additive_no_depth,
             };
-            pass.set_pipeline(initial_pipeline);
+            let mut current = (false, false);
+            pass.set_pipeline(pipeline_for(current.0, current.1));
 
             for batch in &draw_batches {
-                if batch.additive != current_additive {
-                    current_additive = batch.additive;
-                    let pipeline = match (current_additive, has_depth) {
-                        (false, true) => &self.pipeline,
-                        (false, false) => &self.pipeline_no_depth,
-                        (true, true) => &self.pipeline_additive,
-                        (true, false) => &self.pipeline_additive_no_depth,
-                    };
-                    pass.set_pipeline(pipeline);
+                if (batch.additive, batch.no_depth) != current {
+                    current = (batch.additive, batch.no_depth);
+                    pass.set_pipeline(pipeline_for(current.0, current.1));
                 }
                 pass.set_bind_group(1, batch.texture, &[]);
                 pass.draw_indexed(
@@ -724,6 +724,8 @@ pub struct SpriteBatch<'a> {
     pub indices: Vec<u32>,
     pub texture: &'a wgpu::BindGroup,
     pub additive: bool,
+    /// Skip the depth test entirely (the original's `RF_NODEPTHCHECK`).
+    pub no_depth: bool,
 }
 
 pub fn build_clip_quad(
@@ -1333,6 +1335,7 @@ impl EntitySprite {
                     indices,
                     texture: &shield_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1348,6 +1351,7 @@ impl EntitySprite {
                 indices,
                 texture: &self.body_textures.bind_groups[tex_idx],
                 additive: false,
+                no_depth: false,
             });
         }
         if let Some(head_tex) = &self.head_textures {
@@ -1358,6 +1362,7 @@ impl EntitySprite {
                     indices,
                     texture: &head_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1369,6 +1374,7 @@ impl EntitySprite {
                     indices,
                     texture: &hg_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1380,6 +1386,7 @@ impl EntitySprite {
                     indices,
                     texture: &hg_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1391,6 +1398,7 @@ impl EntitySprite {
                     indices,
                     texture: &hg_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1402,6 +1410,7 @@ impl EntitySprite {
                     indices,
                     texture: &weapon_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1488,6 +1497,7 @@ impl EntitySprite {
                     indices,
                     texture: &tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }
@@ -1533,6 +1543,7 @@ impl EntitySprite {
                 indices,
                 texture: &trail_tex.bind_groups[tex_idx],
                 additive: true,
+                no_depth: false,
             });
         }
         batches
@@ -1562,6 +1573,7 @@ impl EntitySprite {
                         indices,
                         texture: &shadow_tex.bind_groups[tex_idx],
                         additive: false,
+                        no_depth: false,
                     });
                 }
             }

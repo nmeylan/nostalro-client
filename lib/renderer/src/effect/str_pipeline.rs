@@ -407,6 +407,7 @@ pub fn build_str_effect_batches<'a>(
                 indices: vec![0, 1, 2, 1, 3, 2],
                 texture,
                 additive,
+                no_depth: false,
             });
         }
     }

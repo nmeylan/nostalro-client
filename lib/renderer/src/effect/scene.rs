@@ -53,6 +53,7 @@ pub fn compose_effect_frame<'cache, 'tmp>(
             repeat: s.repeat,
             anim_time: s.anim_time,
             action_index: s.action_index,
+            no_depth: s.no_depth,
         })
         .collect();
     holder_spr_inputs.extend(

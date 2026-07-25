@@ -70,7 +70,14 @@ impl AmbientEffectScheduler {
                 continue;
             };
             let (duration_ms, is_spr, size_scale) = match &spec {
-                EffectSpec::Spr { duration_ms, .. } => (*duration_ms, true, 1.0),
+                EffectSpec::Spr { duration_ms, .. } => {
+                    let sz = if eff.param[0] > 0.0 {
+                        eff.param[0]
+                    } else {
+                        1.0
+                    };
+                    (*duration_ms, true, sz)
+                }
                 EffectSpec::SprBurst { duration_ms, .. } => {
                     let sz = if eff.param[0] > 0.0 {
                         eff.param[0] / 100.0
@@ -236,7 +243,8 @@ mod tests {
     #[test]
     fn schedules_known_rsw_effects_and_emits_near_camera() {
         let rsw = make_rsw_with_params(vec![
-            (47, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]),
+            (47, [0.0, -2.0, 0.0], [0.6, 0.0, 0.0, 0.0]),
+            (47, [10.0, -2.0, 0.0], [0.0, 0.0, 0.0, 0.0]),
             (44, [0.0, 0.0, 0.0], [35.0, 0.0, 0.0, 0.0]),
             (109, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]),
             (9999, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]),
@@ -248,20 +256,26 @@ mod tests {
         sched.update(0.1, &|_p| true, &mut queue);
 
         let reqs = queue.drain();
-        assert_eq!(reqs.len(), 3);
+        assert_eq!(reqs.len(), 4);
         for r in &reqs {
             assert!(matches!(r.attach, Attach::WorldPos(_)));
             assert!(r.key.is_some());
         }
-        let torch = reqs
+        let torches: Vec<_> = reqs
             .iter()
-            .find(|r| r.effect_id == EffectId::Torch)
-            .unwrap();
+            .filter(|r| r.effect_id == EffectId::Torch)
+            .collect();
         assert_eq!(
-            torch.size_scale,
-            Some(1.0),
-            "torch param[0] must not shrink it"
+            torches
+                .iter()
+                .map(|r| r.size_scale.unwrap())
+                .collect::<Vec<_>>(),
+            vec![0.6, 1.0]
         );
+        assert!(matches!(
+            torches[0].attach,
+            Attach::WorldPos([_, y, _]) if y == -12.0
+        ));
         let smoke = reqs
             .iter()
             .find(|r| r.effect_id == EffectId::Smoke)

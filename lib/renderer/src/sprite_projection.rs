@@ -199,6 +199,27 @@ pub fn project_world_screen(
     Some(([sx, sy], ndc_z, camera_dir, sprite_scale, grad))
 }
 
+/// Upright billboard for an effect anchored at a world point: screen anchor,
+/// biased depth, pixels-per-world-unit and the upright depth gradient. Effects
+/// standing in a prop (a torch in its brasero) need the same front/back treatment
+/// as entity sprites, or the prop's own geometry eats the lower half of the quad.
+pub fn project_effect_billboard(
+    world: [f32; 3],
+    camera: &Camera,
+    screen_w: f32,
+    screen_h: f32,
+) -> Option<([f32; 2], f32, f32, [f32; 2])> {
+    let [wx, wy, wz] = world;
+    let (sx, sy, ndc_z_raw, clip_w) =
+        camera.world_to_screen_with_depth(wx, wy, wz, screen_w, screen_h)?;
+    let ndc_z =
+        ndc_z_raw - camera.near * crate::effect_sprite::ENTITY_DEPTH_BIAS_UNITS / (clip_w * clip_w);
+    let grad = depth_gradient(camera, [wx, wy, wz], sx, sy, ndc_z_raw, screen_w, screen_h);
+    let ppu = camera.perspective_scale(wx, wy, wz, screen_h);
+
+    Some(([sx, sy], ndc_z, ppu, grad))
+}
+
 pub fn entity_ground_gradient(
     pos: (f32, f32),
     gat: Option<&GatFile>,

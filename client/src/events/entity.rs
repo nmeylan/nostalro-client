@@ -1292,14 +1292,14 @@ impl App {
             return;
         };
         if self.effect_holder.reposition_by_key(aid, world) {
-            eprintln!(
-                "[song-unit] REPOSITION unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
-            );
+            // eprintln!(
+            //     "[song-unit] REPOSITION unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
+            // );
             return;
         }
-        eprintln!(
-            "[song-unit] SPAWN      unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
-        );
+        // eprintln!(
+        //     "[song-unit] SPAWN      unit_id={unit_id:#x} aid={aid} creator={creator_aid} cell=({x},{y})"
+        // );
         if let Some(sfx) = skill_unit_entry_sound(unit_id)
             && (sfx.one_in <= 1 || self.next_sfx_rand() % sfx.one_in as u32 == 0)
         {
@@ -1309,7 +1309,7 @@ impl App {
     }
 
     pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
-        eprintln!("[song-unit] DISAPPEAR aid={aid}");
+        // eprintln!("[song-unit] DISAPPEAR aid={aid}");
         self.effect_queue.despawn(aid);
         self.game.world.trap_units.remove(&aid);
         self.game.world.hidden_traps.remove(&aid);

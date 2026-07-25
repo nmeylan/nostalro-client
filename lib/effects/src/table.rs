@@ -959,6 +959,7 @@ fn bucket_default(id: EffectId) -> EffectSpec {
             tint: def.tint,
             pos_y: def.pos_y,
             action_index: def.action,
+            no_depth: def.no_depth,
         };
     }
     if let Some((sprite, burst)) = spr_burst_params(id) {
@@ -1058,6 +1059,7 @@ mod tests {
             tint,
             pos_y,
             action_index: _,
+            no_depth: _,
         }) = effect_spec(EffectId::Torch)
         else {
             panic!("Torch should resolve to EffectSpec::Spr");
@@ -1082,6 +1084,7 @@ mod tests {
             tint,
             pos_y,
             action_index: _,
+            no_depth: _,
         }) = effect_spec(EffectId::Aqua)
         else {
             panic!("Aqua should resolve to EffectSpec::Spr");
@@ -1264,6 +1267,7 @@ mod tests {
             tint,
             pos_y,
             action_index: _,
+            no_depth: _,
         }) = effect_spec(EffectId::Poisonhit)
         else {
             panic!("Poisonhit should resolve to EffectSpec::Spr");
@@ -1288,6 +1292,7 @@ mod tests {
             tint,
             pos_y,
             action_index: _,
+            no_depth: _,
         }) = effect_spec(EffectId::Darkbreath)
         else {
             panic!("Darkbreath should resolve to EffectSpec::Spr");
@@ -1386,6 +1391,34 @@ mod tests {
         assert!((size_scale - 1.2).abs() < 1e-6);
         assert!(repeat, "MT_LOOP means the action keeps cycling");
         assert_eq!(pos_y, -1.0);
+    }
+
+    /// `Effect_SPR` gives the whole family `RF_NODEPTHCHECK` and `m_animSpeed = 2`;
+    /// the cases that reassign `m_renderFlag = RF_ALPHA` opt back into the depth
+    /// test, and some set their own speed and vertical clearance.
+    #[test]
+    fn effect_spr_family_matches_its_reference_table() {
+        for (id, pos, speed, no_depth) in [
+            (EffectId::Tatami, -6.0, 6.0, false),
+            (EffectId::Kaen, -1.0, 5.0, false),
+            (EffectId::LightningS, -1.0, 2.0, false),
+            (EffectId::Issen, -6.0, 2.0, true),
+            (EffectId::Desperado, 0.0, 4.0, true),
+            (EffectId::Tracking, 0.0, 2.0, true),
+        ] {
+            let Some(EffectSpec::Spr {
+                pos_y,
+                anim_speed,
+                no_depth: spec_no_depth,
+                ..
+            }) = effect_spec(id)
+            else {
+                panic!("{id:?} should resolve to EffectSpec::Spr");
+            };
+            assert_eq!(pos_y, pos, "{id:?} pos_y");
+            assert_eq!(anim_speed, speed, "{id:?} anim_speed");
+            assert_eq!(spec_no_depth, no_depth, "{id:?} no_depth");
+        }
     }
 
     #[test]

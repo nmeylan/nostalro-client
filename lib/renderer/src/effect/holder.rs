@@ -99,6 +99,7 @@ pub struct SprSnapshot {
     pub repeat: bool,
     pub tint: [f32; 4],
     pub action_index: usize,
+    pub no_depth: bool,
 }
 
 pub struct SprBurstSnapshot {
@@ -177,6 +178,7 @@ enum HeldPayload {
         tint: [f32; 4],
         pos_y: f32,
         action_index: usize,
+        no_depth: bool,
     },
     SprBurst(BurstState),
 }
@@ -344,6 +346,7 @@ impl EffectHolder {
                 tint,
                 pos_y,
                 action_index,
+                no_depth,
                 ..
             } => {
                 self.last_spawn = Some(SpawnOutcome::Spr);
@@ -355,6 +358,7 @@ impl EffectHolder {
                     tint: *tint,
                     pos_y: *pos_y,
                     action_index: *action_index,
+                    no_depth: *no_depth,
                 }
             }
             EffectSpec::SprBurst {
@@ -847,6 +851,7 @@ impl EffectHolder {
                     tint,
                     pos_y,
                     action_index,
+                    no_depth,
                 } = &e.payload
                 else {
                     return None;
@@ -868,6 +873,7 @@ impl EffectHolder {
                     repeat: *repeat,
                     tint: *tint,
                     action_index: *action_index,
+                    no_depth: *no_depth,
                 })
             })
             .collect()

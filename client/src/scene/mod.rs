@@ -322,6 +322,7 @@ impl App {
                                                 indices,
                                                 texture: &emo_tex.bind_groups[tex_idx],
                                                 additive: false,
+                                                no_depth: false,
                                             });
                                         }
                                     }
@@ -368,6 +369,7 @@ impl App {
                                                 indices,
                                                 texture: &emo_tex.bind_groups[tex_idx],
                                                 additive: false,
+                                                no_depth: false,
                                             });
                                         }
                                     }
@@ -426,6 +428,7 @@ impl App {
                                         indices,
                                         texture: &tex.bind_groups[tex_idx],
                                         additive: false,
+                                        no_depth: false,
                                     });
                                 }
                             }
@@ -478,6 +481,7 @@ impl App {
                                         indices,
                                         texture: &tex.bind_groups[tex_idx],
                                         additive: false,
+                                        no_depth: false,
                                     });
                                 }
                             }
@@ -539,6 +543,7 @@ impl App {
                                                 indices,
                                                 texture: &tex.bind_groups[tex_idx],
                                                 additive: false,
+                                                no_depth: false,
                                             });
                                         }
                                     }
@@ -922,6 +927,7 @@ impl App {
                     indices,
                     texture: &cursor_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
             for (vertices, indices, tex_idx) in cursor_clips {
@@ -930,6 +936,7 @@ impl App {
                     indices,
                     texture: &cursor_tex.bind_groups[tex_idx],
                     additive: false,
+                    no_depth: false,
                 });
             }
         }

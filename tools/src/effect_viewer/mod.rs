@@ -1455,6 +1455,7 @@ impl App {
                 repeat: s.repeat,
                 anim_time: s.anim_time,
                 action_index: s.action_index,
+                no_depth: s.no_depth,
             })
             .collect();
         spr_inputs.extend(

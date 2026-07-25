@@ -45,6 +45,9 @@ pub enum EffectSpec {
         tint: [f32; 4],
         pos_y: f32,
         action_index: usize,
+        /// Drawn with no depth test at all, as the original's `Effect_SPR` family
+        /// does (`m_renderFlag |= RF_NODEPTHCHECK`).
+        no_depth: bool,
     },
     SprBurst {
         sprite: &'static str,

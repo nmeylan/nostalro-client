@@ -94,6 +94,8 @@ pub struct EmitterDraw<'a> {
     pub sprite: &'a EffectSpriteEntry,
     pub screen_anchor: [f32; 2],
     pub depth: f32,
+    pub depth_gradient: [f32; 2],
+    pub no_depth: bool,
     pub sprite_scale: f32,
     pub motion_index: usize,
     pub action_index: usize,
@@ -129,7 +131,7 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
                 &mut vertices,
                 draw.screen_anchor,
                 draw.sprite_scale,
-                [0.0, 0.0],
+                draw.depth_gradient,
             );
             for v in &mut vertices {
                 v.color[0] *= draw.color[0];
@@ -142,6 +144,7 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
                 indices,
                 texture: &draw.sprite.textures.bind_groups[tex_idx],
                 additive: draw.additive,
+                no_depth: draw.no_depth,
             });
         }
     }
@@ -323,6 +326,7 @@ pub enum SpriteEffectEmitter<'a> {
         repeat: bool,
         anim_time: f32,
         action_index: usize,
+        no_depth: bool,
     },
     ParticleBurst {
         sprite_path: &'a str,
@@ -345,14 +349,18 @@ fn push_billboard_draw<'cache>(
     action_index: usize,
     size: f32,
     color: [f32; 4],
+    no_depth: bool,
     screen_w: f32,
     screen_h: f32,
 ) -> Option<EmitterDraw<'cache>> {
-    let (anchor, depth, ppu) = project_billboard(camera, pos, screen_w, screen_h)?;
+    let (anchor, depth, ppu, grad) =
+        crate::sprite_projection::project_effect_billboard(pos, camera, screen_w, screen_h)?;
     Some(EmitterDraw {
         sprite,
         screen_anchor: anchor,
         depth,
+        depth_gradient: grad,
+        no_depth,
         sprite_scale: (ppu / 7.5) * size,
         motion_index,
         action_index,
@@ -381,6 +389,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                 repeat,
                 anim_time,
                 action_index,
+                no_depth,
             } => {
                 let Some(sprite) = cache.get(sprite_path) else {
                     continue;
@@ -409,6 +418,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                     *action_index,
                     *size_scale,
                     *color,
+                    *no_depth,
                     screen_w,
                     screen_h,
                 ) {
@@ -472,6 +482,7 @@ pub fn collect_sprite_effect_draws<'cache>(
                         0,
                         *size_scale * per_particle_size,
                         [color[0], color[1], color[2], color[3] * alpha],
+                        false,
                         screen_w,
                         screen_h,
                     ) {
@@ -481,10 +492,14 @@ pub fn collect_sprite_effect_draws<'cache>(
             }
         }
     }
+    // Depth-tested first, then the ones that ignore depth, matching the order the
+    // original flushes its alpha and no-depth lists in.
     draws.sort_by(|a, b| {
-        b.depth
-            .partial_cmp(&a.depth)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        a.no_depth.cmp(&b.no_depth).then_with(|| {
+            b.depth
+                .partial_cmp(&a.depth)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     });
     draws
 }

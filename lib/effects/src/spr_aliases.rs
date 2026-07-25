@@ -9,6 +9,7 @@ pub struct SprDef {
     pub tint: [f32; 4],
     pub pos_y: f32,
     pub action: usize,
+    pub no_depth: bool,
 }
 
 impl SprDef {
@@ -21,6 +22,7 @@ impl SprDef {
             tint: [1.0, 1.0, 1.0, 1.0],
             pos_y: 0.0,
             action: 0,
+            no_depth: false,
         }
     }
     const fn with_size(mut self, size_scale: f32) -> Self {
@@ -45,6 +47,10 @@ impl SprDef {
     }
     const fn with_action(mut self, action: usize) -> Self {
         self.action = action;
+        self
+    }
+    const fn no_depth(mut self) -> Self {
+        self.no_depth = true;
         self
     }
 }
@@ -77,40 +83,89 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
             .with_tint([1.0, 1.0, 1.0, 100.0 / 255.0]),
         EffectId::Hamicastle => SprDef::new("data/sprite/이팩트/캐슬링")
             .with_anim_speed(2.0)
-            .one_shot(),
+            .one_shot()
+            .no_depth(),
         EffectId::ItemThunder => SprDef::new("data/sprite/이팩트/item_thunder")
             .with_anim_speed(2.0)
-            .one_shot(),
+            .one_shot()
+            .no_depth(),
         EffectId::ItemCloud => SprDef::new("data/sprite/이팩트/item_cloud")
             .with_anim_speed(2.0)
-            .one_shot(),
+            .one_shot()
+            .no_depth(),
         EffectId::ItemCurse => SprDef::new("data/sprite/이팩트/item_curse")
             .with_anim_speed(2.0)
-            .one_shot(),
+            .one_shot()
+            .no_depth(),
         EffectId::ItemZzz => SprDef::new("data/sprite/이팩트/item_zzz")
             .with_anim_speed(2.0)
-            .one_shot(),
+            .one_shot()
+            .no_depth(),
         EffectId::ItemRain => SprDef::new("data/sprite/이팩트/item_rain")
             .with_anim_speed(2.0)
-            .one_shot(),
-        EffectId::Hamiblood => SprDef::new("data/sprite/이팩트/블러드러스트").one_shot(),
-        EffectId::Kirikage => SprDef::new("data/sprite/이팩트/그림자베기").one_shot(),
-        EffectId::Tatami => SprDef::new("data/sprite/이팩트/다다미 뒤집기").one_shot(),
-        EffectId::Kasumikiri => SprDef::new("data/sprite/이팩트/안개베기").one_shot(),
-        EffectId::Issen => SprDef::new("data/sprite/이팩트/일섬").one_shot(),
-        EffectId::Kaen => SprDef::new("data/sprite/이팩트/화염진"),
-        EffectId::Desperado => SprDef::new("data/sprite/이팩트/데스페라도").one_shot(),
-        EffectId::LightningS => SprDef::new("data/sprite/아이템/라이트닝스피어").one_shot(),
-        EffectId::BlindS => SprDef::new("data/sprite/아이템/블라인드스피어").one_shot(),
-        EffectId::PoisonS => SprDef::new("data/sprite/아이템/포이즌스피어").one_shot(),
-        EffectId::FreezingS => SprDef::new("data/sprite/아이템/프리징스피어").one_shot(),
-        EffectId::FlareS => SprDef::new("data/sprite/아이템/플레어스피어").one_shot(),
-        EffectId::Rapidshower => SprDef::new("data/sprite/이팩트/래피드샤워").one_shot(),
-        EffectId::Magicalbullet => SprDef::new("data/sprite/이팩트/매지컬불릿").one_shot(),
-        EffectId::Spreadattack => SprDef::new("data/sprite/이팩트/스프레드").one_shot(),
-        EffectId::Tracking => SprDef::new("data/sprite/이팩트/트래킹").one_shot(),
-        EffectId::Tripleaction => SprDef::new("data/sprite/이팩트/트리플액션").one_shot(),
-        EffectId::NpcEarthquake => SprDef::new("data/sprite/이팩트/어스퀘이크").one_shot(),
+            .one_shot()
+            .no_depth(),
+        EffectId::Hamiblood => SprDef::new("data/sprite/이팩트/블러드러스트")
+            .with_anim_speed(2.0)
+            .one_shot()
+            .no_depth(),
+        EffectId::Kirikage => SprDef::new("data/sprite/이팩트/그림자베기")
+            .one_shot()
+            .no_depth(),
+        EffectId::Tatami => SprDef::new("data/sprite/이팩트/다다미 뒤집기")
+            .with_anim_speed(6.0)
+            .one_shot()
+            .with_pos_y(-6.0),
+        EffectId::Kasumikiri => SprDef::new("data/sprite/이팩트/안개베기")
+            .one_shot()
+            .no_depth(),
+        EffectId::Issen => SprDef::new("data/sprite/이팩트/일섬")
+            .with_anim_speed(2.0)
+            .one_shot()
+            .with_pos_y(-6.0)
+            .no_depth(),
+        EffectId::Kaen => SprDef::new("data/sprite/이팩트/화염진")
+            .with_anim_speed(5.0)
+            .with_pos_y(-1.0),
+        EffectId::Desperado => SprDef::new("data/sprite/이팩트/데스페라도")
+            .one_shot()
+            .no_depth(),
+        EffectId::LightningS => SprDef::new("data/sprite/아이템/라이트닝스피어")
+            .with_anim_speed(2.0)
+            .with_pos_y(-1.0),
+        EffectId::BlindS => SprDef::new("data/sprite/아이템/블라인드스피어")
+            .with_anim_speed(2.0)
+            .with_pos_y(-1.0),
+        EffectId::PoisonS => SprDef::new("data/sprite/아이템/포이즌스피어")
+            .with_anim_speed(2.0)
+            .with_pos_y(-1.0),
+        EffectId::FreezingS => SprDef::new("data/sprite/아이템/프리징스피어")
+            .with_anim_speed(2.0)
+            .with_pos_y(-1.0),
+        EffectId::FlareS => SprDef::new("data/sprite/아이템/플레어스피어")
+            .with_anim_speed(2.0)
+            .with_pos_y(-1.0),
+        EffectId::Rapidshower => SprDef::new("data/sprite/이팩트/래피드샤워")
+            .one_shot()
+            .no_depth(),
+        EffectId::Magicalbullet => SprDef::new("data/sprite/이팩트/매지컬불릿")
+            .with_anim_speed(2.0)
+            .one_shot()
+            .no_depth(),
+        EffectId::Spreadattack => SprDef::new("data/sprite/이팩트/스프레드")
+            .one_shot()
+            .no_depth(),
+        EffectId::Tracking => SprDef::new("data/sprite/이팩트/트래킹")
+            .with_anim_speed(2.0)
+            .one_shot()
+            .no_depth(),
+        EffectId::Tripleaction => SprDef::new("data/sprite/이팩트/트리플액션")
+            .with_anim_speed(2.0)
+            .one_shot()
+            .no_depth(),
+        EffectId::NpcEarthquake => SprDef::new("data/sprite/이팩트/어스퀘이크")
+            .one_shot()
+            .no_depth(),
         EffectId::PokLove => SprDef::new("data/sprite/이팩트/폭죽_러브").one_shot(),
         EffectId::PokBirth => SprDef::new("data/sprite/이팩트/폭죽_생일").one_shot(),
         EffectId::PokChristmas => SprDef::new("data/sprite/이팩트/폭죽_크리스마스").one_shot(),
@@ -128,12 +183,21 @@ pub fn spr_def(id: EffectId) -> Option<SprDef> {
         EffectId::M01 => SprDef::new("data/sprite/이팩트/m_ef01")
             .with_anim_speed(3.0)
             .one_shot()
-            .with_tint([1.0, 1.0, 1.0, 220.0 / 255.0]),
-        EffectId::M03 => SprDef::new("data/sprite/이팩트/m_ef03").one_shot(),
-        EffectId::M04 => SprDef::new("data/sprite/이팩트/m_ef04"),
-        EffectId::M05 => SprDef::new("data/sprite/이팩트/m_ef05").one_shot(),
-        EffectId::M06 => SprDef::new("data/sprite/이팩트/m_ef06").one_shot(),
-        EffectId::M07 => SprDef::new("data/sprite/이팩트/m_ef07").one_shot(),
+            .with_tint([1.0, 1.0, 1.0, 220.0 / 255.0])
+            .no_depth(),
+        EffectId::M03 => SprDef::new("data/sprite/이팩트/m_ef03")
+            .one_shot()
+            .no_depth(),
+        EffectId::M04 => SprDef::new("data/sprite/이팩트/m_ef04").no_depth(),
+        EffectId::M05 => SprDef::new("data/sprite/이팩트/m_ef05")
+            .one_shot()
+            .no_depth(),
+        EffectId::M06 => SprDef::new("data/sprite/이팩트/m_ef06")
+            .one_shot()
+            .no_depth(),
+        EffectId::M07 => SprDef::new("data/sprite/이팩트/m_ef07")
+            .one_shot()
+            .no_depth(),
         _ => return None,
     })
 }
