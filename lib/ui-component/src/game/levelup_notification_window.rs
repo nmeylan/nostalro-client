@@ -69,12 +69,7 @@ impl LevelUpNotificationWindow {
 
         if self.show_job {
             let rect = Rect::new(MARGIN, y, icon_w, icon_h);
-            let resp = ui.interact(JOB_BTN_ID, rect);
-            if resp.hovered() {
-                ui.any_interactive_hovered = true;
-            }
-            self.draw_icon(ui, rect, resp.hovered());
-            if resp.clicked() {
+            if self.icon(ui, JOB_BTN_ID, rect) {
                 self.show_job = false;
                 result = LevelUpClick::Job;
             }
@@ -82,18 +77,26 @@ impl LevelUpNotificationWindow {
 
         if self.show_base {
             let rect = Rect::new(ui.ctx.screen_width - icon_w - MARGIN, y, icon_w, icon_h);
-            let resp = ui.interact(BASE_BTN_ID, rect);
-            if resp.hovered() {
-                ui.any_interactive_hovered = true;
-            }
-            self.draw_icon(ui, rect, resp.hovered());
-            if resp.clicked() {
+            if self.icon(ui, BASE_BTN_ID, rect) {
                 self.show_base = false;
                 result = LevelUpClick::Base;
             }
         }
 
         result
+    }
+
+    /// Drawn in a popup layer so the icon stays clickable over any window it
+    /// overlaps, and swallows the click instead of sharing it with that window.
+    fn icon(&self, ui: &mut UiFrame, id: WidgetId, rect: Rect) -> bool {
+        ui.begin_popup_layer(rect);
+        let resp = ui.interact(id, rect);
+        if resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        self.draw_icon(ui, rect, resp.hovered());
+        ui.end_popup_layer();
+        resp.clicked()
     }
 }
 
@@ -144,5 +147,39 @@ mod tests {
         let mut ui = make_frame(&ctx, &mut state);
         assert_eq!(win.build(&mut ui), LevelUpClick::Base);
         assert_eq!(win.build(&mut ui), LevelUpClick::None);
+    }
+
+    #[test]
+    fn job_icon_is_clickable_over_another_window() {
+        const CHAT_ID: WidgetId = WidgetId(9000);
+        const MINIMAP_ID: WidgetId = WidgetId(9001);
+        let chat_rect = Rect::new(0.0, 400.0, 500.0, 200.0);
+        let minimap_rect = Rect::new(700.0, 0.0, 100.0, 100.0);
+        let z_order = [CHAT_ID, MINIMAP_ID];
+
+        let mut win = LevelUpNotificationWindow::new();
+        win.notify_job_level_up();
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let (w, h) = DEFAULT_SIZE;
+        ctx.mouse_x = MARGIN + w / 2.0;
+        ctx.mouse_y = 600.0 - h - BOTTOM_MARGIN + h / 2.0;
+
+        {
+            let mut ui = make_frame(&ctx, &mut state);
+            ui.compute_hovered_window(&z_order);
+            ui.enter_window(CHAT_ID, chat_rect);
+            ui.enter_window(MINIMAP_ID, minimap_rect);
+            win.build(&mut ui);
+        }
+
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        ui.compute_hovered_window(&z_order);
+        assert_eq!(ui.hovered_window(), Some(CHAT_ID));
+        ui.enter_window(CHAT_ID, chat_rect);
+        ui.enter_window(MINIMAP_ID, minimap_rect);
+        assert_eq!(win.build(&mut ui), LevelUpClick::Job);
     }
 }

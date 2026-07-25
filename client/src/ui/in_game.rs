@@ -160,12 +160,6 @@ pub fn build_in_game_ui(
 
     events.extend(windows.status_icon_bar.build(ui, &mut ctx));
 
-    match windows.levelup_notification.build(ui) {
-        LevelUpClick::Base => windows.status_window.open(),
-        LevelUpClick::Job => ctx.character.skills.open(),
-        LevelUpClick::None => {}
-    }
-
     let npc_dialog_open = windows.npc_dialog.dialog.is_open();
     events.extend(windows.npc_dialog.build(ui, &mut ctx));
     let shop_open = windows.npc_shop.shop.is_open();
@@ -223,6 +217,12 @@ pub fn build_in_game_ui(
     events.extend(windows.context_menu.build(ui));
 
     events.extend(windows.map_missing_window.build(ui));
+
+    match windows.levelup_notification.build(ui) {
+        LevelUpClick::Base => windows.status_window.open(),
+        LevelUpClick::Job => ctx.character.skills.open(),
+        LevelUpClick::None => {}
+    }
 
     ui.flush_tooltips();
 
