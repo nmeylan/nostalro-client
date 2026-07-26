@@ -20,6 +20,10 @@ pub fn bold_char(c: char) -> char {
     }
 }
 
+/// Latin-1 Supplement + Latin Extended-A: accented characters typed on European
+/// keyboard layouts, none of which EUC-KR can encode.
+const LATIN_SUPPLEMENT_RANGE: std::ops::RangeInclusive<u32> = 0xA0..=0x17F;
+
 #[derive(Debug, Clone)]
 pub struct GlyphInfo {
     pub uv_min: [f32; 2],
@@ -92,6 +96,14 @@ impl FontAtlas {
 
         let mut chars: Vec<char> = (32u8..127).map(|b| b as char).collect();
         let mut seen: std::collections::HashSet<char> = chars.iter().copied().collect();
+        for cp in LATIN_SUPPLEMENT_RANGE {
+            let Some(ch) = char::from_u32(cp) else {
+                continue;
+            };
+            if font.glyph_id(ch).0 != 0 && seen.insert(ch) {
+                chars.push(ch);
+            }
+        }
         for &ch in extra_chars {
             if !ch.is_control() && seen.insert(ch) {
                 chars.push(ch);
@@ -283,6 +295,17 @@ mod tests {
         let g = a.glyph('\u{4e00}');
         let q = a.glyph('?');
         assert_eq!(g.advance, q.advance);
+    }
+
+    #[test]
+    fn accented_latin_is_rasterized_not_question_mark() {
+        let a = FontAtlas::from_embedded_cjk(16.0, 1.0, &euc_kr_charset());
+        let q = a.glyph('?');
+        for ch in ['à', 'é', 'ç', 'ü', 'ñ', 'ø'] {
+            let g = a.glyph(ch);
+            assert!(g.size[0] > 0.0 && g.size[1] > 0.0, "{ch} not rasterized");
+            assert_ne!(g.uv_min, q.uv_min, "{ch} fell back to '?'");
+        }
     }
 
     #[test]
