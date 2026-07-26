@@ -36,6 +36,7 @@ pub fn build_in_game_ui(
         .map(|s| s.account_id)
         .unwrap_or(0);
     let local_gid = local_aid;
+    let job_class = game.world.entities.player_job();
 
     let mut ctx = BuildCtx {
         character: &mut game.character,
@@ -48,6 +49,7 @@ pub fn build_in_game_ui(
         mercenary: game.companions.mercenary.as_ref(),
         pet: &game.companions.pet,
         companion_ai: &mut game.companions.companion_ai,
+        job_class,
         local_aid,
         local_gid,
     };

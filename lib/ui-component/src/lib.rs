@@ -30,6 +30,9 @@ pub struct BuildCtx<'a> {
     pub mercenary: Option<&'a MercenaryState>,
     pub pet: &'a PetState,
     pub companion_ai: &'a mut CompanionAiConfig,
+    /// Live job of the player entity — the server only ever announces a job
+    /// change as a base-look sprite change, so the entity is the only source.
+    pub job_class: u16,
     pub local_aid: u32,
     pub local_gid: u32,
 }
@@ -50,6 +53,7 @@ impl<'a> BuildCtx<'a> {
             mercenary: None,
             pet: Box::leak(Box::new(PetState::default())),
             companion_ai: Box::leak(Box::new(CompanionAiConfig::default())),
+            job_class: 0,
             local_aid: 0,
             local_gid: 0,
         }

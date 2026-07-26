@@ -1041,7 +1041,11 @@ impl App {
                 .inventory
                 .equipped_in_slot(models::enums::item::EquipmentLocation::HandLeft)
                 .is_some_and(|item| item.is_weapon());
+        let mut job_change: Option<u16> = None;
         if let Some(entity) = self.game.world.entities.get_mut(gid) {
+            if sprite_type == 0 && entity.job != value && entity.job != 0 {
+                job_change = Some(value);
+            }
             if sprite_type == 2 {
                 let right_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value);
                 if left_hand_is_weapon {
@@ -1105,6 +1109,18 @@ impl App {
                     0,
                 );
             }
+        }
+
+        if let Some(new_job) = job_change
+            && self.game.world.entities.is_player(gid)
+        {
+            // The skill tree is stale until the server resends the skill block.
+            self.game.character.skills.close();
+            let job_name = ragnarok_game::character::job_class_name(new_job);
+            let text = format!("Your job has changed to {job_name}.");
+            self.windows.chat_window.add_system(text.clone());
+            self.game.broadcast.poptip.push(text.clone());
+            self.game.broadcast.banner.enqueue(text, 1);
         }
     }
 

@@ -5,8 +5,6 @@ use crate::inventory::{CartData, InventoryData, StorageData};
 use crate::mail::MailState;
 use crate::skill::SkillList;
 use crate::trade::TradeData;
-use models::enums::class::JobName;
-use models::enums::{EnumWithNumberValue, EnumWithStringValue};
 
 /// Times are local-clock milliseconds; `end_ms` is `None` for permanent statuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,7 +26,6 @@ pub struct Character {
     pub hotkeys: HotkeyBar,
     pub cooldowns: CooldownTracker,
     pub name: String,
-    pub class: u16,
     pub skill_point: u32,
     pub status_point: u32,
     pub hp: u32,
@@ -97,7 +94,6 @@ impl Character {
             hotkeys: HotkeyBar::new(),
             cooldowns: CooldownTracker::new(),
             name: String::new(),
-            class: 0,
             skill_point: 0,
             status_point: 0,
             hp: 0,
@@ -194,7 +190,6 @@ impl Character {
 
     pub fn init_from_info(&mut self, info: &CharacterInfo) {
         self.name = info.name.clone();
-        self.class = info.class;
         self.hp = info.hp;
         self.max_hp = info.max_hp;
         self.sp = info.sp;
@@ -330,12 +325,6 @@ impl Character {
         }
     }
 
-    pub fn job_class_name(&self) -> &'static str {
-        JobName::try_from_value(self.class as usize)
-            .map(|j| j.as_str())
-            .unwrap_or("Novice")
-    }
-
     pub fn clear(&mut self) {
         self.inventory.clear();
         self.cart.clear();
@@ -343,7 +332,6 @@ impl Character {
         self.hotkeys.clear();
         self.cooldowns.clear();
         self.name.clear();
-        self.class = 0;
         self.skill_point = 0;
         self.status_point = 0;
         self.hp = 0;

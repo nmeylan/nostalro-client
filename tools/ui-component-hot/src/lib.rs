@@ -4,6 +4,7 @@
 static GLOBAL: std::alloc::System = std::alloc::System;
 
 use models::enums::EnumWithNumberValue;
+use models::enums::class::JobName;
 use models::enums::item::ItemType;
 use ragnarok_ai::config::CompanionAiConfig;
 use ragnarok_game::character::Character;
@@ -1543,7 +1544,6 @@ fn create_single(name: &str) -> State {
         "basic_info" => {
             let mut character = Character::new();
             character.name = "Walkiry".into();
-            character.class = 1;
             character.base_level = 42;
             character.job_level = 30;
             character.hp = 2350;
@@ -1566,7 +1566,6 @@ fn create_single(name: &str) -> State {
         "status" => {
             let mut character = Character::new();
             character.name = "Swordsman".into();
-            character.class = 1;
             character.base_level = 42;
             character.job_level = 30;
             character.status_point = 12;
@@ -2681,6 +2680,7 @@ impl HotCtxDefaults {
             mercenary: None,
             pet: &self.pet,
             companion_ai: &mut self.companion_ai,
+            job_class: JobName::Swordsman.value() as u16,
             local_aid: 0,
             local_gid: 0,
         }

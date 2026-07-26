@@ -1,6 +1,6 @@
 use crate::helper::window_chrome::{draw_sys_button, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
-use ragnarok_game::character::Character;
+use ragnarok_game::character::{Character, job_class_name};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -248,6 +248,7 @@ impl BasicInfoWindow {
         &mut self,
         ui: &mut UiFrame,
         character: &mut Character,
+        job_class: u16,
         win: Rect,
     ) -> Vec<GameEvent> {
         let mut events = Vec::new();
@@ -317,7 +318,7 @@ impl BasicInfoWindow {
         };
         ui.text(x + 10.0, y + 30.0, name, tc);
 
-        let job_name = character.job_class_name();
+        let job_name = job_class_name(job_class);
         ui.text(x + 10.0, y + 43.0, job_name, tc);
 
         let hp_pct = character.hp_percentage();
@@ -526,6 +527,7 @@ impl BasicInfoWindow {
         &mut self,
         ui: &mut UiFrame,
         character: &mut Character,
+        job_class: u16,
         win: Rect,
     ) -> Vec<GameEvent> {
         let grf = self.has_grf_textures;
@@ -576,7 +578,7 @@ impl BasicInfoWindow {
             Some('+'),
         );
 
-        let job_name = character.job_class_name();
+        let job_name = job_class_name(job_class);
         let exp_pct = character.base_exp_percentage() * 100.0;
         let info_text = format!(
             "Lv.{} / {} / Lv.{} / Exp. {:.1}%",
@@ -660,6 +662,7 @@ impl Window for BasicInfoWindow {
 
 impl InGameWindow for BasicInfoWindow {
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        let job_class = ctx.job_class;
         let character = &mut *ctx.character;
         let _data = ctx.data;
         if self.hidden {
@@ -679,9 +682,9 @@ impl InGameWindow for BasicInfoWindow {
         ui.interact(BASIC_INFO_WINDOW_ID, win_rect);
 
         let events = if self.minimized {
-            self.build_small(ui, character, win)
+            self.build_small(ui, character, job_class, win)
         } else {
-            self.build_large(ui, character, win)
+            self.build_large(ui, character, job_class, win)
         };
 
         ui.has_grf_textures = prev_grf;

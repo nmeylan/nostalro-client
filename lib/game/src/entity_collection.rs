@@ -56,6 +56,10 @@ impl EntityCollection {
         self.player_id.and_then(|id| self.entities.get_mut(&id))
     }
 
+    pub fn player_job(&self) -> u16 {
+        self.player().map_or(0, |e| e.job)
+    }
+
     pub fn insert(&mut self, entity: Entity) {
         self.entities.insert(entity.id, entity);
     }
@@ -290,9 +294,11 @@ impl EntityCollection {
 mod tests {
     use super::*;
     use crate::autocounter::channel_params;
-    use crate::character::Character;
+    use crate::character::{Character, job_class_name};
     use crate::entity::EntityType;
     use crate::skill::{SkillData, SkillTargetType};
+    use models::enums::EnumWithNumberValue;
+    use models::enums::class::JobName;
 
     fn make_entity(id: u32) -> Entity {
         Entity::new(
@@ -312,6 +318,24 @@ mod tests {
             0,
             150,
         )
+    }
+
+    #[test]
+    fn player_job_follows_base_look_change() {
+        let mut col = EntityCollection::new();
+        col.set_player_id(100);
+        let mut player = make_entity(100);
+        player.job = JobName::Swordsman.value() as u16;
+        col.insert(player);
+        col.insert(make_entity(200));
+
+        assert_eq!(job_class_name(col.player_job()), "Swordsman");
+
+        col.get_mut(100)
+            .unwrap()
+            .apply_sprite_change(0, JobName::Knight.value() as u16);
+
+        assert_eq!(job_class_name(col.player_job()), "Knight");
     }
 
     #[test]
