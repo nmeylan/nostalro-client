@@ -365,6 +365,57 @@ impl App {
             .send_packet(build_map_loaded_packet(self.active_packetver));
     }
 
+    /// Drop every actor but the player. A warp is authoritative about what is
+    /// around us afterwards, so it applies to a warp landing on the map we are
+    /// already standing on as much as to a real map change.
+    fn clear_map_actors(&mut self) {
+        let player_sprite = self
+            .game
+            .world
+            .entities
+            .player_id()
+            .and_then(|pid| self.game.sprite_caches.sprites.remove(&pid));
+        self.game.sprite_caches.sprites.clear();
+        self.game.sprite_caches.gr2_models.clear();
+        if let Some(renderer) = &mut self.renderer {
+            renderer.gr2_models.clear();
+        }
+        self.game.world.entities.clear_non_player();
+        self.game.companions.pet.clear_entity();
+        self.game.quest_markers.clear();
+        self.game.world.floor_items.clear();
+        self.game.assets.floor_item_sprites.clear();
+        self.game.schedulers.repeat_sounds.clear();
+        if let Some(guild) = &mut self.game.guild {
+            guild.clear_live_positions();
+        }
+        if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite) {
+            self.game.sprite_caches.sprites.insert(pid, sprite);
+        }
+        self.game.sprite_caches.carts.clear();
+        self.game.sprite_caches.falcons.clear();
+        if let Some(pid) = self.game.world.entities.player_id() {
+            let (cart, falcon) = self
+                .game
+                .world
+                .entities
+                .get(pid)
+                .map(|e| {
+                    (
+                        e.cart_type,
+                        ragnarok_game::sprite_path::has_falcon(e.effect_state),
+                    )
+                })
+                .unwrap_or((None, false));
+            if let Some(design) = cart {
+                self.spawn_cart_visual(pid, design);
+            }
+            if falcon {
+                self.spawn_falcon_visual(pid);
+            }
+        }
+    }
+
     pub(super) fn handle_map_changed(&mut self, map_name: String, x: i16, y: i16) {
         self.on_session_change(SessionChange::MapChange);
         let map_name = map_name
@@ -374,51 +425,10 @@ impl App {
         if self.game.session.current_map.as_deref() != Some(&map_name) {
             self.load_map(&map_name);
             self.game.session.current_map = Some(map_name.clone());
-            let player_sprite = self
-                .game
-                .world
-                .entities
-                .player_id()
-                .and_then(|pid| self.game.sprite_caches.sprites.remove(&pid));
-            self.game.sprite_caches.sprites.clear();
             // Renderer-side gr2 models were already dropped by load_map.
-            self.game.sprite_caches.gr2_models.clear();
+            self.clear_map_actors();
             self.game.sprite_caches.sprite_cache.clear();
-            self.game.world.entities.clear_non_player();
-            self.game.companions.pet.clear_entity();
-            self.game.quest_markers.clear();
             self.game.sprite_caches.failed_sprite_loads.clear();
-            self.game.world.floor_items.clear();
-            self.game.assets.floor_item_sprites.clear();
-            if let Some(guild) = &mut self.game.guild {
-                guild.clear_live_positions();
-            }
-            if let (Some(pid), Some(sprite)) = (self.game.world.entities.player_id(), player_sprite)
-            {
-                self.game.sprite_caches.sprites.insert(pid, sprite);
-            }
-            self.game.sprite_caches.carts.clear();
-            self.game.sprite_caches.falcons.clear();
-            if let Some(pid) = self.game.world.entities.player_id() {
-                let (cart, falcon) = self
-                    .game
-                    .world
-                    .entities
-                    .get(pid)
-                    .map(|e| {
-                        (
-                            e.cart_type,
-                            ragnarok_game::sprite_path::has_falcon(e.effect_state),
-                        )
-                    })
-                    .unwrap_or((None, false));
-                if let Some(design) = cart {
-                    self.spawn_cart_visual(pid, design);
-                }
-                if falcon {
-                    self.spawn_falcon_visual(pid);
-                }
-            }
 
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
                 let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
@@ -431,6 +441,8 @@ impl App {
                 }
             }
             self.windows.minimap_window.on_map_changed();
+        } else {
+            self.clear_map_actors();
         }
         if self.game.session.player_dead {
             if let Some(entity) = self.game.world.entities.player_mut() {

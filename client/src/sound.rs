@@ -95,6 +95,9 @@ impl App {
                         ) * req.vfactor
                     }
                 };
+                if gain <= 0.0 {
+                    continue;
+                }
                 let path = format!("data/wav/{}", req.name);
                 let disk_rel = req.name.replace('\\', "/");
                 self.sound.play_sfx(&path, gain, || {
