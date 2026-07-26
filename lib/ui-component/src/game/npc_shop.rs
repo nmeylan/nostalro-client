@@ -27,7 +27,7 @@ const OUT_SCROLL_DOWN_ID: WidgetId = WidgetId(712);
 const OUT_SCROLL_THUMB_ID: WidgetId = WidgetId(713);
 const INPUT_RESIZE_ID: WidgetId = WidgetId(714);
 const ITEM_BASE_ID: u32 = 720;
-const CART_BASE_ID: u32 = 780;
+const BASKET_BASE_ID: u32 = 780;
 
 const WIN_W: f32 = 280.0;
 const WIN_GAP: f32 = 10.0;
@@ -194,12 +194,10 @@ impl InGameWindow for NpcShop {
         if let Some((source_id, item_idx)) = ui.drop_zone(output_rect)
             && source_id == INPUT_WIN_ID
         {
-            if self.shop.mode == Some(NpcShopMode::Sell)
-                && self.shop.sell_item_remaining(item_idx) <= 1
-            {
-                self.shop.add_to_cart(item_idx, 1);
-            } else {
+            if self.shop.needs_quantity_prompt(item_idx) {
                 self.open_qty_popup(item_idx);
+            } else {
+                self.shop.add_to_basket(item_idx, 1);
             }
         }
 
@@ -224,7 +222,7 @@ impl NpcShop {
             .max(INPUT_MIN_ROWS);
         let input_h =
             TITLE_H + CONTAINER_PAD_Y + input_rows as f32 * ITEM_ROW_H + CONTAINER_PAD_Y + FOOTER_H;
-        let output_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.cart.len().min(5)).max(2);
+        let output_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.basket.len().min(5)).max(2);
         let output_h = TITLE_H
             + CONTAINER_PAD_Y
             + output_rows as f32 * ITEM_ROW_H
@@ -233,7 +231,7 @@ impl NpcShop {
         (input_h, output_h)
     }
 
-    /// The input (item list) and output (cart) windows with their current
+    /// The input (item list) and output (basket) windows with their current
     /// sizes, for a gallery/packer to lay out. Empty while the shop is closed.
     pub fn gallery_windows(&self) -> Vec<(WidgetId, (f32, f32))> {
         if !self.shop.is_open() {
@@ -383,12 +381,10 @@ impl NpcShop {
                 ui.drag_source(INPUT_WIN_ID, item_idx, drag_icon, (icon_size, icon_size));
             }
             if response.double_clicked() {
-                if self.shop.mode == Some(NpcShopMode::Sell)
-                    && self.shop.sell_item_remaining(item_idx) <= 1
-                {
-                    self.shop.add_to_cart(item_idx, 1);
-                } else {
+                if self.shop.needs_quantity_prompt(item_idx) {
                     self.open_qty_popup(item_idx);
+                } else {
+                    self.shop.add_to_basket(item_idx, 1);
                 }
             }
             if response.right_clicked()
@@ -482,23 +478,23 @@ impl NpcShop {
         let list_y = container_y + pad_y;
         let icon_size = ICON_SIZE;
         let name_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size + (4.0);
-        let cart_count = self.shop.cart.len();
-        let visible = OUTPUT_VISIBLE_ROWS.max(cart_count.min(5)).max(2);
-        let has_scrollbar = cart_count > visible;
+        let basket_count = self.shop.basket.len();
+        let visible = OUTPUT_VISIBLE_ROWS.max(basket_count.min(5)).max(2);
+        let has_scrollbar = basket_count > visible;
         let row_content_w =
             win_w - pad_left - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 };
 
-        let max_scroll = cart_count.saturating_sub(visible);
+        let max_scroll = basket_count.saturating_sub(visible);
 
         for i in 0..visible {
             let ci = self.output_scroll_offset + i;
-            if ci >= cart_count {
+            if ci >= basket_count {
                 break;
             }
-            let cart_item = &self.shop.cart[ci];
+            let basket_item = &self.shop.basket[ci];
             let ry = list_y + i as f32 * row_h;
             let row_rect = Rect::new(win.x + pad_left, ry, row_content_w, row_h);
-            let widget_id = WidgetId(CART_BASE_ID + i as u32);
+            let widget_id = WidgetId(BASKET_BASE_ID + i as u32);
             let response = ui.interact(widget_id, row_rect);
             if response.hovered() {
                 ui.any_interactive_hovered = true;
@@ -521,10 +517,10 @@ impl NpcShop {
                 });
             }
 
-            if let Some(icon_path) = self.shop.item_icon_path(cart_item.source_index) {
+            if let Some(icon_path) = self.shop.item_icon_path(basket_item.source_index) {
                 let ix = win.x + pad_left + (ICON_OFFSET_X);
                 let iy = ry + (ICON_OFFSET_Y);
-                let tint = if self.shop.item_is_identified(cart_item.source_index) {
+                let tint = if self.shop.item_is_identified(basket_item.source_index) {
                     [1.0, 1.0, 1.0, 1.0]
                 } else {
                     [0.67, 0.67, 0.67, 1.0]
@@ -554,16 +550,16 @@ impl NpcShop {
 
             let text_y = ry + row_h - (8.0);
 
-            let qty_str = cart_item.quantity.to_string();
+            let qty_str = basket_item.quantity.to_string();
             let qty_w = ui.atlas.measure_text(&qty_str);
             let qty_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size - qty_w;
             ui.text(qty_x, ry + icon_size, &qty_str, text_color);
 
-            let name = self.shop.item_name(cart_item.source_index);
+            let name = self.shop.item_name(basket_item.source_index);
             ui.text(name_x, text_y, name, text_color);
 
-            let price = self.shop.item_price(cart_item.source_index);
-            let subtotal = price as i64 * cart_item.quantity as i64;
+            let price = self.shop.item_price(basket_item.source_index);
+            let subtotal = price as i64 * basket_item.quantity as i64;
             let price_str = format_zeny(subtotal as i32);
             let z_x =
                 win.x + win_w - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 } - (10.0);
@@ -573,7 +569,7 @@ impl NpcShop {
             ui.text(z_x, text_y, "Z", text_color);
 
             if response.right_clicked()
-                && let Some(item) = self.shop.item_at(cart_item.source_index)
+                && let Some(item) = self.shop.item_at(basket_item.source_index)
             {
                 events.push(GameEvent::ShowItemInfoDirect {
                     item: Box::new(item.clone()),
@@ -581,7 +577,7 @@ impl NpcShop {
             }
 
             if response.clicked() {
-                self.shop.remove_from_cart(ci);
+                self.shop.remove_from_basket(ci);
                 return win;
             }
         }
@@ -609,7 +605,7 @@ impl NpcShop {
         let footer_y = win.y + win_h - footer_h;
         draw_footer(ui, win.x, footer_y, win_w, footer_h, grf);
 
-        let total = self.shop.cart_total();
+        let total = self.shop.basket_total();
         let total_label = format!("Total : {} Zeny", format_thousands(total));
         ui.text(
             win.x + (10.0),
@@ -640,12 +636,12 @@ impl NpcShop {
             "Cancel",
         );
 
-        if action_btn.clicked() && !self.shop.cart.is_empty() {
+        if action_btn.clicked() && !self.shop.basket.is_empty() {
             match self.shop.mode {
                 Some(NpcShopMode::Buy) => {
                     let items: Vec<(i16, u16)> = self
                         .shop
-                        .cart
+                        .basket
                         .iter()
                         .map(|c| {
                             let item_id = self.shop.buy_items[c.source_index].item.item_id;
@@ -658,7 +654,7 @@ impl NpcShop {
                 Some(NpcShopMode::Sell) => {
                     let items: Vec<(i16, i16)> = self
                         .shop
-                        .cart
+                        .basket
                         .iter()
                         .map(|c| {
                             let index = self.shop.sell_items[c.source_index].item.index as i16;
@@ -711,7 +707,7 @@ impl NpcShop {
             InputDialogResult::Submitted => {
                 let qty: i16 = dialog.value_i16().unwrap_or(0);
                 if qty > 0 {
-                    self.shop.add_to_cart(item_idx, qty);
+                    self.shop.add_to_basket(item_idx, qty);
                 }
                 self.qty_popup = None;
             }
@@ -857,12 +853,12 @@ mod tests {
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_i16(), Some(16));
 
         shop_ui.qty_popup = None;
-        shop_ui.shop.add_to_cart(0, 6);
+        shop_ui.shop.add_to_basket(0, 6);
         shop_ui.open_qty_popup(0);
         assert_eq!(
             shop_ui.qty_popup.as_ref().unwrap().1.value_i16(),
             Some(10),
-            "default must follow what is left after the cart"
+            "default must follow what is left after the basket"
         );
     }
 

@@ -22,6 +22,11 @@ impl App {
         if let Some(speed) = self.game.character.apply_parameter_changed(var_id, value)
             && let Some(entity) = self.game.world.entities.player_mut()
         {
+            tracing::info!(
+                previous = entity.speed,
+                speed,
+                "player movement speed from server"
+            );
             entity.speed = speed;
             entity.movement.set_speed(speed);
         }

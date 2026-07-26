@@ -24,7 +24,7 @@ pub struct ShopSellItem {
 }
 
 #[derive(Debug, Clone)]
-pub struct ShopCartItem {
+pub struct ShopBasketItem {
     pub source_index: usize,
     pub quantity: i16,
 }
@@ -35,7 +35,7 @@ pub struct NpcShopData {
     pub npc_id: u32,
     pub buy_items: Vec<ShopBuyItem>,
     pub sell_items: Vec<ShopSellItem>,
-    pub cart: Vec<ShopCartItem>,
+    pub basket: Vec<ShopBasketItem>,
     pub selected_index: Option<usize>,
 }
 
@@ -52,7 +52,7 @@ impl NpcShopData {
             npc_id: 0,
             buy_items: Vec::new(),
             sell_items: Vec::new(),
-            cart: Vec::new(),
+            basket: Vec::new(),
             selected_index: None,
         }
     }
@@ -66,7 +66,7 @@ impl NpcShopData {
         self.npc_id = npc_id;
         self.buy_items = items;
         self.sell_items.clear();
-        self.cart.clear();
+        self.basket.clear();
         self.selected_index = None;
     }
 
@@ -75,49 +75,56 @@ impl NpcShopData {
         self.npc_id = npc_id;
         self.sell_items = items;
         self.buy_items.clear();
-        self.cart.clear();
+        self.basket.clear();
         self.selected_index = None;
     }
 
-    pub fn add_to_cart(&mut self, source_index: usize, quantity: i16) {
+    pub fn add_to_basket(&mut self, source_index: usize, quantity: i16) {
+        let stackable = self
+            .item_at(source_index)
+            .map(|i| i.item_type.is_stackable())
+            .unwrap_or(true);
         if let Some(existing) = self
-            .cart
+            .basket
             .iter_mut()
             .find(|c| c.source_index == source_index)
         {
+            if !stackable {
+                return;
+            }
             existing.quantity += quantity;
         } else {
-            self.cart.push(ShopCartItem {
+            self.basket.push(ShopBasketItem {
                 source_index,
                 quantity,
             });
         }
     }
 
-    pub fn remove_from_cart(&mut self, cart_index: usize) {
-        if cart_index < self.cart.len() {
-            self.cart.remove(cart_index);
+    pub fn remove_from_basket(&mut self, basket_index: usize) {
+        if basket_index < self.basket.len() {
+            self.basket.remove(basket_index);
         }
     }
 
-    pub fn cart_total(&self) -> i64 {
-        self.cart
+    pub fn basket_total(&self) -> i64 {
+        self.basket
             .iter()
-            .map(|cart_item| {
+            .map(|basket_item| {
                 let unit_price = match self.mode {
                     Some(NpcShopMode::Buy) => self
                         .buy_items
-                        .get(cart_item.source_index)
+                        .get(basket_item.source_index)
                         .map(|i| i.discount_price)
                         .unwrap_or(0),
                     Some(NpcShopMode::Sell) => self
                         .sell_items
-                        .get(cart_item.source_index)
+                        .get(basket_item.source_index)
                         .map(|i| i.overcharge_price)
                         .unwrap_or(0),
                     None => 0,
                 };
-                unit_price as i64 * cart_item.quantity as i64
+                unit_price as i64 * basket_item.quantity as i64
             })
             .sum()
     }
@@ -209,13 +216,27 @@ impl NpcShopData {
 
     pub fn sell_item_remaining(&self, index: usize) -> i16 {
         let total = self.sell_item_count(index);
-        let in_cart: i16 = self
-            .cart
+        let in_basket: i16 = self
+            .basket
             .iter()
             .filter(|c| c.source_index == index)
             .map(|c| c.quantity)
             .sum();
-        total - in_cart
+        total - in_basket
+    }
+
+    pub fn needs_quantity_prompt(&self, index: usize) -> bool {
+        let Some(item) = self.item_at(index) else {
+            return false;
+        };
+        if !item.item_type.is_stackable() {
+            return false;
+        }
+        match self.mode {
+            Some(NpcShopMode::Sell) => self.sell_item_remaining(index) > 1,
+            Some(NpcShopMode::Buy) => true,
+            None => false,
+        }
     }
 
     pub fn visible_sell_indices(&self) -> Vec<usize> {
@@ -225,13 +246,13 @@ impl NpcShopData {
     }
 
     pub fn remove_sold_items(&mut self) {
-        for cart_item in &self.cart {
-            if let Some(sell_item) = self.sell_items.get_mut(cart_item.source_index) {
-                sell_item.item.count -= cart_item.quantity;
+        for basket_item in &self.basket {
+            if let Some(sell_item) = self.sell_items.get_mut(basket_item.source_index) {
+                sell_item.item.count -= basket_item.quantity;
             }
         }
         self.sell_items.retain(|i| i.item.count > 0);
-        self.cart.clear();
+        self.basket.clear();
         self.selected_index = None;
     }
 
@@ -340,7 +361,7 @@ impl NpcShopData {
         self.npc_id = 0;
         self.buy_items.clear();
         self.sell_items.clear();
-        self.cart.clear();
+        self.basket.clear();
         self.selected_index = None;
     }
 }
@@ -382,7 +403,7 @@ mod tests {
             ShopBuyItem {
                 item: {
                     let mut i = make_item(1201, "Knife");
-                    i.item_type = ItemType::Etc;
+                    i.item_type = ItemType::Weapon;
                     i
                 },
                 price: 50000,
@@ -407,6 +428,7 @@ mod tests {
             ShopSellItem {
                 item: {
                     let mut i = make_item(1201, "Stiletto");
+                    i.item_type = ItemType::Weapon;
                     i.index = 5;
                     i.count = 1;
                     i.resource_name = Some("스틸레토".into());
@@ -429,24 +451,31 @@ mod tests {
         assert_eq!(shop.item_count(), 3);
         assert_eq!(shop.item_name(0), "Red Potion");
         assert_eq!(shop.item_price(1), 200);
+        assert!(shop.needs_quantity_prompt(0));
+        assert!(!shop.needs_quantity_prompt(2));
 
-        shop.add_to_cart(0, 10);
-        shop.add_to_cart(1, 5);
-        assert_eq!(shop.cart.len(), 2);
-        assert_eq!(shop.cart_total(), 10 * 50 + 5 * 200);
+        shop.add_to_basket(0, 10);
+        shop.add_to_basket(1, 5);
+        assert_eq!(shop.basket.len(), 2);
+        assert_eq!(shop.basket_total(), 10 * 50 + 5 * 200);
 
-        shop.add_to_cart(0, 5);
-        assert_eq!(shop.cart.len(), 2);
-        assert_eq!(shop.cart[0].quantity, 15);
-        assert_eq!(shop.cart_total(), 15 * 50 + 5 * 200);
+        shop.add_to_basket(0, 5);
+        assert_eq!(shop.basket.len(), 2);
+        assert_eq!(shop.basket[0].quantity, 15);
+        assert_eq!(shop.basket_total(), 15 * 50 + 5 * 200);
 
-        shop.remove_from_cart(0);
-        assert_eq!(shop.cart.len(), 1);
-        assert_eq!(shop.cart_total(), 5 * 200);
+        shop.add_to_basket(2, 1);
+        shop.add_to_basket(2, 1);
+        assert_eq!(shop.basket[2].quantity, 1, "equipment cannot be bought twice");
+        shop.remove_from_basket(2);
+
+        shop.remove_from_basket(0);
+        assert_eq!(shop.basket.len(), 1);
+        assert_eq!(shop.basket_total(), 5 * 200);
 
         shop.close();
         assert!(!shop.is_open());
-        assert!(shop.cart.is_empty());
+        assert!(shop.basket.is_empty());
     }
 
     #[test]
@@ -474,9 +503,11 @@ mod tests {
         shop.open_sell(200, sample_sell_items());
         assert_eq!(shop.mode, Some(NpcShopMode::Sell));
         assert_eq!(shop.item_count(), 2);
+        assert!(shop.needs_quantity_prompt(0));
+        assert!(!shop.needs_quantity_prompt(1));
 
-        shop.add_to_cart(1, 1);
-        assert_eq!(shop.cart_total(), 5500);
+        shop.add_to_basket(1, 1);
+        assert_eq!(shop.basket_total(), 5500);
 
         shop.close();
         assert!(!shop.is_open());
