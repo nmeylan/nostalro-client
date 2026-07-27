@@ -28,13 +28,22 @@ impl WaterVertex {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct WaterUniforms {
     wave_height: f32,
-    wave_pitch: f32,
+    wave_pitch_per_unit: f32,
     wave_offset: f32,
     opacity: f32,
+    ambient_tint: f32,
+    _padding: [f32; 3],
 }
 
 const WATER_FRAMES: usize = 32;
-const WATER_TEXTURE_REPEAT: f32 = 5.0;
+const WATER_TEXTURE_CELLS: f32 = 4.0;
+const WATER_OPACITY: f32 = 144.0 / 255.0;
+const AMBIENT_TINTED_WATER_TYPE: i32 = 4;
+const WATER_TEXTURE_SETS: i32 = 6;
+
+const WATER_TICKS_PER_FRAME: f32 = 2.0;
+const WATER_FRAME_RATE: f32 = 60.0;
+const WATER_TICKS_PER_SECOND: f32 = WATER_TICKS_PER_FRAME * WATER_FRAME_RATE;
 
 pub struct WaterRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -45,10 +54,32 @@ pub struct WaterRenderer {
     uniform_bind_group: wgpu::BindGroup,
     texture_names: Vec<String>,
     wave_height: f32,
-    wave_pitch: f32,
+    wave_pitch_per_unit: f32,
     wave_speed: f32,
     anim_speed: f32,
     opacity: f32,
+    ambient_tint: f32,
+}
+
+fn water_texture_name(water_type: i32, frame: usize) -> String {
+    format!(
+        "data/texture/\u{C6CC}\u{D130}/water{}{:02}.jpg",
+        water_type, frame
+    )
+}
+
+fn wave_offset_at(elapsed: f32, wave_speed: f32) -> f32 {
+    let phase = (elapsed * wave_speed * WATER_TICKS_PER_SECOND).rem_euclid(360.0);
+    if phase > 180.0 { phase - 360.0 } else { phase }
+}
+
+fn texture_frame_at(elapsed: f32, anim_speed: f32) -> usize {
+    if anim_speed <= 0.0 {
+        return 0;
+    }
+    let cycle = WATER_FRAMES as f32 * anim_speed;
+    let ticks = (elapsed * WATER_TICKS_PER_SECOND).rem_euclid(cycle);
+    ((ticks / anim_speed) as usize).min(WATER_FRAMES - 1)
 }
 
 impl WaterRenderer {
@@ -62,36 +93,41 @@ impl WaterRenderer {
         texture_cache: &mut TextureCache,
         surface_format: wgpu::TextureFormat,
     ) -> Option<Self> {
-        let raw_level = water.level?;
+        let water_y = water.level?;
         let water_type = water.water_type.unwrap_or(0);
         if water_type < 0 {
             return None;
         }
         let zoom = gnd.zoom;
-        let scale_factor = zoom / 10.0;
-        let water_y = raw_level * scale_factor;
 
-        let wave_height = water.wave_height.unwrap_or(1.0) * scale_factor;
-        let wave_speed = water.wave_speed.unwrap_or(2.0);
-        let wave_pitch = water.wave_pitch.unwrap_or(50.0);
+        let wave_height = water.wave_height.unwrap_or(1.0);
+        let wave_speed = water.wave_speed.unwrap_or(2.0) % 360.0;
+        let wave_pitch_per_unit = water.wave_pitch.unwrap_or(50.0) / zoom;
         let anim_speed = water.anim_speed.unwrap_or(3) as f32;
-        let opacity = if water_type == 4 || water_type == 6 {
+        let is_ambient_tinted = water_type == AMBIENT_TINTED_WATER_TYPE;
+        let opacity = if is_ambient_tinted {
             1.0
         } else {
-            0.6
+            WATER_OPACITY
         };
+        let ambient_tint = if is_ambient_tinted { 1.0 } else { 0.0 };
 
+        let fallback_type = water_type % WATER_TEXTURE_SETS;
         let texture_names: Vec<String> = (0..WATER_FRAMES)
             .map(|i| {
-                format!(
-                    "data/texture/\u{C6CC}\u{D130}/water{}{:02}.jpg",
-                    water_type, i
-                )
+                let name = water_texture_name(water_type, i);
+                if texture_cache
+                    .get_or_load(&name, grf, device, queue, false)
+                    .is_some()
+                    || fallback_type == water_type
+                {
+                    return name;
+                }
+                let fallback = water_texture_name(fallback_type, i);
+                texture_cache.get_or_load(&fallback, grf, device, queue, false);
+                fallback
             })
             .collect();
-        for name in &texture_names {
-            texture_cache.get_or_load(name, grf, device, queue, false);
-        }
 
         let (vertices, indices) = build_water_mesh(gnd, water_y, wave_height);
         if vertices.is_empty() {
@@ -109,9 +145,11 @@ impl WaterRenderer {
 
         let uniforms = WaterUniforms {
             wave_height,
-            wave_pitch,
+            wave_pitch_per_unit,
             wave_offset: 0.0,
             opacity,
+            ambient_tint,
+            _padding: [0.0; 3],
         };
 
         let uniform_buffer = {
@@ -164,19 +202,22 @@ impl WaterRenderer {
             uniform_bind_group,
             texture_names,
             wave_height,
-            wave_pitch,
+            wave_pitch_per_unit,
             wave_speed,
             anim_speed,
             opacity,
+            ambient_tint,
         })
     }
 
     pub fn update(&self, queue: &wgpu::Queue, elapsed: f32) {
         let uniforms = WaterUniforms {
             wave_height: self.wave_height,
-            wave_pitch: self.wave_pitch,
-            wave_offset: elapsed * self.wave_speed * 100.0,
+            wave_pitch_per_unit: self.wave_pitch_per_unit,
+            wave_offset: wave_offset_at(elapsed, self.wave_speed),
             opacity: self.opacity,
+            ambient_tint: self.ambient_tint,
+            _padding: [0.0; 3],
         };
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
     }
@@ -188,13 +229,7 @@ impl WaterRenderer {
         texture_cache: &'a TextureCache,
         elapsed: f32,
     ) {
-        let frame_idx = if self.anim_speed > 0.0 {
-            ((elapsed / (self.anim_speed / 60.0)) as usize) % self.texture_names.len()
-        } else {
-            0
-        };
-
-        let tex_name = &self.texture_names[frame_idx];
+        let tex_name = &self.texture_names[texture_frame_at(elapsed, self.anim_speed)];
         let tex_bg = match texture_cache.get(tex_name) {
             Some(bg) => bg,
             None => return,
@@ -244,10 +279,10 @@ pub fn build_water_mesh(
             let wx = x as f32 * zoom;
             let wz = y as f32 * zoom;
 
-            let u0 = x as f32 / WATER_TEXTURE_REPEAT;
-            let u1 = (x + 1) as f32 / WATER_TEXTURE_REPEAT;
-            let v0 = y as f32 / WATER_TEXTURE_REPEAT;
-            let v1 = (y + 1) as f32 / WATER_TEXTURE_REPEAT;
+            let u0 = x as f32 / WATER_TEXTURE_CELLS;
+            let u1 = (x + 1) as f32 / WATER_TEXTURE_CELLS;
+            let v0 = y as f32 / WATER_TEXTURE_CELLS;
+            let v1 = (y + 1) as f32 / WATER_TEXTURE_CELLS;
 
             let base = vertices.len() as u32;
             vertices.push(WaterVertex {
@@ -415,11 +450,24 @@ mod tests {
     }
 
     #[test]
-    fn water_mesh_uv_is_continuous_and_tiles_every_5_cells() {
+    fn water_mesh_uv_is_continuous_and_tiles_every_4_cells() {
         let gnd = make_gnd(6, 1, -5.0);
         let (vertices, _) = build_water_mesh(&gnd, -10.0, 1.0);
         assert!((vertices[0].tex_coord[0] - 0.0).abs() < 0.01);
-        let cell5_base = 5 * 4;
-        assert!((vertices[cell5_base].tex_coord[0] - 1.0).abs() < 0.01);
+        let cell4_base = 4 * 4;
+        assert!((vertices[cell4_base].tex_coord[0] - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn water_animation_advances_two_ticks_per_frame() {
+        let one_frame = 1.0 / WATER_FRAME_RATE;
+
+        assert!((wave_offset_at(one_frame, 2.0) - 4.0).abs() < 0.001);
+        assert!((wave_offset_at(1.0, 2.0) - -120.0).abs() < 0.001);
+
+        assert_eq!(texture_frame_at(one_frame, 3.0), 0);
+        assert_eq!(texture_frame_at(3.0 * one_frame, 3.0), 2);
+        assert_eq!(texture_frame_at(47.0 * one_frame, 3.0), 31);
+        assert_eq!(texture_frame_at(48.0 * one_frame, 3.0), 0);
     }
 }

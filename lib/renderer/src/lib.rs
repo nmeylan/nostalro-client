@@ -752,15 +752,6 @@ impl Renderer {
                     if let Some(grid) = &self.grid_selector {
                         grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
-                    if let Some(water) = &self.water_renderer {
-                        ragnarok_profiling::profile_scope!("water");
-                        water.render(
-                            &mut pass,
-                            &self.global_uniforms,
-                            &self.texture_cache,
-                            elapsed,
-                        );
-                    }
                 }
                 BackgroundMode::GroundProxy => {
                     if let Some(proxy) = &self.ground_proxy {
@@ -824,6 +815,44 @@ impl Renderer {
                 &self.device.device,
                 &self.device.queue,
                 silhouette_batches,
+            );
+        }
+
+        // Water draws after the silhouette, never after the colour pass: the colour
+        // pass writes no depth, so at that point the body's pixels still hold the
+        // depth of the ground behind it and the surface would swallow the whole
+        // sprite. Against the silhouette's flat feet depth the surface cuts the body
+        // at the waterline instead, so a character wading in deep water is submerged
+        // further than one in the shallows.
+        if let (BackgroundMode::RswMap, Some(water)) = (self.background_mode, &self.water_renderer)
+        {
+            ragnarok_profiling::profile_scope!("water");
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("water"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            water.render(
+                &mut pass,
+                &self.global_uniforms,
+                &self.texture_cache,
+                elapsed,
             );
         }
 

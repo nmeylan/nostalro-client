@@ -7,9 +7,13 @@ struct CameraUniforms {
 
 struct WaterUniforms {
     wave_height: f32,
-    wave_pitch: f32,
+    wave_pitch_per_unit: f32,
     wave_offset: f32,
     opacity: f32,
+    ambient_tint: f32,
+    pad0: f32,
+    pad1: f32,
+    pad2: f32,
 };
 
 struct PointLight {
@@ -26,7 +30,7 @@ struct FogUniforms {
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
-@group(0) @binding(1) var<uniform> _light: LightUniforms;
+@group(0) @binding(1) var<uniform> light: LightUniforms;
 @group(0) @binding(2) var<storage, read> _point_lights: array<PointLight>;
 @group(0) @binding(3) var<uniform> fog: FogUniforms;
 @group(1) @binding(0) var water_texture: texture_2d<f32>;
@@ -65,7 +69,8 @@ const PI: f32 = 3.14159265;
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
     var pos = in.position;
-    pos.y += sin(PI / 180.0 * (water.wave_offset + 0.5 * water.wave_pitch * (in.position.x + in.position.z))) * water.wave_height;
+    let phase = water.wave_offset + water.wave_pitch_per_unit * (in.position.x + in.position.z);
+    pos.y += sin(PI / 180.0 * phase) * water.wave_height;
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
@@ -78,6 +83,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(water_texture, water_sampler, in.tex_coord);
-    let fogged = apply_fog(tex_color.rgb, in.view_z);
+    let tinted = mix(tex_color.rgb, tex_color.rgb * light.ambient_color.rgb, water.ambient_tint);
+    let fogged = apply_fog(tinted, in.view_z);
     return vec4<f32>(fogged, water.opacity);
 }
