@@ -1192,6 +1192,7 @@ impl App {
             cursor_batches: &[],
             inline_textures: &number_inline_textures,
             elapsed: dt,
+            delta: dt,
         });
     }
 }

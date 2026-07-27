@@ -904,6 +904,7 @@ impl ApplicationHandler for App {
                     &floor_item_render_list,
                     &cart_render_list,
                     elapsed,
+                    delta,
                     cursor_clips,
                     lock_cursor_clips,
                     world_overlay_calls,

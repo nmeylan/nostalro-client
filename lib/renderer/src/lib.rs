@@ -12,6 +12,7 @@ pub mod grid_selector;
 pub mod ground;
 pub mod ground_proxy;
 pub mod model;
+pub mod rsm_anim;
 pub mod sprite;
 pub mod sprite_projection;
 pub mod texture;
@@ -42,7 +43,7 @@ pub use gr2_model::{Gr2ModelRenderer, Gr2ModelVertex, build_gr2_geometry};
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use ground_proxy::GroundProxyRenderer;
-pub use model::ModelRenderer;
+pub use model::{AnimatedModelRenderer, ModelRenderer};
 pub use sprite::{
     BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
     SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_clip_quad_scaled,
@@ -99,6 +100,10 @@ pub struct FrameInputs<'a> {
     pub cursor_batches: &'a [SpriteBatch<'a>],
     pub inline_textures: &'a [&'a wgpu::BindGroup],
     pub elapsed: f32,
+    /// Seconds since the previous frame. Callers that render more than once per
+    /// frame (offscreen capture) must pass 0.0 for the extra passes so
+    /// time-stepped state is not advanced twice.
+    pub delta: f32,
 }
 
 pub struct Renderer {
@@ -109,6 +114,7 @@ pub struct Renderer {
     pub ground_renderer: Option<GroundRenderer>,
     pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
+    pub animated_model_renderer: Option<AnimatedModelRenderer>,
     pub skill_unit_models: std::collections::HashMap<u32, ModelRenderer>,
     /// Animated GR2 entity models keyed by entity gid (emperium, guardians…).
     pub gr2_models: std::collections::HashMap<u32, Gr2ModelRenderer>,
@@ -256,6 +262,7 @@ impl Renderer {
             ground_renderer: None,
             ground_proxy: None,
             model_renderer: None,
+            animated_model_renderer: None,
             skill_unit_models: std::collections::HashMap::new(),
             gr2_models: std::collections::HashMap::new(),
             water_renderer: None,
@@ -411,7 +418,7 @@ impl Renderer {
         self.ground_renderer = Some(ground_renderer);
         self.set_lightmap_enabled(self.lightmap_enabled);
 
-        self.model_renderer = ModelRenderer::from_rsw(
+        let props = ModelRenderer::from_rsw(
             rsw,
             gnd,
             grf,
@@ -421,6 +428,8 @@ impl Renderer {
             &mut self.texture_cache,
             self.device.surface_format,
         );
+        self.model_renderer = props.static_models;
+        self.animated_model_renderer = props.animated_models;
 
         self.water_renderer = WaterRenderer::from_water_settings(
             &rsw.water,
@@ -646,6 +655,7 @@ impl Renderer {
             cursor_batches,
             inline_textures,
             elapsed,
+            delta,
         } = frame;
         let logical_w = physical_w as f32 / self.dpi_scale;
         let logical_h = physical_h as f32 / self.dpi_scale;
@@ -662,6 +672,12 @@ impl Renderer {
 
         if let Some(water) = &self.water_renderer {
             water.update(&self.device.queue, elapsed);
+        }
+
+        if let Some(animated) = &mut self.animated_model_renderer {
+            // A long stall must not fling props through their whole animation
+            // in one step.
+            animated.update(&self.device.queue, delta.clamp(0.0, 0.25));
         }
 
         let view = color_view;
@@ -703,6 +719,10 @@ impl Renderer {
                     if let Some(model) = &self.model_renderer {
                         ragnarok_profiling::profile_scope!("model");
                         model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
+                    if let Some(animated) = &self.animated_model_renderer {
+                        ragnarok_profiling::profile_scope!("animated-models");
+                        animated.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
                     if !self.skill_unit_models.is_empty() {
                         ragnarok_profiling::profile_scope!("skill-unit-models");

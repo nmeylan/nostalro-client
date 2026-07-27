@@ -49,6 +49,7 @@ impl App {
         floor_item_render_list: &[RenderEntry],
         cart_render_list: &[RenderEntry],
         elapsed: f32,
+        delta: f32,
         cursor_clips: Vec<ClipData>,
         lock_cursor_clips: Vec<ClipData>,
         mut world_overlay_calls: Vec<UiDrawCall>,
@@ -1131,6 +1132,7 @@ impl App {
                 cursor_batches: &cursor_batches,
                 inline_textures: &inline_textures,
                 elapsed,
+                delta,
             });
         }
     }

@@ -1579,6 +1579,7 @@ impl App {
             cursor_batches: &[],
             inline_textures: &[],
             elapsed: 0.0,
+            delta: 0.0,
         });
 
         // GIF capture path: after the surface frame is presented, render the
@@ -1633,6 +1634,7 @@ impl App {
                         cursor_batches: &[],
                         inline_textures: &[],
                         elapsed: 0.0,
+                        delta: 0.0,
                     },
                 );
                 session.write_current_frame(&renderer.device.device, &renderer.device.queue);
