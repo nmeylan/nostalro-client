@@ -279,11 +279,7 @@ impl App {
             } else {
                 self.game.session.saved_camera_outdoor
             };
-            renderer.camera.on_map_enter(
-                map_data.indoor,
-                restore,
-                ragnarok_renderer::camera::DEFAULT_DISTANCE,
-            );
+            renderer.camera.on_map_enter(map_data.indoor, restore);
         }
 
         self.game
@@ -843,7 +839,7 @@ impl ApplicationHandler for App {
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
-                let floor_item_render_list = self.compute_floor_item_render_list();
+                let floor_item_render_list = self.compute_floor_item_render_list(elapsed);
                 let mut cart_render_list = self.compute_cart_render_list();
                 cart_render_list.extend(self.compute_falcon_render_list());
                 // A stealthed actor the local player can't see is not hoverable or

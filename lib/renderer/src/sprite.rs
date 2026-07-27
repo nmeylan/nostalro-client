@@ -728,6 +728,31 @@ pub struct SpriteBatch<'a> {
     pub no_depth: bool,
 }
 
+fn clip_texture_index(clip: &SpriteFrame, textures: &SpriteTextures) -> Option<usize> {
+    if clip.sprite_index < 0 {
+        return None;
+    }
+    let index = if clip.sprite_type == 0 {
+        clip.sprite_index as usize
+    } else {
+        textures.indexed_count + clip.sprite_index as usize
+    };
+    (index < textures.sizes.len()).then_some(index)
+}
+
+/// Unscaled sprite pixels from a clip's anchor down to the bottom edge of its
+/// quad. Clips are centred on the anchor, so this is where the sprite rests.
+pub fn clip_bottom_offset(clip: &SpriteFrame, textures: &SpriteTextures) -> f32 {
+    let Some(tex_index) = clip_texture_index(clip, textures) else {
+        return 0.0;
+    };
+    let height = match clip.height {
+        Some(h) if h > 0 => h as f32,
+        _ => textures.sizes[tex_index].1 as f32,
+    };
+    clip.y as f32 + height * clip.zoom_y / 2.0
+}
+
 pub fn build_clip_quad(
     clip: &SpriteFrame,
     textures: &SpriteTextures,
@@ -735,20 +760,7 @@ pub fn build_clip_quad(
     depth: f32,
     offset: [i32; 2],
 ) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
-    if clip.sprite_index < 0 {
-        return None;
-    }
-
-    let tex_index = if clip.sprite_type == 0 {
-        clip.sprite_index as usize
-    } else {
-        textures.indexed_count + clip.sprite_index as usize
-    };
-
-    if tex_index >= textures.sizes.len() {
-        return None;
-    }
-
+    let tex_index = clip_texture_index(clip, textures)?;
     let (tex_w, tex_h) = textures.sizes[tex_index];
     let (w, h) = match (clip.width, clip.height) {
         (Some(cw), Some(ch)) if cw > 0 && ch > 0 => (cw as f32, ch as f32),
@@ -1556,30 +1568,45 @@ impl EntitySprite {
         scale: f32,
         depth_gradient: [f32; 2],
     ) -> Vec<SpriteBatch<'_>> {
-        let mut batches = Vec::new();
-        if let (Some(shadow_act), Some(shadow_tex)) = (&self.shadow_act, &self.shadow_textures)
-            && !shadow_act.actions.is_empty()
-            && !shadow_act.actions[0].motions.is_empty()
-        {
-            let shadow_motion = &shadow_act.actions[0].motions[0];
-            for clip in &shadow_motion.clips {
-                if let Some((mut vertices, indices, tex_idx)) =
-                    build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
-                    && tex_idx < shadow_tex.bind_groups.len()
-                {
-                    scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                    batches.push(SpriteBatch {
-                        vertices,
-                        indices,
-                        texture: &shadow_tex.bind_groups[tex_idx],
-                        additive: false,
-                        no_depth: false,
-                    });
-                }
+        match (&self.shadow_act, &self.shadow_textures) {
+            (Some(act), Some(tex)) => {
+                build_shadow_batches(act, tex, screen_anchor, depth, scale, depth_gradient)
             }
+            _ => Vec::new(),
         }
-        batches
     }
+}
+
+/// Shadow blob under an actor or a floor item: action 0 motion 0 of `shadow.act`,
+/// scaled about the ground anchor.
+pub fn build_shadow_batches<'a>(
+    shadow_act: &ActFile,
+    shadow_tex: &'a SpriteTextures,
+    screen_anchor: [f32; 2],
+    depth: f32,
+    scale: f32,
+    depth_gradient: [f32; 2],
+) -> Vec<SpriteBatch<'a>> {
+    let mut batches = Vec::new();
+    if shadow_act.actions.is_empty() || shadow_act.actions[0].motions.is_empty() {
+        return batches;
+    }
+    for clip in &shadow_act.actions[0].motions[0].clips {
+        if let Some((mut vertices, indices, tex_idx)) =
+            build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
+            && tex_idx < shadow_tex.bind_groups.len()
+        {
+            scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
+            batches.push(SpriteBatch {
+                vertices,
+                indices,
+                texture: &shadow_tex.bind_groups[tex_idx],
+                additive: false,
+                no_depth: false,
+            });
+        }
+    }
+    batches
 }
 
 #[derive(Clone, Debug)]

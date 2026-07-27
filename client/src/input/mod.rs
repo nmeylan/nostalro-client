@@ -94,6 +94,7 @@ pub fn hovered_cell(
     cell
 }
 
+pub use ragnarok_renderer::sprite_projection::cell_world_pos;
 pub use ragnarok_renderer::sprite_projection::entity_ground_gradient;
 pub use ragnarok_renderer::sprite_projection::project_entity_screen as entity_screen_params;
 pub use ragnarok_renderer::sprite_projection::project_world_screen;

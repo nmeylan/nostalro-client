@@ -6,10 +6,12 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
+use ragnarok_game::path::try_move_to;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill::skill_needs_talkbox;
 use ragnarok_network::{
-    build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_pickup_item_packet, build_request_move_packet, build_use_skill_packet,
+    build_use_skill_to_ground_packet,
 };
 use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
 
@@ -307,33 +309,46 @@ impl App {
         ));
     }
 
+    /// Drives the standing pickup intent: waits out the walk, then either grabs an
+    /// adjacent item or walks another step toward it. Re-evaluated every frame
+    /// until the item is taken or gone.
     pub(crate) fn check_pending_pickup(&mut self) {
-        let item_id = match self.game.pending_casts.pending_pickup_item_id {
-            Some(id) => id,
-            None => return,
+        let Some(item_id) = self.game.pending_casts.pending_pickup_item_id else {
+            return;
         };
-        if !self.game.world.floor_items.contains_key(&item_id) {
+        let Some(floor_item) = self.game.world.floor_items.get(&item_id) else {
             self.game.pending_casts.pending_pickup_item_id = None;
             return;
+        };
+        let (item_x, item_y) = (floor_item.x as i32, floor_item.y as i32);
+        let Some(player) = self.game.world.entities.player() else {
+            return;
+        };
+        if player.movement.is_moving() || player.is_move_locked() {
+            return;
         }
-        let (px, py) = self
-            .game
-            .world
-            .entities
-            .player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-        let floor_item = &self.game.world.floor_items[&item_id];
-        let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
-        let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
+        let (px, py) = player.movement.cell_position();
+        let dx = (px as i32 - item_x).unsigned_abs();
+        let dy = (py as i32 - item_y).unsigned_abs();
         if dx <= 1 && dy <= 1 {
             self.channel
                 .send_packet(build_pickup_item_packet(item_id, self.active_packetver));
             if let Some(entity) = self.game.world.entities.player_mut() {
-                entity.movement.stop();
                 entity.enter_pickup(0.5);
             }
             self.game.pending_casts.pending_pickup_item_id = None;
+            return;
+        }
+        let Some(gat) = &self.game.session.gat else {
+            return;
+        };
+        match try_move_to(gat, px, py, item_x, item_y) {
+            Some(move_action) => self.channel.send_packet(build_request_move_packet(
+                move_action.dest_x,
+                move_action.dest_y,
+                self.active_packetver,
+            )),
+            None => self.game.pending_casts.pending_pickup_item_id = None,
         }
     }
 

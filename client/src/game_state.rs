@@ -363,6 +363,8 @@ pub struct AssetHandles {
     pub emotion_act: Option<ActFile>,
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
+    /// `shadow.spr` uploaded once, for actors that carry no sprite of their own.
+    pub shadow_sprite: Option<(SpriteTextures, ActFile)>,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
     pub damage_msg_textures: Option<SpriteTextures>,

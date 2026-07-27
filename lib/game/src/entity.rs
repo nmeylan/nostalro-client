@@ -582,8 +582,10 @@ impl Entity {
         self.fade.as_ref().is_some_and(|f| f.is_expired())
     }
 
+    /// The server echoes our own pickup back as an action packet, so a pickup
+    /// already in flight must not restart or extend the motion.
     pub fn enter_pickup(&mut self, duration_secs: f32) {
-        if self.state == EntityState::Dead {
+        if matches!(self.state, EntityState::Dead | EntityState::Pickup) {
             return;
         }
         self.state = EntityState::Pickup;
@@ -1183,6 +1185,18 @@ mod tests {
         e.update_state(0.6);
         assert_eq!(e.state, EntityState::Standing);
         assert!(!e.is_move_locked());
+    }
+
+    #[test]
+    fn re_entering_pickup_does_not_extend_the_motion() {
+        let mut e = make_entity();
+        e.enter_pickup(0.5);
+        e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Pickup);
+
+        e.enter_pickup(0.5);
+        e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Standing);
     }
 
     #[test]

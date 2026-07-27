@@ -24,6 +24,12 @@ const FREEZE_SHATTER_ACTION: usize = 1;
 /// Negative Y is up, so this lifts the graffiti decal clear of the terrain.
 const GRAFFITI_GROUND_LIFT: f32 = -0.3;
 
+/// Base widening every shadow blob gets, on top of the per-job factor.
+const SHADOW_SCALE: f32 = 1.2;
+
+/// Floor items take a much smaller shadow than actors: `1.2 * 0.4`.
+const FLOOR_ITEM_SHADOW_SCALE: f32 = SHADOW_SCALE * 0.4;
+
 impl App {
     /// Stealth-visibility relationship of the local player to `gid`: their own
     /// body, a party member's, or a stranger's.
@@ -70,6 +76,10 @@ impl App {
     ) {
         ragnarok_profiling::profile_function!();
         let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
+        // Shadows lie flat on the terrain and belong under every sprite. World
+        // sprites write no depth of their own, so pass order is the only thing
+        // that puts them there: these are prepended once the loop is done.
+        let mut shadow_batches: Vec<SpriteBatch> = Vec::new();
         // Flat feet-depth body silhouettes, stamped into depth after the colour
         // pass so effects occlude against the body (gradient `[0,0]` => uniform z).
         let mut silhouette_batches: Vec<SpriteBatch> = Vec::new();
@@ -138,35 +148,40 @@ impl App {
 
                         // A hidden self keeps its shadow (visible gliding under
                         // Tunnel Drive) but no body.
-                        let draws_shadow = !is_fading
+                        let visible_body = !is_fading
                             && matches!(render, HiddenRender::Visible | HiddenRender::ShadowOnly);
-                        if draws_shadow {
-                            let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
+                        let sits_or_lies =
+                            matches!(entity.state, EntityState::Sitting | EntityState::Dead);
+                        if visible_body && !sits_or_lies {
+                            let shadow_scale =
+                                entry.sprite_scale * SHADOW_SCALE * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
                                 entry.screen_anchor,
                                 entry.depth,
                                 shadow_scale,
-                                entry.depth_gradient,
+                                entry.flat_depth_gradient,
                             );
-                            sprite_batches.append(&mut shadow);
+                            shadow_batches.append(&mut shadow);
+                        }
 
-                            // Gradient [0,0] gives the whole sprite one depth: its
-                            // feet. So effects occlude against the body at foot level.
-                            // Skip for the dead: their big death-pop frame would stamp
-                            // that depth over a ground effect they lie in and erase it.
-                            if render == HiddenRender::Visible && entity.state != EntityState::Dead
-                            {
-                                let mut sil = sprite.build_batches(
-                                    &entity.animation,
-                                    Some(entry.camera_dir),
-                                    entity.head_dir,
-                                    entry.screen_anchor,
-                                    entry.depth,
-                                    entry.sprite_scale,
-                                    [0.0, 0.0],
-                                );
-                                silhouette_batches.append(&mut sil);
-                            }
+                        // Gradient [0,0] gives the whole sprite one depth: its
+                        // feet. So effects occlude against the body at foot level.
+                        // Skip for the dead: their big death-pop frame would stamp
+                        // that depth over a ground effect they lie in and erase it.
+                        if visible_body
+                            && render == HiddenRender::Visible
+                            && entity.state != EntityState::Dead
+                        {
+                            let mut sil = sprite.build_batches(
+                                &entity.animation,
+                                Some(entry.camera_dir),
+                                entity.head_dir,
+                                entry.screen_anchor,
+                                entry.depth,
+                                entry.sprite_scale,
+                                [0.0, 0.0],
+                            );
+                            silhouette_batches.append(&mut sil);
                         }
 
                         if render == HiddenRender::ShadowOnly {
@@ -510,23 +525,16 @@ impl App {
                     if let Some(floor_item) = self.game.world.floor_items.get(&entry.id)
                         && let Some((tex, act)) = self.game.assets.floor_item_sprites.get(&entry.id)
                     {
-                        let y_offset = if floor_item.is_falling {
-                            let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
-                            let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
-                            (fall_y.min(0.0) as f32) * entry.sprite_scale
-                        } else {
-                            0.0
-                        };
-
-                        let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
-                        let blink_active = blink_frame >= 90;
+                        let blink_active = floor_item.blink_active(elapsed);
                         let light = self.actor_light((floor_item.x as f32, floor_item.y as f32));
 
-                        let center = [entry.screen_anchor[0], entry.screen_anchor[1] + y_offset];
+                        let center = entry.screen_anchor;
 
-                        if !act.actions.is_empty() {
-                            let action = &act.actions[0];
+                        let motion = act.actions.first().and_then(|action| {
                             let motion_count = action.motions.len();
+                            if motion_count == 0 {
+                                return None;
+                            }
                             let delay_ms = act
                                 .delays
                                 .first()
@@ -534,43 +542,66 @@ impl App {
                                 .filter(|d| *d > 0.0)
                                 .unwrap_or(150.0);
                             let item_elapsed = elapsed - floor_item.drop_time;
-                            let motion_idx = if motion_count > 0 {
-                                ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
-                            } else {
-                                0
-                            };
-                            if motion_idx < motion_count {
-                                let motion = &action.motions[motion_idx];
-                                for clip in &motion.clips {
-                                    if let Some((mut vertices, indices, tex_idx)) =
-                                        build_clip_quad(clip, tex, center, entry.depth, [0, 0])
-                                    {
-                                        scale_clip_vertices(
-                                            &mut vertices,
-                                            center,
-                                            entry.sprite_scale,
-                                            entry.depth_gradient,
-                                        );
-                                        if blink_active {
-                                            for v in &mut vertices {
-                                                v.color = [1.0, 1.0, 1.0, 1.0];
-                                            }
-                                        } else {
-                                            for v in &mut vertices {
-                                                v.color[0] *= light[0];
-                                                v.color[1] *= light[1];
-                                                v.color[2] *= light[2];
-                                            }
+                            let motion_idx =
+                                ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count;
+                            action.motions.get(motion_idx)
+                        });
+
+                        // The shadow stays on the floor while the item arcs above it,
+                        // and sits at the sprite's base rather than its centre.
+                        if let Some((shadow_tex, shadow_act)) = &self.game.assets.shadow_sprite {
+                            let (anchor, depth, scale) = self
+                                .floor_item_ground_projection(floor_item)
+                                .unwrap_or((entry.screen_anchor, entry.depth, entry.sprite_scale));
+                            let base_drop = motion.map_or(0.0, |m| {
+                                m.clips
+                                    .iter()
+                                    .map(|clip| {
+                                        ragnarok_renderer::sprite::clip_bottom_offset(clip, tex)
+                                    })
+                                    .fold(0.0, f32::max)
+                            });
+                            let mut shadow = ragnarok_renderer::sprite::build_shadow_batches(
+                                shadow_act,
+                                shadow_tex,
+                                [anchor[0], anchor[1] + base_drop * entry.sprite_scale],
+                                depth,
+                                scale * FLOOR_ITEM_SHADOW_SCALE,
+                                entry.flat_depth_gradient,
+                            );
+                            shadow_batches.append(&mut shadow);
+                        }
+
+                        if let Some(motion) = motion {
+                            for clip in &motion.clips {
+                                if let Some((mut vertices, indices, tex_idx)) =
+                                    build_clip_quad(clip, tex, center, entry.depth, [0, 0])
+                                {
+                                    scale_clip_vertices(
+                                        &mut vertices,
+                                        center,
+                                        entry.sprite_scale,
+                                        entry.depth_gradient,
+                                    );
+                                    if blink_active {
+                                        for v in &mut vertices {
+                                            v.color = [1.0, 0.0, 0.0, 1.0];
                                         }
-                                        if tex_idx < tex.bind_groups.len() {
-                                            sprite_batches.push(SpriteBatch {
-                                                vertices,
-                                                indices,
-                                                texture: &tex.bind_groups[tex_idx],
-                                                additive: false,
-                                                no_depth: false,
-                                            });
+                                    } else {
+                                        for v in &mut vertices {
+                                            v.color[0] *= light[0];
+                                            v.color[1] *= light[1];
+                                            v.color[2] *= light[2];
                                         }
+                                    }
+                                    if tex_idx < tex.bind_groups.len() {
+                                        sprite_batches.push(SpriteBatch {
+                                            vertices,
+                                            indices,
+                                            texture: &tex.bind_groups[tex_idx],
+                                            additive: false,
+                                            no_depth: false,
+                                        });
                                     }
                                 }
                             }
@@ -662,6 +693,9 @@ impl App {
                 }
             }
         }
+
+        shadow_batches.append(&mut sprite_batches);
+        let sprite_batches = shadow_batches;
 
         let mut inline_textures = Vec::new();
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();

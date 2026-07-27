@@ -181,9 +181,10 @@ impl Camera {
         }
     }
 
-    /// Restore the environment's saved angles and distance, then pull the
-    /// destination distance to the default so entry glides into framing.
-    pub fn on_map_enter(&mut self, indoor: bool, saved: SavedCameraView, default_distance: f32) {
+    /// Snap onto the environment's saved view, each axis pulled into the bands
+    /// that environment allows. Indoor maps face the one fixed angle instead of
+    /// whatever was saved.
+    pub fn on_map_enter(&mut self, indoor: bool, saved: SavedCameraView) {
         let half = pitch_half_width_deg(indoor);
         let pitch = saved
             .pitch
@@ -199,8 +200,10 @@ impl Camera {
         };
         self.yaw = yaw;
         self.dest_yaw = yaw;
-        self.distance = saved.distance;
-        self.dest_distance = default_distance;
+        let (min, max) = distance_range(indoor);
+        let distance = saved.distance.clamp(min, max);
+        self.distance = distance;
+        self.dest_distance = distance;
     }
 
     pub fn apply_drag(&mut self, dx: f32, dy: f32, control: CameraControl) {
@@ -662,7 +665,7 @@ mod tests {
     fn indoor_entry_faces_the_fixed_angle_and_rotation_stays_banded() {
         let mut camera = Camera::default();
         camera.dest_yaw = std::f32::consts::PI;
-        camera.on_map_enter(true, SavedCameraView::default(), DEFAULT_DISTANCE);
+        camera.on_map_enter(true, SavedCameraView::default());
         assert!((camera.yaw.to_degrees() - INDOOR_YAW_DEG).abs() < 1e-4);
         assert!((camera.dest_yaw.to_degrees() - INDOOR_YAW_DEG).abs() < 1e-4);
 
@@ -678,35 +681,59 @@ mod tests {
     }
 
     #[test]
-    fn map_entry_glides_to_the_default_distance() {
+    fn map_entry_pulls_the_saved_view_into_the_environment_bands() {
         let mut camera = Camera::default();
         let saved = SavedCameraView {
             yaw: 100_f32.to_radians(),
             pitch: 60_f32.to_radians(),
             distance: 800.0,
         };
-        camera.on_map_enter(false, saved, DEFAULT_DISTANCE);
+        camera.on_map_enter(false, saved);
         assert!((camera.distance - 800.0).abs() < 1e-4);
-        assert!((camera.dest_distance - DEFAULT_DISTANCE).abs() < 1e-4);
+        assert!((camera.dest_distance - 800.0).abs() < 1e-4);
         assert!((camera.pitch.to_degrees() - 60.0).abs() < 1e-4);
 
-        camera.on_map_enter(true, saved, DEFAULT_DISTANCE);
+        camera.on_map_enter(true, saved);
         assert!((camera.pitch.to_degrees() - 55.0).abs() < 1e-4);
+        assert!((camera.dest_distance - INDOOR_MAX_DISTANCE).abs() < 1e-4);
     }
 
     #[test]
-    fn leaving_an_indoor_map_restores_the_outdoor_yaw() {
+    fn leaving_an_indoor_map_restores_the_outdoor_view() {
         let mut camera = Camera::default();
-        camera.apply_drag(100.0, 0.0, CameraControl::default());
+        let outdoor = CameraControl::default();
+        camera.apply_drag(100.0, 0.0, outdoor);
+        camera.apply_drag(
+            0.0,
+            -20.0,
+            CameraControl {
+                shift: true,
+                ..outdoor
+            },
+        );
+        camera.apply_wheel(10.0, outdoor);
         let outdoor_view = camera.saved_view();
-        assert!((outdoor_view.yaw.to_degrees() - 100.0).abs() < 1e-4);
 
-        camera.on_map_enter(true, SavedCameraView::default(), DEFAULT_DISTANCE);
+        camera.on_map_enter(true, SavedCameraView::default());
         assert!((camera.dest_yaw.to_degrees() - INDOOR_YAW_DEG).abs() < 1e-4);
+        camera.apply_wheel(
+            10.0,
+            CameraControl {
+                indoor: true,
+                ..outdoor
+            },
+        );
 
-        camera.on_map_enter(false, outdoor_view, DEFAULT_DISTANCE);
+        camera.on_map_enter(false, outdoor_view);
         assert!((camera.yaw.to_degrees() - 100.0).abs() < 1e-4);
         assert!((camera.dest_yaw.to_degrees() - 100.0).abs() < 1e-4);
+        assert!((camera.dest_pitch - outdoor_view.pitch).abs() < 1e-4);
+        assert!((camera.dest_distance - outdoor_view.distance).abs() < 1e-4);
+        assert!(
+            camera.dest_distance > DEFAULT_DISTANCE,
+            "zoom must come back as the player left it, got {}",
+            camera.dest_distance
+        );
     }
 
     #[test]
