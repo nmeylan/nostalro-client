@@ -2303,7 +2303,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 aid: f.aid,
                 gid: f.gid,
                 name: f.name.iter().take_while(|c| **c != '\0').collect(),
-                online: true,
+                online: false,
             })
             .collect();
         return vec![GameEvent::FriendListReceived { friends }];
@@ -5099,5 +5099,59 @@ mod tests {
             dispatch_packet(&divorce, packetver).as_slice(),
             [GameEvent::Divorced { name }] if name == "Romeo"
         ));
+    }
+
+    #[test]
+    fn friend_list_starts_offline_until_state_packet_arrives() {
+        use ragnarok_game::friends::{Friend, FriendList};
+
+        let packetver = 20120307;
+        let name24 = |n: &str| {
+            let mut b = [0u8; 24];
+            b[..n.len()].copy_from_slice(n.as_bytes());
+            b.map(|c| c as char)
+        };
+        let entry = |aid: u32, gid: u32, n: &str| {
+            let mut f = FRIEND::new(packetver);
+            f.set_aid(aid);
+            f.set_gid(gid);
+            f.set_name(name24(n));
+            f
+        };
+
+        let mut list = PacketZcFriendsList::new(packetver);
+        list.set_friend_list(vec![entry(1, 10, "Alice"), entry(2, 20, "Bob")]);
+        list.fill_raw();
+
+        let mut friends = FriendList::default();
+        match dispatch_packet(&list, packetver).as_slice() {
+            [GameEvent::FriendListReceived { friends: received }] => friends.set_all(
+                received
+                    .iter()
+                    .map(|f| Friend {
+                        aid: f.aid,
+                        gid: f.gid,
+                        name: f.name.clone(),
+                        online: f.online,
+                    })
+                    .collect(),
+            ),
+            other => panic!("unexpected events: {other:?}"),
+        }
+        assert!(friends.friends.iter().all(|f| !f.online));
+
+        let mut state = PacketZcFriendsState::new(packetver);
+        state.set_aid(2);
+        state.set_gid(20);
+        state.set_state(false);
+        state.fill_raw();
+        match dispatch_packet(&state, packetver).as_slice() {
+            [GameEvent::FriendStateChanged { aid, gid, online }] => {
+                friends.set_state(*aid, *gid, *online)
+            }
+            other => panic!("unexpected events: {other:?}"),
+        }
+        assert!(!friends.friends[0].online);
+        assert!(friends.friends[1].online);
     }
 }
