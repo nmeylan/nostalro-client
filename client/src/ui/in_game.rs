@@ -1,9 +1,8 @@
 use crate::game_state::{GameState, TOKEN_OF_SIEGFRIED};
 use crate::ui::windows::{Dispatch, REGISTRY, Windows};
 use ragnarok_game::cursor::RenderEntry;
-use ragnarok_game::entity::EntityType;
+use ragnarok_game::entity::EntityCategory;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::sprite_path::JT_WARPNPC;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::hotkey_bar::HOTKEY_BAR_WINDOW_ID;
@@ -112,19 +111,17 @@ pub fn build_in_game_ui(
         if Some(entity.id) == game.world.entities.player_id() {
             continue;
         }
-        if entity.entity_type == EntityType::Npc {
-            let (ex, ey) = entity.movement.position();
-            let marker_type = if entity.job == JT_WARPNPC {
-                MarkerType::WarpPortal
-            } else {
-                MarkerType::Npc
-            };
-            windows.minimap_window.entity_markers.push(MinimapMarker {
-                x: ex,
-                y: ey,
-                marker_type,
-            });
-        }
+        let marker_type = match entity.category() {
+            EntityCategory::Npc => MarkerType::Npc,
+            EntityCategory::WarpPoint => MarkerType::WarpPortal,
+            _ => continue,
+        };
+        let (ex, ey) = entity.movement.position();
+        windows.minimap_window.entity_markers.push(MinimapMarker {
+            x: ex,
+            y: ey,
+            marker_type,
+        });
     }
     if let Some(party) = ctx.party {
         let current_map = game.session.current_map.as_deref().unwrap_or("");

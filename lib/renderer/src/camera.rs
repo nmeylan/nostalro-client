@@ -121,9 +121,11 @@ pub struct CameraControl {
     pub unbounded: bool,
 }
 
-/// Pitch and distance are remembered per environment and restored on map entry.
+/// Yaw, pitch and distance are remembered per environment and restored on map
+/// entry.
 #[derive(Clone, Copy, Debug)]
 pub struct SavedCameraView {
+    pub yaw: f32,
     pub pitch: f32,
     pub distance: f32,
 }
@@ -131,6 +133,7 @@ pub struct SavedCameraView {
 impl Default for SavedCameraView {
     fn default() -> Self {
         Self {
+            yaw: 0.0,
             pitch: DEFAULT_PITCH_DEG.to_radians(),
             distance: DEFAULT_DISTANCE,
         }
@@ -172,12 +175,13 @@ impl Camera {
 
     pub fn saved_view(&self) -> SavedCameraView {
         SavedCameraView {
+            yaw: self.dest_yaw,
             pitch: self.dest_pitch,
             distance: self.dest_distance,
         }
     }
 
-    /// Restore the environment's saved pitch and distance, then pull the
+    /// Restore the environment's saved angles and distance, then pull the
     /// destination distance to the default so entry glides into framing.
     pub fn on_map_enter(&mut self, indoor: bool, saved: SavedCameraView, default_distance: f32) {
         let half = pitch_half_width_deg(indoor);
@@ -188,11 +192,13 @@ impl Camera {
             .to_radians();
         self.pitch = pitch;
         self.dest_pitch = pitch;
-        if indoor {
-            let yaw = INDOOR_YAW_DEG.to_radians();
-            self.yaw = yaw;
-            self.dest_yaw = yaw;
-        }
+        let yaw = if indoor {
+            INDOOR_YAW_DEG.to_radians()
+        } else {
+            saved.yaw
+        };
+        self.yaw = yaw;
+        self.dest_yaw = yaw;
         self.distance = saved.distance;
         self.dest_distance = default_distance;
     }
@@ -675,6 +681,7 @@ mod tests {
     fn map_entry_glides_to_the_default_distance() {
         let mut camera = Camera::default();
         let saved = SavedCameraView {
+            yaw: 100_f32.to_radians(),
             pitch: 60_f32.to_radians(),
             distance: 800.0,
         };
@@ -685,6 +692,21 @@ mod tests {
 
         camera.on_map_enter(true, saved, DEFAULT_DISTANCE);
         assert!((camera.pitch.to_degrees() - 55.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn leaving_an_indoor_map_restores_the_outdoor_yaw() {
+        let mut camera = Camera::default();
+        camera.apply_drag(100.0, 0.0, CameraControl::default());
+        let outdoor_view = camera.saved_view();
+        assert!((outdoor_view.yaw.to_degrees() - 100.0).abs() < 1e-4);
+
+        camera.on_map_enter(true, SavedCameraView::default(), DEFAULT_DISTANCE);
+        assert!((camera.dest_yaw.to_degrees() - INDOOR_YAW_DEG).abs() < 1e-4);
+
+        camera.on_map_enter(false, outdoor_view, DEFAULT_DISTANCE);
+        assert!((camera.yaw.to_degrees() - 100.0).abs() < 1e-4);
+        assert!((camera.dest_yaw.to_degrees() - 100.0).abs() < 1e-4);
     }
 
     #[test]

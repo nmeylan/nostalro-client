@@ -3,7 +3,7 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::PendingSkillTarget;
-use ragnarok_game::entity::{EntityState, EntityType};
+use ragnarok_game::entity::{EntityCategory, EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::hide_allows_skill;
 use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
@@ -239,8 +239,7 @@ impl App {
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
             && let Some(entity) = self.game.world.entities.get(entity_id)
-            && entity.entity_type == EntityType::Npc
-            && entity.job != 45
+            && entity.category() == EntityCategory::Npc
         {
             self.channel
                 .send_packet(build_contact_npc_packet(entity_id, self.active_packetver));

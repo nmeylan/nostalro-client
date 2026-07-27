@@ -1,26 +1,70 @@
 pub use models::enums::weapon::WeaponType;
 
 use crate::data_table::name_table::NameTable;
-use crate::entity::EntityType;
+use crate::entity::{EntityCategory, EntityType};
 use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
 
 pub const JT_WARPNPC: u16 = 45;
+pub const JT_EFFECTLAUNCHER: u16 = 104;
+pub const JT_HIDDEN_NPC: u16 = 111;
+pub const JT_HIDDEN_WARP_NPC: u16 = 139;
+pub const JT_INVISIBLE: u16 = 32767;
+
+pub const SKILL_UNIT_JOB_MIN: u16 = 126;
+pub const SKILL_UNIT_JOB_MAX: u16 = 201;
 
 pub const HOMUNCULUS_JOB_MIN: u16 = 6001;
 pub const HOMUNCULUS_JOB_MAX: u16 = 6016;
 pub const MERCENARY_JOB_MIN: u16 = 6017;
 pub const MERCENARY_JOB_MAX: u16 = 6046;
 
+/// Inclusive job-id ranges, first match wins.
+const JOB_CATEGORIES: &[(u16, u16, EntityCategory)] = &[
+    (0, 44, EntityCategory::Player),
+    (JT_WARPNPC, JT_WARPNPC, EntityCategory::WarpPoint),
+    (46, 125, EntityCategory::Npc),
+    (
+        SKILL_UNIT_JOB_MIN,
+        SKILL_UNIT_JOB_MAX,
+        EntityCategory::Skill,
+    ),
+    (400, 999, EntityCategory::Npc),
+    (1000, 3999, EntityCategory::Monster),
+    (4001, 5999, EntityCategory::Player),
+    (
+        HOMUNCULUS_JOB_MIN,
+        HOMUNCULUS_JOB_MAX,
+        EntityCategory::Homunculus,
+    ),
+    (
+        MERCENARY_JOB_MIN,
+        MERCENARY_JOB_MAX,
+        EntityCategory::Mercenary,
+    ),
+    (10000, 19999, EntityCategory::Npc),
+    (JT_INVISIBLE, JT_INVISIBLE, EntityCategory::Invisible),
+];
+
+/// Pets are monster jobs, told apart by their head marker — see `Entity::category`.
+pub fn entity_category_from_job(job: u16) -> EntityCategory {
+    JOB_CATEGORIES
+        .iter()
+        .find(|(low, high, _)| job >= *low && job <= *high)
+        .map_or(EntityCategory::Monster, |(_, _, category)| *category)
+}
+
 pub fn entity_type_from_job(job: u16) -> EntityType {
-    match job {
-        0..=44 | 4001..=5999 => EntityType::Player,
-        JT_WARPNPC => EntityType::Npc,
-        46..=999 => EntityType::Npc,
-        1000..=3999 => EntityType::Monster,
-        HOMUNCULUS_JOB_MIN..=HOMUNCULUS_JOB_MAX => EntityType::Homunculus,
-        MERCENARY_JOB_MIN..=MERCENARY_JOB_MAX => EntityType::Mercenary,
-        _ => EntityType::Monster,
+    match entity_category_from_job(job) {
+        EntityCategory::Player => EntityType::Player,
+        EntityCategory::Npc
+        | EntityCategory::WarpPoint
+        | EntityCategory::Skill
+        | EntityCategory::Cart
+        | EntityCategory::Invisible => EntityType::Npc,
+        EntityCategory::Monster | EntityCategory::Pet => EntityType::Monster,
+        EntityCategory::Homunculus => EntityType::Homunculus,
+        EntityCategory::Mercenary => EntityType::Mercenary,
     }
 }
 
@@ -51,9 +95,25 @@ pub fn mercenary_weapon_sprite_path(name: &str) -> Option<String> {
     Some(format!("data/sprite/인간족/용병/{base}_{weapon_char}"))
 }
 
+/// Trigger actors that are never drawn. The identity table maps all four to a
+/// real sprite name — 104 and 111 to a townsfolk body, 139 to a Poring — so the
+/// body has to be suppressed by job id.
+pub fn is_undrawn_actor(job: u16) -> bool {
+    matches!(
+        job,
+        JT_WARPNPC | JT_EFFECTLAUNCHER | JT_HIDDEN_NPC | JT_HIDDEN_WARP_NPC
+    )
+}
+
+/// Undrawn actors that take no click either. The warp point answers with its own
+/// cursor and the hidden NPC is a clickable trigger, so neither is listed.
+pub fn is_inert_actor(job: u16) -> bool {
+    matches!(job, JT_EFFECTLAUNCHER | JT_HIDDEN_WARP_NPC)
+}
+
 pub fn entity_sprite_base_path(name_table: &NameTable, job: u16) -> Option<String> {
     let name = name_table.get_name(job)?;
-    if job == JT_WARPNPC {
+    if is_undrawn_actor(job) {
         return None;
     }
     match entity_type_from_job(job) {
@@ -759,6 +819,31 @@ mod tests {
         assert_eq!(entity_type_from_job(3999), EntityType::Monster);
         assert_eq!(entity_type_from_job(4001), EntityType::Player);
         assert_eq!(entity_type_from_job(5999), EntityType::Player);
+        assert_eq!(entity_type_from_job(10000), EntityType::Npc);
+    }
+
+    #[test]
+    fn entity_category_from_job_boundaries() {
+        let cases = [
+            (JT_WARPNPC, EntityCategory::WarpPoint),
+            (46, EntityCategory::Npc),
+            (JT_EFFECTLAUNCHER, EntityCategory::Npc),
+            (JT_HIDDEN_NPC, EntityCategory::Npc),
+            (125, EntityCategory::Npc),
+            (SKILL_UNIT_JOB_MIN, EntityCategory::Skill),
+            (JT_HIDDEN_WARP_NPC, EntityCategory::Skill),
+            (SKILL_UNIT_JOB_MAX, EntityCategory::Skill),
+            (400, EntityCategory::Npc),
+            (1000, EntityCategory::Monster),
+            (10000, EntityCategory::Npc),
+            (19999, EntityCategory::Npc),
+            (HOMUNCULUS_JOB_MIN, EntityCategory::Homunculus),
+            (MERCENARY_JOB_MAX, EntityCategory::Mercenary),
+            (JT_INVISIBLE, EntityCategory::Invisible),
+        ];
+        for (job, expected) in cases {
+            assert_eq!(entity_category_from_job(job), expected, "job {job}");
+        }
     }
 
     #[test]

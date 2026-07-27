@@ -1,6 +1,7 @@
 use crate::App;
 use ragnarok_game::cursor::RenderEntry;
-use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::entity::{Entity, EntityCategory, EntityState, EntityType};
+use ragnarok_game::sprite_path::JT_HIDDEN_NPC;
 use ragnarok_game::targeting::{GM_TEXT_COLOR, pk_name_color};
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
 use ragnarok_ui_component::game::chat_room_board;
@@ -112,7 +113,11 @@ impl App {
         };
 
         let mut bar_y = entry.pick_bounds[3] + 5.0;
-        let hp_ratio = self.entity_hp_ratio(entity_id);
+        let hp_ratio = entity
+            .category()
+            .has_health_bar()
+            .then(|| self.entity_hp_ratio(entity_id))
+            .flatten();
         if let Some(ratio) = hp_ratio {
             let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
             bar_y = y;
@@ -123,7 +128,7 @@ impl App {
             }
         }
         if let Some(name) = &entity.name
-            && !self.name_hidden(entity.entity_type)
+            && !self.name_hidden(entity)
         {
             let text_width = renderer.font_atlas.measure_text(name);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
@@ -384,15 +389,19 @@ impl App {
         }
     }
 
-    fn name_hidden(&self, entity_type: EntityType) -> bool {
+    fn name_hidden(&self, entity: &Entity) -> bool {
+        let category = entity.category();
+        if !category.has_name_plate() || entity.job == JT_HIDDEN_NPC {
+            return true;
+        }
         let display = &self.config.display;
-        match entity_type {
-            EntityType::Player => {
+        match category {
+            EntityCategory::Player => {
                 display.hide_name_player || self.game.session.map_properties.is_siege()
             }
-            EntityType::Monster => display.hide_name_monster,
-            EntityType::Npc => display.hide_name_npc,
-            EntityType::Homunculus | EntityType::Mercenary => false,
+            EntityCategory::Monster | EntityCategory::Pet => display.hide_name_monster,
+            EntityCategory::Npc => display.hide_name_npc,
+            _ => false,
         }
     }
 

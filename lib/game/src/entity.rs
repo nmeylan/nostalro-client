@@ -35,6 +35,50 @@ pub enum EntityType {
     Mercenary,
 }
 
+/// Actor class the server's job id puts an entity in. Selects the interaction
+/// surface — name plate, HP/SP bar, hover cursor, click action, minimap marker —
+/// where `EntityType` only selects the sprite path and action layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityCategory {
+    Player,
+    Npc,
+    WarpPoint,
+    /// Ground unit spawned by a skill: Sanctuary, Fire Wall, traps, songs.
+    Skill,
+    Monster,
+    Pet,
+    Cart,
+    Homunculus,
+    Mercenary,
+    Invisible,
+}
+
+impl EntityCategory {
+    pub fn has_name_plate(self) -> bool {
+        matches!(
+            self,
+            EntityCategory::Player
+                | EntityCategory::Npc
+                | EntityCategory::Monster
+                | EntityCategory::Pet
+                | EntityCategory::Homunculus
+                | EntityCategory::Mercenary
+        )
+    }
+
+    pub fn has_health_bar(self) -> bool {
+        matches!(
+            self,
+            EntityCategory::Player
+                | EntityCategory::Monster
+                | EntityCategory::Pet
+                | EntityCategory::Cart
+                | EntityCategory::Homunculus
+                | EntityCategory::Mercenary
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityState {
     Standing,
@@ -599,6 +643,15 @@ impl Entity {
             }
         } else {
             None
+        }
+    }
+
+    pub fn category(&self) -> EntityCategory {
+        let category = crate::sprite_path::entity_category_from_job(self.job);
+        if self.is_pet && category == EntityCategory::Monster {
+            EntityCategory::Pet
+        } else {
+            category
         }
     }
 
