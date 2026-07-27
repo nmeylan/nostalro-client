@@ -230,7 +230,10 @@ pub fn make_effect(
             Box::new(effects::fireivy::FireivyEffect::new(from, to))
         }
         EffectId::Detecting => Box::new(effects::detecting::DetectingEffect::new(anchor.point())),
-        EffectId::Toprank => Box::new(effects::toprank::ToprankEffect::new(anchor.point())),
+        EffectId::Toprank => Box::new(effects::toprank::ToprankEffect::new(
+            anchor.point(),
+            hit_count.unwrap_or(1),
+        )),
         EffectId::Lockon => Box::new(effects::lockon::LockonEffect::new(
             anchor.point(),
             target_size,

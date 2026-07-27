@@ -114,6 +114,8 @@ pub struct EffectKeys {
     pub next_status_buff_key: u32,
     pub level_aura_keys: HashMap<u32, u32>,
     pub boss_aura_keys: HashMap<u32, u32>,
+    /// gid -> (effect key, rank the tint was baked from)
+    pub toprank_keys: HashMap<u32, (u32, i32)>,
     pub warp_portal_keys: HashMap<u32, u32>,
     pub spirit_keys: HashMap<u32, u32>,
     pub sight_aura_keys: HashMap<u32, u32>,
@@ -127,6 +129,7 @@ impl EffectKeys {
         self.next_status_buff_key = 0;
         self.level_aura_keys.clear();
         self.boss_aura_keys.clear();
+        self.toprank_keys.clear();
         self.warp_portal_keys.clear();
         self.spirit_keys.clear();
         self.sight_aura_keys.clear();
@@ -331,6 +334,8 @@ pub struct AssetHandles {
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
     pub damage_msg_textures: Option<SpriteTextures>,
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
+    pub rank_font_textures: Option<SpriteTextures>,
+    pub rank_font_act: Option<ragnarok_formats::act::ActFile>,
 }
 
 pub struct Schedulers {
@@ -932,6 +937,7 @@ mod effect_reset_tests {
         keys.next_status_buff_key = 9;
         keys.level_aura_keys.insert(1, 1);
         keys.boss_aura_keys.insert(1, 1);
+        keys.toprank_keys.insert(1, (1, 1));
         keys.warp_portal_keys.insert(1, 1);
         keys.spirit_keys.insert(1, 1);
         keys.sight_aura_keys.insert(1, 1);
@@ -947,6 +953,7 @@ mod effect_reset_tests {
         assert_eq!(keys.next_status_buff_key, 0);
         assert!(keys.level_aura_keys.is_empty());
         assert!(keys.boss_aura_keys.is_empty());
+        assert!(keys.toprank_keys.is_empty());
         assert!(keys.warp_portal_keys.is_empty());
         assert!(keys.spirit_keys.is_empty());
         assert!(keys.sight_aura_keys.is_empty());

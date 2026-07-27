@@ -68,6 +68,10 @@ impl MapProperties {
         self.has(MapPropertyFlags::IsNoLockOn)
     }
 
+    pub fn is_pk_zone(&self) -> bool {
+        matches!(self.kind, MapKind::FreePvp | MapKind::PvpServer)
+    }
+
     pub fn count_pk(&self) -> bool {
         self.is_pvp() || self.has(MapPropertyFlags::CountPk)
     }

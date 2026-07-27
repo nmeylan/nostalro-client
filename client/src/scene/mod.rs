@@ -7,6 +7,7 @@ use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{RenderEntry, RenderEntryKind};
 use ragnarok_game::effect::{BlendKind, EffectPrimitiveDraw};
 use ragnarok_game::entity::EntityState;
+use ragnarok_game::pk_rank::pk_rank_hud_quads;
 use ragnarok_game::shadow::shadow_size;
 use ragnarok_game::sprite_path::{HiddenRender, HiddenViewer, hidden_render, is_hidden};
 use ragnarok_renderer::effect::holder::AfterimageSnapshot;
@@ -917,6 +918,48 @@ impl App {
                     &mut world_overlay_calls,
                     &mut inline_textures,
                 );
+            }
+        }
+
+        if self.game.session.map_properties.is_pk_zone()
+            && let Some(player) = self.game.world.entities.player()
+            && let (Some(act), Some(tex), Some(renderer)) = (
+                &self.game.assets.rank_font_act,
+                &self.game.assets.rank_font_textures,
+                &self.renderer,
+            )
+        {
+            let sw = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+            let sh = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+            for quad in pk_rank_hud_quads(player.pk_rank, player.pk_total, sw, sh) {
+                let Some(motion) = act
+                    .actions
+                    .get(quad.action)
+                    .and_then(|action| action.motions.first())
+                else {
+                    continue;
+                };
+                for clip in &motion.clips {
+                    if let Some((vertices, indices, tex_idx)) =
+                        build_clip_quad(clip, tex, [quad.x, quad.y], 0.0, [0, 0])
+                        && tex_idx < tex.bind_groups.len()
+                    {
+                        let idx = inline_textures.len();
+                        inline_textures.push(&tex.bind_groups[tex_idx]);
+                        world_overlay_calls.push(UiDrawCall {
+                            vertices: vertices
+                                .iter()
+                                .map(|sv| UiVertex {
+                                    position: [sv.position[0], sv.position[1]],
+                                    tex_coord: sv.tex_coord,
+                                    color: sv.color,
+                                })
+                                .collect(),
+                            indices,
+                            texture: UiTextureRef::Inline(idx),
+                        });
+                    }
+                }
             }
         }
 

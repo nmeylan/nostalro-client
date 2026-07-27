@@ -3,8 +3,7 @@
 //! A persistent
 //! `LockOn128.tga` quad over the actor laid flat on the ground
 //! plane, spinning 4.5°/frame around the world Y
-//! axis. Tint varies by rank tier (red / blue / green); the entity-attached
-//! spawn picks the tint outside the effect.
+//! axis. Tint is derived from the PvP rank carried in the spawn count.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, QuadPlane};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -15,6 +14,16 @@ pub const TEXTURES: &[&str] = &[TOPRANK_TEXTURE];
 const HALF_SIZE: f32 = 4.0;
 const DEG_PER_FRAME: f32 = 4.5;
 const FRAMES_PER_SECOND: f32 = 60.0;
+const GROUND_Y_OFFSET: f32 = -2.0;
+
+pub fn rank_tint(rank: u8) -> [f32; 4] {
+    if rank == 11 {
+        [0.0, 250.0 / 255.0, 0.0, 1.0]
+    } else {
+        let fade = f32::from(10u8.saturating_sub(rank)) * 25.0 / 255.0;
+        [250.0 / 255.0, fade, fade, 1.0]
+    }
+}
 
 pub struct ToprankEffect {
     world_pos: [f32; 3],
@@ -23,10 +32,10 @@ pub struct ToprankEffect {
 }
 
 impl ToprankEffect {
-    pub fn new(world_pos: [f32; 3]) -> Self {
+    pub fn new(world_pos: [f32; 3], rank: u8) -> Self {
         Self {
             world_pos,
-            tint: [1.0, 0.2, 0.2, 1.0],
+            tint: rank_tint(rank),
             age: 0.0,
         }
     }
@@ -38,11 +47,20 @@ impl Effect for ToprankEffect {
         EffectStatus::Running
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frames = self.age * FRAMES_PER_SECOND;
         let yaw = (frames * DEG_PER_FRAME).to_radians();
+        let center = [
+            self.world_pos[0],
+            self.world_pos[1] + GROUND_Y_OFFSET,
+            self.world_pos[2],
+        ];
         out.push(EffectPrimitiveDraw::Texture3D {
-            center: self.world_pos,
+            center,
             size: [HALF_SIZE, HALF_SIZE],
             plane: QuadPlane::HorizontalYaw(yaw),
             uv: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
@@ -66,19 +84,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn yaw_advances_per_frame_and_stays_alive() {
-        let mut e = ToprankEffect::new([0.0, 0.0, 0.0]);
-
+    fn quad(e: &ToprankEffect) -> ([f32; 3], f32, [f32; 4]) {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
-        let yaw_a = match &list.primitives[0] {
+        match &list.primitives[0] {
             EffectPrimitiveDraw::Texture3D {
-                plane: QuadPlane::HorizontalYaw(y),
+                center,
+                plane: QuadPlane::HorizontalYaw(yaw),
+                color,
                 ..
-            } => *y,
+            } => (*center, *yaw, *color),
             _ => panic!("expected Texture3D::HorizontalYaw"),
-        };
+        }
+    }
+
+    #[test]
+    fn yaw_advances_per_frame_and_stays_alive() {
+        let mut e = ToprankEffect::new([0.0, 0.0, 0.0], 1);
+        let (_, yaw_a, _) = quad(&e);
         assert_eq!(yaw_a, 0.0);
 
         for _ in 0..10 {
@@ -91,15 +114,22 @@ mod tests {
                 EffectStatus::Running
             );
         }
-        let mut list = EffectDrawList::new();
-        e.collect_draws(&mut list, &render_ctx());
-        let yaw_b = match &list.primitives[0] {
-            EffectPrimitiveDraw::Texture3D {
-                plane: QuadPlane::HorizontalYaw(y),
-                ..
-            } => *y,
-            _ => panic!("expected Texture3D::VerticalYaw"),
-        };
+        let (_, yaw_b, _) = quad(&e);
         assert!(yaw_b > yaw_a, "yaw rotates over time: {yaw_a} -> {yaw_b}");
+    }
+
+    #[test]
+    fn tint_fades_with_rank_and_quad_follows_the_actor() {
+        let (_, _, rank1) = quad(&ToprankEffect::new([0.0, 0.0, 0.0], 1));
+        let (_, _, rank10) = quad(&ToprankEffect::new([0.0, 0.0, 0.0], 10));
+        let (_, _, rank11) = quad(&ToprankEffect::new([0.0, 0.0, 0.0], 11));
+        assert_eq!(rank1, [250.0 / 255.0, 225.0 / 255.0, 225.0 / 255.0, 1.0]);
+        assert_eq!(rank10, [250.0 / 255.0, 0.0, 0.0, 1.0]);
+        assert_eq!(rank11, [0.0, 250.0 / 255.0, 0.0, 1.0]);
+
+        let mut e = ToprankEffect::new([1.0, 2.0, 3.0], 1);
+        e.set_position([10.0, 20.0, 30.0]);
+        let (center, _, _) = quad(&e);
+        assert_eq!(center, [10.0, 20.0 + GROUND_Y_OFFSET, 30.0]);
     }
 }
