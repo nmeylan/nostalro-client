@@ -40,6 +40,7 @@ impl App {
             }
             SessionChange::Logout => {
                 self.window_state_restored = false;
+                self.game.session.screen_ripple = false;
                 self.char_select_window = None;
                 self.game.character.clear();
                 self.game.world.entities.clear();
@@ -110,6 +111,7 @@ impl App {
             }
             SessionChange::Death => {
                 self.game.session.player_dead = true;
+                self.game.session.screen_ripple = false;
                 self.windows.system_menu.open_dead();
             }
             SessionChange::Resurrect => {

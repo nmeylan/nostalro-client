@@ -19,6 +19,8 @@ pub struct StatusReaction {
     pub kind: StatusKind,
     /// Darkens the world, for the bearer's eyes only.
     pub night_filter: bool,
+    /// Ripples the whole screen, for the bearer's eyes only.
+    pub screen_ripple: bool,
 }
 
 impl StatusReaction {
@@ -29,6 +31,14 @@ impl StatusReaction {
             on_deactivate: &[],
             kind: StatusKind::Visual,
             night_filter: false,
+            screen_ripple: false,
+        }
+    }
+
+    const fn screen_ripple() -> Self {
+        Self {
+            screen_ripple: true,
+            ..Self::new()
         }
     }
 
@@ -102,6 +112,7 @@ pub fn status_reaction(efst: ClientEffectIcon) -> Option<StatusReaction> {
         I::Mindbreaker => StatusReaction::on_activate(&[E::Magiccrasher2]),
         I::Ting => StatusReaction::on_activate(&[E::Quakebody]),
         I::Run => StatusReaction::on_deactivate(&[E::Stopeffect]),
+        I::Illusion => StatusReaction::screen_ripple(),
         I::OnPushCart => StatusReaction::kind(StatusKind::PushCart),
         _ => return None,
     };
@@ -122,10 +133,9 @@ pub fn status_reaction_by_efst(efst: i16) -> Option<StatusReaction> {
     match efst {
         EFST_MOON => Some(StatusReaction::aura(&[E::Spherewind2])),
         EFST_SKE => Some(StatusReaction::night_filter()),
-        EFST_SG_MOON_WARM | EFST_SG_STAR_WARM => Some(StatusReaction::aura(&[
-            E::Doublegumgang,
-            E::Redlightbody,
-        ])),
+        EFST_SG_MOON_WARM | EFST_SG_STAR_WARM => {
+            Some(StatusReaction::aura(&[E::Doublegumgang, E::Redlightbody]))
+        }
         _ => None,
     }
 }
@@ -170,6 +180,18 @@ mod tests {
 
         assert!(!status_reaction(I::Berserk).unwrap().night_filter);
         assert!(!status_reaction_by_efst(EFST_MOON).unwrap().night_filter);
+    }
+
+    #[test]
+    fn only_illusion_ripples_the_screen() {
+        use ClientEffectIcon as I;
+
+        let illusion = status_reaction(I::Illusion).unwrap();
+        assert!(illusion.screen_ripple);
+        assert!(illusion.aura.is_empty());
+        assert!(!illusion.night_filter);
+
+        assert!(!status_reaction(I::Soullink).unwrap().screen_ripple);
     }
 
     #[test]

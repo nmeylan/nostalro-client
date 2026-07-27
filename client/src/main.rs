@@ -264,18 +264,26 @@ impl App {
         self.game.session.map_coords = map_data.coordinates;
         self.game.session.gat = map_data.gat;
         self.game.session.actor_lightmap = map_data.actor_lightmap;
-        let was_locked = self.game.session.camera_locked;
+        let was_indoor = self.game.session.camera_locked;
         self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {
             renderer.clear_color = ragnarok_renderer::wgpu::Color::BLACK;
-            if map_data.indoor {
-                if !was_locked {
-                    self.game.session.saved_camera_yaw = Some(renderer.camera.yaw);
-                }
-                renderer.camera.lock_indoor();
-            } else if was_locked && let Some(yaw) = self.game.session.saved_camera_yaw.take() {
-                renderer.camera.yaw = yaw;
+            let leaving = renderer.camera.saved_view();
+            if was_indoor {
+                self.game.session.saved_camera_indoor = leaving;
+            } else {
+                self.game.session.saved_camera_outdoor = leaving;
             }
+            let restore = if map_data.indoor {
+                self.game.session.saved_camera_indoor
+            } else {
+                self.game.session.saved_camera_outdoor
+            };
+            renderer.camera.on_map_enter(
+                map_data.indoor,
+                restore,
+                ragnarok_renderer::camera::DEFAULT_DISTANCE,
+            );
         }
 
         self.game
@@ -385,6 +393,16 @@ impl App {
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
+        self.aim_camera_at(cell_x, cell_y, false);
+    }
+
+    /// Jump the camera onto a cell without the usual glide: on map entry and
+    /// warps the old target is meaningless.
+    fn warp_camera_to(&mut self, cell_x: f32, cell_y: f32) {
+        self.aim_camera_at(cell_x, cell_y, true);
+    }
+
+    fn aim_camera_at(&mut self, cell_x: f32, cell_y: f32, snap: bool) {
         if let (Some(coords), Some(renderer)) = (&self.game.session.map_coords, &mut self.renderer)
         {
             input::position_camera_at(
@@ -394,6 +412,9 @@ impl App {
                 cell_x,
                 cell_y,
             );
+            if snap {
+                renderer.camera.snap_target();
+            }
         }
     }
 

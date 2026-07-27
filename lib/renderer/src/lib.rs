@@ -14,6 +14,7 @@ pub mod ground;
 pub mod ground_proxy;
 pub mod model;
 pub mod rsm_anim;
+pub mod screen_distortion;
 pub mod sprite;
 pub mod sprite_projection;
 pub mod texture;
@@ -45,6 +46,7 @@ pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use ground_proxy::GroundProxyRenderer;
 pub use model::{AnimatedModelRenderer, ModelRenderer};
+pub use screen_distortion::ScreenDistortion;
 pub use sprite::{
     BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
     SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_clip_quad_scaled,
@@ -132,6 +134,7 @@ pub struct Renderer {
     pub font_px_height: f32,
     pub dpi_scale: f32,
     pub clear_color: wgpu::Color,
+    pub screen_distortion: ScreenDistortion,
     pub background_mode: BackgroundMode,
     /// The map's day lighting, captured in `load_map`. `set_day_night` patches the
     /// diffuse rgb over this so the day/night fade never loses the map's light dir,
@@ -187,10 +190,9 @@ impl Renderer {
         dpi_scale: f32,
     ) -> Self {
         let device = RenderDevice::new(window).await;
-        let camera = Camera {
-            aspect: device.surface_config.width as f32 / device.surface_config.height as f32,
-            ..Default::default()
-        };
+        let camera = Camera::with_aspect(
+            device.surface_config.width as f32 / device.surface_config.height as f32,
+        );
         let global_uniforms = GlobalUniforms::new(&device.device);
         let texture_cache = TextureCache::new(&device.device, dpi_scale);
 
@@ -202,6 +204,8 @@ impl Renderer {
             &texture_cache.bind_group_layout,
             "font_atlas",
         );
+
+        let screen_distortion = ScreenDistortion::new(&device.device, device.surface_format);
 
         let white_img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 255, 255, 255]));
         let white_bind_group = texture::create_texture_bind_group(
@@ -284,6 +288,7 @@ impl Renderer {
                 b: 0.929,
                 a: 1.0,
             },
+            screen_distortion,
             background_mode: BackgroundMode::default(),
             base_light: LightUniform::default(),
             fog_scale: 240.0,
@@ -641,7 +646,21 @@ impl Renderer {
         let phys_w = self.device.surface_config.width;
         let phys_h = self.device.surface_config.height;
         let clear = self.clear_color;
-        self.render_into(&view, &depth_view, phys_w, phys_h, clear, frame);
+        if self.screen_distortion.is_active() {
+            let scene_view = self
+                .screen_distortion
+                .scene_view(&self.device.device, phys_w, phys_h);
+            self.render_into(&scene_view, &depth_view, phys_w, phys_h, clear, frame);
+            let mut encoder = self
+                .device
+                .device
+                .create_command_encoder(&Default::default());
+            self.screen_distortion
+                .resolve(&mut encoder, &self.device.queue, &view);
+            self.device.queue.submit(std::iter::once(encoder.finish()));
+        } else {
+            self.render_into(&view, &depth_view, phys_w, phys_h, clear, frame);
+        }
         output.present();
     }
 

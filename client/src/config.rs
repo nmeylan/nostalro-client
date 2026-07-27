@@ -81,6 +81,8 @@ pub struct Config {
     pub sfx_enabled: bool,
     pub bgm_path: String,
     pub emblem_path: String,
+    /// Screenshot escape hatch: drops the pitch band, the indoor rotation clamp
+    /// and the zoom clamp. Off keeps the original game's bands.
     pub free_camera: bool,
     pub dpi_scale: f32,
     pub grf_paths: Vec<String>,

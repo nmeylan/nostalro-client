@@ -13,8 +13,7 @@ use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     OPT3_BLADESTOP, StatusKind, UNT_USED_TRAPS, monster_opt3_reaction, opt3_bit_for_icon,
     opt3_bits, player_opt3_reaction, skill_unit_effect, skill_unit_entry_sound, status_reaction,
-    status_reaction_by_efst,
-    trap_model_name, trap_trigger_effect,
+    status_reaction_by_efst, trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
 use ragnarok_game::graffiti::Graffiti;
@@ -42,8 +41,7 @@ const LEVEL_AURA_LAYERS: &[EffectId] = &[
     EffectId::Level99,
     EffectId::Level992,
 ];
-const BOSS_AURA_LAYERS: &[EffectId] =
-    &[EffectId::Green995, EffectId::Green996, EffectId::Green993];
+const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Green993];
 
 fn is_weather_effect(id: EffectId) -> bool {
     matches!(
@@ -899,6 +897,10 @@ impl App {
 
         if reaction.night_filter && is_player {
             self.game.schedulers.day_night.set_night(active);
+        }
+
+        if reaction.screen_ripple && is_player {
+            self.game.session.screen_ripple = active;
         }
 
         if reaction.kind == StatusKind::PushCart {

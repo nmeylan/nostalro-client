@@ -296,7 +296,7 @@ impl App {
             self.spawn_cart_visual(pid, design);
         }
 
-        self.position_camera_at(x as f32, y as f32);
+        self.warp_camera_to(x as f32, y as f32);
         self.char_select_window = None;
 
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
@@ -483,7 +483,7 @@ impl App {
         if let Some(entity) = self.game.world.entities.player_mut() {
             entity.movement.set_position(x as f32, y as f32);
         }
-        self.position_camera_at(x as f32, y as f32);
+        self.warp_camera_to(x as f32, y as f32);
 
         let surviving: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
         for gid in surviving {

@@ -37,6 +37,7 @@ use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::session::Session;
+use ragnarok_renderer::camera::SavedCameraView;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::game::chat_window::{self};
@@ -271,8 +272,12 @@ pub struct SessionState {
     pub player_dead: bool,
     /// Set on indoor maps; locks the camera rotation to the fixed indoor angle.
     pub camera_locked: bool,
-    /// Camera yaw captured when entering an indoor map, restored on exit.
-    pub saved_camera_yaw: Option<f32>,
+    /// Hallucination: ripples the local player's whole screen.
+    pub screen_ripple: bool,
+    /// Pitch and zoom kept per environment, restored when a map of that kind is
+    /// entered again.
+    pub saved_camera_outdoor: SavedCameraView,
+    pub saved_camera_indoor: SavedCameraView,
     pub server_time: ServerTimeClock,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
@@ -298,7 +303,9 @@ impl SessionState {
             actor_lightmap: None,
             player_dead: false,
             camera_locked: false,
-            saved_camera_yaw: None,
+            screen_ripple: false,
+            saved_camera_outdoor: SavedCameraView::default(),
+            saved_camera_indoor: SavedCameraView::default(),
             server_time: ServerTimeClock::new(),
             disconnect_dialog_shown: false,
             progress_bar: None,

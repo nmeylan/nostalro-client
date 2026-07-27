@@ -1033,7 +1033,12 @@ impl App {
         all_ui_calls.extend(skill_level_calls);
         all_ui_calls.extend(roulette_calls);
 
+        let screen_ripple = self.game.session.screen_ripple
+            && self.config.show_skill_effects
+            && self.game.session.app_state == AppState::InGame;
+
         if let Some(renderer) = &mut self.renderer {
+            renderer.screen_distortion.set_active(screen_ripple);
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
             let mut arrow_draws: Vec<EffectPrimitiveDraw> = self

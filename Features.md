@@ -15,8 +15,11 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Map ground (batched by texture, lightmap atlas)
 - Water
 - Day / night cycle (light tint fade, world lighting)
+- Lightmap
 - Weather: fog, cloud, firework, snow, leaves
 - Ambient RSW effects: e.g. torch, smoke, bubble, fog
+- Animated model: windmill, mill
+- Distortion (effect hallucination)
 - Mob / entity sprites
 - GR2 3D models (emperium, guardians): pure-Rust Oodle0 + Bink texture decoders, skeletal animation
 - Minimap (with entity / party / quest / NPC markers)
@@ -126,6 +129,7 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Emotions (emote balloons, /commands)
 - Full server-time sync of hits & moves
 - Marriage system
+- Complex skills: (e.g: autocounter, grafiti)
 
 # Status appearance
 - Status-icon bar (EFST icons, clock-wedge timer, tooltips)

@@ -158,4 +158,25 @@ impl App {
             self.position_camera_at(px, py);
         }
     }
+
+    pub(crate) fn update_camera(&mut self, delta: f32) {
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        renderer.camera.interpolate(delta);
+        renderer.camera.eye_floor = self
+            .game
+            .session
+            .map_coords
+            .as_ref()
+            .zip(self.game.session.gat.as_ref())
+            .and_then(|(coords, gat)| {
+                let eye = renderer.camera.eye_unclamped();
+                let (cell_x, cell_y) = coords.world_to_cell_f(eye.x, eye.z);
+                let on_map = cell_x >= 0.0
+                    && cell_y >= 0.0
+                    && coords.is_valid_cell(cell_x as i32, cell_y as i32);
+                on_map.then(|| gat.get_height(cell_x, cell_y))
+            });
+    }
 }

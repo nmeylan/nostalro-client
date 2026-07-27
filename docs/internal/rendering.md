@@ -65,6 +65,14 @@ Before recording, `render_into` resizes the sprite, effect-sprite, and UI
 renderers to the current logical size, uploads the camera to
 `global_uniforms`, and ticks the water animation with `elapsed`.
 
+`render` normally hands the surface view straight to `render_into`. While
+[`ScreenDistortion`](../../lib/renderer/src/screen_distortion.rs) is active
+(Hallucination) it instead points `render_into` at an offscreen colour target of
+the same size and format, then draws that texture to the surface through a
+third encoder, resampled with a per-scanline horizontal sine offset — so the
+ripple covers the UI and cursor too. Inactive, the offscreen target is released
+and the path is byte-for-byte the old one.
+
 ### Scene opaque pass
 
 The first pass clears the color target to the clear color and the depth buffer
@@ -211,6 +219,7 @@ scaffolding.
 - World-to-screen sprite placement: `sprite-projection.md` and
   `lib/renderer/src/sprite_projection.rs`.
 - Effect record building: `build_effect_records` (`lib/renderer/src/lib.rs`).
+- Full-frame post-process: `screen_distortion.rs`.
 - Batching, sorting, dispatch: `effect/dispatch.rs`, `effect/queue.rs`.
 - Primitive registry and the renderer trait: `effect/registry.rs`.
 - Per-primitive geometry and blend: the module docs in
