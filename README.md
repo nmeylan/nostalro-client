@@ -7,7 +7,9 @@ It reuses many parts of [rust-ro](https://github.com/nmeylan/rust-ro): packets, 
 **This repository does not and will not provide any game assets**.
 
 # Progress
-See [TODO](docs/TODO.md) and [Features.md](Features.md). Architecture is documented in [docs/internal/architecture.md](docs/internal/architecture.md) and [docs/internal/rendering.md](docs/internal/rendering.md).
+See [TODO](docs/TODO.md) 100% completed and [Features.md](Features.md). 
+
+Architecture is documented in [docs/internal/architecture.md](docs/internal/architecture.md) and [docs/internal/rendering.md](docs/internal/rendering.md).
 
 # Why yet another client?
 I wanted to run the game as it was in 2005~2008, but the original client from that period does not handle high dpi screens well. It is also painful to find the right game resources and the right exe diff to make it work with a server.
@@ -100,7 +102,7 @@ The fields a newcomer sets by hand:
 | `map_recovery_command` | string | `@go prontera` | Chat command sent by the recovery window when a map cannot load because its data is missing from the GRF. |
 | `trace_packets_send` / `trace_packets_recv` | bool | `false` | Log sent / received packets. Useful when investigating network issues. |
 
-The remaining fields (`window_state`, `keybindings`, `shortcut_commands`, `emotion_keys`, `display`, `last_char_slot`, and other in-game toggles) are written by the client as we play and rebind keys. We rarely edit them by hand.
+The remaining fields (`window_state`, `keybindings`, `shortcut_commands`, `emotion_keys`, `display`, `last_char_slot`, and other in-game toggles) are written by the client as we play and rebind keys.
 
 # Run
 
@@ -110,7 +112,7 @@ With `data/data.grf` in place and a server running:
 cargo run --bin ragnarok-client
 ```
 
-The client reads `config.json` from the current directory, so we run it from the repository root.
+The client reads `config.json` from the current directory, so run it from the repository root.
 
 # Set up a server
 
