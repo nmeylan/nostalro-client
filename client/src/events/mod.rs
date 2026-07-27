@@ -135,7 +135,12 @@ impl App {
                 }
                 GameEvent::MapPropertyChanged(properties) => {
                     self.game.combat.damage_numbers.combat_hidden = properties.is_siege();
+                    let left_pk_zone = self.game.session.map_properties.is_pk_zone()
+                        && !properties.is_pk_zone();
                     self.game.session.map_properties = properties;
+                    if left_pk_zone {
+                        self.clear_pvp_ranks();
+                    }
                 }
                 GameEvent::PlayerMoved {
                     start_x,
@@ -296,6 +301,13 @@ impl App {
                 }
                 GameEvent::SpiritsChanged { gid, count } => {
                     self.handle_spirits_changed(gid, count);
+                }
+                GameEvent::PvpRankingChanged {
+                    account_id,
+                    ranking,
+                    total,
+                } => {
+                    self.handle_pvp_ranking_changed(account_id, ranking, total);
                 }
                 GameEvent::BladeStop {
                     src_gid,

@@ -21,6 +21,14 @@ pub fn boss_aura_visible(
         && level >= LEVEL_AURA_THRESHOLD
 }
 
+pub const TOP_RANK_THRESHOLD: i32 = 10;
+
+pub fn pk_rank_aura_visible(entity_type: EntityType, rank: i32, effect_state: i32) -> bool {
+    entity_type == EntityType::Player
+        && (1..=TOP_RANK_THRESHOLD).contains(&rank)
+        && !is_hidden(effect_state)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -34,6 +42,17 @@ mod tests {
         assert!(!level_aura_visible(EntityType::Monster, 99, 0));
         assert!(!level_aura_visible(EntityType::Npc, 99, 0));
         assert!(!level_aura_visible(EntityType::Player, 99, OPTION_CLOAK));
+    }
+
+    #[test]
+    fn pk_rank_aura_covers_the_top_ten_only() {
+        assert!(pk_rank_aura_visible(EntityType::Player, 1, 0));
+        assert!(pk_rank_aura_visible(EntityType::Player, 10, 0));
+        assert!(!pk_rank_aura_visible(EntityType::Player, 11, 0));
+        assert!(!pk_rank_aura_visible(EntityType::Player, 0, 0));
+        assert!(!pk_rank_aura_visible(EntityType::Player, -1, 0));
+        assert!(!pk_rank_aura_visible(EntityType::Monster, 1, 0));
+        assert!(!pk_rank_aura_visible(EntityType::Player, 1, OPTION_CLOAK));
     }
 
     #[test]

@@ -746,6 +746,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             code: p.effect_id as u8,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyRanking>() {
+        return vec![GameEvent::PvpRankingChanged {
+            account_id: p.aid,
+            ranking: p.ranking,
+            total: p.total,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcSpirits>() {
         return vec![GameEvent::SpiritsChanged {
             gid: p.aid,
@@ -3106,6 +3113,43 @@ mod tests {
             panic!("expected MapPropertyChanged");
         };
         assert!(!props.is_siege());
+    }
+
+    #[test]
+    fn dispatch_pvp_ranking_on_a_free_pvp_map() {
+        let packetver = 20120307;
+
+        let mut map = PacketZcNotifyMapproperty::new(packetver);
+        map.set_atype(1);
+        let map_events = dispatch_packet(&map, packetver);
+        let [GameEvent::MapPropertyChanged(props)] = map_events.as_slice() else {
+            panic!("expected MapPropertyChanged");
+        };
+        assert!(props.is_pk_zone());
+
+        let mut rank = PacketZcNotifyRanking::new(packetver);
+        rank.set_aid(2000000);
+        rank.set_ranking(3);
+        rank.set_total(130);
+        rank.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&rank, packetver).as_slice(),
+            [GameEvent::PvpRankingChanged {
+                account_id: 2000000,
+                ranking: 3,
+                total: 130
+            }]
+        ));
+
+        // Hidden subjects come through as UINT32_MAX, which the game layer
+        // must not treat as a rank.
+        let mut hidden = PacketZcNotifyRanking::new(packetver);
+        hidden.set_ranking(-1);
+        hidden.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&hidden, packetver).as_slice(),
+            [GameEvent::PvpRankingChanged { ranking: -1, .. }]
+        ));
     }
 
     #[test]

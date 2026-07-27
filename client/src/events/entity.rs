@@ -283,6 +283,7 @@ impl App {
                 }
                 self.despawn_level_aura(gid);
                 self.despawn_boss_aura(gid);
+                self.despawn_pk_rank_aura(gid);
                 if self.game.world.entities.player_id() == Some(gid) {
                     if let Some(pos) = self.entity_world_pos(gid) {
                         self.effect_queue.spawn_at(EffectId::Devil, pos);
@@ -708,6 +709,7 @@ impl App {
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
         self.refresh_detect_aura(gid);
+        self.refresh_pk_rank_aura(gid);
     }
 
     /// Detect-hidden auras (Sight / Ruwach): the original shows no effect at
@@ -992,9 +994,113 @@ impl App {
         self.game.effect_keys.spirit_keys.insert(gid, key);
     }
 
+    /// PvP ranking broadcast: the server sends it to the whole area, so it
+    /// carries the rank of every player around us, not only our own.
+    pub(super) fn handle_pvp_ranking_changed(&mut self, account_id: u32, ranking: i32, total: i32) {
+        if !self.game.session.map_properties.is_pk_zone() {
+            return;
+        }
+        let gid = self.game.world.entities.resolve_key(account_id);
+        let is_player = self.game.world.entities.player_id() == Some(gid);
+        let Some(entity) = self.game.world.entities.get_mut(gid) else {
+            return;
+        };
+        if !is_player && is_hidden(entity.effect_state) {
+            return;
+        }
+        let old_rank = entity.pk_rank;
+        entity.pk_rank = ranking;
+        entity.pk_total = total;
+        if is_player && old_rank != ranking {
+            self.announce_own_pvp_rank(old_rank, ranking);
+        }
+        self.refresh_pk_rank_aura(gid);
+    }
+
+    fn announce_own_pvp_rank(&mut self, old_rank: i32, ranking: i32) {
+        let top = level_aura::TOP_RANK_THRESHOLD;
+        let name = self.game.character.name.clone();
+        if old_rank > top && ranking <= top {
+            self.windows.chat_window.add_system(format!(
+                "Congratulations, {name} moved up to rank {ranking}."
+            ));
+        } else if old_rank <= top && ranking > top {
+            self.windows
+                .chat_window
+                .add_system(format!("Too bad, {name} dropped to rank {ranking}."));
+        }
+        if let Some(pos) = self
+            .game
+            .world
+            .entities
+            .player_id()
+            .and_then(|gid| self.entity_world_pos(gid))
+        {
+            self.sound_queue
+                .world("effect\\number_change.wav".to_string(), pos);
+        }
+    }
+
+    pub(crate) fn refresh_pk_rank_aura(&mut self, gid: u32) {
+        let Some((entity_type, effect_state, rank, alive)) = self
+            .game
+            .world
+            .entities
+            .get(gid)
+            .map(|e| (e.entity_type, e.effect_state, e.pk_rank, e.is_alive()))
+        else {
+            return;
+        };
+        let want = alive
+            && self.game.session.map_properties.is_pk_zone()
+            && level_aura::pk_rank_aura_visible(entity_type, rank, effect_state);
+        // The tint is baked in at spawn, so a rank change has to respawn.
+        let have = self
+            .game
+            .effect_keys
+            .toprank_keys
+            .get(&gid)
+            .is_some_and(|&(_, spawned_rank)| spawned_rank == rank);
+        match (want, have) {
+            (true, false) => {
+                self.despawn_pk_rank_aura(gid);
+                let key = self.next_entity_effect_key();
+                self.effect_queue.spawn_on_keyed_with_count(
+                    EffectId::Toprank,
+                    gid,
+                    key,
+                    rank as u8,
+                );
+                self.game.effect_keys.toprank_keys.insert(gid, (key, rank));
+            }
+            (false, _) => self.despawn_pk_rank_aura(gid),
+            _ => {}
+        }
+    }
+
+    pub(crate) fn despawn_pk_rank_aura(&mut self, gid: u32) {
+        if let Some((key, _)) = self.game.effect_keys.toprank_keys.remove(&gid) {
+            self.effect_queue.despawn(key);
+        }
+    }
+
+    /// The server drops the pvp mapflag by sending the new map property first
+    /// and the cleared ranks after, so the rank packets that follow are already
+    /// gated out by the PK-zone check.
+    pub(crate) fn clear_pvp_ranks(&mut self) {
+        for (_, (key, _)) in self.game.effect_keys.toprank_keys.drain() {
+            self.effect_queue.despawn(key);
+        }
+        for entity in self.game.world.entities.iter_mut() {
+            entity.pk_rank = 0;
+            entity.pk_total = 0;
+        }
+    }
+
     pub(crate) fn despawn_entity_effects(&mut self, gid: u32) {
         self.despawn_level_aura(gid);
         self.despawn_boss_aura(gid);
+        self.despawn_pk_rank_aura(gid);
         self.despawn_warp_portal(gid);
         if let Some(key) = self.game.effect_keys.spirit_keys.remove(&gid) {
             self.effect_queue.despawn(key);
@@ -1253,6 +1359,7 @@ impl App {
         }
         self.refresh_level_aura(gid);
         self.refresh_boss_aura(gid);
+        self.refresh_pk_rank_aura(gid);
         if self.game.world.entities.player_id() == Some(gid) {
             self.on_session_change(SessionChange::Resurrect);
         }

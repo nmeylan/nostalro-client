@@ -489,6 +489,14 @@ pub fn load_damage_number_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     )
 }
 
+pub fn load_rank_font_sprite(grf: &GrfArchive) -> Option<SpriteData> {
+    load_sprite_data(
+        grf,
+        "data/sprite/이팩트/rankfont.spr",
+        "data/sprite/이팩트/rankfont.act",
+    )
+}
+
 pub fn load_damage_miss_msg_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,

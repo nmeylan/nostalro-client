@@ -43,6 +43,7 @@ pub mod party;
 pub mod path;
 pub mod pet;
 pub mod pet_tables;
+pub mod pk_rank;
 pub mod poptip;
 pub mod quest;
 pub mod scheduled_hit;

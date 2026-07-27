@@ -230,6 +230,11 @@ pub enum GameEvent {
         gid: u32,
         count: u8,
     },
+    PvpRankingChanged {
+        account_id: u32,
+        ranking: i32,
+        total: i32,
+    },
     BladeStop {
         src_gid: u32,
         dest_gid: u32,

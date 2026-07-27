@@ -219,6 +219,8 @@ pub struct Entity {
     pub rooted: bool,
     pub base_level: i16,
     pub is_boss: bool,
+    pub pk_rank: i32,
+    pub pk_total: i32,
     pub forced_animation: Option<ForcedAnimation>,
     pub cart_type: Option<u8>,
     /// Vendor shop-name board; `Some` marks this actor as an open vend shop.
@@ -313,6 +315,8 @@ impl Entity {
             rooted: false,
             base_level: 0,
             is_boss: false,
+            pk_rank: 0,
+            pk_total: 0,
             forced_animation: None,
             cart_type: None,
             vending_board: None,
