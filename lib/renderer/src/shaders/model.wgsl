@@ -25,12 +25,34 @@ struct FogUniforms {
     enabled: f32,
 };
 
+struct CellLightUniforms {
+    cell_size: f32,
+    width: f32,
+    height: f32,
+    enabled: f32,
+};
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<uniform> light: LightUniforms;
 @group(0) @binding(2) var<storage, read> point_lights: array<PointLight>;
 @group(0) @binding(3) var<uniform> fog: FogUniforms;
+@group(0) @binding(4) var cell_light_texture: texture_2d<f32>;
+@group(0) @binding(5) var cell_light_sampler: sampler;
+@group(0) @binding(6) var<uniform> cell_light: CellLightUniforms;
 @group(1) @binding(0) var model_texture: texture_2d<f32>;
 @group(1) @binding(1) var model_sampler: sampler;
+
+fn cell_light_at(world_pos: vec3<f32>) -> vec3<f32> {
+    if (cell_light.enabled <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    let cell = floor(vec2<f32>(world_pos.x, world_pos.z) / cell_light.cell_size);
+    let dims = vec2<f32>(cell_light.width, cell_light.height);
+    if (any(cell < vec2<f32>(0.0)) || any(cell >= dims)) {
+        return vec3<f32>(0.0);
+    }
+    return textureSample(cell_light_texture, cell_light_sampler, (cell + 0.5) / dims).rgb;
+}
 
 fn apply_fog(color: vec3<f32>, view_z: f32) -> vec3<f32> {
     if (fog.enabled <= 0.0) {
@@ -70,6 +92,7 @@ struct VertexInput {
     @location(1) normal: vec3<f32>,
     @location(2) tex_coord: vec2<f32>,
     @location(3) alpha: f32,
+    @location(4) lit_scale: f32,
 };
 
 struct VertexOutput {
@@ -79,6 +102,7 @@ struct VertexOutput {
     @location(2) alpha: f32,
     @location(3) world_position: vec3<f32>,
     @location(4) view_z: f32,
+    @location(5) lit_scale: f32,
 };
 
 @vertex
@@ -89,6 +113,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.normal = in.normal;
     out.alpha = in.alpha;
     out.world_position = in.position;
+    out.lit_scale = in.lit_scale;
     let view_pos = camera.view * vec4<f32>(in.position, 1.0);
     out.view_z = view_pos.z;
     return out;
@@ -106,7 +131,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let diffuse = light.diffuse_color.rgb * n_dot_l;
     let lighting = diffuse + light.ambient_color.rgb;
 
-    var color = tex_color.rgb * lighting;
+    var color = tex_color.rgb * (lighting * in.lit_scale + cell_light_at(in.world_position));
     let pl = point_light_contribution(in.world_position, normalize(in.normal));
     color += tex_color.rgb * pl;
 

@@ -17,6 +17,7 @@ pub struct ModelVertex {
     pub normal: [f32; 3],
     pub tex_coord: [f32; 2],
     pub alpha: f32,
+    pub lit_scale: f32,
 }
 
 impl ModelVertex {
@@ -28,6 +29,7 @@ impl ModelVertex {
             1 => Float32x3,
             2 => Float32x2,
             3 => Float32,
+            4 => Float32,
         ],
     };
 }
@@ -390,6 +392,7 @@ pub struct AnimatedModelVertex {
     pub alpha: f32,
     /// Index into the per-frame node matrix array.
     pub node_slot: u32,
+    pub lit_scale: f32,
 }
 
 impl AnimatedModelVertex {
@@ -402,6 +405,7 @@ impl AnimatedModelVertex {
             2 => Float32x2,
             3 => Float32,
             4 => Uint32,
+            5 => Float32,
         ],
     };
 }
@@ -760,6 +764,7 @@ fn compile_animated_node(
                 tex_coord: [u, v],
                 alpha,
                 node_slot,
+                lit_scale: tex_vertex_lit_scale(node, tid),
             });
         }
 
@@ -1130,10 +1135,19 @@ fn compile_node(
                 normal: n,
                 tex_coord: [u, v],
                 alpha,
+                lit_scale: tex_vertex_lit_scale(node, tid),
             });
         }
 
         entry.1.extend_from_slice(&[base, base + 1, base + 2]);
+    }
+}
+
+/// A texture vertex carrying a colour renders at half the lit brightness.
+fn tex_vertex_lit_scale(node: &RsmNode, tex_vertex_id: usize) -> f32 {
+    match node.tex_vertices.get(tex_vertex_id) {
+        Some(tv) if tv.color != 0 => 0.5,
+        _ => 1.0,
     }
 }
 

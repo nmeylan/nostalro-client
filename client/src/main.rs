@@ -263,6 +263,7 @@ impl App {
         self.windows.map_missing_window.hide();
         self.game.session.map_coords = map_data.coordinates;
         self.game.session.gat = map_data.gat;
+        self.game.session.actor_lightmap = map_data.actor_lightmap;
         let was_locked = self.game.session.camera_locked;
         self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {

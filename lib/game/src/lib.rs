@@ -35,6 +35,7 @@ pub mod hotkey;
 pub mod job_class;
 pub mod keybinding;
 pub mod level_aura;
+pub mod lightmap;
 pub mod mail;
 pub mod map_loader;
 pub mod mob_info;

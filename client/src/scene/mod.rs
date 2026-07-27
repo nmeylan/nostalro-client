@@ -43,6 +43,18 @@ impl App {
         }
     }
 
+    /// Ground-lightmap tint for a sprite standing at `cell` (GAT coordinates).
+    fn actor_light(&self, cell: (f32, f32)) -> [f32; 3] {
+        let lightmap_on = self.renderer.as_ref().is_some_and(|r| r.lightmap_enabled());
+        if !lightmap_on {
+            return [1.0; 3];
+        }
+        match &self.game.session.actor_lightmap {
+            Some(lm) => lm.intensity_at(cell.0 as i32, cell.1 as i32),
+            None => [1.0; 3],
+        }
+    }
+
     pub(crate) fn compose_and_render(
         &mut self,
         render_list: &[RenderEntry],
@@ -176,6 +188,7 @@ impl App {
                             body_channels.tint = Some(rgb);
                         }
                         body_channels.alpha *= body_alpha;
+                        body_channels.light = self.actor_light(entity.movement.position());
 
                         // A living sprite stands upright (depth varies head-to-feet).
                         // A corpse lies flat, so its depth follows the ground plane.
@@ -507,6 +520,7 @@ impl App {
 
                         let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
                         let blink_active = blink_frame >= 90;
+                        let light = self.actor_light((floor_item.x as f32, floor_item.y as f32));
 
                         let center = [entry.screen_anchor[0], entry.screen_anchor[1] + y_offset];
 
@@ -541,6 +555,12 @@ impl App {
                                             for v in &mut vertices {
                                                 v.color = [1.0, 1.0, 1.0, 1.0];
                                             }
+                                        } else {
+                                            for v in &mut vertices {
+                                                v.color[0] *= light[0];
+                                                v.color[1] *= light[1];
+                                                v.color[2] *= light[2];
+                                            }
                                         }
                                         if tex_idx < tex.bind_groups.len() {
                                             sprite_batches.push(SpriteBatch {
@@ -568,6 +588,7 @@ impl App {
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= entity.alpha();
+                        body_channels.light = self.actor_light(entity.movement.position());
 
                         // Flat feet-depth silhouette so effects (e.g. the level 99
                         // aura) occlude against the cart instead of bleeding
@@ -609,6 +630,7 @@ impl App {
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= entity.alpha();
+                        body_channels.light = self.actor_light(entity.movement.position());
 
                         // Flat feet-depth silhouette so effects occlude against the
                         // falcon instead of bleeding through it (see the cart arm).

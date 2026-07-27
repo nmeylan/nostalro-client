@@ -11,6 +11,7 @@ use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::banner::BannerState;
+use ragnarok_game::cast_scope::CastScope;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
@@ -22,7 +23,6 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
-use ragnarok_game::cast_scope::CastScope;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
@@ -266,6 +266,8 @@ pub struct SessionState {
     pub map_properties: MapProperties,
     pub map_coords: Option<MapCoordinates>,
     pub gat: Option<GatFile>,
+    /// Per-cell ground-lightmap tint applied to sprites standing on the map.
+    pub actor_lightmap: Option<ragnarok_game::lightmap::ActorLightmap>,
     pub player_dead: bool,
     /// Set on indoor maps; locks the camera rotation to the fixed indoor angle.
     pub camera_locked: bool,
@@ -293,6 +295,7 @@ impl SessionState {
             map_properties: MapProperties::default(),
             map_coords: None,
             gat: None,
+            actor_lightmap: None,
             player_dead: false,
             camera_locked: false,
             saved_camera_yaw: None,

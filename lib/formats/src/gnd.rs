@@ -39,6 +39,12 @@ pub struct GndFile {
 }
 
 impl GndFile {
+    /// Whether the lightmaps carry the 8x8 shadow + RGB layout this parser reads.
+    /// Older files keep their lightmaps in a layout we skip, leaving zeroes behind.
+    pub fn has_lightmap_data(&self) -> bool {
+        version_at_least(self.version, 1, 7) && !self.lightmaps.is_empty()
+    }
+
     pub fn parse(data: &[u8]) -> Result<Self, FormatError> {
         let mut r = Cursor::new(data);
 

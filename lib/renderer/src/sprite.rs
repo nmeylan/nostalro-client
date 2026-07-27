@@ -579,15 +579,15 @@ impl SpriteRenderer {
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            let pipeline_for = |additive: bool, no_depth: bool| match (additive, has_depth, no_depth)
-            {
-                (false, true, false) => &self.pipeline,
-                (false, true, true) => &self.pipeline_overlay,
-                (false, false, _) => &self.pipeline_no_depth,
-                (true, true, false) => &self.pipeline_additive,
-                (true, true, true) => &self.pipeline_additive_overlay,
-                (true, false, _) => &self.pipeline_additive_no_depth,
-            };
+            let pipeline_for =
+                |additive: bool, no_depth: bool| match (additive, has_depth, no_depth) {
+                    (false, true, false) => &self.pipeline,
+                    (false, true, true) => &self.pipeline_overlay,
+                    (false, false, _) => &self.pipeline_no_depth,
+                    (true, true, false) => &self.pipeline_additive,
+                    (true, true, true) => &self.pipeline_additive_overlay,
+                    (true, false, _) => &self.pipeline_additive_no_depth,
+                };
             let mut current = (false, false);
             pass.set_pipeline(pipeline_for(current.0, current.1));
 
@@ -1586,6 +1586,8 @@ impl EntitySprite {
 pub struct BodyChannels {
     pub shake: [f32; 2],
     pub tint: Option<[u8; 3]>,
+    /// Ground-lightmap intensity of the cell the actor stands on.
+    pub light: [f32; 3],
     pub scale: f32,
     pub yaw: f32,
     pub alpha: f32,
@@ -1601,6 +1603,7 @@ impl Default for BodyChannels {
         Self {
             shake: [0.0, 0.0],
             tint: None,
+            light: [1.0; 3],
             scale: 1.0,
             yaw: 0.0,
             alpha: 1.0,
@@ -1826,6 +1829,16 @@ pub fn compose_actor_batches<'a>(
 
     for copy in channels.copies.iter().filter(|c| !c.behind) {
         out.append(&mut build_copy(copy));
+    }
+
+    if channels.light != [1.0; 3] {
+        for batch in &mut out {
+            for v in &mut batch.vertices {
+                v.color[0] *= channels.light[0];
+                v.color[1] *= channels.light[1];
+                v.color[2] *= channels.light[2];
+            }
+        }
     }
     out
 }

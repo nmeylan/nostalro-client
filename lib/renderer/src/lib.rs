@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod cell_light;
 pub mod damage_number;
 mod device;
 pub mod effect;
@@ -308,11 +309,17 @@ impl Renderer {
         self.lightmap_enabled
     }
 
+    pub fn lightmap_enabled(&self) -> bool {
+        self.lightmap_enabled
+    }
+
     pub fn set_lightmap_enabled(&mut self, enabled: bool) {
         self.lightmap_enabled = enabled;
         if let Some(ground) = &mut self.ground_renderer {
             ground.set_lightmap_enabled(enabled);
         }
+        self.global_uniforms
+            .set_cell_light_enabled(&self.device.queue, enabled);
         let mut light = self.base_light;
         if !enabled {
             for c in light.ambient_color.iter_mut().take(3) {
@@ -416,6 +423,12 @@ impl Renderer {
             self.device.surface_format,
         );
         self.ground_renderer = Some(ground_renderer);
+        self.global_uniforms.update_cell_light(
+            &self.device.device,
+            &self.device.queue,
+            cell_light::CellLightMap::from_gnd(gnd).as_ref(),
+            gnd.zoom,
+        );
         self.set_lightmap_enabled(self.lightmap_enabled);
 
         let props = ModelRenderer::from_rsw(

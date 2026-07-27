@@ -6,6 +6,7 @@ use ragnarok_formats::rsw::RswFile;
 
 use crate::data_table::fog_table::fog_table;
 use crate::data_table::indoor_table::indoor_table;
+use crate::lightmap::ActorLightmap;
 use ragnarok_formats::map_coordinates::MapCoordinates;
 
 pub struct MapData {
@@ -16,6 +17,7 @@ pub struct MapData {
     pub fog: Option<FogEntry>,
     /// Indoor maps lock the camera rotation to a fixed angle.
     pub indoor: bool,
+    pub actor_lightmap: Option<ActorLightmap>,
 }
 
 pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
@@ -73,6 +75,10 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
         gat_file = Some(gat);
     }
 
+    let actor_lightmap = gat_file
+        .as_ref()
+        .and_then(|gat| ActorLightmap::build(&gnd, gat));
+
     let fog = fog_table(grf).and_then(|table| table.get(&format!("{map_name}.rsw")));
 
     let rsw_basename = map_name
@@ -90,5 +96,6 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
         coordinates,
         fog,
         indoor,
+        actor_lightmap,
     })
 }
