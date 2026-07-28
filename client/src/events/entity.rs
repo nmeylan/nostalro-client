@@ -10,10 +10,10 @@ use models::enums::weapon::WeaponType;
 use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::day_night::EFST_SKE;
 use ragnarok_game::effect::{
     OPT3_BLADESTOP, StatusKind, UNT_USED_TRAPS, monster_opt3_reaction, opt3_bit_for_icon,
     opt3_bits, player_opt3_reaction, skill_unit_effect, skill_unit_entry_sound, status_reaction,
+    status_reaction_by_efst,
     trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
@@ -33,8 +33,17 @@ use ragnarok_game::status_icon::status_icon_info;
 /// A monster spawned with this value in the `head`/hair field is the player's pet.
 const PET_HEAD_MARKER: u16 = 100;
 
-const LEVEL_AURA_LAYERS: &[EffectId] = &[EffectId::Level99, EffectId::Level992, EffectId::Level993];
-const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Level993];
+/// The doubled mote column shows even with `/aura` off; the ring and the floor
+/// glow are what the toggle takes away.
+const LEVEL_AURA_MOTES: &[EffectId] = &[EffectId::Level993, EffectId::Level993];
+const LEVEL_AURA_LAYERS: &[EffectId] = &[
+    EffectId::Level993,
+    EffectId::Level993,
+    EffectId::Level99,
+    EffectId::Level992,
+];
+const BOSS_AURA_LAYERS: &[EffectId] =
+    &[EffectId::Green995, EffectId::Green996, EffectId::Green993];
 
 fn is_weather_effect(id: EffectId) -> bool {
     matches!(
@@ -870,30 +879,27 @@ impl App {
         remain_ms: u32,
         val1: i32,
     ) {
-        if efst == EFST_SKE {
-            if self.game.world.entities.player_id() == Some(gid) {
-                self.game.schedulers.day_night.set_night(active);
+        let is_player = self.game.world.entities.player_id() == Some(gid);
+        let raw_reaction = status_reaction_by_efst(efst);
+        let icon = ClientEffectIcon::try_from_value(efst as usize).ok();
+
+        if let Some(icon) = icon {
+            if let Some(entity) = self.game.world.entities.get_mut(gid) {
+                entity.react_to_status(icon, active);
             }
-            return;
+            if is_player {
+                self.set_status_icon(efst, active, val1, remain_ms as u64);
+            }
+            self.sync_opt3_bit_with_status(gid, icon, active);
         }
 
-        let Ok(icon) = ClientEffectIcon::try_from_value(efst as usize) else {
-            return;
-        };
-
-        if let Some(entity) = self.game.world.entities.get_mut(gid) {
-            entity.react_to_status(icon, active);
-        }
-
-        if self.game.world.entities.player_id() == Some(gid) {
-            self.set_status_icon(efst, active, val1, remain_ms as u64);
-        }
-
-        self.sync_opt3_bit_with_status(gid, icon, active);
-
-        let Some(reaction) = status_reaction(icon) else {
+        let Some(reaction) = raw_reaction.or_else(|| icon.and_then(status_reaction)) else {
             return;
         };
+
+        if reaction.night_filter && is_player {
+            self.game.schedulers.day_night.set_night(active);
+        }
 
         if reaction.kind == StatusKind::PushCart {
             self.handle_push_cart_status(gid, active, val1);
@@ -980,25 +986,36 @@ impl App {
         } else {
             entity_level
         };
-        let want = alive
-            && self.config.display.show_level_aura
-            && level_aura::level_aura_visible(entity_type, base_level, effect_state);
-        let have = self.game.effect_keys.level_aura_keys.contains_key(&gid);
-        match (want, have) {
-            (true, false) => {
-                let key = self.next_entity_effect_key();
-                for &id in LEVEL_AURA_LAYERS {
-                    self.effect_queue.spawn_on_keyed(id, gid, key);
-                }
-                self.game.effect_keys.level_aura_keys.insert(gid, key);
+        let visible =
+            alive && level_aura::level_aura_visible(entity_type, base_level, effect_state);
+        let want = visible.then(|| {
+            if self.config.display.show_level_aura {
+                LEVEL_AURA_LAYERS
+            } else {
+                LEVEL_AURA_MOTES
             }
-            (false, true) => self.despawn_level_aura(gid),
-            _ => {}
+        });
+        let have = self.game.effect_keys.level_aura_keys.get(&gid).copied();
+        if have.map(|(_, layers)| layers) == want {
+            return;
+        }
+        if have.is_some() {
+            self.despawn_level_aura(gid);
+        }
+        if let Some(layers) = want {
+            let key = self.next_entity_effect_key();
+            for &id in layers {
+                self.effect_queue.spawn_on_keyed(id, gid, key);
+            }
+            self.game
+                .effect_keys
+                .level_aura_keys
+                .insert(gid, (key, layers));
         }
     }
 
     pub(crate) fn despawn_level_aura(&mut self, gid: u32) {
-        if let Some(key) = self.game.effect_keys.level_aura_keys.remove(&gid) {
+        if let Some((key, _)) = self.game.effect_keys.level_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
@@ -1018,6 +1035,7 @@ impl App {
             return;
         };
         let want = alive
+            && self.config.custom.boss_aura
             && self.config.display.show_level_aura
             && level_aura::boss_aura_visible(entity_type, is_boss, level, effect_state);
         let have = self.game.effect_keys.boss_aura_keys.contains_key(&gid);

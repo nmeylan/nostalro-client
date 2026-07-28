@@ -39,6 +39,16 @@ pub const WHITELIGHT: SparkleColumnParams = SparkleColumnParams {
     scatter: 2.0,
 };
 
+pub const GREEN99: SparkleColumnParams = SparkleColumnParams {
+    texture: "whitelight.tga",
+    color_rgb: [0.14, 1.00, 0.14],
+    alpha_max: 0.85,
+    sprite_radius: 3.6,
+    rise_speed: 6.0,
+    count: 20,
+    scatter: 2.0,
+};
+
 pub const GHOST: SparkleColumnParams = SparkleColumnParams {
     texture: "ghost.bmp",
     color_rgb: [0.60, 0.60, 0.60],

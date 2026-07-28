@@ -17,9 +17,13 @@ pub fn skill_failure_message(cause: u8) -> Option<&'static str> {
         8 => "Blue Gemstone required",
         9 => "Overweight",
         10 => "Skill failed",
+        11 => "Cannot use on this target",
+        12 => "You cannot carry any more Ancilla",
         13 => "Holy Water required",
-        17 => "Need another skill first",
-        18 => "Need a partner",
+        14 => "Ancilla required",
+        16 => "Need another skill first",
+        17 => "Need a partner",
+        18 => "You are facing the wrong direction",
         _ => return None,
     })
 }
@@ -280,6 +284,8 @@ mod tests {
         assert_eq!(skill_failure_message(2), Some("Not enough HP"));
         assert_eq!(skill_failure_message(4), Some("Skill is on cooldown"));
         assert_eq!(skill_failure_message(7), Some("Red Gemstone required"));
+        assert_eq!(skill_failure_message(16), Some("Need another skill first"));
+        assert_eq!(skill_failure_message(17), Some("Need a partner"));
     }
 
     #[test]

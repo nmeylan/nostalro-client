@@ -124,7 +124,7 @@ pub struct EffectKeys {
     pub status_buff_keys: HashMap<(u32, i16), u32>,
     pub opt3_keys: HashMap<(u32, i32), u32>,
     pub next_status_buff_key: u32,
-    pub level_aura_keys: HashMap<u32, u32>,
+    pub level_aura_keys: HashMap<u32, (u32, &'static [EffectId])>,
     pub boss_aura_keys: HashMap<u32, u32>,
     pub warp_portal_keys: HashMap<u32, u32>,
     pub spirit_keys: HashMap<u32, u32>,
@@ -957,7 +957,7 @@ mod effect_reset_tests {
         keys.status_buff_keys.insert((1, 2), 3);
         keys.opt3_keys.insert((1, 2), 3);
         keys.next_status_buff_key = 9;
-        keys.level_aura_keys.insert(1, 1);
+        keys.level_aura_keys.insert(1, (1, &[]));
         keys.boss_aura_keys.insert(1, 1);
         keys.warp_portal_keys.insert(1, 1);
         keys.spirit_keys.insert(1, 1);

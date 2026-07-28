@@ -51,7 +51,7 @@ pub fn skill_use_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)
         S::PfDoublecasting => ("effect\\마법력 증폭.wav", NonPositional),
         S::CgMoonlit => ("effect\\달빛.wav", NonPositional),
         S::TkDodge => ("effect\\t_낙법.wav", Depth(-150.0)),
-        S::TkSevenwind => ("effect\\stin5.wav", NonPositional),
+        S::TkSevenwind => ("effect\\t_바람방출.wav", NonPositional),
         S::TkMission => ("effect\\t_피링.wav", Depth(-100.0)),
         S::SgFusion => ("effect\\t_변신.wav", NonPositional),
         S::SgHate => ("effect\\t_등록.wav", NonPositional),

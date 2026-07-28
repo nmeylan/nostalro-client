@@ -1,6 +1,7 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
+use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
@@ -11,6 +12,12 @@ use ragnarok_network::{
     build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
 };
 use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
+
+const DIRECTION_COUNT: u8 = 8;
+const QUARTER_TURN_DIRECTIONS: u8 = DIRECTION_COUNT / 4;
+
+const EFST_KYRIE: i16 = 19;
+const EFST_PARRYING: i16 = 104;
 
 impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
@@ -428,12 +435,18 @@ impl App {
         let target_is_self = hit.attacker_gid == entity_id;
         let target_pos = self.entity_world_pos(entity_id);
         let attacker_pos = self.entity_world_pos(hit.attacker_gid);
-        for effect in derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self) {
-            match (is_trail_effect(*effect), attacker_pos, target_pos) {
+        let markers = derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self);
+        if markers.spins_target
+            && let Some(entity) = self.game.world.entities.get_mut(entity_id)
+        {
+            entity.direction = (entity.direction + QUARTER_TURN_DIRECTIONS) % DIRECTION_COUNT;
+        }
+        for effect in markers.iter() {
+            match (is_trail_effect(effect), attacker_pos, target_pos) {
                 (true, Some(from), Some(to)) if !target_is_self => {
-                    self.effect_queue.spawn_trail(*effect, from, to);
+                    self.effect_queue.spawn_trail(effect, from, to);
                 }
-                _ => self.effect_queue.spawn_on(*effect, entity_id),
+                _ => self.effect_queue.spawn_on(effect, entity_id),
             }
         }
     }
@@ -494,6 +507,10 @@ impl App {
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)
             .unwrap_or(false);
         let is_player_attacker = self.game.world.entities.player_id() == Some(hit.attacker_gid);
+        if is_miss && self.blocks_incoming_blow(entity_id, hit.attacker_gid) {
+            self.effect_queue.spawn_on(EffectId::Guard, entity_id);
+            return;
+        }
         self.game.combat.damage_numbers.emit(
             display_entity,
             dir,
@@ -501,5 +518,26 @@ impl App {
             is_player_target,
             is_player_attacker,
         );
+    }
+
+    /// Whether the blow reads as absorbed rather than missed: only the local
+    /// player, only under Kyrie Eleison or Parrying, and only against a monster.
+    fn blocks_incoming_blow(&self, defender_gid: u32, attacker_gid: u32) -> bool {
+        if self.game.world.entities.player_id() != Some(defender_gid) {
+            return false;
+        }
+        let attacker_is_monster = self
+            .game
+            .world
+            .entities
+            .get(attacker_gid)
+            .is_some_and(|e| e.entity_type == ragnarok_game::entity::EntityType::Monster);
+        attacker_is_monster
+            && self
+                .game
+                .character
+                .active_statuses
+                .iter()
+                .any(|s| s.efst == EFST_KYRIE || s.efst == EFST_PARRYING)
     }
 }

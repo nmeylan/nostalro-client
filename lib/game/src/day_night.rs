@@ -1,4 +1,4 @@
-pub const EFST_SKE: i16 = 160;
+pub use ragnarok_effects::EFST_SKE;
 
 const FADE_RATE_PER_SEC: f32 = 0.3;
 const NIGHT_FLOOR: f32 = 0.5;

@@ -36,6 +36,14 @@ pub struct DebugConfig {
     pub trace_texture_load: bool,
 }
 
+/// Behaviour the original game has no counterpart for, off unless opted into.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomConfig {
+    /// Green aura under boss monsters at level 99 or above.
+    pub boss_aura: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginServer {
     pub name: String,
@@ -120,6 +128,8 @@ pub struct Config {
     /// also render it as a GM to itself. Has no effect for non-GM accounts.
     #[serde(default)]
     pub see_self_as_gm_when_gm: bool,
+    #[serde(default)]
+    pub custom: CustomConfig,
 }
 
 fn default_account_backgrounds() -> Vec<String> {
@@ -176,6 +186,7 @@ impl Default for Config {
             account_backgrounds: default_account_backgrounds(),
             admin_account_ids: Vec::new(),
             see_self_as_gm_when_gm: false,
+            custom: CustomConfig::default(),
         }
     }
 }

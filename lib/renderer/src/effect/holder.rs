@@ -7,7 +7,7 @@ use ragnarok_effects::{
     Afterimage, AlphaKeyframe, Attach, BodyAction, CameraShake, Effect as GameEffect,
     EffectDrawList, EffectQueue, EffectRenderCtx, EffectSpec, EffectStatus, EffectUpdateCtx,
     NumberRequest, SpawnRequest, SprBodyRecolor, SprBurstParams, custom_duration_ms, effect_spec,
-    make_effect, spawn_camera_shake,
+    make_effect, spawn_camera_shake, str_variant,
 };
 use ragnarok_formats::act::SpriteAnimationState;
 
@@ -332,11 +332,15 @@ impl EffectHolder {
         }
         let payload = match &spec {
             EffectSpec::Str { file, repeat, .. } => {
+                let name = match str_variant(effect_id, self.next_id) {
+                    "" => *file,
+                    variant => variant,
+                };
                 self.last_spawn = Some(SpawnOutcome::Str {
-                    name: (*file).to_string(),
+                    name: name.to_string(),
                 });
                 HeldPayload::Str {
-                    name: (*file).to_string(),
+                    name: name.to_string(),
                     repeat: *repeat,
                 }
             }
