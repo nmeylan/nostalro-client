@@ -1,4 +1,4 @@
-use ragnarok_formats::gnd::{GndFile, GndSurface, Lightmap};
+use ragnarok_formats::gnd::{GndCell, GndFile, GndSurface, Lightmap};
 use ragnarok_formats::grf::GrfArchive;
 
 use crate::device::DEPTH_FORMAT;
@@ -150,6 +150,8 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
     let mut texture_quads: std::collections::HashMap<String, (Vec<GroundVertex>, Vec<u32>)> =
         std::collections::HashMap::new();
 
+    let face_normals = build_face_normals(gnd);
+
     for y in 0..gnd.height {
         for x in 0..gnd.width {
             let cell_idx = (y * gnd.width + x) as usize;
@@ -170,35 +172,35 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                     [wx + gnd.zoom, cell.height_ne, wz + gnd.zoom],
                 ];
 
-                let normal = compute_quad_normal(&positions);
+                let normals = smooth_vertex_normals(gnd, &face_normals, x, y);
 
                 let lm_uvs = lightmap_uvs(surface.lightmap_id, atlas_dim);
 
                 let verts = [
                     GroundVertex {
                         position: positions[0],
-                        normal,
+                        normal: normals[0],
                         tex_coord: [surface.tex_u[0], surface.tex_v[0]],
                         lightmap_coord: lm_uvs[0],
                         color,
                     },
                     GroundVertex {
                         position: positions[1],
-                        normal,
+                        normal: normals[1],
                         tex_coord: [surface.tex_u[1], surface.tex_v[1]],
                         lightmap_coord: lm_uvs[1],
                         color,
                     },
                     GroundVertex {
                         position: positions[2],
-                        normal,
+                        normal: normals[2],
                         tex_coord: [surface.tex_u[2], surface.tex_v[2]],
                         lightmap_coord: lm_uvs[2],
                         color,
                     },
                     GroundVertex {
                         position: positions[3],
-                        normal,
+                        normal: normals[3],
                         tex_coord: [surface.tex_u[3], surface.tex_v[3]],
                         lightmap_coord: lm_uvs[3],
                         color,
@@ -389,6 +391,91 @@ fn bgra_to_rgba_f32(bgra: [u8; 4]) -> [f32; 4] {
         bgra[0] as f32 / 255.0, // B from R position
         bgra[3] as f32 / 255.0, // A
     ]
+}
+
+/// Normals of the two triangles making up a cell's top surface. Zero for cells
+/// that have no top surface, so they add nothing when a neighbour reads them.
+#[derive(Clone, Copy, Default)]
+struct FaceNormals {
+    face0: glam::Vec3,
+    face1: glam::Vec3,
+}
+
+fn build_face_normals(gnd: &GndFile) -> Vec<FaceNormals> {
+    gnd.cells
+        .iter()
+        .map(|cell| {
+            if cell.surface_up < 0 {
+                return FaceNormals::default();
+            }
+            let v0 = glam::Vec3::new(0.0, cell.height_sw, 0.0);
+            let v1 = glam::Vec3::new(gnd.zoom, cell.height_se, 0.0);
+            let v2 = glam::Vec3::new(0.0, cell.height_nw, gnd.zoom);
+            let v3 = glam::Vec3::new(gnd.zoom, cell.height_ne, gnd.zoom);
+            FaceNormals {
+                face0: (v2 - v0).cross(v2 - v1).normalize_or_zero(),
+                face1: (v3 - v2).cross(v3 - v1).normalize_or_zero(),
+            }
+        })
+        .collect()
+}
+
+/// Averages each corner of a cell's top quad with the neighbouring faces that
+/// share that corner's exact height, leaving a hard crease where heights differ.
+fn smooth_vertex_normals(gnd: &GndFile, faces: &[FaceNormals], x: i32, y: i32) -> [[f32; 3]; 4] {
+    let cell = &gnd.cells[(y * gnd.width + x) as usize];
+    let own = faces[(y * gnd.width + x) as usize];
+
+    let mut acc = [
+        own.face0,
+        own.face0 + own.face1,
+        own.face0 + own.face1,
+        own.face1,
+    ];
+
+    let neighbour = |dx: i32, dz: i32| -> Option<(&GndCell, FaceNormals)> {
+        let nx = x + dx;
+        let nz = y + dz;
+        if nx < 0 || nz < 0 || nx >= gnd.width || nz >= gnd.height {
+            return None;
+        }
+        let idx = (nz * gnd.width + nx) as usize;
+        Some((&gnd.cells[idx], faces[idx]))
+    };
+
+    type Height = fn(&GndCell) -> f32;
+    let terms: [(usize, i32, i32, Height, f32, bool, bool); 12] = [
+        (0, 0, -1, |c| c.height_nw, cell.height_sw, true, true),
+        (0, -1, 0, |c| c.height_se, cell.height_sw, true, true),
+        (0, -1, -1, |c| c.height_ne, cell.height_sw, false, true),
+        (1, 1, 0, |c| c.height_sw, cell.height_se, true, false),
+        (1, 0, -1, |c| c.height_ne, cell.height_se, false, true),
+        (1, 1, -1, |c| c.height_nw, cell.height_se, true, true),
+        (2, -1, 0, |c| c.height_ne, cell.height_nw, false, true),
+        (2, 0, 1, |c| c.height_sw, cell.height_nw, true, false),
+        (2, -1, 1, |c| c.height_se, cell.height_nw, true, true),
+        (3, 1, 0, |c| c.height_nw, cell.height_ne, true, true),
+        (3, 0, 1, |c| c.height_se, cell.height_ne, true, true),
+        (3, 1, 1, |c| c.height_sw, cell.height_ne, true, false),
+    ];
+
+    for &(corner, dx, dz, height_of, own_height, use_face0, use_face1) in &terms {
+        let Some((n_cell, n_faces)) = neighbour(dx, dz) else {
+            continue;
+        };
+        // Exact equality, no epsilon: the exactness is what keeps creases hard.
+        if height_of(n_cell) != own_height {
+            continue;
+        }
+        if use_face0 {
+            acc[corner] += n_faces.face0;
+        }
+        if use_face1 {
+            acc[corner] += n_faces.face1;
+        }
+    }
+
+    acc.map(|n| n.normalize_or_zero().to_array())
 }
 
 fn compute_quad_normal(positions: &[[f32; 3]; 4]) -> [f32; 3] {
@@ -615,6 +702,72 @@ mod tests {
         // 1px border replicates the nearest interior texel
         assert_eq!(at(0, 0), [192, 96, 48, 255]);
         assert_eq!(at(0, 1), [192, 96, 48, 255]);
+    }
+
+    /// Two cells side by side in x, heights given as [sw, se, nw, ne].
+    fn gnd_two_cells(cell_a: [f32; 4], cell_b: [f32; 4]) -> GndFile {
+        GndFile {
+            version: (1, 7),
+            width: 2,
+            height: 1,
+            zoom: 1.0,
+            textures: vec!["ground.bmp".to_string()],
+            lightmaps: Vec::new(),
+            surfaces: vec![GndSurface {
+                tex_u: [0.0, 1.0, 0.0, 1.0],
+                tex_v: [0.0, 0.0, 1.0, 1.0],
+                texture_id: 0,
+                lightmap_id: -1,
+                color_bgra: [255, 255, 255, 255],
+            }],
+            cells: [cell_a, cell_b]
+                .iter()
+                .map(|h| GndCell {
+                    height_sw: h[0],
+                    height_se: h[1],
+                    height_nw: h[2],
+                    height_ne: h[3],
+                    surface_up: 0,
+                    surface_south: -1,
+                    surface_east: -1,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn equal_shared_corner_height_averages_the_normal_in_both_quads() {
+        // Flat cell next to one sloping down along x, meeting at height 0.
+        let gnd = gnd_two_cells([0.0, 0.0, 0.0, 0.0], [0.0, -1.0, 0.0, -1.0]);
+        let (vertices, _, _) = build_mesh(&gnd, 1);
+
+        let flat_sw = vertices[0].normal;
+        let flat_se = vertices[1].normal;
+        let slope_sw = vertices[4].normal;
+
+        assert!(flat_sw[0].abs() < 1e-5 && (flat_sw[1] + 1.0).abs() < 1e-5);
+        for i in 0..3 {
+            assert!(
+                (flat_se[i] - slope_sw[i]).abs() < 1e-5,
+                "shared corner differs on axis {i}: {flat_se:?} vs {slope_sw:?}"
+            );
+        }
+        assert!(flat_se[0] < -0.1, "shared corner did not tilt: {flat_se:?}");
+    }
+
+    #[test]
+    fn height_step_leaves_each_quad_its_own_face_normal() {
+        // Same slope, but dropped so no corner height matches the flat cell.
+        let gnd = gnd_two_cells([0.0, 0.0, 0.0, 0.0], [-0.5, -1.5, -0.5, -1.5]);
+        let (vertices, _, _) = build_mesh(&gnd, 1);
+
+        let flat_se = vertices[1].normal;
+        let slope_sw = vertices[4].normal;
+
+        assert!(flat_se[0].abs() < 1e-5 && (flat_se[1] + 1.0).abs() < 1e-5);
+        let diagonal = -std::f32::consts::FRAC_1_SQRT_2;
+        assert!((slope_sw[0] - diagonal).abs() < 1e-4);
+        assert!((slope_sw[1] - diagonal).abs() < 1e-4);
     }
 
     #[test]
