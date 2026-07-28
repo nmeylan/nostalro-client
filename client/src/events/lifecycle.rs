@@ -33,8 +33,10 @@ impl App {
                 self.game.pending_casts.pending_skill_id = None;
                 self.game.pending_casts.pending_skill_level = None;
                 self.game.combat.attack_target_id = None;
+                self.game.combat.attack_request_sent = false;
                 self.game.combat.queued_move = None;
                 self.game.npc_cutins = [None, None, None];
+                self.game.session.progress_bar = None;
             }
             SessionChange::Logout => {
                 self.window_state_restored = false;
@@ -50,15 +52,19 @@ impl App {
                 }
                 self.game.sprite_caches.sprite_cache.clear();
                 self.game.world.floor_items.clear();
+                self.game.world.graffiti.clear();
+                self.game.world.cast_marks.clear();
                 self.game.assets.floor_item_sprites.clear();
                 self.game.chat_rooms.clear();
                 self.game.combat.waiting_item_throw_ack = false;
                 self.windows.drop_quantity_dialog = None;
                 self.windows.guild_expel_dialog = None;
+                self.windows.skill_talkbox_dialog = None;
                 self.windows.card_insert_dialog = None;
                 self.game.pending_casts.pending_card_composition_index = None;
                 self.game.pending_casts.pending_pickup_item_id = None;
                 self.game.combat.attack_target_id = None;
+                self.game.combat.attack_request_sent = false;
                 self.game.combat.queued_move = None;
                 self.game.companions.homunculus = None;
                 self.game.companions.mercenary = None;
@@ -75,6 +81,7 @@ impl App {
                 self.game.sprite_caches.guild_head_sprites.clear();
                 self.windows.guild_window.open = false;
                 self.game.session.current_map = None;
+                self.game.session.progress_bar = None;
                 self.game.session.map_coords = None;
                 self.game.session.gat = None;
                 self.effect_holder.clear();
@@ -85,6 +92,7 @@ impl App {
                     ragnarok_game::sound::ambient::AmbientSoundScheduler::empty();
                 self.game.schedulers.repeat_sounds.clear();
                 self.game.effect_keys.status_buff_keys.clear();
+                self.game.effect_keys.opt3_keys.clear();
                 self.game.effect_keys.next_status_buff_key = 0;
                 self.game.effect_keys.level_aura_keys.clear();
                 self.game.effect_keys.boss_aura_keys.clear();

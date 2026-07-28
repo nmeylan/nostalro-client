@@ -30,6 +30,7 @@ pub(crate) fn chat_room_board_rect(entry: &RenderEntry) -> [f32; 4] {
 const HP_BAR_WIDTH: f32 = 60.0;
 pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
 const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
+const CAST_BAR_COLOR: [f32; 4] = [0.0, 0.8, 0.0, 1.0];
 const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
 const MOB_INFO_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const EMBLEM_HOVER_SIZE: f32 = 24.0;
@@ -347,6 +348,19 @@ impl App {
     fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         use models::enums::skill_enums::SkillEnum;
         use ragnarok_game::effect::casting_skill;
+        if let Some(bar) = &self.game.session.progress_bar
+            && let Some(entry) = render_list
+                .iter()
+                .find(|e| self.game.world.entities.is_player(e.id))
+        {
+            render_bar(
+                entry.screen_anchor[0],
+                entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0,
+                bar.fraction(),
+                CAST_BAR_COLOR,
+                calls,
+            );
+        }
         for entry in render_list {
             if (self.config.display.show_other_cast_bars
                 || self.game.world.entities.is_player(entry.id))
@@ -359,12 +373,11 @@ impl App {
             {
                 let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
                 let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
-                let cast_color = [0.0, 0.8, 0.0, 1.0];
                 render_bar(
                     entry.screen_anchor[0],
                     cast_bar_y,
                     progress,
-                    cast_color,
+                    CAST_BAR_COLOR,
                     calls,
                 );
             }

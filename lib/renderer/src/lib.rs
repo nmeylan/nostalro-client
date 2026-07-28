@@ -7,6 +7,7 @@ pub mod font_atlas;
 pub mod fps;
 pub mod global_uniforms;
 pub mod gr2_model;
+pub mod graffiti;
 pub mod grid_selector;
 pub mod ground;
 pub mod ground_proxy;
@@ -149,8 +150,13 @@ fn build_effect_records<'tex>(
         if name.is_empty() {
             return None;
         }
-        name.split('|')
-            .find_map(|candidate| texture_cache.get(&effect::effect_texture_path(candidate)))
+        // Runtime-composed textures are registered under their own key, which must not
+        // be rewritten into a GRF path.
+        name.split('|').find_map(|candidate| {
+            texture_cache
+                .get(candidate)
+                .or_else(|| texture_cache.get(&effect::effect_texture_path(candidate)))
+        })
     };
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     records.extend(prepare_billboard_records(
@@ -513,6 +519,35 @@ impl Renderer {
             }
         }
         all_loaded
+    }
+
+    /// Builds a Graffiti message decal and registers it under `key`. Returns false
+    /// when the alphabet atlas is missing from the GRF.
+    pub fn build_graffiti_texture(&mut self, key: &str, message: &str, grf: &GrfArchive) -> bool {
+        let Ok(bytes) = grf.read_file(graffiti::ALPHABET_TEXTURE) else {
+            return false;
+        };
+        let Ok(atlas) = image::load_from_memory_with_format(&bytes, image::ImageFormat::Bmp) else {
+            return false;
+        };
+        let mut atlas = atlas.to_rgba8();
+        ragnarok_formats::apply_magenta_transparency(atlas.as_mut());
+        let composed = graffiti::compose(&atlas, message);
+        let (w, h) = (composed.width(), composed.height());
+        let bind_group = texture::create_texture_bind_group_from_rgba(
+            &self.device.device,
+            &self.device.queue,
+            composed.as_raw(),
+            w,
+            h,
+            &self.texture_cache.bind_group_layout,
+            key,
+            wgpu::FilterMode::Linear,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::AddressMode::ClampToEdge,
+        );
+        self.texture_cache.insert(key, bind_group, w, h);
+        true
     }
 
     /// Changes the UI scale at runtime. The font atlas is re-rasterized at the

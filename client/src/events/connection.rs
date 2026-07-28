@@ -114,6 +114,34 @@ impl App {
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
     }
 
+    /// The re-entry handshake resends the landing cell in `ZC_ACCEPT_ENTER`, so the
+    /// coordinates carried here are not needed.
+    pub(super) fn handle_zone_server_changed(&mut self, map_name: String, ip: u32, port: i16) {
+        tracing::info!(
+            "Zone server change to '{map_name}' at {}:{port}",
+            ip_u32_to_string(ip)
+        );
+        self.on_session_change(SessionChange::MapChange);
+        self.clear_map_actors();
+        self.game.session.current_map = None;
+        self.game.character.inventory.clear();
+        if let Some(session) = &mut self.game.session.login_session {
+            session.map_name = map_name;
+        }
+
+        let addr = format!("{}:{}", ip_u32_to_string(ip), port);
+        self.channel.send_cmd(NetworkCommand::Disconnect);
+        self.channel.send_cmd(NetworkCommand::Connect {
+            addr,
+            expect_aid: true,
+        });
+        if let Some(session) = &self.game.session.login_session {
+            self.channel.send_packet(build_zone_enter_packet(session));
+        }
+        self.channel
+            .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
+    }
+
     pub(super) fn handle_accessible_maps_received(
         &mut self,
         maps: Vec<ragnarok_game::event::AccessibleMap>,
@@ -384,6 +412,8 @@ impl App {
         self.game.companions.pet.clear_entity();
         self.game.quest_markers.clear();
         self.game.world.floor_items.clear();
+        self.game.world.graffiti.clear();
+        self.game.world.cast_marks.clear();
         self.game.assets.floor_item_sprites.clear();
         self.game.schedulers.repeat_sounds.clear();
         if let Some(guild) = &mut self.game.guild {

@@ -217,6 +217,8 @@ pub struct Entity {
     pub health_state: i16,
     /// Blade Stop / Root: darkens the body and freezes motion until released.
     pub rooted: bool,
+    /// opt3 status bits, the only channel that carries the body-buff auras.
+    pub opt3: i32,
     pub base_level: i16,
     pub is_boss: bool,
     pub forced_animation: Option<ForcedAnimation>,
@@ -311,6 +313,7 @@ impl Entity {
             body_state: 0,
             health_state: 0,
             rooted: false,
+            opt3: 0,
             base_level: 0,
             is_boss: false,
             forced_animation: None,

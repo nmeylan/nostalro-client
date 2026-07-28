@@ -117,6 +117,9 @@ impl App {
                 } => {
                     self.handle_zone_server_connect_info(char_id, map_name, ip, port);
                 }
+                GameEvent::ZoneServerChanged { map_name, ip, port } => {
+                    self.handle_zone_server_changed(map_name, ip, port);
+                }
                 GameEvent::AccessibleMapsReceived { maps } => {
                     self.handle_accessible_maps_received(maps);
                 }
@@ -318,6 +321,14 @@ impl App {
                             )
                         });
                     }
+                }
+                GameEvent::EntityOpt3Changed {
+                    gid,
+                    effect_state,
+                    base_level,
+                    opt3,
+                } => {
+                    self.handle_entity_opt3_changed(gid, effect_state, base_level, opt3);
                 }
                 GameEvent::StatusEffectChanged {
                     gid,
@@ -765,6 +776,22 @@ impl App {
                 GameEvent::ShowSystemMessage { message } => {
                     self.windows.chat_window.add_system(message);
                 }
+                GameEvent::ServerMsg { msg_id } => {
+                    self.handle_server_msg(msg_id);
+                }
+                GameEvent::WhisperSettingResult { allow, result, all } => {
+                    self.handle_whisper_setting_result(allow, result, all);
+                }
+                GameEvent::MemoResult { result } => {
+                    self.handle_memo_result(result);
+                }
+                GameEvent::ProgressBarStarted { duration_secs } => {
+                    self.game.session.progress_bar =
+                        Some(ragnarok_game::progress_bar::ProgressBar::new(duration_secs));
+                }
+                GameEvent::ProgressBarCancelled => {
+                    self.finish_progress_bar();
+                }
 
                 GameEvent::CardInsertItemList { equip_indices, .. } => {
                     self.handle_card_insert_item_list(equip_indices);
@@ -877,6 +904,7 @@ impl App {
                             display_name,
                         );
                         self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
+                        self.spawn_cast_mark(skill_id, gid, target_gid, x, y, delay_ms);
                     }
                 }
                 GameEvent::SkillListReceived { skills } => {
@@ -982,6 +1010,18 @@ impl App {
                 } => {
                     self.handle_skill_unit_entered(aid, creator_aid, x, y, unit_id, is_visible);
                 }
+                GameEvent::GraffitiEntered {
+                    aid,
+                    creator_aid,
+                    x,
+                    y,
+                    message,
+                } => {
+                    self.handle_graffiti_entered(aid, creator_aid, x, y, message);
+                }
+                GameEvent::MapCellChanged { x, y, cell_type } => {
+                    self.handle_map_cell_changed(x, y, cell_type);
+                }
                 GameEvent::SkillUnitDisappeared { aid } => {
                     self.handle_skill_unit_disappeared(aid);
                 }
@@ -991,6 +1031,7 @@ impl App {
                 GameEvent::SkillCastCancel { gid } => {
                     self.fire_autocounter_on_cancel(gid);
                     self.game.world.entities.apply_skill_cast_cancel(gid);
+                    self.clear_cast_mark(gid);
                 }
                 GameEvent::SkillFailed { skill_id, cause } => {
                     self.handle_skill_failed(skill_id, cause);
@@ -1205,6 +1246,14 @@ impl App {
                 }
                 GameEvent::GuildCreateResult { result } => {
                     self.handle_guild_create_result(result);
+                }
+                GameEvent::GuildMemberOnline {
+                    aid,
+                    gid,
+                    online,
+                    appearance,
+                } => {
+                    self.handle_guild_member_online(aid, gid, online, appearance);
                 }
                 GameEvent::GuildMemberLeft { name, reason } => {
                     self.handle_guild_member_left(name, reason);
@@ -2648,6 +2697,24 @@ impl App {
                         .arm_confirm(&mut self.windows, &format!("Leave {name}?"), |accept| {
                             accept.then_some(GameEvent::ConfirmedGuildLeave)
                         });
+                }
+                GameEvent::ConfirmedSkillTalkbox {
+                    skill_id,
+                    level,
+                    x,
+                    y,
+                    message,
+                } => {
+                    self.channel.send_packet(
+                        ragnarok_network::build_use_skill_to_ground_with_talkbox_packet(
+                            skill_id,
+                            level,
+                            x,
+                            y,
+                            &message,
+                            self.active_packetver,
+                        ),
+                    );
                 }
                 GameEvent::RequestGuildExpel { aid, gid, name } => {
                     self.windows.guild_expel_dialog = Some(GuildExpelDialog::new(aid, gid, name));

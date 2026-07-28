@@ -109,16 +109,24 @@ pub fn prepare_world_quad_records<'tex>(
 ) -> Vec<DrawRecord<'tex>> {
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     for (emission, prim) in list.primitives.iter().enumerate() {
-        let EffectPrimitiveDraw::WorldQuad {
-            corners,
-            uv,
-            texture,
-            color,
-            blend,
-            no_depth,
-        } = prim
-        else {
-            continue;
+        let (corners, uv, texture, color, blend, no_depth) = match prim {
+            EffectPrimitiveDraw::WorldQuad {
+                corners,
+                uv,
+                texture,
+                color,
+                blend,
+                no_depth,
+            } => (corners, uv, *texture, color, blend, no_depth),
+            EffectPrimitiveDraw::KeyedWorldQuad {
+                corners,
+                uv,
+                texture_key,
+                color,
+                blend,
+                no_depth,
+            } => (corners, uv, texture_key.as_str(), color, blend, no_depth),
+            _ => continue,
         };
 
         let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);

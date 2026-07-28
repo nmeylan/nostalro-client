@@ -71,6 +71,8 @@ impl App {
         self.update_arrows(delta);
         self.check_pending_pickup();
         self.check_pending_attack(delta);
+        self.update_progress_bar(delta);
+        self.update_cast_marks(delta);
         self.check_pending_skill();
         self.check_pending_ground_skill();
         self.load_missing_entity_sprites();

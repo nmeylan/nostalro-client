@@ -292,6 +292,10 @@ impl ChatWindow {
         self.add_message(message, color, ChatChannel::Public);
     }
 
+    pub fn add_notice(&mut self, message: String) {
+        self.add_message(message, WHITE, ChatChannel::System);
+    }
+
     pub fn add_system(&mut self, message: String) {
         self.add_message(message, YELLOW, ChatChannel::System);
     }

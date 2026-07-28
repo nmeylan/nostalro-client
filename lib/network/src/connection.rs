@@ -241,9 +241,10 @@ enum FrameLen {
 mod tests {
     use super::*;
     use packets::packets::{
-        PacketZcAcceptEnter2, PacketZcAid, PacketZcNotifyPlayerchat, PacketZcNotifyTime,
-        PacketZcReqWearEquipAck,
+        PacketHcNotifyZonesvr, PacketZcAcceptEnter2, PacketZcAid, PacketZcNotifyPlayerchat,
+        PacketZcNotifyTime, PacketZcReqWearEquipAck,
     };
+    use std::net::Ipv4Addr;
 
     fn greeting_stream(packetver: u32, aid_bytes: &[u8]) -> Vec<u8> {
         let mut enter = PacketZcAcceptEnter2::new(packetver);
@@ -267,14 +268,21 @@ mod tests {
         let framed = Connection::drain_packets(&mut buffer, packetver, PacketTrace::None);
         assert_eq!(framed.len(), 2);
         assert_eq!(
-            framed[0].as_any().downcast_ref::<PacketZcAid>().unwrap().aid,
+            framed[0]
+                .as_any()
+                .downcast_ref::<PacketZcAid>()
+                .unwrap()
+                .aid,
             2000000
         );
         assert!(framed[1].as_any().is::<PacketZcAcceptEnter2>());
         assert!(buffer.is_empty());
 
         let mut buffer = greeting_stream(packetver, &2000000u32.to_le_bytes());
-        assert_eq!(Connection::take_bare_aid_preamble(&mut buffer), Some(2000000));
+        assert_eq!(
+            Connection::take_bare_aid_preamble(&mut buffer),
+            Some(2000000)
+        );
         let framed = Connection::drain_packets(&mut buffer, packetver, PacketTrace::None);
         assert_eq!(framed.len(), 1);
         assert!(framed[0].as_any().is::<PacketZcAcceptEnter2>());
@@ -332,6 +340,38 @@ mod tests {
             assert_eq!(expected, ack.raw.len());
             assert_eq!(expected, PacketZcReqWearEquipAck::base_len(packetver));
         }
+    }
+
+    /// A packet ending in a nested struct is longer than the fields before it, and
+    /// must be framed at its full length rather than parsed short.
+    #[test]
+    fn a_packet_ending_in_a_nested_struct_is_framed_whole() {
+        let packetver = 20111102;
+        let mut stream = vec![0x71, 0x00];
+        stream.extend_from_slice(&150000u32.to_le_bytes());
+        stream.extend_from_slice(b"new_1-1.gat\0\0\0\0\0");
+        stream.extend_from_slice(&u32::from(Ipv4Addr::new(127, 0, 0, 1)).to_be_bytes());
+        stream.extend_from_slice(&6121i16.to_le_bytes());
+
+        let expected = match Connection::frame_len(&stream, packetver) {
+            FrameLen::Known(len) => len,
+            _ => panic!("no framing length"),
+        };
+        assert_eq!(expected, stream.len());
+
+        let mut short = stream[..stream.len() - 6].to_vec();
+        assert!(Connection::drain_packets(&mut short, packetver, PacketTrace::None).is_empty());
+
+        let mut buffer = stream.clone();
+        let framed = Connection::drain_packets(&mut buffer, packetver, PacketTrace::None);
+        assert_eq!(framed.len(), 1);
+        let zonesvr = framed[0]
+            .as_any()
+            .downcast_ref::<PacketHcNotifyZonesvr>()
+            .unwrap();
+        assert_eq!(zonesvr.gid, 150000);
+        assert_eq!(zonesvr.addr.port, 6121);
+        assert!(buffer.is_empty());
     }
 
     /// A packet split mid-stream must not stall the packets that precede it.

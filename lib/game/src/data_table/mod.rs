@@ -5,6 +5,7 @@ use crate::data_table::item_description_table::ItemDescriptionTable;
 use crate::data_table::item_name_table::ItemNameTable;
 use crate::data_table::item_resource_table::ItemResourceTable;
 use crate::data_table::item_slot_count_table::ItemSlotCountTable;
+use crate::data_table::msg_string_table::MsgStringTable;
 use crate::data_table::name_table::NameTable;
 use crate::data_table::quest_display_table::QuestDisplayTable;
 use crate::data_table::skill_description_table::SkillDescriptionTable;
@@ -21,6 +22,7 @@ pub mod item_description_table;
 pub mod item_name_table;
 pub mod item_resource_table;
 pub mod item_slot_count_table;
+pub mod msg_string_table;
 pub mod name_table;
 pub mod quest_display_table;
 pub mod skill_description_table;
@@ -43,6 +45,7 @@ pub struct DataTable {
     pub skill_use_level: Option<SkillUseLevelTable>,
     pub pet_talk: Option<ragnarok_formats::pettalk::PetTalkTable>,
     pub quest_display: Option<QuestDisplayTable>,
+    pub msg_string: Option<MsgStringTable>,
 }
 
 impl DataTable {
@@ -62,6 +65,7 @@ impl DataTable {
             skill_use_level: None,
             pet_talk: None,
             quest_display: None,
+            msg_string: None,
         }
     }
 }

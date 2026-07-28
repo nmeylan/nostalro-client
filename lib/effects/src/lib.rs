@@ -5,6 +5,7 @@ pub mod effect_queue;
 pub mod effect_trait;
 pub mod effects;
 pub mod factory;
+pub mod opt3;
 pub mod projectile;
 pub mod radial_emitter;
 pub mod sfx;
@@ -27,6 +28,10 @@ pub use effect_trait::{
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::make_effect;
+pub use opt3::{
+    OPT3_BLADESTOP, Opt3Reaction, monster_opt3_reaction, opt3_bit_for_icon, opt3_bits,
+    player_opt3_reaction,
+};
 pub use skill_effects::{
     CasterSkillEffects, CastingSkill, TargetSkillEffects, begin_cast_effect,
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,

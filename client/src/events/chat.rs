@@ -143,4 +143,77 @@ impl App {
         };
         self.windows.chat_window.add_system(message);
     }
+
+    pub(super) fn handle_whisper_setting_result(&mut self, allow: bool, result: u8, all: bool) {
+        let pending = self.game.pending_confirms.pending_whisper_block.take();
+        let block = !allow;
+        if all {
+            let message = match (result, block) {
+                (0, true) => "Blocking all whispers.",
+                (0, false) => "Accepting all whispers.",
+                _ => "Could not change your whisper setting.",
+            };
+            self.windows.chat_window.add_system(message.to_string());
+            return;
+        }
+        let Some((name, _)) = pending else {
+            return;
+        };
+        match result {
+            0 => {
+                self.game.prefs.blocked_whispers.retain(|n| n != &name);
+                if block {
+                    self.game.prefs.blocked_whispers.push(name.clone());
+                }
+                let verb = if block { "Blocked" } else { "Unblocked" };
+                self.windows
+                    .chat_window
+                    .add_system(format!("{verb} whispers from {name}."));
+            }
+            2 => self
+                .windows
+                .chat_window
+                .add_error("Your block list is full.".to_string()),
+            _ => self
+                .windows
+                .chat_window
+                .add_error(format!("Could not change whisper setting for {name}.")),
+        }
+    }
+
+    pub(super) fn handle_memo_result(&mut self, result: u8) {
+        match result {
+            0 => self
+                .windows
+                .chat_window
+                .add_system("Saved location as a Memo Point for Warp skill.".to_string()),
+            1 => self
+                .windows
+                .chat_window
+                .add_error("Skill Level is not high enough.".to_string()),
+            _ => self
+                .windows
+                .chat_window
+                .add_error("You haven't learned Warp.".to_string()),
+        }
+    }
+
+    pub(super) fn handle_server_msg(&mut self, msg_id: u16) {
+        let Some(message) = self
+            .game
+            .data_table
+            .msg_string
+            .as_ref()
+            .and_then(|t| t.get(msg_id))
+            .map(str::to_string)
+        else {
+            tracing::debug!("Unknown server msg id {msg_id}");
+            return;
+        };
+        if ragnarok_game::data_table::msg_string_table::is_error_msg(msg_id) {
+            self.windows.chat_window.add_error(message);
+        } else {
+            self.windows.chat_window.add_notice(message);
+        }
+    }
 }

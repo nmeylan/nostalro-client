@@ -133,6 +133,7 @@ impl App {
         self.game.combat.queued_move = None;
         let locked = self.game.prefs.noctrl_mode || self.input.ctrl_pressed;
         self.game.combat.attack_is_locked = locked;
+        self.game.combat.attack_request_sent = false;
 
         let target_pos = match self.game.world.entities.get(target_id) {
             Some(e) => e.movement.cell_position(),
@@ -162,11 +163,26 @@ impl App {
 
     pub(crate) fn send_attack_packet(&mut self, target_id: u32) {
         self.game.combat.last_attacked_enemy = Some(target_id);
+        self.game.combat.attack_request_sent = true;
         self.channel.send_packet(build_action_request_packet(
             target_id,
             ActionType::AttackRepeat.value() as u8,
             self.active_packetver,
         ));
+    }
+
+    /// Drops the local attack target and tells the server to stop the repeat
+    /// attack it is still running on our behalf.
+    pub(crate) fn stop_attacking(&mut self) {
+        self.game.combat.attack_target_id = None;
+        if !self.game.combat.attack_request_sent {
+            return;
+        }
+        self.game.combat.attack_request_sent = false;
+        self.channel
+            .send_packet(ragnarok_network::build_cancel_lockon_packet(
+                self.active_packetver,
+            ));
     }
 
     pub(crate) fn try_move_toward(

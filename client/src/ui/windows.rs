@@ -70,6 +70,7 @@ use ragnarok_ui_component::game::read_mail_window::READ_MAIL_WINDOW_ID;
 use ragnarok_ui_component::game::read_mail_window::ReadMailWindow;
 use ragnarok_ui_component::game::shortcut_list_window::SHORTCUT_LIST_WINDOW_ID;
 use ragnarok_ui_component::game::shortcut_list_window::ShortcutListWindow;
+use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
 use ragnarok_ui_component::game::skill_tree_window::SKILL_WINDOW_ID;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::sound_options::SOUND_OPTIONS_WINDOW_ID;
@@ -120,6 +121,7 @@ pub struct Windows {
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub guild_expel_dialog: Option<GuildExpelDialog>,
+    pub skill_talkbox_dialog: Option<SkillTalkboxDialog>,
     pub card_insert_dialog: Option<CardInsertDialog>,
     pub card_insert_dialog_has_grf_textures: bool,
     pub item_info_window: ItemInfoWindow,
@@ -186,6 +188,7 @@ impl Windows {
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
             guild_expel_dialog: None,
+            skill_talkbox_dialog: None,
             card_insert_dialog: None,
             card_insert_dialog_has_grf_textures: false,
             item_info_window: ItemInfoWindow::new(),

@@ -16,6 +16,7 @@ pub const ID_BLOCKS: &[IdBlock] = &[
     block("game/confirm_dialog.rs", 400, 419),
     block("game/drop_quantity_dialog.rs", 420, 424),
     block("game/guild_expel_dialog.rs", 425, 429),
+    block("game/skill_talkbox_dialog.rs", 430, 434),
     block("game/system_menu.rs", 500, 599),
     block("game/npc_dialog.rs", 600, 699),
     block("game/npc_shop.rs", 700, 799),

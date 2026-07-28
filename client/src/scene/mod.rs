@@ -1,5 +1,6 @@
 mod render_list;
 
+use crate::game_state::CastMark;
 use crate::game_updates::CREATE_PREVIEW_GID;
 use crate::{App, ClipData};
 use ragnarok_game::ailment;
@@ -19,6 +20,9 @@ use ragnarok_renderer::{
 
 /// Action index of the ice-shatter in `얼음땡.act` (action 0 is the block).
 const FREEZE_SHATTER_ACTION: usize = 1;
+
+/// Negative Y is up, so this lifts the graffiti decal clear of the terrain.
+const GRAFFITI_GROUND_LIFT: f32 = -0.3;
 
 impl App {
     /// Stealth-visibility relationship of the local player to `gid`: their own
@@ -1009,7 +1013,7 @@ impl App {
         if let Some(renderer) = &mut self.renderer {
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let arrow_draws: Vec<EffectPrimitiveDraw> = self
+            let mut arrow_draws: Vec<EffectPrimitiveDraw> = self
                 .game
                 .world
                 .arrows
@@ -1027,6 +1031,52 @@ impl App {
                     no_depth: false,
                 })
                 .collect();
+            if let (Some(gat), Some(coords)) = (
+                self.game.session.gat.as_ref(),
+                self.game.session.map_coords.as_ref(),
+            ) {
+                let cell_size = coords.cell_to_world(1.0, 0.0).0 - coords.cell_to_world(0.0, 0.0).0;
+                for (aid, g) in &self.game.world.graffiti {
+                    let (cx, cy) = (g.cell_x as f32 + 0.5, g.cell_y as f32 + 0.5);
+                    let (wx, _, wz) = coords.cell_to_world(cx, cy);
+                    let center = [wx, gat.get_height(cx, cy) + GRAFFITI_GROUND_LIFT, wz];
+                    let (corners, uv) =
+                        ragnarok_game::graffiti::decal_quad(center, g.yaw, cell_size);
+                    arrow_draws.push(EffectPrimitiveDraw::KeyedWorldQuad {
+                        corners,
+                        uv,
+                        texture_key: ragnarok_renderer::graffiti::texture_key(*aid),
+                        color: [1.0, 1.0, 1.0, 1.0],
+                        blend: BlendKind::Alpha,
+                        no_depth: false,
+                    });
+                }
+                for mark in self.game.world.cast_marks.values() {
+                    let CastMark::Scope(scope) = mark else {
+                        continue;
+                    };
+                    let (ox, oy) = scope.origin_cell();
+                    let color = scope.color();
+                    for row in 0..scope.size {
+                        for col in 0..scope.size {
+                            let (cx, cy) = (ox + col as i32, oy + row as i32);
+                            if !coords.is_valid_cell(cx, cy) {
+                                continue;
+                            }
+                            let c = coords.cell_corners_world(gat, cx, cy);
+                            let uv = scope.cell_uv(col, row);
+                            arrow_draws.push(EffectPrimitiveDraw::WorldQuad {
+                                corners: [c[0], c[1], c[3], c[2]],
+                                uv: [uv[0], uv[1], uv[3], uv[2]],
+                                texture: ragnarok_game::cast_scope::SCOPE_TEXTURE,
+                                color,
+                                blend: BlendKind::Alpha,
+                                no_depth: false,
+                            });
+                        }
+                    }
+                }
+            }
             let zoom = self
                 .game
                 .session

@@ -34,6 +34,13 @@ pub enum GameEvent {
         ip: u32,
         port: i16,
     },
+    /// The destination map is hosted by a different zone server: reconnect there
+    /// and re-enter.
+    ZoneServerChanged {
+        map_name: String,
+        ip: u32,
+        port: i16,
+    },
     AccessibleMapsReceived {
         maps: Vec<AccessibleMap>,
     },
@@ -217,6 +224,12 @@ pub enum GameEvent {
         health_state: i16,
         effect_state: i32,
     },
+    EntityOpt3Changed {
+        gid: u32,
+        effect_state: i32,
+        base_level: i32,
+        opt3: i32,
+    },
     PlayEffectOnEntity {
         gid: u32,
         effect_id: i32,
@@ -338,6 +351,18 @@ pub enum GameEvent {
     },
     SkillUnitDisappeared {
         aid: u32,
+    },
+    GraffitiEntered {
+        aid: u32,
+        creator_aid: u32,
+        x: i16,
+        y: i16,
+        message: String,
+    },
+    MapCellChanged {
+        x: i16,
+        y: i16,
+        cell_type: i32,
     },
     SkillUnitUpdated {
         aid: u32,
@@ -851,6 +876,21 @@ pub enum GameEvent {
     ShowSystemMessage {
         message: String,
     },
+    WhisperSettingResult {
+        allow: bool,
+        result: u8,
+        all: bool,
+    },
+    MemoResult {
+        result: u8,
+    },
+    ProgressBarStarted {
+        duration_secs: u32,
+    },
+    ProgressBarCancelled,
+    ServerMsg {
+        msg_id: u16,
+    },
     DialogClosed,
     ToggleInventory,
     ToggleEquipment,
@@ -1072,6 +1112,12 @@ pub enum GameEvent {
         x: u16,
         y: u16,
     },
+    GuildMemberOnline {
+        aid: u32,
+        gid: u32,
+        online: bool,
+        appearance: Option<GuildMemberAppearance>,
+    },
     GuildSkills {
         point: i16,
         skills: Vec<GuildSkill>,
@@ -1200,6 +1246,13 @@ pub enum GameEvent {
     RequestDeleteGuildRelation {
         gdid: u32,
         relation: i32,
+    },
+    ConfirmedSkillTalkbox {
+        skill_id: u16,
+        level: i16,
+        x: i16,
+        y: i16,
+        message: String,
     },
     ConfirmedGuildExpel {
         aid: u32,
@@ -1664,6 +1717,13 @@ pub struct PartyMemberData {
     pub map: String,
     pub leader: bool,
     pub online: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GuildMemberAppearance {
+    pub sex: i16,
+    pub head: i16,
+    pub head_palette: i16,
 }
 
 #[derive(Debug, Clone)]

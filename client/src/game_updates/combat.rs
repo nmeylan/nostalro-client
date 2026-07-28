@@ -6,9 +6,11 @@ use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::skill::skill_needs_talkbox;
 use ragnarok_network::{
     build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
 };
+use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
 
 impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
@@ -49,7 +51,7 @@ impl App {
         }
 
         if !self.game.combat.attack_is_locked && !self.input.left_mouse_down {
-            self.game.combat.attack_target_id = None;
+            self.stop_attacking();
             return;
         }
 
@@ -103,6 +105,26 @@ impl App {
         {
             self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);
         }
+    }
+
+    /// Advances the server-driven progress bar and reports back when it empties.
+    pub(crate) fn update_progress_bar(&mut self, delta: f32) {
+        let Some(bar) = self.game.session.progress_bar.as_mut() else {
+            return;
+        };
+        if bar.tick(delta) {
+            self.finish_progress_bar();
+        }
+    }
+
+    pub(crate) fn finish_progress_bar(&mut self) {
+        if self.game.session.progress_bar.take().is_none() {
+            return;
+        }
+        self.channel
+            .send_packet(ragnarok_network::build_progress_done_packet(
+                self.active_packetver,
+            ));
     }
 
     pub(crate) fn check_pending_skill(&mut self) {
@@ -254,17 +276,28 @@ impl App {
             if self.skill_on_cooldown(skill_id) {
                 return;
             }
-            self.channel.send_packet(build_use_skill_to_ground_packet(
-                skill_id,
-                level,
-                x,
-                y,
-                self.active_packetver,
-            ));
+            self.cast_on_ground(skill_id, level, x, y);
             self.game.pending_casts.pending_ground_cast = None;
         } else {
             self.try_move_toward(x as i32, y as i32, px, py, skill_range);
         }
+    }
+
+    /// Places a ground skill, first collecting the message for the skills that write
+    /// one onto the unit.
+    pub(crate) fn cast_on_ground(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {
+        if skill_needs_talkbox(skill_id) {
+            self.windows.skill_talkbox_dialog =
+                Some(SkillTalkboxDialog::new(skill_id, level, x, y));
+            return;
+        }
+        self.channel.send_packet(build_use_skill_to_ground_packet(
+            skill_id,
+            level,
+            x,
+            y,
+            self.active_packetver,
+        ));
     }
 
     pub(crate) fn check_pending_pickup(&mut self) {

@@ -1,5 +1,5 @@
 use crate::App;
-use ragnarok_game::event::GameEvent;
+use ragnarok_game::event::{GameEvent, GuildMemberAppearance};
 use ragnarok_game::guild::{
     Guild, GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
@@ -81,6 +81,54 @@ impl App {
         guild.members = members;
         Self::apply_position_names(guild);
         self.load_guild_member_sprites();
+    }
+
+    /// The server also replays every member's current status right after login, so
+    /// only announce a status that actually flipped.
+    pub(super) fn handle_guild_member_online(
+        &mut self,
+        aid: u32,
+        gid: u32,
+        online: bool,
+        appearance: Option<GuildMemberAppearance>,
+    ) {
+        let Some(guild) = &mut self.game.guild else {
+            return;
+        };
+        let Some(member) = guild
+            .members
+            .iter_mut()
+            .find(|m| m.gid == gid || m.aid == aid)
+        else {
+            return;
+        };
+        let changed = member.online != online;
+        member.online = online;
+        if let Some(a) = appearance {
+            member.sex = a.sex;
+            member.head = a.head;
+            member.head_palette = a.head_palette;
+        }
+        let name = member.name.clone();
+        if !online {
+            guild.clear_position_of(aid);
+        }
+        let is_master = guild.master_name == name;
+
+        if changed && !name.is_empty() {
+            let role = if is_master {
+                "Guild master"
+            } else {
+                "Guild member"
+            };
+            let state = if online { "online" } else { "offline" };
+            self.windows
+                .chat_window
+                .add_system(format!("{role} {name} is {state}."));
+        }
+        if appearance.is_some() {
+            self.load_guild_member_sprites();
+        }
     }
 
     pub(super) fn handle_guild_positions(&mut self, positions: Vec<GuildPosition>) {

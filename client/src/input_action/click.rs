@@ -10,7 +10,6 @@ use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, sk
 use ragnarok_network::{
     build_contact_npc_packet, build_pickup_item_packet, build_req_buy_frommc_packet,
     build_req_enter_room_packet, build_request_move_packet, build_use_skill_packet,
-    build_use_skill_to_ground_packet,
 };
 
 impl App {
@@ -171,13 +170,7 @@ impl App {
                         let dx = (px as i32 - cx as i32).abs();
                         let dy = (py as i32 - cy as i32).abs();
                         if dx.max(dy) <= skill_range {
-                            self.channel.send_packet(build_use_skill_to_ground_packet(
-                                skill_id,
-                                level,
-                                cx as i16,
-                                cy as i16,
-                                self.active_packetver,
-                            ));
+                            self.cast_on_ground(skill_id, level, cx as i16, cy as i16);
                         } else {
                             self.game.pending_casts.pending_ground_cast =
                                 Some((skill_id, level, cx as i16, cy as i16));
@@ -272,7 +265,7 @@ impl App {
                 return;
             }
         }
-        self.game.combat.attack_target_id = None;
+        self.stop_attacking();
         self.game.pending_casts.pending_pickup_item_id = None;
         self.game.pending_casts.pending_ground_cast = None;
         // While running, the server auto-moves the character in a straight line and

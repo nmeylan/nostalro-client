@@ -1,4 +1,5 @@
 pub use models::enums::skill::SkillTargetType;
+use models::enums::skill_enums::SkillEnum;
 
 /// Player-facing message for a skill-use failure `cause` (`USESKILL_FAIL_*`), or
 /// `None` when no message should be shown. Cause 0 (`USESKILL_FAIL_LEVEL`) is the
@@ -22,6 +23,14 @@ pub fn skill_failure_message(cause: u8) -> Option<&'static str> {
         _ => return None,
     })
 }
+
+/// Ground skills whose cast carries a written message: the client collects the text
+/// itself and sends it with the placement, so the server has nothing to prompt for.
+pub fn skill_needs_talkbox(skill_id: u16) -> bool {
+    skill_id == SkillEnum::HtTalkiebox.id() as u16 || skill_id == SkillEnum::RgGraffiti.id() as u16
+}
+
+pub const TALKBOX_MESSAGE_MAX_LEN: usize = 79;
 
 pub struct SkillData {
     pub id: u16,

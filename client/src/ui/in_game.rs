@@ -294,6 +294,20 @@ pub fn build_in_game_ui(
         |e| matches!(e, GameEvent::ConfirmedGuildExpel { .. }),
     );
 
+    if let Some(dialog) = &mut windows.skill_talkbox_dialog {
+        dialog.has_grf_textures = windows.drop_dialog_has_grf_textures;
+        if dialog.has_grf_textures {
+            dialog.set_texture_sizes(texture_size_fn);
+        }
+    }
+    run_transient_dialog(
+        &mut windows.skill_talkbox_dialog,
+        ui,
+        &mut ctx,
+        &mut events,
+        |e| matches!(e, GameEvent::ConfirmedSkillTalkbox { .. }),
+    );
+
     run_transient_dialog(
         &mut windows.card_insert_dialog,
         ui,

@@ -22,13 +22,16 @@ use ragnarok_game::data_table::DataTable;
 use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
+use ragnarok_game::cast_scope::CastScope;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::gr2_model::Gr2ModelInstance;
+use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::party::Party;
 use ragnarok_game::pet::PetState;
 use ragnarok_game::poptip::PoptipStack;
+use ragnarok_game::progress_bar::ProgressBar;
 use ragnarok_game::quest::{QuestLog, QuestMarker};
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_game::skill::SkillTargetType;
@@ -64,6 +67,9 @@ pub struct PendingConfirms {
     pub pending_trade_request: Option<u32>,
     pub pending_adopt_request: Option<(u32, u32)>,
     pub pending_invite_aid: Option<u32>,
+    /// Character name and requested state of an in-flight whisper allow/deny; the
+    /// local block list only changes once the server confirms it.
+    pub pending_whisper_block: Option<(String, bool)>,
     active: Option<Box<dyn FnOnce(bool) -> Option<GameEvent>>>,
 }
 
@@ -80,6 +86,10 @@ pub struct CombatState {
     pub attack_request_cooldown: f32,
     pub attack_range: i16,
     pub attack_is_locked: bool,
+    /// Whether an attack request has gone out since the current target was picked.
+    /// The server keeps swinging until told to stop, so only then is a lock-on
+    /// cancel worth sending.
+    pub attack_request_sent: bool,
     pub waiting_item_throw_ack: bool,
     pub damage_numbers: DamageNumberManager,
     /// Destination clicked while the swing (or a pickup/hurt motion) held the
@@ -101,6 +111,7 @@ impl CombatState {
             attack_request_cooldown: 0.0,
             attack_range: 1,
             attack_is_locked: false,
+            attack_request_sent: false,
             waiting_item_throw_ack: false,
             damage_numbers: DamageNumberManager::new(),
             queued_move: None,
@@ -111,6 +122,7 @@ impl CombatState {
 #[derive(Default)]
 pub struct EffectKeys {
     pub status_buff_keys: HashMap<(u32, i16), u32>,
+    pub opt3_keys: HashMap<(u32, i32), u32>,
     pub next_status_buff_key: u32,
     pub level_aura_keys: HashMap<u32, u32>,
     pub boss_aura_keys: HashMap<u32, u32>,
@@ -124,6 +136,7 @@ pub struct EffectKeys {
 impl EffectKeys {
     pub fn clear(&mut self) {
         self.status_buff_keys.clear();
+        self.opt3_keys.clear();
         self.next_status_buff_key = 0;
         self.level_aura_keys.clear();
         self.boss_aura_keys.clear();
@@ -261,6 +274,7 @@ pub struct SessionState {
     pub server_time: ServerTimeClock,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
+    pub progress_bar: Option<ProgressBar>,
 }
 
 impl Default for SessionState {
@@ -284,6 +298,7 @@ impl SessionState {
             saved_camera_yaw: None,
             server_time: ServerTimeClock::new(),
             disconnect_dialog_shown: false,
+            progress_bar: None,
             pending_disconnect_exit: false,
         }
     }
@@ -301,6 +316,17 @@ pub struct World {
     /// the server sends a skill-unit update (e.g. an ankle snare springs).
     pub hidden_traps: HashMap<u32, (u8, [f32; 3])>,
     pub freeze_shatters: Vec<FreezeShatter>,
+    /// Graffiti ground decals keyed by unit AID.
+    pub graffiti: HashMap<u32, Graffiti>,
+    /// What each in-progress cast marks out, keyed by caster gid.
+    pub cast_marks: HashMap<u32, CastMark>,
+}
+
+/// The marker a cast puts on the world while it channels: a square on the ground
+/// for a placed cast, or a reticle riding the victim of a targeted one.
+pub enum CastMark {
+    Scope(CastScope),
+    Lockon { target_gid: u32, remaining: f32 },
 }
 
 #[derive(Default)]
@@ -929,6 +955,7 @@ mod effect_reset_tests {
 
         let keys = &mut game.effect_keys;
         keys.status_buff_keys.insert((1, 2), 3);
+        keys.opt3_keys.insert((1, 2), 3);
         keys.next_status_buff_key = 9;
         keys.level_aura_keys.insert(1, 1);
         keys.boss_aura_keys.insert(1, 1);
@@ -944,6 +971,7 @@ mod effect_reset_tests {
         assert!(queue.drain_despawns().is_empty());
         let keys = &game.effect_keys;
         assert!(keys.status_buff_keys.is_empty());
+        assert!(keys.opt3_keys.is_empty());
         assert_eq!(keys.next_status_buff_key, 0);
         assert!(keys.level_aura_keys.is_empty());
         assert!(keys.boss_aura_keys.is_empty());

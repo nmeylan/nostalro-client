@@ -243,6 +243,14 @@ pub enum EffectPrimitiveDraw {
         blend: BlendKind,
         no_depth: bool,
     },
+    KeyedWorldQuad {
+        corners: [[f32; 3]; 4],
+        uv: [[f32; 2]; 4],
+        texture_key: String,
+        color: [f32; 4],
+        blend: BlendKind,
+        no_depth: bool,
+    },
     Texture3D {
         center: [f32; 3],
         size: [f32; 2],
