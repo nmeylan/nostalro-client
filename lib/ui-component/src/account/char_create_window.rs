@@ -86,16 +86,16 @@ const STAT_HEX_ORDER: [usize; 6] = [0, 2, 5, 3, 4, 1];
 const STAT_HEX_MAX: f32 = 10.0;
 const STAT_HEX_COLOR: [f32; 4] = [0.5, 0.5, 0.5, 0.7];
 
-pub const CHAR_CREATE_WINDOW_ID: WidgetId = WidgetId(220);
-const NAME_ID: WidgetId = WidgetId(221);
-const STYLE_L_ID: WidgetId = WidgetId(222);
-const STYLE_R_ID: WidgetId = WidgetId(223);
-const COLOR_L_ID: WidgetId = WidgetId(224);
-const MAKE_ID: WidgetId = WidgetId(225);
-const CANCEL_ID: WidgetId = WidgetId(226);
-const STAT_ARROW_BASE: u32 = 227;
-const COLOR_R_ID: WidgetId = WidgetId(233);
-const SKIN_TOGGLE_ID: WidgetId = WidgetId(234);
+pub const CHAR_CREATE_WINDOW_ID: WidgetId = WidgetId(4500);
+const NAME_ID: WidgetId = WidgetId(4501);
+const STYLE_L_ID: WidgetId = WidgetId(4502);
+const STYLE_R_ID: WidgetId = WidgetId(4503);
+const COLOR_L_ID: WidgetId = WidgetId(4504);
+const MAKE_ID: WidgetId = WidgetId(4505);
+const CANCEL_ID: WidgetId = WidgetId(4506);
+const COLOR_R_ID: WidgetId = WidgetId(4507);
+const SKIN_TOGGLE_ID: WidgetId = WidgetId(4508);
+const STAT_ARROW_BASE: u32 = 4520;
 
 const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_make.bmp";
 const WIN2_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_make2.bmp";

@@ -393,7 +393,7 @@ impl App {
                 }
                 self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
             }
-            KeyCode::F9 => {
+            KeyCode::KeyP if self.input.ctrl_pressed => {
                 self.profiler.start();
             }
             KeyCode::Digit1 if self.input.alt_pressed => self.trigger_shortcut(0),

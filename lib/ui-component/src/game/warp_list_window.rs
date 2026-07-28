@@ -4,11 +4,11 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
-pub const WARP_LIST_WINDOW_ID: WidgetId = WidgetId(1600);
-const OK_ID: WidgetId = WidgetId(1601);
-const CANCEL_ID: WidgetId = WidgetId(1602);
-const OVERLAY_ID: WidgetId = WidgetId(1603);
-const ROW_BASE_ID: u32 = 1610;
+pub const WARP_LIST_WINDOW_ID: WidgetId = WidgetId(4600);
+const OK_ID: WidgetId = WidgetId(4601);
+const CANCEL_ID: WidgetId = WidgetId(4602);
+const OVERLAY_ID: WidgetId = WidgetId(4603);
+const ROW_BASE_ID: u32 = 4610;
 
 const WIN_W: f32 = 200.0;
 const PADDING: f32 = 8.0;

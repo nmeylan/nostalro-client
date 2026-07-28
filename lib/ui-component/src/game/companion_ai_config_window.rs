@@ -31,7 +31,7 @@ const TACT_NEXT_ID: WidgetId = WidgetId(3227);
 const TACT_ADD_ID: WidgetId = WidgetId(3228);
 const TACT_DEL_ID: WidgetId = WidgetId(3229);
 const ROW_WIDGET_BASE: u32 = 3230;
-const ENUM_OPTION_BASE: u32 = 3300;
+const ENUM_OPTION_BASE: u32 = 5100;
 
 const OK_BTN: ButtonTextures = ButtonTextures {
     normal: "data/texture/유저인터페이스/btn_ok.bmp",

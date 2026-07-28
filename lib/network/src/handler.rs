@@ -3898,6 +3898,19 @@ mod tests {
         let pkt_len = i16::from_le_bytes([raw[2], raw[3]]);
         assert_eq!(pkt_len, 19);
         assert_eq!(&raw[4..], b"Player : hello\0");
+
+        for (packetver, id) in [
+            (20040705u32, [0x8c, 0x00]),
+            (20040726, [0xf3, 0x00]),
+            (20040906, [0x9f, 0x00]),
+            (20041129, [0x85, 0x00]),
+            (20050110, [0xf3, 0x00]),
+            (20080910, [0xf3, 0x00]),
+        ] {
+            let raw = crate::sender::build_chat_packet("hi", packetver);
+            assert_eq!([raw[0], raw[1]], id, "wrong chat id at {packetver}");
+            assert_eq!(i16::from_le_bytes([raw[2], raw[3]]) as usize, raw.len());
+        }
     }
 
     #[test]

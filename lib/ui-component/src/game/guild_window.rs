@@ -39,16 +39,16 @@ const POSITION_SCROLL: ScrollbarIds = ScrollbarIds {
     down: WidgetId(3437),
     thumb: WidgetId(3438),
 };
-const MEMBER_ROW_BASE: u32 = 3450;
-const RELATION_ROW_BASE: u32 = 3520;
-const POS_TITLE_INPUT_BASE: u32 = 3600;
-const POS_TAX_INPUT_BASE: u32 = 3620;
-const POS_INVITE_BASE: u32 = 3640;
-const POS_PUNISH_BASE: u32 = 3660;
-const SKILL_UP_BASE: u32 = 3700;
-const SKILL_DOWN_BASE: u32 = 3720;
-const MEMBER_POS_DROPDOWN_BASE: u32 = 3740;
-const MEMBER_POS_OPTION_BASE: u32 = 3760;
+const MEMBER_ROW_BASE: u32 = 5200;
+const RELATION_ROW_BASE: u32 = 5300;
+const POS_TITLE_INPUT_BASE: u32 = 5400;
+const POS_TAX_INPUT_BASE: u32 = 5420;
+const POS_INVITE_BASE: u32 = 5440;
+const POS_PUNISH_BASE: u32 = 5460;
+const SKILL_UP_BASE: u32 = 5500;
+const SKILL_DOWN_BASE: u32 = 5520;
+const MEMBER_POS_DROPDOWN_BASE: u32 = 5600;
+const MEMBER_POS_OPTION_BASE: u32 = 5700;
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";

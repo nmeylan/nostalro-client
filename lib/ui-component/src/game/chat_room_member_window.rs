@@ -11,16 +11,16 @@ use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, TextInputBg, UiFrame
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
-pub const CHAT_ROOM_MEMBER_WINDOW_ID: WidgetId = WidgetId(1720);
-const CLOSE_BTN_ID: WidgetId = WidgetId(1721);
-const LEAVE_BTN_ID: WidgetId = WidgetId(1722);
-const EDIT_BTN_ID: WidgetId = WidgetId(1723);
-const SCROLL_UP_ID: WidgetId = WidgetId(1724);
-const SCROLL_DOWN_ID: WidgetId = WidgetId(1725);
-const SCROLL_THUMB_ID: WidgetId = WidgetId(1726);
-const INPUT_ID: WidgetId = WidgetId(1727);
-const RESIZE_ID: WidgetId = WidgetId(1728);
-const MEMBER_ROW_BASE_ID: u32 = 1730;
+pub const CHAT_ROOM_MEMBER_WINDOW_ID: WidgetId = WidgetId(4800);
+const CLOSE_BTN_ID: WidgetId = WidgetId(4801);
+const LEAVE_BTN_ID: WidgetId = WidgetId(4802);
+const EDIT_BTN_ID: WidgetId = WidgetId(4803);
+const SCROLL_UP_ID: WidgetId = WidgetId(4804);
+const SCROLL_DOWN_ID: WidgetId = WidgetId(4805);
+const SCROLL_THUMB_ID: WidgetId = WidgetId(4806);
+const INPUT_ID: WidgetId = WidgetId(4807);
+const RESIZE_ID: WidgetId = WidgetId(4808);
+const MEMBER_ROW_BASE_ID: u32 = 4830;
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";

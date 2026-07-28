@@ -78,16 +78,6 @@ impl Connection {
         4.min(data.len())
     }
 
-    fn slice_to_packet_len(data: &[u8]) -> &[u8] {
-        if data.len() >= 4 {
-            let len = u16::from_le_bytes([data[2], data[3]]) as usize;
-            if len >= 4 && len <= data.len() {
-                return &data[..len];
-            }
-        }
-        data
-    }
-
     pub async fn recv_packets(
         &mut self,
         packetver: u32,
@@ -136,6 +126,28 @@ impl Connection {
         Some(aid)
     }
 
+    /// Total wire length of the packet at the head of `data`.
+    fn frame_len(data: &[u8], packetver: u32) -> FrameLen {
+        if data.len() < 2 {
+            return FrameLen::Incomplete;
+        }
+        let id = [data[0], data[1]];
+        if packets_parser::is_variable_length(id, packetver) {
+            if data.len() < 4 {
+                return FrameLen::Incomplete;
+            }
+            let declared = u16::from_le_bytes([data[2], data[3]]) as usize;
+            if declared < 4 {
+                return FrameLen::Unusable;
+            }
+            return FrameLen::Known(declared);
+        }
+        match packets_parser::packet_len(id, packetver) {
+            Some(len) if len >= 2 => FrameLen::Known(len),
+            _ => FrameLen::Unusable,
+        }
+    }
+
     fn drain_packets(
         buffer: &mut Vec<u8>,
         packetver: u32,
@@ -145,62 +157,71 @@ impl Connection {
         let mut offset = 0;
 
         while offset < buffer.len() {
-            let remaining = buffer[offset..].to_vec();
-            let is_variable = remaining.len() >= 2
-                && packets_parser::is_variable_length([remaining[0], remaining[1]], packetver);
-            let parse_buf = if is_variable {
-                Self::slice_to_packet_len(&remaining)
-            } else {
-                &remaining
-            };
-            let declared_len = parse_buf.len();
-            let result = panic::catch_unwind(|| packets_parser::parse(parse_buf, packetver));
-            match result {
-                Ok(packet) => {
-                    if packet.name() == "Unknown" {
-                        let skip = Self::estimate_packet_len(&remaining);
-                        tracing::info!(
-                            "skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
-                            remaining[0],
-                            remaining[1],
-                            remaining.len()
-                        );
-                        if trace == PacketTrace::All {
-                            let dump_len = skip.min(remaining.len());
-                            tracing::debug!("unknown packet dump: {:02x?}", &remaining[..dump_len]);
-                        }
-                        offset += skip;
-                        continue;
+            let remaining = &buffer[offset..];
+            let expected = match Self::frame_len(remaining, packetver) {
+                FrameLen::Known(len) => len,
+                FrameLen::Incomplete => {
+                    if trace == PacketTrace::All {
+                        tracing::info!("partial header ({} bytes), awaiting more", remaining.len());
                     }
-                    // Variable-length packets advance by their declared length; a
-                    // struct that under-reads its body would otherwise desync the stream.
-                    let consumed = if is_variable {
-                        declared_len
-                    } else {
-                        packet.raw().len()
-                    };
-                    if trace == PacketTrace::All && !is_muted_packet(packet.name()) {
-                        tracing::info!(
-                            "recv {} ({consumed} bytes, remaining={})",
-                            packet.name(),
-                            remaining.len()
-                        );
-                    }
-                    offset += consumed;
-                    packets.push(packet);
+                    break;
                 }
-                Err(_) => {
-                    tracing::warn!(
-                        "packet parse panic at offset {offset}, buffer_len={}, first_bytes=0x{:02x}{:02x}",
-                        buffer.len(),
-                        remaining.first().copied().unwrap_or(0),
-                        remaining.get(1).copied().unwrap_or(0)
+                FrameLen::Unusable => {
+                    let skip = Self::estimate_packet_len(remaining);
+                    tracing::info!(
+                        "skipping unknown packet 0x{:02x}{:02x} ({skip} bytes), buffer_remaining={}",
+                        remaining[0],
+                        remaining.get(1).copied().unwrap_or(0),
+                        remaining.len()
                     );
-                    let skip = Self::estimate_packet_len(&remaining);
+                    if trace == PacketTrace::All {
+                        tracing::debug!("unknown packet dump: {:02x?}", &remaining[..skip]);
+                    }
                     offset += skip;
                     continue;
                 }
+            };
+            if expected > remaining.len() {
+                if trace == PacketTrace::All {
+                    tracing::info!(
+                        "packet 0x{:02x}{:02x} needs {expected} bytes, have {} — awaiting more",
+                        remaining[0],
+                        remaining[1],
+                        remaining.len()
+                    );
+                }
+                break;
             }
+
+            let parse_buf = &remaining[..expected];
+            match panic::catch_unwind(|| packets_parser::parse(parse_buf, packetver)) {
+                Ok(packet) => {
+                    if packet.name() == "Unknown" {
+                        tracing::info!(
+                            "skipping unparsed packet 0x{:02x}{:02x} ({expected} bytes)",
+                            parse_buf[0],
+                            parse_buf[1]
+                        );
+                    } else {
+                        if trace == PacketTrace::All && !is_muted_packet(packet.name()) {
+                            tracing::info!(
+                                "recv {} ({expected} bytes, remaining={})",
+                                packet.name(),
+                                remaining.len()
+                            );
+                        }
+                        packets.push(packet);
+                    }
+                }
+                Err(_) => {
+                    tracing::warn!(
+                        "packet parse panic at offset {offset}, packet 0x{:02x}{:02x}, len {expected}",
+                        parse_buf[0],
+                        parse_buf[1]
+                    );
+                }
+            }
+            offset += expected;
         }
 
         buffer.drain(..offset);
@@ -208,10 +229,21 @@ impl Connection {
     }
 }
 
+enum FrameLen {
+    Known(usize),
+    /// Too few bytes to read the length: wait for the next read.
+    Incomplete,
+    /// No length to work from — unknown id, or a declared length below the header.
+    Unusable,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use packets::packets::{PacketZcAcceptEnter2, PacketZcAid};
+    use packets::packets::{
+        PacketZcAcceptEnter2, PacketZcAid, PacketZcNotifyPlayerchat, PacketZcNotifyTime,
+        PacketZcReqWearEquipAck,
+    };
 
     fn greeting_stream(packetver: u32, aid_bytes: &[u8]) -> Vec<u8> {
         let mut enter = PacketZcAcceptEnter2::new(packetver);
@@ -247,5 +279,74 @@ mod tests {
         assert_eq!(framed.len(), 1);
         assert!(framed[0].as_any().is::<PacketZcAcceptEnter2>());
         assert!(buffer.is_empty());
+    }
+
+    /// A packet arriving in two TCP reads must be held until complete, then
+    /// parsed once — whether its length comes from a lookup or from its header.
+    #[test]
+    fn split_packets_are_held_until_complete() {
+        let packetver = 20111102;
+
+        let mut fixed = PacketZcNotifyTime::new(packetver);
+        fixed.set_time(1234);
+        fixed.fill_raw_with_packetver(Some(packetver));
+
+        let mut variable = PacketZcNotifyPlayerchat::new(packetver);
+        variable.set_msg("hello\0".to_string());
+        variable.set_packet_length((PacketZcNotifyPlayerchat::base_len(packetver) + 6) as i16);
+        variable.fill_raw_with_packetver(Some(packetver));
+
+        for stream in [fixed.raw.clone(), variable.raw.clone()] {
+            for split in 1..stream.len() {
+                let mut buffer = stream[..split].to_vec();
+                let framed = Connection::drain_packets(&mut buffer, packetver, PacketTrace::None);
+                assert!(
+                    framed.is_empty(),
+                    "parsed a packet from {split} of {} bytes",
+                    stream.len()
+                );
+                assert_eq!(buffer.len(), split, "dropped bytes of an incomplete packet");
+
+                buffer.extend_from_slice(&stream[split..]);
+                let framed = Connection::drain_packets(&mut buffer, packetver, PacketTrace::None);
+                assert_eq!(framed.len(), 1, "split at {split} did not reassemble");
+                assert_eq!(framed[0].raw(), &stream);
+                assert!(buffer.is_empty());
+            }
+        }
+    }
+
+    /// The length framing advances by must equal the length parsing consumes,
+    /// including for packets whose layout is packetver-gated.
+    #[test]
+    fn frame_len_matches_what_parsing_consumes() {
+        for packetver in [20101122, 20101123, 20120307] {
+            let mut ack = PacketZcReqWearEquipAck::new(packetver);
+            ack.set_index(3);
+            ack.fill_raw_with_packetver(Some(packetver));
+
+            let expected = match Connection::frame_len(&ack.raw, packetver) {
+                FrameLen::Known(len) => len,
+                _ => panic!("no framing length at {packetver}"),
+            };
+            assert_eq!(expected, ack.raw.len());
+            assert_eq!(expected, PacketZcReqWearEquipAck::base_len(packetver));
+        }
+    }
+
+    /// A packet split mid-stream must not stall the packets that precede it.
+    #[test]
+    fn a_trailing_partial_packet_does_not_hold_back_the_complete_ones() {
+        let packetver = 20111102;
+        let mut time = PacketZcNotifyTime::new(packetver);
+        time.set_time(7);
+        time.fill_raw_with_packetver(Some(packetver));
+
+        let mut buffer = time.raw.clone();
+        buffer.extend_from_slice(&time.raw[..3]);
+
+        let framed = Connection::drain_packets(&mut buffer, packetver, PacketTrace::None);
+        assert_eq!(framed.len(), 1);
+        assert_eq!(buffer, time.raw[..3]);
     }
 }

@@ -44,14 +44,16 @@ use ragnarok_renderer::{
     block_on,
 };
 use ragnarok_ui::context::UiContext;
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_server_list_window::{
     LoginServerEntry, LoginServerListWindow,
 };
-use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::account::login_window::{
+    LoginFocus, LoginWindow, PASSWORD_ID, USERNAME_ID,
+};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use std::collections::HashMap;
@@ -471,8 +473,8 @@ impl App {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
-                        LoginFocus::Username => Some(WidgetId(0)),
-                        LoginFocus::Password => Some(WidgetId(1)),
+                        LoginFocus::Username => Some(USERNAME_ID),
+                        LoginFocus::Password => Some(PASSWORD_ID),
                     };
                     let mut ui = UiFrame::new(
                         ui_ctx,

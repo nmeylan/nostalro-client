@@ -4,7 +4,7 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
-const MENU_BASE_ID: u32 = 2100;
+const MENU_BASE_ID: u32 = 4700;
 const ITEM_W: f32 = 120.0;
 const ITEM_H: f32 = 18.0;
 
