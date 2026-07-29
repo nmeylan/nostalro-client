@@ -90,6 +90,7 @@ use ragnarok_ui_component::game::vending_setup_window::{
 use ragnarok_ui_component::game::vending_shop_window::VENDING_SHOP_WINDOW_ID;
 use ragnarok_ui_component::game::vending_shop_window::VendingShopWindow;
 use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
+use ragnarok_ui_component::game::world_map_window::{WORLD_MAP_WINDOW_ID, WorldMapWindow};
 
 pub struct Windows {
     pub chat_window: ChatWindow,
@@ -147,6 +148,7 @@ pub struct Windows {
     pub pet_window: PetWindow,
     pub mercenary_skill_window: MercenarySkillWindow,
     pub homun_skill_window: HomunSkillWindow,
+    pub world_map_window: WorldMapWindow,
     pub context_menu: ContextMenu,
 }
 
@@ -214,6 +216,7 @@ impl Windows {
             pet_window: PetWindow::new(),
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
+            world_map_window: WorldMapWindow::new(),
             context_menu: ContextMenu::new(),
         }
     }
@@ -376,5 +379,9 @@ pub(crate) const REGISTRY: &[(WidgetId, Dispatch)] = &[
     (
         QUEST_DETAIL_WINDOW_ID,
         Dispatch::Trait(|w| &mut w.quest_detail_window as &mut dyn InGameWindow),
+    ),
+    (
+        WORLD_MAP_WINDOW_ID,
+        Dispatch::Trait(|w| &mut w.world_map_window as &mut dyn InGameWindow),
     ),
 ];

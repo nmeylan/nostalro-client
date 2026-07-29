@@ -60,3 +60,15 @@ pub mod sprite_path;
 pub mod status_icon;
 pub mod targeting;
 pub mod trade;
+
+/// Lookup key for a map: the bare name, lowercased. Map names reach us in three
+/// forms — `prontera` from the world map tables, `prontera.rsw` from the data
+/// tables, `prontera.gat` from the party and guild packets — and all three must
+/// resolve to the same map.
+pub fn map_key(name: &str) -> String {
+    let lower = name.trim().to_lowercase();
+    match lower.strip_suffix(".gat").or(lower.strip_suffix(".rsw")) {
+        Some(bare) => bare.to_string(),
+        None => lower,
+    }
+}

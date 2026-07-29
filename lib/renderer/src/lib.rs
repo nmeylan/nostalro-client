@@ -26,6 +26,8 @@ pub use fps::Fps;
 pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
 
 pub use damage_number::render_damage_number_quads;
+pub use ragnarok_effects::sfx::{SfxEmission, SfxPos};
+
 pub use effect::{
     BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
     StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,

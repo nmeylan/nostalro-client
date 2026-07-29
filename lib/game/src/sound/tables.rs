@@ -1,5 +1,4 @@
 use models::enums::class::JobName;
-use models::enums::element::Element;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_effects::merc_skill_base;
@@ -23,10 +22,14 @@ pub fn skill_use_sound(skill: SkillEnum) -> Option<(&'static str, SkillSoundPos)
         S::AllCatcry => ("effect\\2008cat.wav", NonPositional),
         S::MgStonecurse => ("_stonecurse.wav", TargetPositional),
         S::MoExplosionspirits => ("effect\\mon_폭기.wav", NonPositional),
-        S::MoSteelbody => ("effect\\mon_bash3d.wav", NonPositional),
+        S::MoSteelbody => ("effect\\mon_맹룡과강.wav", NonPositional),
         S::LkAurablade => ("effect\\오라 블레이드.wav", NonPositional),
         S::LkBerserk | S::LkFury => ("effect\\버서크.wav", NonPositional),
         S::NpcPowerup => ("effect\\mon_폭기.wav", NonPositional),
+        S::NpcFirebreath => ("effect\\EF_FireWall.wav", NonPositional),
+        S::NpcWidestone => ("_stonecurse.wav", NonPositional),
+        S::NpcWidesleep => ("effect\\widesleep.wav", NonPositional),
+        S::NpcWideconfuse => ("amon_ra_die01.wav", NonPositional),
         S::DcWinkcharm => ("effect\\vallentine.wav", NonPositional),
         S::BaPangvoice => ("amon_ra_die01.wav", NonPositional),
         S::BaAssassincross => ("effect\\석양의 어쌔신.wav", NonPositional),
@@ -81,7 +84,7 @@ pub fn skill_cast_begin_sound(skill: SkillEnum) -> Option<(&'static str, SkillSo
     use SkillEnum as S;
     use SkillSoundPos::*;
     Some(match skill {
-        S::MoCombofinish => ("effect\\mon_bash3d.wav", NonPositional),
+        S::MoCombofinish => ("effect\\mon_맹룡과강.wav", NonPositional),
         S::ChPalmstrike => ("effect\\맹호경파산.wav", NonPositional),
         S::CrSlimpitcher => ("assulter_attack.wav", Depth(-150.0)),
         S::HwGanbantein => ("effect\\EF_FireWall.wav", NonPositional),
@@ -192,14 +195,6 @@ pub fn job_hit_sound(job: JobName) -> &'static str {
     }
 }
 
-pub fn attr_hit_sound(element: Element, roll: u32) -> String {
-    match element {
-        Element::Fire => format!("_enemy_hit_fire{}.wav", 1 + (roll % 2)),
-        Element::Wind => format!("_enemy_hit_wind{}.wav", 1 + (roll % 2)),
-        _ => skill_hit_sound(roll),
-    }
-}
-
 /// A status/ailment transition sound. `enter` distinguishes onset from clear.
 pub fn status_sound(kind: StatusSoundKind) -> Option<&'static str> {
     use StatusSoundKind as S;
@@ -213,6 +208,7 @@ pub fn status_sound(kind: StatusSoundKind) -> Option<&'static str> {
         S::SilenceSet => "_silence.wav",
         S::ConfusionSet => "_confusion.wav",
         S::BlindSet => "_blind.wav",
+        S::DetectOn => "effect\\EF_Sight.wav",
     })
 }
 
@@ -227,12 +223,14 @@ pub enum StatusSoundKind {
     SilenceSet,
     ConfusionSet,
     BlindSet,
+    /// Sight or Ruwach turning on.
+    DetectOn,
 }
 
 pub mod ui {
     pub const LOGIN: &str = "login.wav";
     pub const BUTTON: &str = "\u{BC84}\u{D2BC}\u{C18C}\u{B9AC}.wav"; // 버튼소리.wav
-    pub const REPAIR: &str = "repair.wav";
+    pub const REPAIR: &str = "effect\\black_weapon_repair.wav";
 }
 
 #[cfg(test)]
@@ -257,6 +255,9 @@ mod tests {
         assert_eq!(job_hit_sound(JobName::Knight), "player_metal.wav");
         assert_eq!(swing_sound(Some(WeaponType::Axe2H)), "_attack_axe.wav");
         assert_eq!(swing_sound(None), "_attack_mace.wav");
-        assert_eq!(attr_hit_sound(Element::Fire, 1), "_enemy_hit_fire2.wav");
+        assert_eq!(
+            skill_use_sound(SkillEnum::NpcWidesleep),
+            Some(("effect\\widesleep.wav", SkillSoundPos::NonPositional))
+        );
     }
 }

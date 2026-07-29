@@ -36,7 +36,8 @@ pub use skill_effects::{
     CasterSkillEffects, CastingSkill, TargetSkillEffects, begin_cast_effect,
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     derive_hit_effect, fire_glyph_effect, ground_placed_effect, is_cast_circle, is_ground_cast,
-    merc_skill_base, merc_skill_base_id, potion_throw_index, target_skill_effects,
+    merc_skill_base, merc_skill_base_id, potion_throw_index, sevenwind_aura,
+    target_skill_effects,
 };
 pub use skill_units::{
     SkillUnitEntrySound, UNT_USED_TRAPS, skill_unit_effect, skill_unit_entry_sound,

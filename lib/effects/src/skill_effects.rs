@@ -483,6 +483,19 @@ pub fn beginspell_for_element(property: u32) -> EffectId {
     }
 }
 
+pub fn sevenwind_aura(level: i16) -> EffectId {
+    const AURAS: [EffectId; 7] = [
+        EffectId::Beginasura1,
+        EffectId::Beginasura2,
+        EffectId::Beginasura3,
+        EffectId::Beginasura4,
+        EffectId::Beginasura5,
+        EffectId::Beginasura6,
+        EffectId::Beginasura7,
+    ];
+    AURAS[(level.clamp(1, 7) - 1) as usize]
+}
+
 pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
     let skill = merc_skill_base(skill);
     use EffectId as E;
@@ -1154,6 +1167,11 @@ mod tests {
             (S::SgSunComfort, &[E::Flowercast, E::Hated]),
             (S::TkSevenwind, &[E::Stormkick3, E::Beginasura1]),
         ];
+        assert_eq!(sevenwind_aura(1), E::Beginasura1);
+        assert_eq!(sevenwind_aura(4), E::Beginasura4);
+        assert_eq!(sevenwind_aura(7), E::Beginasura7);
+        assert_eq!(sevenwind_aura(99), E::Beginasura7);
+        assert_eq!(sevenwind_aura(0), E::Beginasura1);
         for &(skill, expected) in cases {
             assert_eq!(caster_skill_effects(skill).cast, expected, "{skill:?}");
             for &id in expected {

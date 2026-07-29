@@ -1272,6 +1272,14 @@ pub enum GameEvent {
         path: String,
     },
 
+    /// UI → client: load a world-map texture from the GRF on demand. The client
+    /// answers with `WorldMapWindow::texture_loaded`.
+    RequestWorldMapTexture {
+        path: String,
+    },
+    /// Minimap → client: open or close the world map.
+    ToggleWorldMap,
+
     // --- Skill-triggered production / selection windows ---
     ItemIdentifyList {
         indices: Vec<u16>,

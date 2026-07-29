@@ -53,6 +53,18 @@ pub fn build_in_game_ui(
         local_gid,
     };
 
+    if windows.world_map_window.is_open() {
+        windows.world_map_window.current_map = game.session.current_map.clone();
+        if let Some(coords) = &game.session.map_coords {
+            windows.world_map_window.map_width = coords.gat_width();
+            windows.world_map_window.map_height = coords.gat_height();
+        }
+        if let Some(player) = game.world.entities.player() {
+            windows.world_map_window.player_position = Some(player.movement.position());
+            windows.world_map_window.player_direction = player.direction;
+        }
+    }
+
     let z_order = ui.get_z_order();
     ui.compute_hovered_window(&z_order);
     for &win_id in &z_order {

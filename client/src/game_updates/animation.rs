@@ -1,4 +1,5 @@
 use crate::App;
+use crate::sound::next_rand;
 use ragnarok_formats::act::{ActFile, MotionType, SpriteActionType};
 use ragnarok_game::ailment;
 use ragnarok_game::entity::{
@@ -7,13 +8,20 @@ use ragnarok_game::entity::{
 use ragnarok_game::gr2_model::{self, Gr2Action};
 use ragnarok_game::sound::SoundQueue;
 
+/// If i remember correctly, original client does not always play sound, not sure about the threshold
+fn act_event_audible(rng: &mut u32, percent: u32) -> bool {
+    percent >= 100 || next_rand(rng) % 100 < percent
+}
+
 /// Resolve ACT frame sound-events to queued sounds, positional at the actor.
-/// Each `.wav`-named frame event (weapon swing, hurt cry, footstep) plays on
-/// every crossing.
+/// Idle and walk actions carry `.wav` events and loop forever, so every
+/// crossing is throttled rather than gated on a transition.
 fn emit_act_events(
     event_ids: &[i32],
     body_act: &ActFile,
     world_pos: Option<[f32; 3]>,
+    rng: &mut u32,
+    percent: u32,
     queue: &mut SoundQueue,
 ) {
     let Some(pos) = world_pos else { return };
@@ -22,6 +30,9 @@ fn emit_act_events(
             continue;
         };
         if !name.to_ascii_lowercase().ends_with(".wav") {
+            continue;
+        }
+        if !act_event_audible(rng, percent) {
             continue;
         }
         queue.world(name.clone(), pos);
@@ -44,6 +55,8 @@ impl App {
         let gat = self.game.session.gat.as_ref();
         let map_coords = self.game.session.map_coords.as_ref();
         let sound_queue = &mut self.sound_queue;
+        let sfx_rng = &mut self.sfx_rng;
+        let act_sound_percent = self.config.custom.act_sound_percent;
         let world_of = |cx: f32, cy: f32| match (gat, map_coords) {
             (Some(g), Some(c)) => {
                 let (wx, _, wz) = c.cell_to_world(cx + 0.5, cy + 0.5);
@@ -53,8 +66,13 @@ impl App {
         };
         for entity in self.game.world.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
-                if entity.state == EntityState::Dead
-                    && entity.animation.action() == entity.action_index()
+                if matches!(
+                    entity.state,
+                    EntityState::Dead
+                        | EntityState::Hurt
+                        | EntityState::SkillExec
+                        | EntityState::Pickup
+                ) && entity.animation.action() == entity.action_index()
                     && entity.animation.is_finished()
                 {
                     continue;
@@ -104,7 +122,14 @@ impl App {
                             .animation
                             .crossed_event_ids(&sprite.body_act, action_idx);
                         let (cx, cy) = entity.movement.position();
-                        emit_act_events(&events, &sprite.body_act, world_of(cx, cy), sound_queue);
+                        emit_act_events(
+                            &events,
+                            &sprite.body_act,
+                            world_of(cx, cy),
+                            sfx_rng,
+                            act_sound_percent,
+                            sound_queue,
+                        );
                         (!entity.animation.is_finished()).then_some(forced)
                     };
                     continue;
@@ -172,7 +197,14 @@ impl App {
                     let events = entity
                         .animation
                         .crossed_event_ids(&sprite.body_act, action_idx);
-                    emit_act_events(&events, &sprite.body_act, world_of(cx, cy), sound_queue);
+                    emit_act_events(
+                        &events,
+                        &sprite.body_act,
+                        world_of(cx, cy),
+                        sfx_rng,
+                        act_sound_percent,
+                        sound_queue,
+                    );
                 }
                 entity.anim_last_pos = (cx, cy);
             }
@@ -270,6 +302,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::CustomConfig;
 
     fn act_with_events(events: &[&str]) -> ActFile {
         ActFile {
@@ -280,12 +313,36 @@ mod tests {
         }
     }
 
-    #[test]
-    fn wav_named_frame_events_play_and_non_wav_are_ignored() {
+    const CROSSINGS: usize = 4000;
+
+    fn play_rate(percent: u32) -> (f32, Vec<String>) {
         let act = act_with_events(&["attack_sword.wav", "atk", "player_clothes.wav"]);
         let mut queue = SoundQueue::new();
-        emit_act_events(&[0, 1, 2], &act, Some([0.0, 0.0, 0.0]), &mut queue);
-        let played: Vec<&str> = queue.pending.iter().map(|r| r.name.as_ref()).collect();
-        assert_eq!(played, vec!["attack_sword.wav", "player_clothes.wav"]);
+        let mut rng = 0x1234_5678;
+        for _ in 0..CROSSINGS {
+            emit_act_events(
+                &[0, 1, 2],
+                &act,
+                Some([0.0, 0.0, 0.0]),
+                &mut rng,
+                percent,
+                &mut queue,
+            );
+        }
+        let names = queue.pending.iter().map(|r| r.name.to_string()).collect();
+        (queue.pending.len() as f32 / (CROSSINGS * 2) as f32, names)
+    }
+
+    #[test]
+    fn wav_named_frame_events_honour_the_throttle_and_non_wav_are_ignored() {
+        let (rate, names) = play_rate(CustomConfig::default().act_sound_percent);
+        assert_eq!(rate, 1.0, "the default plays every crossing");
+        assert!(names.iter().all(|n| n.ends_with(".wav") && n != "atk"));
+
+        let (rate, _) = play_rate(5);
+        assert!((0.03..0.07).contains(&rate), "rate was {rate}");
+
+        let (rate, _) = play_rate(0);
+        assert_eq!(rate, 0.0);
     }
 }

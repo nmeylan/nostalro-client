@@ -765,6 +765,12 @@ impl ApplicationHandler for App {
                     self.game.data_table.msg_string = Some(
                         ragnarok_game::data_table::msg_string_table::MsgStringTable::load(&grf),
                     );
+                    self.game.data_table.map_position = Some(
+                        ragnarok_game::data_table::map_position_table::MapPositionTable::load(&grf),
+                    );
+                    self.game.data_table.map_name = Some(
+                        ragnarok_game::data_table::map_name_table::MapNameTable::load(&grf),
+                    );
                     if let Ok(bytes) = grf.read_file("data/pettalktable.xml") {
                         self.game.data_table.pet_talk =
                             Some(ragnarok_formats::pettalk::PetTalkTable::parse(&bytes));

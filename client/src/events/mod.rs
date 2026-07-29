@@ -2825,6 +2825,18 @@ impl App {
                 GameEvent::RequestUploadEmblem { path } => {
                     self.upload_emblem_file(&path);
                 }
+                GameEvent::RequestWorldMapTexture { path } => {
+                    let loaded = match (&self.grf, &mut self.renderer) {
+                        (Some(grf), Some(renderer)) => {
+                            renderer.preload_textures(&[path.as_str()], grf)
+                        }
+                        _ => false,
+                    };
+                    self.windows.world_map_window.texture_loaded(&path, loaded);
+                }
+                GameEvent::ToggleWorldMap => {
+                    self.windows.world_map_window.toggle();
+                }
                 GameEvent::RequestAddFriend { name } => {
                     self.channel
                         .send_packet(build_add_friend_packet(&name, self.active_packetver));

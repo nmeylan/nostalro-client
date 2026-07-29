@@ -12,7 +12,8 @@ use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
-    is_trail_effect, potion_throw_index, target_skill_effects, trail_arrival_secs,
+    is_trail_effect, potion_throw_index, sevenwind_aura, target_skill_effects,
+    trail_arrival_secs,
 };
 use ragnarok_game::entity::{ChatBubbleState, EntityType};
 use ragnarok_game::movement::direction_from_positions;
@@ -660,24 +661,33 @@ impl App {
         // caster→target line rather than sitting on the caster, matching the
         // original's launch-from-caster + reposition-to-target.
         let trail = self.skill_trail_endpoints(src_gid, target_gid);
+        let is_sevenwind = skill == SkillEnum::TkSevenwind;
         for e in caster_skill_effects(skill).cast {
+            let e = if is_sevenwind && *e == EffectId::Beginasura1 {
+                sevenwind_aura(level)
+            } else {
+                *e
+            };
             // High Jump's landing takes over from the leap: delete the airborne
             // Jumpbody so the caster drops in from above at the landing cell.
-            if *e == EffectId::Landbody {
+            if e == EffectId::Landbody {
                 self.effect_holder
                     .despawn_effect_on_entity(EffectId::Jumpbody, src_gid);
             }
+            if is_sevenwind {
+                self.effect_holder.despawn_effect_on_entity(e, src_gid);
+            }
             match trail {
                 // Potion Pitcher throws the potion icon for its level.
-                Some((from, to)) if *e == EffectId::Throwitem2 => {
+                Some((from, to)) if e == EffectId::Throwitem2 => {
                     let potion = potion_throw_index(skill, level).unwrap_or(1);
                     self.effect_queue
-                        .spawn_trail_with_count(*e, from, to, potion);
+                        .spawn_trail_with_count(e, from, to, potion);
                 }
-                Some((from, to)) if is_trail_effect(*e) => {
-                    self.effect_queue.spawn_trail(*e, from, to)
+                Some((from, to)) if is_trail_effect(e) => {
+                    self.effect_queue.spawn_trail(e, from, to)
                 }
-                _ => self.effect_queue.spawn_on(*e, src_gid),
+                _ => self.effect_queue.spawn_on(e, src_gid),
             }
         }
         // AL_HEAL and WE_MALE ("I Will Protect You") share the amount-tiered green

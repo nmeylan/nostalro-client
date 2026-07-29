@@ -364,7 +364,7 @@ impl App {
             for hit in ready {
                 self.emit_damage_number(entity_id, &hit);
                 self.spawn_hit_effect(entity_id, &hit);
-                if hit.damage > 0 {
+                if hit.damage > 0 && hit.attacker_gid != entity_id {
                     self.queue_hit_sound(entity_id, hit.attacker_gid, hit.skill_id != 0);
                 }
 

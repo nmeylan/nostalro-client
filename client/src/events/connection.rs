@@ -335,6 +335,7 @@ impl App {
             preload_window(&mut self.windows.hotkey_bar, renderer, grf);
             preload_window(&mut self.windows.basic_info_window, renderer, grf);
             preload_window(&mut self.windows.minimap_window, renderer, grf);
+            preload_window(&mut self.windows.world_map_window, renderer, grf);
             preload_window(&mut self.windows.status_window, renderer, grf);
             preload_window(&mut self.windows.levelup_notification, renderer, grf);
             preload_window(&mut self.windows.party_friends_window, renderer, grf);
@@ -471,6 +472,7 @@ impl App {
                 }
             }
             self.windows.minimap_window.on_map_changed();
+            self.windows.world_map_window.on_map_changed();
         } else {
             self.clear_map_actors();
         }

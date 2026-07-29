@@ -130,7 +130,7 @@ pub fn skill_unit_entry_sound(unit_id: u8) -> Option<SkillUnitEntrySound> {
             one_in: 1,
         },
         UNT_KAEN => SkillUnitEntrySound {
-            wave: "effect\\hawaii.wav",
+            wave: "effect\\화염진.wav",
             one_in: 8,
         },
         _ => return None,

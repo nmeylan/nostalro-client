@@ -24,10 +24,11 @@ pub enum HotkeyAction {
     SitStand,
     CycleMinimap,
     MercenaryFollow,
+    ToggleWorldMap,
 }
 
 impl HotkeyAction {
-    pub const ALL: [HotkeyAction; 21] = [
+    pub const ALL: [HotkeyAction; 22] = [
         HotkeyAction::ToggleInventory,
         HotkeyAction::ToggleEquipment,
         HotkeyAction::ToggleSkillTree,
@@ -49,6 +50,7 @@ impl HotkeyAction {
         HotkeyAction::SitStand,
         HotkeyAction::CycleMinimap,
         HotkeyAction::MercenaryFollow,
+        HotkeyAction::ToggleWorldMap,
     ];
 
     pub fn label(self) -> &'static str {
@@ -74,6 +76,7 @@ impl HotkeyAction {
             HotkeyAction::SitStand => "Sit / Stand",
             HotkeyAction::CycleMinimap => "Minimap",
             HotkeyAction::MercenaryFollow => "Merc. Follow",
+            HotkeyAction::ToggleWorldMap => "World Map",
         }
     }
 }
@@ -146,6 +149,8 @@ fn display_key(key: &str) -> String {
         rest.to_string()
     } else if let Some(rest) = key.strip_prefix("Numpad") {
         format!("Num {rest}")
+    } else if key == "Backquote" {
+        "`".to_string()
     } else {
         key.to_string()
     }
@@ -238,6 +243,7 @@ impl KeyBindings {
             (HotkeyAction::SitStand, plain("Insert")),
             (HotkeyAction::CycleMinimap, ctrl("Tab")),
             (HotkeyAction::MercenaryFollow, ctrl("KeyT")),
+            (HotkeyAction::ToggleWorldMap, ctrl("Backquote")),
         ]);
         Self { map }
     }

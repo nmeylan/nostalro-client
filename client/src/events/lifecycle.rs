@@ -81,6 +81,7 @@ impl App {
                 self.game.guild = None;
                 self.game.sprite_caches.guild_head_sprites.clear();
                 self.windows.guild_window.open = false;
+                self.windows.world_map_window.close();
                 self.game.session.current_map = None;
                 self.game.session.progress_bar = None;
                 self.game.session.map_coords = None;

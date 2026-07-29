@@ -20,6 +20,7 @@ use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_renderer::SfxPos;
 use ragnarok_game::sound::tables::{
     StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
 };
@@ -598,6 +599,12 @@ impl App {
             if gained(ailment::OPT2_CURSE) {
                 self.queue_status_sound(gid, StatusSoundKind::CurseSet);
             }
+            if gained(ailment::OPT2_SILENCE) {
+                self.queue_status_sound(gid, StatusSoundKind::SilenceSet);
+            }
+            if gained(ailment::OPT2_CONFUSION) {
+                self.queue_status_sound(gid, StatusSoundKind::ConfusionSet);
+            }
             if gained(ailment::OPT2_BLIND) {
                 self.queue_status_sound(gid, StatusSoundKind::BlindSet);
             }
@@ -720,10 +727,6 @@ impl App {
         self.refresh_detect_aura(gid);
     }
 
-    /// Detect-hidden auras (Sight / Ruwach): the original shows no effect at
-    /// cast and instead re-launches the aura for as long as the OPTION bit is
-    /// set. Reconcile each against its option bit — spawn a persistent orbit
-    /// when the bit turns on, drop it when it clears.
     pub(super) fn refresh_detect_aura(&mut self, gid: u32) {
         let Some(effect_state) = self.game.world.entities.get(gid).map(|e| e.effect_state) else {
             return;
@@ -737,6 +740,7 @@ impl App {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Sight2, gid, key);
                 self.game.effect_keys.sight_aura_keys.insert(gid, key);
+                self.queue_status_sound(gid, StatusSoundKind::DetectOn);
             }
             (false, true) => {
                 if let Some(key) = self.game.effect_keys.sight_aura_keys.remove(&gid) {
@@ -754,6 +758,7 @@ impl App {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Ruwach, gid, key);
                 self.game.effect_keys.ruwach_aura_keys.insert(gid, key);
+                self.queue_status_sound(gid, StatusSoundKind::DetectOn);
             }
             (false, true) => {
                 if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
@@ -919,6 +924,25 @@ impl App {
                     .spawn_on_keyed_for(id, gid, key, remain_ms);
             }
             self.game.effect_keys.status_buff_keys.insert(map_key, key);
+        }
+
+        if active
+            && let Some(sound) = reaction.on_activate_sound
+            && (is_player || !sound.local_only)
+        {
+            match sound.pos {
+                SfxPos::Ui(depth) => self.sound_queue.ui_at_depth(sound.wave, depth),
+                SfxPos::WorldAtDepth(depth) => {
+                    if let Some(pos) = self.entity_world_pos(gid) {
+                        self.sound_queue.world_at_depth(sound.wave, pos, depth);
+                    }
+                }
+                SfxPos::World => {
+                    if let Some(pos) = self.entity_world_pos(gid) {
+                        self.sound_queue.world(sound.wave, pos);
+                    }
+                }
+            }
         }
 
         let bursts = if active {
@@ -1303,7 +1327,7 @@ impl App {
         };
         match code {
             0 | 7 | 9 => self.sound_queue.ui("levelup.wav"),
-            1 | 8 => self.sound_queue.ui("joblevelup.wav"),
+            1 | 8 => self.sound_queue.ui("effect\\st_job_level_up.wav"),
             _ => {}
         }
         self.effect_queue.spawn_on(id, gid);

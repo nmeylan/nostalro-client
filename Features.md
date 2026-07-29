@@ -23,6 +23,8 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Mob / entity sprites
 - GR2 3D models (emperium, guardians): pure-Rust Oodle0 + Bink texture decoders, skeletal animation
 - Minimap (with entity / party / quest / NPC markers)
+- World map (Ctrl+`): current-map + player position, party markers with names, per-map minimap inset
+- Floor item shadow
 
 # Effects
 **All effect IDs (from 1 to 1050) are handled** through two generic players plus custom-coded families.
@@ -224,6 +226,7 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Marriage / couples (wedding costume, partner name, cut-ins, WE_ skill effects)
 - Adoption: Adopt baby, children sprite
 - Storage access
+- Worldmap
 
 ## Companions
 - Pet system (taming, roulette, hatching, accessory, performance, talk)

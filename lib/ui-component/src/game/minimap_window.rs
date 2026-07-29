@@ -7,6 +7,7 @@ use ragnarok_ui::rect::Rect;
 pub const MINIMAP_WINDOW_ID: WidgetId = WidgetId(1600);
 const ZOOM_IN_BTN_ID: WidgetId = WidgetId(1601);
 const ZOOM_OUT_BTN_ID: WidgetId = WidgetId(1602);
+const WORLD_MAP_BTN_ID: WidgetId = WidgetId(1603);
 
 const MAP_ARROW_TEX: &str = "data/texture/유저인터페이스/map/map_arrow.bmp";
 const MAP_PLUS_OFF: &str = "data/texture/유저인터페이스/map/map_plus0.bmp";
@@ -167,7 +168,7 @@ impl MinimapWindow {
         ))
     }
 
-    fn direction_angle(dir: u8) -> f32 {
+    pub fn direction_angle(dir: u8) -> f32 {
         // RO directions go counter-clockwise (N=0,NW=1,W=2,...), reverse to match screen rotation
         ((12u8.wrapping_sub(dir) % 8) as f32) * std::f32::consts::FRAC_PI_4 + std::f32::consts::PI
     }
@@ -305,6 +306,16 @@ impl InGameWindow for MinimapWindow {
         let zoom_out_resp = ui.button(ZOOM_OUT_BTN_ID, zoom_out_rect, &BTN_ZOOM_OUT, "-");
         if zoom_out_resp.clicked() && self.zoom_level > 0 {
             self.zoom_level -= 1;
+        }
+
+        // The GRF carries no texture for this button, so it stays a text button.
+        let world_rect = Rect::new(zoom_x, y + ZOOM_BTN_SIZE * 2.0, ZOOM_BTN_SIZE, ZOOM_BTN_SIZE);
+        let world_resp = ui.text_button(WORLD_MAP_BTN_ID, world_rect, "W");
+        if world_resp.hovered() {
+            ui.tooltip(world_rect.x, world_rect.y + ZOOM_BTN_SIZE, "World Map");
+        }
+        if world_resp.clicked() {
+            return vec![GameEvent::ToggleWorldMap];
         }
 
         Vec::new()

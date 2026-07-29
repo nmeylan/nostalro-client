@@ -1,13 +1,24 @@
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 
+use crate::sfx::SfxPos;
+
+/// A wave the status plays the moment it turns on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StatusSound {
+    pub wave: &'static str,
+    pub pos: SfxPos,
+    /// Heard only by the status bearer.
+    pub local_only: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StatusKind {
     Visual,
     PushCart,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StatusReaction {
     /// Re-launched for the whole duration and despawned when the status ends.
     pub aura: &'static [EffectId],
@@ -21,6 +32,7 @@ pub struct StatusReaction {
     pub night_filter: bool,
     /// Ripples the whole screen, for the bearer's eyes only.
     pub screen_ripple: bool,
+    pub on_activate_sound: Option<StatusSound>,
 }
 
 impl StatusReaction {
@@ -32,6 +44,29 @@ impl StatusReaction {
             kind: StatusKind::Visual,
             night_filter: false,
             screen_ripple: false,
+            on_activate_sound: None,
+        }
+    }
+
+    const fn sound(wave: &'static str, pos: SfxPos, local_only: bool) -> Self {
+        Self {
+            on_activate_sound: Some(StatusSound {
+                wave,
+                pos,
+                local_only,
+            }),
+            ..Self::new()
+        }
+    }
+
+    const fn with_sound(self, wave: &'static str, pos: SfxPos, local_only: bool) -> Self {
+        Self {
+            on_activate_sound: Some(StatusSound {
+                wave,
+                pos,
+                local_only,
+            }),
+            ..self
         }
     }
 
@@ -110,7 +145,14 @@ pub fn status_reaction(efst: ClientEffectIcon) -> Option<StatusReaction> {
         I::Explosionspirits => StatusReaction::aura(&[E::Gumgang]),
         I::SgSunWarm => StatusReaction::aura(&[E::Doublegumgang, E::Redlightbody]),
         I::Mindbreaker => StatusReaction::on_activate(&[E::Magiccrasher2]),
-        I::Ting => StatusReaction::on_activate(&[E::Quakebody]),
+        I::Ting => StatusReaction::on_activate(&[E::Quakebody]).with_sound(
+            "effect\\t_벽튕김.wav",
+            SfxPos::World,
+            false,
+        ),
+        I::Chasewalk2 => {
+            StatusReaction::sound("lava_golem_move.wav", SfxPos::Ui(0.0), true)
+        }
         I::Run => StatusReaction::on_deactivate(&[E::Stopeffect]),
         I::Illusion => StatusReaction::screen_ripple(),
         I::OnPushCart => StatusReaction::kind(StatusKind::PushCart),
@@ -123,6 +165,9 @@ pub fn status_reaction(efst: ClientEffectIcon) -> Option<StatusReaction> {
 /// Gladiator's spirit sphere, and the Moon/Star warmth auras look the same as
 /// the Sun one.
 pub const EFST_MOON: i16 = 123;
+
+/// Eclipse (the Star Gladiator's Demon of the Sun, Moon and Stars).
+pub const EFST_DEVIL1: i16 = 152;
 pub const EFST_SKE: i16 = 160;
 pub const EFST_SG_MOON_WARM: i16 = 166;
 pub const EFST_SG_STAR_WARM: i16 = 167;
@@ -132,6 +177,11 @@ pub fn status_reaction_by_efst(efst: i16) -> Option<StatusReaction> {
     use EffectId as E;
     match efst {
         EFST_MOON => Some(StatusReaction::aura(&[E::Spherewind2])),
+        EFST_DEVIL1 => Some(StatusReaction::sound(
+            "effect\\_blind.wav",
+            SfxPos::Ui(-100.0),
+            true,
+        )),
         EFST_SKE => Some(StatusReaction::night_filter()),
         EFST_SG_MOON_WARM | EFST_SG_STAR_WARM => {
             Some(StatusReaction::aura(&[E::Doublegumgang, E::Redlightbody]))
@@ -252,6 +302,20 @@ mod tests {
         assert_eq!(
             status_reaction(I::Ting).unwrap().on_activate,
             &[EffectId::Quakebody]
+        );
+        assert_eq!(
+            status_reaction(I::Chasewalk2).unwrap().on_activate_sound,
+            Some(StatusSound {
+                wave: "lava_golem_move.wav",
+                pos: SfxPos::Ui(0.0),
+                local_only: true,
+            })
+        );
+        assert!(
+            status_reaction_by_efst(EFST_DEVIL1)
+                .unwrap()
+                .on_activate_sound
+                .is_some_and(|s| s.local_only && s.pos == SfxPos::Ui(-100.0))
         );
         assert_eq!(
             status_reaction(I::Run).unwrap().on_deactivate,

@@ -11,7 +11,7 @@ use ragnarok_effects::{
 };
 use ragnarok_formats::act::SpriteAnimationState;
 
-use ragnarok_effects::sfx::{SfxSchedule, effect_sound, emit};
+use ragnarok_effects::sfx::{SfxEmission, SfxPos, SfxSchedule, effect_sound, emit};
 
 use crate::effect_sprite::BurstParticle;
 
@@ -249,7 +249,7 @@ pub struct EffectHolder {
     external_backend: Option<Arc<dyn ExternalCustomBackend>>,
     shake: ShakeController,
     afterimages: Vec<AfterimageSnapshot>,
-    pending_sfx: Vec<(String, [f32; 3])>,
+    pending_sfx: Vec<SfxEmission>,
 }
 
 impl EffectHolder {
@@ -571,7 +571,7 @@ impl EffectHolder {
         let dt = ctx.delta;
         let backend = self.external_backend.clone();
         let mut shake_requests: Vec<CameraShake> = Vec::new();
-        let mut sfx_out: Vec<(String, [f32; 3])> = Vec::new();
+        let mut sfx_out: Vec<SfxEmission> = Vec::new();
         self.effects.retain_mut(|e| {
             ragnarok_profiling::profile_scope!(
                 "effect_update",
@@ -605,7 +605,11 @@ impl EffectHolder {
                     if let Some(w) = c.take_sfx_request()
                         && let Some(pos) = resolve_position(&attach, resolve_entity_pos)
                     {
-                        sfx_out.push((w.to_string(), pos));
+                        sfx_out.push(SfxEmission {
+                            name: w.to_string(),
+                            world_pos: pos,
+                            pos: SfxPos::World,
+                        });
                     }
                     running
                 }
@@ -619,7 +623,11 @@ impl EffectHolder {
                         if let Some(w) = b.take_sfx(*handle)
                             && let Some(pos) = resolve_position(&attach, resolve_entity_pos)
                         {
-                            sfx_out.push((w, pos));
+                            sfx_out.push(SfxEmission {
+                                name: w,
+                                world_pos: pos,
+                                pos: SfxPos::World,
+                            });
                         }
                         running
                     })
@@ -787,7 +795,7 @@ impl EffectHolder {
     }
 
     /// Sound requests emitted by effects this frame: `(wave path, world pos)`.
-    pub fn drain_sfx(&mut self) -> Vec<(String, [f32; 3])> {
+    pub fn drain_sfx(&mut self) -> Vec<SfxEmission> {
         std::mem::take(&mut self.pending_sfx)
     }
 
@@ -1331,7 +1339,11 @@ mod tests {
         });
         assert_eq!(
             h.drain_sfx(),
-            vec![("effect\\윈드워크.wav".to_string(), [10.0, 0.0, 5.0])],
+            vec![SfxEmission {
+                name: "effect\\윈드워크.wav".to_string(),
+                world_pos: [10.0, 0.0, 5.0],
+                pos: SfxPos::World,
+            }],
         );
     }
 

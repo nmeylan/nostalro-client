@@ -52,7 +52,7 @@ impl Effect for JumpkickEffect {
     fn take_sfx_request(&mut self) -> Option<&'static str> {
         if self.sfx_pending {
             self.sfx_pending = false;
-            Some("effect\\flyingkick.wav")
+            Some("effect\\t_날라차기.wav")
         } else {
             None
         }

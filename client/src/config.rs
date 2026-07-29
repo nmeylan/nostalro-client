@@ -37,11 +37,22 @@ pub struct DebugConfig {
 }
 
 /// Behaviour the original game has no counterpart for, off unless opted into.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CustomConfig {
     /// Green aura under boss monsters at level 99 or above.
     pub boss_aura: bool,
+    /// Percentage of ACT frame sounds (monster grunts, footsteps) that play.
+    pub act_sound_percent: u32,
+}
+
+impl Default for CustomConfig {
+    fn default() -> Self {
+        Self {
+            boss_aura: false,
+            act_sound_percent: 100,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
