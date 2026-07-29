@@ -1208,7 +1208,11 @@ impl App {
                 }
                 GameEvent::GuildMemberPosition { aid, x, y } => {
                     if let Some(guild) = &mut self.game.guild {
-                        guild.set_position(aid, x, y);
+                        if x < 0 || y < 0 {
+                            guild.clear_position_of(aid);
+                        } else {
+                            guild.set_position(aid, x as u16, y as u16);
+                        }
                     }
                 }
                 GameEvent::GuildSkills { point, skills } => {
@@ -2825,6 +2829,16 @@ impl App {
                 GameEvent::RequestUploadEmblem { path } => {
                     self.upload_emblem_file(&path);
                 }
+                GameEvent::MinimapMark {
+                    id,
+                    action,
+                    x,
+                    y,
+                    color,
+                } => {
+                    let now = self.start_time.elapsed().as_secs_f32();
+                    self.game.minimap_marks.apply(id, action, x, y, color, now);
+                }
                 GameEvent::RequestWorldMapTexture { path } => {
                     let loaded = match (&self.grf, &mut self.renderer) {
                         (Some(grf), Some(renderer)) => {
@@ -2833,9 +2847,6 @@ impl App {
                         _ => false,
                     };
                     self.windows.world_map_window.texture_loaded(&path, loaded);
-                }
-                GameEvent::ToggleWorldMap => {
-                    self.windows.world_map_window.toggle();
                 }
                 GameEvent::RequestAddFriend { name } => {
                     self.channel

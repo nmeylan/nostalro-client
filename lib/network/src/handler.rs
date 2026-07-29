@@ -16,6 +16,7 @@ use ragnarok_game::guild::{
 };
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::mail::{MailEntry, MailItem, OpenedMail};
+use ragnarok_game::minimap_mark::MarkAction;
 use ragnarok_game::quest::{QuestHuntEntry, QuestListEntry, QuestMissionData, QuestObjective};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
@@ -1213,16 +1214,28 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcNotifyPositionToGroupm>() {
         return vec![GameEvent::PartyMemberPosition {
             aid: p.aid,
-            x: p.x_pos as u16,
-            y: p.y_pos as u16,
+            x: p.x_pos,
+            y: p.y_pos,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyPositionToGuildm>() {
         return vec![GameEvent::GuildMemberPosition {
             aid: p.aid,
-            x: p.x_pos as u16,
-            y: p.y_pos as u16,
+            x: p.x_pos,
+            y: p.y_pos,
         }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcCompass>() {
+        return match MarkAction::from_packet(p.atype) {
+            Some(action) => vec![GameEvent::MinimapMark {
+                id: p.id,
+                action,
+                x: p.x_pos.max(0) as u16,
+                y: p.y_pos.max(0) as u16,
+                color: p.color,
+            }],
+            None => vec![],
+        };
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckMakeGroup>() {
         return vec![GameEvent::PartyCreateResult { result: p.result }];

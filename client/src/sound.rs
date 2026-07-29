@@ -1,6 +1,6 @@
 use ragnarok_audio::attenuate;
-use ragnarok_renderer::SfxPos;
 use ragnarok_game::sound::SoundSource;
+use ragnarok_renderer::SfxPos;
 
 use crate::App;
 

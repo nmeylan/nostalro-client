@@ -7,7 +7,6 @@ use ragnarok_ui::rect::Rect;
 pub const MINIMAP_WINDOW_ID: WidgetId = WidgetId(1600);
 const ZOOM_IN_BTN_ID: WidgetId = WidgetId(1601);
 const ZOOM_OUT_BTN_ID: WidgetId = WidgetId(1602);
-const WORLD_MAP_BTN_ID: WidgetId = WidgetId(1603);
 
 const MAP_ARROW_TEX: &str = "data/texture/유저인터페이스/map/map_arrow.bmp";
 const MAP_PLUS_OFF: &str = "data/texture/유저인터페이스/map/map_plus0.bmp";
@@ -32,11 +31,17 @@ const ARROW_SIZE: f32 = 12.0;
 
 const ZOOM_LEVELS: [f32; 5] = [1.0, 1.5, 2.0, 3.0, 5.0];
 
-const NPC_DOT_SIZE: f32 = 3.0;
-const WARP_DOT_SIZE: f32 = 4.0;
+const PARTY_MARK_SIZE: f32 = 6.0;
+const GUILD_MARK_SIZE: f32 = 8.0;
+/// Arms of the server mark's cross.
+const MARK_ARM: f32 = 4.0;
+const MARK_THICKNESS: f32 = 2.0;
+/// The mark channel blinks on and off once a second.
+const MARK_BLINK_SECS: f32 = 0.5;
 
-const NPC_DOT_COLOR: [f32; 4] = crate::helper::colors::GREEN;
-const WARP_DOT_COLOR: [f32; 4] = crate::helper::colors::BLUE;
+const GUILD_MARK_COLOR: [f32; 3] = [0.961, 0.686, 0.784];
+const PARTY_LEADER_COLOR: [f32; 3] = [1.0, 0.85, 0.2];
+const PARTY_MEMBER_COLOR: [f32; 3] = [0.3, 0.9, 1.0];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MinimapVisibility {
@@ -45,18 +50,20 @@ pub enum MinimapVisibility {
     Hidden,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MarkerType {
-    Npc,
-    WarpPortal,
-    PartyMember,
+    PartyMember {
+        leader: bool,
+    },
     GuildMember,
-    /// Over-NPC quest marker; the byte is the server color (1 yellow, 2 green,
-    /// 3 purple).
-    Quest(u8),
+    /// The server's own mark channel — `ZC_COMPASS` viewpoints and over-NPC
+    /// quest markers both ride it — drawn as a blinking cross in this colour.
+    Mark([f32; 3]),
 }
 
-fn quest_marker_color(color: u8) -> [f32; 3] {
+/// Colour of an over-NPC quest marker: the server sends 1 yellow, 2 green,
+/// 3 purple, 0 to clear.
+pub fn quest_marker_color(color: u8) -> [f32; 3] {
     match color {
         2 => [0.2, 0.9, 0.2],
         3 => [0.7, 0.3, 0.9],
@@ -68,6 +75,8 @@ pub struct MinimapMarker {
     pub x: f32,
     pub y: f32,
     pub marker_type: MarkerType,
+    /// Shown on mouse-over; only party members carry one.
+    pub name: Option<String>,
 }
 
 pub struct MinimapWindow {
@@ -182,6 +191,44 @@ impl MinimapWindow {
             texture: TextureRef::White,
         });
     }
+
+    fn draw_cross(ui: &mut UiFrame, cx: f32, cy: f32, color: [f32; 4]) {
+        let half = MARK_THICKNESS / 2.0;
+        for (qx, qy, qw, qh) in [
+            (cx - half, cy - MARK_ARM, MARK_THICKNESS, MARK_ARM * 2.0),
+            (cx - MARK_ARM, cy - half, MARK_ARM * 2.0, MARK_THICKNESS),
+        ] {
+            let (v, i) = draw::quad_vertices(qx, qy, qw, qh, color);
+            ui.draw_calls.push(DrawCall {
+                vertices: v.to_vec(),
+                indices: i.to_vec(),
+                texture: TextureRef::White,
+            });
+        }
+    }
+
+    /// Point-up triangle over a slightly larger white one, so it reads over any
+    /// map colour.
+    fn draw_triangle(ui: &mut UiFrame, cx: f32, cy: f32, size: f32, color: [f32; 4]) {
+        for (s, c) in [(size + 2.0, [1.0, 1.0, 1.0, color[3]]), (size, color)] {
+            let half = s / 2.0;
+            let vertices = [
+                (cx, cy - half),
+                (cx + half, cy + half),
+                (cx - half, cy + half),
+            ]
+            .map(|(px, py)| ragnarok_renderer::ui_renderer::UiVertex {
+                position: [px, py],
+                tex_coord: [0.0, 0.0],
+                color: c,
+            });
+            ui.draw_calls.push(DrawCall {
+                vertices: vertices.to_vec(),
+                indices: vec![0, 1, 2],
+                texture: TextureRef::White,
+            });
+        }
+    }
 }
 
 impl Window for MinimapWindow {
@@ -255,31 +302,52 @@ impl InGameWindow for MinimapWindow {
             });
         }
 
+        let mark_visible = (ui.elapsed_secs / MARK_BLINK_SECS) as u32 % 2 == 0;
+        let mut hovered_name: Option<(f32, f32, String)> = None;
         for marker in &self.entity_markers {
-            let (color, size) = match marker.marker_type {
-                MarkerType::Npc => (
-                    [NPC_DOT_COLOR[0], NPC_DOT_COLOR[1], NPC_DOT_COLOR[2], alpha],
-                    NPC_DOT_SIZE,
-                ),
-                MarkerType::WarpPortal => (
+            let Some((sx, sy)) = self.map_to_screen(marker.x, marker.y, uv_min, uv_max, x, y)
+            else {
+                continue;
+            };
+            match marker.marker_type {
+                MarkerType::PartyMember { leader } => {
+                    let c = if leader {
+                        PARTY_LEADER_COLOR
+                    } else {
+                        PARTY_MEMBER_COLOR
+                    };
+                    Self::draw_dot(ui, sx, sy, PARTY_MARK_SIZE, [1.0, 1.0, 1.0, alpha]);
+                    Self::draw_dot(ui, sx, sy, PARTY_MARK_SIZE - 2.0, [c[0], c[1], c[2], alpha]);
+                    if let Some(name) = &marker.name {
+                        let half = PARTY_MARK_SIZE / 2.0;
+                        if (ui.ctx.mouse_x - sx).abs() <= half
+                            && (ui.ctx.mouse_y - sy).abs() <= half
+                        {
+                            hovered_name = Some((sx, sy, name.clone()));
+                        }
+                    }
+                }
+                MarkerType::GuildMember => Self::draw_triangle(
+                    ui,
+                    sx,
+                    sy,
+                    GUILD_MARK_SIZE,
                     [
-                        WARP_DOT_COLOR[0],
-                        WARP_DOT_COLOR[1],
-                        WARP_DOT_COLOR[2],
+                        GUILD_MARK_COLOR[0],
+                        GUILD_MARK_COLOR[1],
+                        GUILD_MARK_COLOR[2],
                         alpha,
                     ],
-                    WARP_DOT_SIZE,
                 ),
-                MarkerType::PartyMember => ([0.3, 0.9, 1.0, alpha], NPC_DOT_SIZE),
-                MarkerType::GuildMember => ([1.0, 0.55, 0.1, alpha], NPC_DOT_SIZE),
-                MarkerType::Quest(color) => {
-                    let c = quest_marker_color(color);
-                    ([c[0], c[1], c[2], alpha], NPC_DOT_SIZE + 1.0)
+                MarkerType::Mark(c) => {
+                    if mark_visible {
+                        Self::draw_cross(ui, sx, sy, [c[0], c[1], c[2], alpha]);
+                    }
                 }
-            };
-            if let Some((sx, sy)) = self.map_to_screen(marker.x, marker.y, uv_min, uv_max, x, y) {
-                Self::draw_dot(ui, sx, sy, size, color);
             }
+        }
+        if let Some((sx, sy, name)) = hovered_name {
+            ui.tooltip(sx, sy, &name);
         }
 
         if let Some((px, py)) = self.player_position
@@ -306,16 +374,6 @@ impl InGameWindow for MinimapWindow {
         let zoom_out_resp = ui.button(ZOOM_OUT_BTN_ID, zoom_out_rect, &BTN_ZOOM_OUT, "-");
         if zoom_out_resp.clicked() && self.zoom_level > 0 {
             self.zoom_level -= 1;
-        }
-
-        // The GRF carries no texture for this button, so it stays a text button.
-        let world_rect = Rect::new(zoom_x, y + ZOOM_BTN_SIZE * 2.0, ZOOM_BTN_SIZE, ZOOM_BTN_SIZE);
-        let world_resp = ui.text_button(WORLD_MAP_BTN_ID, world_rect, "W");
-        if world_resp.hovered() {
-            ui.tooltip(world_rect.x, world_rect.y + ZOOM_BTN_SIZE, "World Map");
-        }
-        if world_resp.clicked() {
-            return vec![GameEvent::ToggleWorldMap];
         }
 
         Vec::new()
@@ -410,7 +468,8 @@ mod tests {
         minimap.entity_markers.push(MinimapMarker {
             x: 10.0,
             y: 10.0,
-            marker_type: MarkerType::Npc,
+            marker_type: MarkerType::GuildMember,
+            name: None,
         });
 
         minimap.on_map_changed();

@@ -74,6 +74,7 @@ impl App {
                 self.game.companions.pet_roulette = None;
                 self.game.quest_log.clear();
                 self.game.quest_markers.clear();
+                self.game.minimap_marks.clear();
                 self.windows.pet_window.set_visible(false);
                 self.game.companions.companion_attack_target = [None; 2];
                 self.windows.homunculus_window.set_visible(false);

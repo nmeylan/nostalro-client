@@ -277,7 +277,8 @@ mod tests {
     /// server reads it from.
     #[test]
     fn talkbox_ground_cast_carries_its_message() {
-        let raw = build_use_skill_to_ground_with_talkbox_packet(220, 1, 155, 182, "hi there", 20111102);
+        let raw =
+            build_use_skill_to_ground_with_talkbox_packet(220, 1, 155, 182, "hi there", 20111102);
         assert_eq!(raw.len(), 90);
         assert_eq!(&raw[..2], &[0xad, 0x08]);
 

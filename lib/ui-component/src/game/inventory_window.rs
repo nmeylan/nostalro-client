@@ -1,5 +1,5 @@
 use super::equipment_window::EQ_WINDOW_ID;
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,

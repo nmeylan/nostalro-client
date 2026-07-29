@@ -1,7 +1,7 @@
 use super::cart_window::CART_WINDOW_ID;
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use super::inventory_window::INV_WINDOW_ID;
 use super::inventory_window::{TAB_EQUIP_TEX, TAB_ETC_TEX, TAB_USABLE_TEX};
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
 use crate::helper::window_chrome::{

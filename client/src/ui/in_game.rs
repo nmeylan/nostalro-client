@@ -1,15 +1,19 @@
 use crate::game_state::{GameState, TOKEN_OF_SIEGFRIED};
 use crate::ui::windows::{Dispatch, REGISTRY, Windows};
 use ragnarok_game::cursor::RenderEntry;
-use ragnarok_game::entity::EntityCategory;
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::guild::Guild;
+use ragnarok_game::minimap_mark::MinimapMarks;
+use ragnarok_game::party::Party;
+use ragnarok_game::quest::QuestMarker;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui_component::game::drop_quantity_dialog::DropQuantityDialog;
 use ragnarok_ui_component::game::hotkey_bar::HOTKEY_BAR_WINDOW_ID;
 use ragnarok_ui_component::game::inventory_window::INV_WINDOW_ID;
 use ragnarok_ui_component::game::levelup_notification_window::LevelUpClick;
-use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker};
+use ragnarok_ui_component::game::minimap_window::{MarkerType, MinimapMarker, quest_marker_color};
 use ragnarok_ui_component::{BuildCtx, InGameWindow, Window};
+use std::collections::HashMap;
 
 pub fn build_in_game_ui(
     game: &mut GameState,
@@ -118,55 +122,15 @@ pub fn build_in_game_ui(
         windows.minimap_window.map_height = coords.gat_height();
     }
     windows.minimap_window.map_name = game.session.current_map.clone();
-    windows.minimap_window.entity_markers.clear();
-    for entity in game.world.entities.iter() {
-        if Some(entity.id) == game.world.entities.player_id() {
-            continue;
-        }
-        let marker_type = match entity.category() {
-            EntityCategory::Npc => MarkerType::Npc,
-            EntityCategory::WarpPoint => MarkerType::WarpPortal,
-            _ => continue,
-        };
-        let (ex, ey) = entity.movement.position();
-        windows.minimap_window.entity_markers.push(MinimapMarker {
-            x: ex,
-            y: ey,
-            marker_type,
-        });
-    }
-    if let Some(party) = ctx.party {
-        let current_map = game.session.current_map.as_deref().unwrap_or("");
-        for member in &party.members {
-            if member.aid == ctx.local_aid || !member.online || member.map != current_map {
-                continue;
-            }
-            windows.minimap_window.entity_markers.push(MinimapMarker {
-                x: member.x as f32,
-                y: member.y as f32,
-                marker_type: MarkerType::PartyMember,
-            });
-        }
-    }
-    if let Some(guild) = ctx.guild {
-        for member in &guild.members {
-            if member.aid == ctx.local_aid || !member.has_live_position {
-                continue;
-            }
-            windows.minimap_window.entity_markers.push(MinimapMarker {
-                x: member.x as f32,
-                y: member.y as f32,
-                marker_type: MarkerType::GuildMember,
-            });
-        }
-    }
-    for marker in game.quest_markers.values() {
-        windows.minimap_window.entity_markers.push(MinimapMarker {
-            x: marker.x as f32,
-            y: marker.y as f32,
-            marker_type: MarkerType::Quest(marker.color),
-        });
-    }
+    game.minimap_marks.prune(ui.elapsed_secs);
+    windows.minimap_window.entity_markers = collect_minimap_markers(
+        ctx.party,
+        ctx.guild,
+        &game.quest_markers,
+        &game.minimap_marks,
+        game.session.current_map.as_deref(),
+        ctx.local_aid,
+    );
     events.extend(windows.minimap_window.build(ui, &mut ctx));
 
     events.extend(windows.status_icon_bar.build(ui, &mut ctx));
@@ -362,6 +326,70 @@ fn run_transient_dialog<D: InGameWindow>(
     confirmed
 }
 
+/// What the minimap marks: party members and same-map guild members, plus the
+/// server's own mark channel (quest markers and `ZC_COMPASS` viewpoints). NPCs
+/// and portals are deliberately absent — the original never marked them.
+fn collect_minimap_markers(
+    party: Option<&Party>,
+    guild: Option<&Guild>,
+    quest_markers: &HashMap<u32, QuestMarker>,
+    marks: &MinimapMarks,
+    current_map: Option<&str>,
+    local_aid: u32,
+) -> Vec<MinimapMarker> {
+    let mut markers = Vec::new();
+    let current_map = current_map.map(ragnarok_game::map_key);
+    if let Some(party) = party {
+        for member in &party.members {
+            if member.aid == local_aid
+                || !member.online
+                || !member.has_live_position
+                || current_map.as_deref() != Some(ragnarok_game::map_key(&member.map).as_str())
+            {
+                continue;
+            }
+            markers.push(MinimapMarker {
+                x: member.x as f32,
+                y: member.y as f32,
+                marker_type: MarkerType::PartyMember {
+                    leader: member.leader,
+                },
+                name: Some(member.name.clone()),
+            });
+        }
+    }
+    if let Some(guild) = guild {
+        for member in &guild.members {
+            if member.aid == local_aid || !member.has_live_position {
+                continue;
+            }
+            markers.push(MinimapMarker {
+                x: member.x as f32,
+                y: member.y as f32,
+                marker_type: MarkerType::GuildMember,
+                name: None,
+            });
+        }
+    }
+    for marker in quest_markers.values() {
+        markers.push(MinimapMarker {
+            x: marker.x as f32,
+            y: marker.y as f32,
+            marker_type: MarkerType::Mark(quest_marker_color(marker.color)),
+            name: None,
+        });
+    }
+    for mark in marks.iter() {
+        markers.push(MinimapMarker {
+            x: mark.x as f32,
+            y: mark.y as f32,
+            marker_type: MarkerType::Mark(mark.rgb()),
+            name: None,
+        });
+    }
+    markers
+}
+
 fn sync_party_live_state(game: &mut GameState) {
     let local_aid = game
         .session
@@ -383,6 +411,9 @@ fn sync_party_live_state(game: &mut GameState) {
                     m.max_hp = Some(max_hp);
                 }
                 (m.x, m.y) = e.movement.cell_position();
+                // On-screen beats waiting for the next position packet; a member
+                // who is on our map but out of view keeps the packet's answer.
+                m.has_live_position = true;
             }
         }
     }
@@ -502,5 +533,89 @@ fn dispatch_window(
         Dispatch::VendingAvailable => {
             events.extend(windows.vending_setup_window.build_available(ui, ctx))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_game::minimap_mark::MarkAction;
+    use ragnarok_game::party::PartyMember;
+
+    fn member(aid: u32, name: &str, map: &str, leader: bool, live: bool) -> PartyMember {
+        PartyMember {
+            aid,
+            name: name.to_string(),
+            map: map.to_string(),
+            leader,
+            online: true,
+            hp: None,
+            max_hp: None,
+            x: 100,
+            y: 120,
+            has_live_position: live,
+        }
+    }
+
+    #[test]
+    fn only_same_map_party_members_guilds_and_server_marks_are_marked() {
+        let mut party = Party::new("Adventurers".to_string());
+        party.members = vec![
+            member(1, "Me", "prontera.gat", false, true),
+            member(2, "Leader", "prontera.gat", true, true),
+            member(3, "Lidia", "prontera.gat", false, true),
+            // Left our map: the server cleared their position.
+            member(4, "Garm", "prontera.gat", false, false),
+            member(5, "Sohee", "payon.gat", false, true),
+        ];
+        let mut offline = member(6, "Afk", "prontera.gat", false, true);
+        offline.online = false;
+        party.members.push(offline);
+
+        let mut marks = MinimapMarks::default();
+        marks.apply(0, MarkAction::Show, 134, 221, 0xFF0000, 0.0);
+
+        let mut quest_markers = HashMap::new();
+        quest_markers.insert(
+            900,
+            QuestMarker {
+                x: 50,
+                y: 60,
+                effect: 1,
+                color: 2,
+            },
+        );
+
+        let markers = collect_minimap_markers(
+            Some(&party),
+            None,
+            &quest_markers,
+            &marks,
+            Some("prontera"),
+            1,
+        );
+
+        let party_names: Vec<(&str, bool)> = markers
+            .iter()
+            .filter_map(|m| match (m.marker_type, &m.name) {
+                (MarkerType::PartyMember { leader }, Some(name)) => Some((name.as_str(), leader)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(party_names, vec![("Leader", true), ("Lidia", false)]);
+
+        let mark_colors: Vec<[f32; 3]> = markers
+            .iter()
+            .filter_map(|m| match m.marker_type {
+                MarkerType::Mark(c) => Some(c),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            mark_colors,
+            vec![quest_marker_color(2), [1.0, 0.0, 0.0]],
+            "quest marker then the viewpoint mark, both on the mark channel"
+        );
+        assert_eq!(markers.len(), 4, "no NPC or portal markers");
     }
 }

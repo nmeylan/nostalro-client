@@ -472,6 +472,7 @@ impl App {
                 }
             }
             self.windows.minimap_window.on_map_changed();
+            self.game.minimap_marks.clear();
             self.windows.world_map_window.on_map_changed();
         } else {
             self.clear_map_actors();

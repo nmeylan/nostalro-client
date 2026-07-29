@@ -13,8 +13,13 @@ pub const DEFAULT_MIN_DIST: f32 = 40.0;
 #[derive(Debug, Clone, Copy)]
 pub enum SoundSource {
     /// Non-positional: distance never attenuates it.
-    Ui { depth: f32 },
-    World { pos: [f32; 3], depth: f32 },
+    Ui {
+        depth: f32,
+    },
+    World {
+        pos: [f32; 3],
+        depth: f32,
+    },
 }
 
 #[derive(Debug, Clone)]

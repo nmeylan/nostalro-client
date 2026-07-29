@@ -466,7 +466,10 @@ mod tests {
 
         shop.add_to_basket(2, 1);
         shop.add_to_basket(2, 1);
-        assert_eq!(shop.basket[2].quantity, 1, "equipment cannot be bought twice");
+        assert_eq!(
+            shop.basket[2].quantity, 1,
+            "equipment cannot be bought twice"
+        );
         shop.remove_from_basket(2);
 
         shop.remove_from_basket(0);

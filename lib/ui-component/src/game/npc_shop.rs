@@ -1,5 +1,5 @@
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use super::item_info_window::ITEM_INFO_WINDOW_ID;
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
 use crate::helper::window_chrome::{
@@ -222,7 +222,9 @@ impl NpcShop {
             .max(INPUT_MIN_ROWS);
         let input_h =
             TITLE_H + CONTAINER_PAD_Y + input_rows as f32 * ITEM_ROW_H + CONTAINER_PAD_Y + FOOTER_H;
-        let output_rows = OUTPUT_VISIBLE_ROWS.max(self.shop.basket.len().min(5)).max(2);
+        let output_rows = OUTPUT_VISIBLE_ROWS
+            .max(self.shop.basket.len().min(5))
+            .max(2);
         let output_h = TITLE_H
             + CONTAINER_PAD_Y
             + output_rows as f32 * ITEM_ROW_H

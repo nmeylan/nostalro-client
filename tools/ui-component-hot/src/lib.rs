@@ -101,6 +101,9 @@ use ragnarok_ui_component::game::vending_board;
 use ragnarok_ui_component::game::vending_setup_window::{
     VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
 };
+use ragnarok_ui_component::game::minimap_window::{
+    MINIMAP_WINDOW_ID, MarkerType, MinimapMarker, MinimapWindow, quest_marker_color,
+};
 use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
 use ragnarok_ui_component::game::world_map_window::{
     WORLD_MAP_TEX, WORLD_MAP_WINDOW_ID, WorldMapWindow,
@@ -133,6 +136,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "graphic_options",
     "hotkey_config",
     "world_map",
+    "minimap",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
@@ -294,6 +298,11 @@ enum State {
     },
     ChatRoomMember {
         win: ChatRoomMemberWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Minimap {
+        win: MinimapWindow,
         character: Character,
         data: DataTable,
     },
@@ -1161,6 +1170,54 @@ fn create_single(name: &str) -> State {
                 data: DataTable::new(),
             }
         }
+        "minimap" => {
+            let mut win = MinimapWindow::new();
+            win.map_name = Some("prontera".to_string());
+            win.map_width = 400;
+            win.map_height = 400;
+            win.player_position = Some((156.0, 191.0));
+            win.player_direction = 4;
+            win.set_map_texture(Some(
+                "data/texture/유저인터페이스/map/prontera.bmp".to_string(),
+            ));
+            win.entity_markers = vec![
+                MinimapMarker {
+                    x: 150.0,
+                    y: 200.0,
+                    marker_type: MarkerType::PartyMember { leader: true },
+                    name: Some("Walkiry".to_string()),
+                },
+                MinimapMarker {
+                    x: 170.0,
+                    y: 180.0,
+                    marker_type: MarkerType::PartyMember { leader: false },
+                    name: Some("Lidia".to_string()),
+                },
+                MinimapMarker {
+                    x: 120.0,
+                    y: 160.0,
+                    marker_type: MarkerType::GuildMember,
+                    name: None,
+                },
+                MinimapMarker {
+                    x: 134.0,
+                    y: 221.0,
+                    marker_type: MarkerType::Mark([1.0, 0.0, 0.0]),
+                    name: None,
+                },
+                MinimapMarker {
+                    x: 200.0,
+                    y: 150.0,
+                    marker_type: MarkerType::Mark(quest_marker_color(2)),
+                    name: None,
+                },
+            ];
+            State::Minimap {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
         "world_map" => {
             let local_aid = 2000001;
             let member = |aid: u32, name: &str, map: &str, x: u16, y: u16| PartyMember {
@@ -1173,6 +1230,7 @@ fn create_single(name: &str) -> State {
                 max_hp: None,
                 x,
                 y,
+                has_live_position: true,
             };
             let mut party = Party::new("Adventurers".to_string());
             party.members = vec![
@@ -1673,6 +1731,7 @@ fn create_single(name: &str) -> State {
                 max_hp: Some(max_hp),
                 x: 0,
                 y: 0,
+                has_live_position: false,
             };
             party.members = vec![
                 member(local_aid, "Walkiry", "prontera.gat", true, true, 3200, 3200),
@@ -2217,6 +2276,10 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::Minimap { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
         State::WorldMap { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -2343,6 +2406,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Quest { .. } => Some(QUEST_WINDOW_ID),
         State::QuestDetail { .. } => Some(QUEST_DETAIL_WINDOW_ID),
         State::WorldMap { .. } => Some(WORLD_MAP_WINDOW_ID),
+        State::Minimap { .. } => Some(MINIMAP_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
@@ -3095,6 +3159,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             let mut ctx = d.ctx(character, data);
             ctx.quest_log = &*log;
             win.build(ui, &mut ctx);
+        }
+        State::Minimap {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, &mut d.ctx(character, data));
         }
         State::WorldMap {
             win,

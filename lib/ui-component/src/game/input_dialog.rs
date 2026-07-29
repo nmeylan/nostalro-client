@@ -57,7 +57,8 @@ const OFFSET_WINDOW: u32 = 3;
 
 impl InputDialog {
     pub fn new(config: InputDialogConfig, base_id: WidgetId) -> Self {
-        let mut input = TextInput::new(config.max_len, false).with_numeric_only(config.numeric_only);
+        let mut input =
+            TextInput::new(config.max_len, false).with_numeric_only(config.numeric_only);
         input.text = config.default_value;
         input.cursor_pos = input.text.chars().count();
         Self {

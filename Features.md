@@ -22,7 +22,7 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Distortion (effect hallucination)
 - Mob / entity sprites
 - GR2 3D models (emperium, guardians): pure-Rust Oodle0 + Bink texture decoders, skeletal animation
-- Minimap (with entity / party / quest / NPC markers)
+- Minimap (party members with names on hover, same-map guild members, server marks: quest + guide directions)
 - World map (Ctrl+`): current-map + player position, party markers with names, per-map minimap inset
 - Floor item shadow
 

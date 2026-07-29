@@ -1,5 +1,5 @@
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use super::inventory_window::INV_WINDOW_ID;
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{draw_container, draw_titlebar, text_color};
 use crate::{BuildCtx, InGameWindow, Window};

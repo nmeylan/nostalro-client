@@ -5,6 +5,7 @@ use crate::guild::{
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::mail::{MailEntry, OpenedMail};
+use crate::minimap_mark::MarkAction;
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
@@ -952,10 +953,12 @@ pub enum GameEvent {
         hp: u32,
         max_hp: u32,
     },
+    /// Coordinates are signed: the server sends -1,-1 when the member leaves
+    /// our map, which clears their marker.
     PartyMemberPosition {
         aid: u32,
-        x: u16,
-        y: u16,
+        x: i16,
+        y: i16,
     },
     PartyInviteReceived {
         party_grid: u32,
@@ -1107,10 +1110,11 @@ pub enum GameEvent {
     GuildMemberPositionsChanged {
         entries: Vec<(u32, u32, i32)>,
     },
+    /// Signed for the same reason as `PartyMemberPosition`.
     GuildMemberPosition {
         aid: u32,
-        x: u16,
-        y: u16,
+        x: i16,
+        y: i16,
     },
     GuildMemberOnline {
         aid: u32,
@@ -1272,13 +1276,21 @@ pub enum GameEvent {
         path: String,
     },
 
+    /// A mark the server put on the minimap (`ZC_COMPASS`): the town guide's
+    /// directions and quest arrows.
+    MinimapMark {
+        id: u8,
+        action: MarkAction,
+        x: u16,
+        y: u16,
+        color: u32,
+    },
+
     /// UI → client: load a world-map texture from the GRF on demand. The client
     /// answers with `WorldMapWindow::texture_loaded`.
     RequestWorldMapTexture {
         path: String,
     },
-    /// Minimap → client: open or close the world map.
-    ToggleWorldMap,
 
     // --- Skill-triggered production / selection windows ---
     ItemIdentifyList {

@@ -137,11 +137,7 @@ impl WorldMapWindow {
         let avail_w = (screen_w - SCREEN_MARGIN * 2.0).max(64.0);
         let avail_h = (screen_h - SCREEN_MARGIN * 2.0 - TITLE_H).max(64.0);
         let scale = (avail_w / img_w).min(avail_h / img_h);
-        (
-            scale,
-            (img_w * scale).floor(),
-            (img_h * scale).floor(),
-        )
+        (scale, (img_w * scale).floor(), (img_h * scale).floor())
     }
 
     fn rect_on_screen(
@@ -567,6 +563,7 @@ mod tests {
             max_hp: None,
             x,
             y,
+            has_live_position: true,
         }
     }
 
@@ -593,7 +590,10 @@ mod tests {
 
         let mut character = Character::new();
         let mut state = StateCache::new();
-        let mut ctx = UiContext::new(IMAGE_W + SCREEN_MARGIN * 2.0, IMAGE_H + SCREEN_MARGIN * 2.0 + TITLE_H);
+        let mut ctx = UiContext::new(
+            IMAGE_W + SCREEN_MARGIN * 2.0,
+            IMAGE_H + SCREEN_MARGIN * 2.0 + TITLE_H,
+        );
         // Prontera's rect centre, in a 1:1 layout: window origin + image pixel.
         ctx.mouse_x = SCREEN_MARGIN + 841.0;
         ctx.mouse_y = SCREEN_MARGIN + TITLE_H + 615.0;
@@ -632,11 +632,13 @@ mod tests {
         assert!((scale - 1.0).abs() < 0.001);
 
         // Centre of a 400x400 gat maps to the centre of the rect; y is flipped.
-        let (x, y) = WorldMapWindow::cell_in_rect(rect, (200.0, 200.0), (400, 400), scale, 0.0, 0.0);
+        let (x, y) =
+            WorldMapWindow::cell_in_rect(rect, (200.0, 200.0), (400, 400), scale, 0.0, 0.0);
         assert!((x - 841.0).abs() < 0.5);
         assert!((y - 615.0).abs() < 0.5);
 
-        let (_, top) = WorldMapWindow::cell_in_rect(rect, (200.0, 400.0), (400, 400), scale, 0.0, 0.0);
+        let (_, top) =
+            WorldMapWindow::cell_in_rect(rect, (200.0, 400.0), (400, 400), scale, 0.0, 0.0);
         assert!((top - rect.top as f32).abs() < 0.5);
     }
 

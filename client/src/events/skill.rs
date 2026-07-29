@@ -12,8 +12,7 @@ use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
-    is_trail_effect, potion_throw_index, sevenwind_aura, target_skill_effects,
-    trail_arrival_secs,
+    is_trail_effect, potion_throw_index, sevenwind_aura, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::entity::{ChatBubbleState, EntityType};
 use ragnarok_game::movement::direction_from_positions;

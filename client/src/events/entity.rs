@@ -20,7 +20,6 @@ use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_renderer::SfxPos;
 use ragnarok_game::sound::tables::{
     StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
 };
@@ -29,6 +28,7 @@ use ragnarok_game::sprite_path::{
     cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job,
 };
 use ragnarok_game::status_icon::status_icon_info;
+use ragnarok_renderer::SfxPos;
 
 /// A monster spawned with this value in the `head`/hair field is the player's pet.
 const PET_HEAD_MARKER: u16 = 100;

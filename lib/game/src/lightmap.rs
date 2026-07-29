@@ -339,10 +339,7 @@ mod tests {
             "not monotonic: {walk:?}"
         );
         let total = walk[walk.len() - 1] - walk[0];
-        let biggest = walk
-            .windows(2)
-            .map(|w| w[1] - w[0])
-            .fold(0.0f32, f32::max);
+        let biggest = walk.windows(2).map(|w| w[1] - w[0]).fold(0.0f32, f32::max);
         assert!(
             biggest < total / 8.0,
             "step {biggest} too abrupt over {total}: {walk:?}"

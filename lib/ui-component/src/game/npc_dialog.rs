@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
 use crate::{BuildCtx, InGameWindow, Window};

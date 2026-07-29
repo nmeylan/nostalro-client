@@ -15,7 +15,9 @@ use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::gr2_model::{self, AnimationClip, Gr2Action, Gr2ModelInstance, SkeletonPose};
 use ragnarok_game::sprite_loader;
-use ragnarok_game::sprite_path::{entity_sprite_base_path, is_undrawn_actor, weapon_view_id_to_type};
+use ragnarok_game::sprite_path::{
+    entity_sprite_base_path, is_undrawn_actor, weapon_view_id_to_type,
+};
 use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
 use ragnarok_renderer::{
     EntitySprite, SpriteTextures, build_entity_sprite, upload_sprite_textures,

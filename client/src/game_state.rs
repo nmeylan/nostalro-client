@@ -477,6 +477,8 @@ pub struct GameState {
     /// Over-NPC quest markers keyed by NPC block id (account-id space). Cleared
     /// on map change; the server re-sends on load.
     pub quest_markers: std::collections::HashMap<u32, QuestMarker>,
+    /// Marks the server put on the minimap, e.g. the town guide's directions.
+    pub minimap_marks: ragnarok_game::minimap_mark::MinimapMarks,
     pub debug_show_pick_bounds: bool,
     pub show_ping: bool,
     pub show_fps: bool,
@@ -572,6 +574,7 @@ impl GameState {
             },
             quest_log: QuestLog::default(),
             quest_markers: std::collections::HashMap::new(),
+            minimap_marks: ragnarok_game::minimap_mark::MinimapMarks::default(),
             debug_show_pick_bounds: false,
             show_ping: false,
             show_fps: false,
