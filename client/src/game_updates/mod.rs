@@ -60,6 +60,7 @@ impl App {
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         self.game.character.prune_expired(now_ms);
         self.update_movement(delta, elapsed);
+        self.update_camera(delta);
         self.process_continuous_walk(delta);
         self.update_entity_state(delta);
         self.flush_queued_move();
@@ -71,6 +72,8 @@ impl App {
         self.update_arrows(delta);
         self.check_pending_pickup();
         self.check_pending_attack(delta);
+        self.update_progress_bar(delta);
+        self.update_cast_marks(delta);
         self.check_pending_skill();
         self.check_pending_ground_skill();
         self.load_missing_entity_sprites();

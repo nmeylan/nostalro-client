@@ -45,12 +45,18 @@ impl MapCoordinates {
         (wx, 0.0, wz)
     }
 
-    pub fn world_to_cell(&self, wx: f32, wz: f32) -> (i32, i32) {
+    pub fn world_to_cell_f(&self, wx: f32, wz: f32) -> (f32, f32) {
         let gnd_cell_x = wx / self.zoom;
         let gnd_cell_y = wz / self.zoom;
-        let cell_x = (gnd_cell_x * (self.gat_width as f32 / self.gnd_width as f32)) as i32;
-        let cell_y = (gnd_cell_y * (self.gat_height as f32 / self.gnd_height as f32)) as i32;
-        (cell_x, cell_y)
+        (
+            gnd_cell_x * (self.gat_width as f32 / self.gnd_width as f32),
+            gnd_cell_y * (self.gat_height as f32 / self.gnd_height as f32),
+        )
+    }
+
+    pub fn world_to_cell(&self, wx: f32, wz: f32) -> (i32, i32) {
+        let (cell_x, cell_y) = self.world_to_cell_f(wx, wz);
+        (cell_x as i32, cell_y as i32)
     }
 
     pub fn is_valid_cell(&self, x: i32, y: i32) -> bool {

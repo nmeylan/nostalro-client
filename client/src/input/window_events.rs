@@ -1,10 +1,15 @@
 use crate::App;
 use crate::config::WindowStateEntry;
+use models::enums::EnumWithNumberValue;
+use models::enums::class::JobName;
+use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::ailment::OPT2_BLIND;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::keybinding::{HotkeyAction, KeyChord};
 use ragnarok_network::build_action_request_packet;
+use ragnarok_renderer::camera::CameraControl;
 use ragnarok_ui_component::game::context_menu::{ContextMenuAction, ContextMenuItem};
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
@@ -306,13 +311,9 @@ impl App {
                 if dx.abs() > 1.0 || dy.abs() > 1.0 {
                     self.input.right_dragged = true;
                 }
+                let control = self.camera_control();
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.camera.apply_drag(
-                        dx,
-                        dy,
-                        self.config.free_camera,
-                        self.game.session.camera_locked,
-                    );
+                    renderer.camera.apply_drag(dx, dy, control);
                 }
             }
             self.input.last_mouse_pos = Some(logical_pos);
@@ -321,16 +322,53 @@ impl App {
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
         if self.game.session.app_state == AppState::InGame && !self.input.ui_hovered {
-            let scroll = match delta {
+            let notches = match delta {
                 MouseScrollDelta::LineDelta(_, y) => y,
                 MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
             };
+            if notches == 0.0 {
+                return;
+            }
+            let control = self.camera_control();
             if let Some(renderer) = &mut self.renderer {
-                renderer
-                    .camera
-                    .apply_zoom(scroll, self.game.session.camera_locked);
+                renderer.camera.apply_wheel(notches, control);
             }
         }
+    }
+
+    fn camera_control(&self) -> CameraControl {
+        let account_id = self
+            .game
+            .session
+            .login_session
+            .as_ref()
+            .map_or(0, |s| s.account_id);
+        CameraControl {
+            indoor: self.game.session.camera_locked,
+            gm: self.config.is_gm_account(account_id),
+            shift: self.input.shift_pressed,
+            ctrl: self.input.ctrl_pressed,
+            alt: self.input.alt_pressed,
+            star_gazing: self.is_star_gazing(),
+            unbounded: self.config.free_camera,
+        }
+    }
+
+    /// A seated Star Gladiator who has not learned Demon of the Sun, Moon and
+    /// Stars may pull the camera far back to watch the sky.
+    fn is_star_gazing(&self) -> bool {
+        let Some(player) = self.game.world.entities.player() else {
+            return false;
+        };
+        player.state == EntityState::Sitting
+            && JobName::try_from_value(player.job as usize) == Ok(JobName::StarGladiator)
+            && player.health_state & OPT2_BLIND == 0
+            && self
+                .game
+                .character
+                .skills
+                .get_skill(SkillEnum::SgDevil.id() as u16)
+                .is_none_or(|skill| skill.level <= 0)
     }
 
     fn trigger_shortcut(&mut self, slot: usize) {
@@ -393,7 +431,7 @@ impl App {
                 }
                 self.game.debug_show_pick_bounds = !self.game.debug_show_pick_bounds;
             }
-            KeyCode::F9 => {
+            KeyCode::KeyP if self.input.ctrl_pressed => {
                 self.profiler.start();
             }
             KeyCode::Digit1 if self.input.alt_pressed => self.trigger_shortcut(0),
@@ -492,6 +530,7 @@ impl App {
                 }
             }
             HotkeyAction::CycleMinimap => self.windows.minimap_window.cycle_visibility(),
+            HotkeyAction::ToggleWorldMap => self.windows.world_map_window.toggle(),
             HotkeyAction::MercenaryFollow => {
                 if self.has_mercenary() {
                     self.push_owner_command_to(

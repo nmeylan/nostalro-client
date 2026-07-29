@@ -188,10 +188,7 @@ impl Scene {
         let mut scene = Scene {
             renderer,
             assets,
-            camera: Camera {
-                aspect,
-                ..Default::default()
-            },
+            camera: Camera::with_aspect(aspect),
             global_uniforms,
             action: args.action,
             time: 0.0,

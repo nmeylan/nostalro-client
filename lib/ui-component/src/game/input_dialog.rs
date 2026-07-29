@@ -50,14 +50,15 @@ pub struct InputDialog {
     container: DialogContainer,
 }
 
-const ID_INPUT: u32 = 0;
-const ID_OK: u32 = 1;
-const ID_CANCEL: u32 = 2;
-const ID_WINDOW: u32 = 3;
+const OFFSET_INPUT: u32 = 0;
+const OFFSET_OK: u32 = 1;
+const OFFSET_CANCEL: u32 = 2;
+const OFFSET_WINDOW: u32 = 3;
 
 impl InputDialog {
     pub fn new(config: InputDialogConfig, base_id: WidgetId) -> Self {
-        let mut input = TextInput::new(config.max_len, false).with_numeric_only(config.numeric_only);
+        let mut input =
+            TextInput::new(config.max_len, false).with_numeric_only(config.numeric_only);
         input.text = config.default_value;
         input.cursor_pos = input.text.chars().count();
         Self {
@@ -100,20 +101,20 @@ impl InputDialog {
     }
 
     pub fn win_id(&self) -> WidgetId {
-        WidgetId(self.base_id.0 + ID_WINDOW)
+        WidgetId(self.base_id.0 + OFFSET_WINDOW)
     }
     pub fn window_size(&self) -> (f32, f32) {
         let label_h = if self.label.is_some() { 18.0 } else { 0.0 };
         (DIALOG_W, DIALOG_H + label_h)
     }
     fn input_id(&self) -> WidgetId {
-        WidgetId(self.base_id.0 + ID_INPUT)
+        WidgetId(self.base_id.0 + OFFSET_INPUT)
     }
     fn ok_id(&self) -> WidgetId {
-        WidgetId(self.base_id.0 + ID_OK)
+        WidgetId(self.base_id.0 + OFFSET_OK)
     }
     fn cancel_id(&self) -> WidgetId {
-        WidgetId(self.base_id.0 + ID_CANCEL)
+        WidgetId(self.base_id.0 + OFFSET_CANCEL)
     }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> InputDialogResult {

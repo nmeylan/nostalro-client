@@ -1,14 +1,25 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
+use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
+use ragnarok_game::path::try_move_to;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::skill::skill_needs_talkbox;
 use ragnarok_network::{
-    build_pickup_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
+    build_pickup_item_packet, build_request_move_packet, build_use_skill_packet,
+    build_use_skill_to_ground_packet,
 };
+use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
+
+const DIRECTION_COUNT: u8 = 8;
+const QUARTER_TURN_DIRECTIONS: u8 = DIRECTION_COUNT / 4;
+
+const EFST_KYRIE: i16 = 19;
+const EFST_PARRYING: i16 = 104;
 
 impl App {
     pub(crate) fn check_pending_attack(&mut self, delta: f32) {
@@ -49,7 +60,7 @@ impl App {
         }
 
         if !self.game.combat.attack_is_locked && !self.input.left_mouse_down {
-            self.game.combat.attack_target_id = None;
+            self.stop_attacking();
             return;
         }
 
@@ -103,6 +114,26 @@ impl App {
         {
             self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);
         }
+    }
+
+    /// Advances the server-driven progress bar and reports back when it empties.
+    pub(crate) fn update_progress_bar(&mut self, delta: f32) {
+        let Some(bar) = self.game.session.progress_bar.as_mut() else {
+            return;
+        };
+        if bar.tick(delta) {
+            self.finish_progress_bar();
+        }
+    }
+
+    pub(crate) fn finish_progress_bar(&mut self) {
+        if self.game.session.progress_bar.take().is_none() {
+            return;
+        }
+        self.channel
+            .send_packet(ragnarok_network::build_progress_done_packet(
+                self.active_packetver,
+            ));
     }
 
     pub(crate) fn check_pending_skill(&mut self) {
@@ -254,46 +285,70 @@ impl App {
             if self.skill_on_cooldown(skill_id) {
                 return;
             }
-            self.channel.send_packet(build_use_skill_to_ground_packet(
-                skill_id,
-                level,
-                x,
-                y,
-                self.active_packetver,
-            ));
+            self.cast_on_ground(skill_id, level, x, y);
             self.game.pending_casts.pending_ground_cast = None;
         } else {
             self.try_move_toward(x as i32, y as i32, px, py, skill_range);
         }
     }
 
-    pub(crate) fn check_pending_pickup(&mut self) {
-        let item_id = match self.game.pending_casts.pending_pickup_item_id {
-            Some(id) => id,
-            None => return,
-        };
-        if !self.game.world.floor_items.contains_key(&item_id) {
-            self.game.pending_casts.pending_pickup_item_id = None;
+    /// Places a ground skill, first collecting the message for the skills that write
+    /// one onto the unit.
+    pub(crate) fn cast_on_ground(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {
+        if skill_needs_talkbox(skill_id) {
+            self.windows.skill_talkbox_dialog =
+                Some(SkillTalkboxDialog::new(skill_id, level, x, y));
             return;
         }
-        let (px, py) = self
-            .game
-            .world
-            .entities
-            .player()
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
-        let floor_item = &self.game.world.floor_items[&item_id];
-        let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
-        let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
+        self.channel.send_packet(build_use_skill_to_ground_packet(
+            skill_id,
+            level,
+            x,
+            y,
+            self.active_packetver,
+        ));
+    }
+
+    /// Drives the standing pickup intent: waits out the walk, then either grabs an
+    /// adjacent item or walks another step toward it. Re-evaluated every frame
+    /// until the item is taken or gone.
+    pub(crate) fn check_pending_pickup(&mut self) {
+        let Some(item_id) = self.game.pending_casts.pending_pickup_item_id else {
+            return;
+        };
+        let Some(floor_item) = self.game.world.floor_items.get(&item_id) else {
+            self.game.pending_casts.pending_pickup_item_id = None;
+            return;
+        };
+        let (item_x, item_y) = (floor_item.x as i32, floor_item.y as i32);
+        let Some(player) = self.game.world.entities.player() else {
+            return;
+        };
+        if player.movement.is_moving() || player.is_move_locked() {
+            return;
+        }
+        let (px, py) = player.movement.cell_position();
+        let dx = (px as i32 - item_x).unsigned_abs();
+        let dy = (py as i32 - item_y).unsigned_abs();
         if dx <= 1 && dy <= 1 {
             self.channel
                 .send_packet(build_pickup_item_packet(item_id, self.active_packetver));
             if let Some(entity) = self.game.world.entities.player_mut() {
-                entity.movement.stop();
                 entity.enter_pickup(0.5);
             }
             self.game.pending_casts.pending_pickup_item_id = None;
+            return;
+        }
+        let Some(gat) = &self.game.session.gat else {
+            return;
+        };
+        match try_move_to(gat, px, py, item_x, item_y) {
+            Some(move_action) => self.channel.send_packet(build_request_move_packet(
+                move_action.dest_x,
+                move_action.dest_y,
+                self.active_packetver,
+            )),
+            None => self.game.pending_casts.pending_pickup_item_id = None,
         }
     }
 
@@ -309,7 +364,7 @@ impl App {
             for hit in ready {
                 self.emit_damage_number(entity_id, &hit);
                 self.spawn_hit_effect(entity_id, &hit);
-                if hit.damage > 0 {
+                if hit.damage > 0 && hit.attacker_gid != entity_id {
                     self.queue_hit_sound(entity_id, hit.attacker_gid, hit.skill_id != 0);
                 }
 
@@ -395,12 +450,18 @@ impl App {
         let target_is_self = hit.attacker_gid == entity_id;
         let target_pos = self.entity_world_pos(entity_id);
         let attacker_pos = self.entity_world_pos(hit.attacker_gid);
-        for effect in derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self) {
-            match (is_trail_effect(*effect), attacker_pos, target_pos) {
+        let markers = derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self);
+        if markers.spins_target
+            && let Some(entity) = self.game.world.entities.get_mut(entity_id)
+        {
+            entity.direction = (entity.direction + QUARTER_TURN_DIRECTIONS) % DIRECTION_COUNT;
+        }
+        for effect in markers.iter() {
+            match (is_trail_effect(effect), attacker_pos, target_pos) {
                 (true, Some(from), Some(to)) if !target_is_self => {
-                    self.effect_queue.spawn_trail(*effect, from, to);
+                    self.effect_queue.spawn_trail(effect, from, to);
                 }
-                _ => self.effect_queue.spawn_on(*effect, entity_id),
+                _ => self.effect_queue.spawn_on(effect, entity_id),
             }
         }
     }
@@ -461,6 +522,10 @@ impl App {
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)
             .unwrap_or(false);
         let is_player_attacker = self.game.world.entities.player_id() == Some(hit.attacker_gid);
+        if is_miss && self.blocks_incoming_blow(entity_id, hit.attacker_gid) {
+            self.effect_queue.spawn_on(EffectId::Guard, entity_id);
+            return;
+        }
         self.game.combat.damage_numbers.emit(
             display_entity,
             dir,
@@ -468,5 +533,26 @@ impl App {
             is_player_target,
             is_player_attacker,
         );
+    }
+
+    /// Whether the blow reads as absorbed rather than missed: only the local
+    /// player, only under Kyrie Eleison or Parrying, and only against a monster.
+    fn blocks_incoming_blow(&self, defender_gid: u32, attacker_gid: u32) -> bool {
+        if self.game.world.entities.player_id() != Some(defender_gid) {
+            return false;
+        }
+        let attacker_is_monster = self
+            .game
+            .world
+            .entities
+            .get(attacker_gid)
+            .is_some_and(|e| e.entity_type == ragnarok_game::entity::EntityType::Monster);
+        attacker_is_monster
+            && self
+                .game
+                .character
+                .active_statuses
+                .iter()
+                .any(|s| s.efst == EFST_KYRIE || s.efst == EFST_PARRYING)
     }
 }

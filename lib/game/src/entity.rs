@@ -35,6 +35,50 @@ pub enum EntityType {
     Mercenary,
 }
 
+/// Actor class the server's job id puts an entity in. Selects the interaction
+/// surface — name plate, HP/SP bar, hover cursor, click action, minimap marker —
+/// where `EntityType` only selects the sprite path and action layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityCategory {
+    Player,
+    Npc,
+    WarpPoint,
+    /// Ground unit spawned by a skill: Sanctuary, Fire Wall, traps, songs.
+    Skill,
+    Monster,
+    Pet,
+    Cart,
+    Homunculus,
+    Mercenary,
+    Invisible,
+}
+
+impl EntityCategory {
+    pub fn has_name_plate(self) -> bool {
+        matches!(
+            self,
+            EntityCategory::Player
+                | EntityCategory::Npc
+                | EntityCategory::Monster
+                | EntityCategory::Pet
+                | EntityCategory::Homunculus
+                | EntityCategory::Mercenary
+        )
+    }
+
+    pub fn has_health_bar(self) -> bool {
+        matches!(
+            self,
+            EntityCategory::Player
+                | EntityCategory::Monster
+                | EntityCategory::Pet
+                | EntityCategory::Cart
+                | EntityCategory::Homunculus
+                | EntityCategory::Mercenary
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityState {
     Standing,
@@ -217,6 +261,8 @@ pub struct Entity {
     pub health_state: i16,
     /// Blade Stop / Root: darkens the body and freezes motion until released.
     pub rooted: bool,
+    /// opt3 status bits, the only channel that carries the body-buff auras.
+    pub opt3: i32,
     pub base_level: i16,
     pub is_boss: bool,
     pub pk_rank: i32,
@@ -313,6 +359,7 @@ impl Entity {
             body_state: 0,
             health_state: 0,
             rooted: false,
+            opt3: 0,
             base_level: 0,
             is_boss: false,
             pk_rank: 0,
@@ -539,8 +586,10 @@ impl Entity {
         self.fade.as_ref().is_some_and(|f| f.is_expired())
     }
 
+    /// The server echoes our own pickup back as an action packet, so a pickup
+    /// already in flight must not restart or extend the motion.
     pub fn enter_pickup(&mut self, duration_secs: f32) {
-        if self.state == EntityState::Dead {
+        if matches!(self.state, EntityState::Dead | EntityState::Pickup) {
             return;
         }
         self.state = EntityState::Pickup;
@@ -600,6 +649,15 @@ impl Entity {
             }
         } else {
             None
+        }
+    }
+
+    pub fn category(&self) -> EntityCategory {
+        let category = crate::sprite_path::entity_category_from_job(self.job);
+        if self.is_pet && category == EntityCategory::Monster {
+            EntityCategory::Pet
+        } else {
+            category
         }
     }
 
@@ -1131,6 +1189,18 @@ mod tests {
         e.update_state(0.6);
         assert_eq!(e.state, EntityState::Standing);
         assert!(!e.is_move_locked());
+    }
+
+    #[test]
+    fn re_entering_pickup_does_not_extend_the_motion() {
+        let mut e = make_entity();
+        e.enter_pickup(0.5);
+        e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Pickup);
+
+        e.enter_pickup(0.5);
+        e.update_state(0.3);
+        assert_eq!(e.state, EntityState::Standing);
     }
 
     #[test]

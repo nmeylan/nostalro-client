@@ -200,6 +200,12 @@ impl Guild {
         }
     }
 
+    pub fn clear_position_of(&mut self, aid: u32) {
+        if let Some(m) = self.members.iter_mut().find(|m| m.aid == aid) {
+            m.has_live_position = false;
+        }
+    }
+
     pub fn clear_live_positions(&mut self) {
         for m in &mut self.members {
             m.has_live_position = false;

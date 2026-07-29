@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};

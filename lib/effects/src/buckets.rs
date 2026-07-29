@@ -291,6 +291,7 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Level993
             | EffectId::Level995
             | EffectId::Level996
+            | EffectId::Green993
             | EffectId::Green995
             | EffectId::Green996
             | EffectId::LightningS
@@ -592,7 +593,6 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Flowercast2
             | EffectId::Flyup
             | EffectId::GetItem
-            | EffectId::Green993
             | EffectId::Greenbody
             | EffectId::Groundimage
             | EffectId::Groundimage3
@@ -606,11 +606,9 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::Hiding
             | EffectId::Hit7
             | EffectId::Hitbody
-            | EffectId::Homuncasting
             | EffectId::Kaahi
             | EffectId::Kaizel
             | EffectId::Kickedbody
-            | EffectId::Level994
             | EffectId::Lightblade
             | EffectId::LightBody
             | EffectId::LightHead1

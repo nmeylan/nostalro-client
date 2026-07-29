@@ -518,25 +518,12 @@ impl App {
                 } else {
                     self.channel
                         .send_packet(build_setting_whisper_pc_packet(&name, block, pv));
-                    self.game.prefs.blocked_whispers.retain(|n| n != &name);
-                    if block {
-                        self.game.prefs.blocked_whispers.push(name.clone());
-                    }
-                    let verb = if block { "Blocked" } else { "Unblocked" };
-                    self.windows
-                        .chat_window
-                        .add_system(format!("{verb} whispers from {name}."));
+                    self.game.pending_confirms.pending_whisper_block = Some((name, block));
                 }
             }
             ChatCommand::WhisperBlockAll(block) => {
                 self.channel
                     .send_packet(build_setting_whisper_state_packet(block, pv));
-                let msg = if block {
-                    "Blocking all whispers."
-                } else {
-                    "Accepting all whispers."
-                };
-                self.windows.chat_window.add_system(msg.to_string());
             }
             ChatCommand::WhisperListBlocked => {
                 if self.game.prefs.blocked_whispers.is_empty() {

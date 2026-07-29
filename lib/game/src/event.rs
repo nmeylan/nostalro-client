@@ -5,6 +5,7 @@ use crate::guild::{
 use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::mail::{MailEntry, OpenedMail};
+use crate::minimap_mark::MarkAction;
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
@@ -30,6 +31,13 @@ pub enum GameEvent {
     },
     ZoneServerConnectInfo {
         char_id: u32,
+        map_name: String,
+        ip: u32,
+        port: i16,
+    },
+    /// The destination map is hosted by a different zone server: reconnect there
+    /// and re-enter.
+    ZoneServerChanged {
         map_name: String,
         ip: u32,
         port: i16,
@@ -217,6 +225,12 @@ pub enum GameEvent {
         health_state: i16,
         effect_state: i32,
     },
+    EntityOpt3Changed {
+        gid: u32,
+        effect_state: i32,
+        base_level: i32,
+        opt3: i32,
+    },
     PlayEffectOnEntity {
         gid: u32,
         effect_id: i32,
@@ -343,6 +357,18 @@ pub enum GameEvent {
     },
     SkillUnitDisappeared {
         aid: u32,
+    },
+    GraffitiEntered {
+        aid: u32,
+        creator_aid: u32,
+        x: i16,
+        y: i16,
+        message: String,
+    },
+    MapCellChanged {
+        x: i16,
+        y: i16,
+        cell_type: i32,
     },
     SkillUnitUpdated {
         aid: u32,
@@ -856,6 +882,21 @@ pub enum GameEvent {
     ShowSystemMessage {
         message: String,
     },
+    WhisperSettingResult {
+        allow: bool,
+        result: u8,
+        all: bool,
+    },
+    MemoResult {
+        result: u8,
+    },
+    ProgressBarStarted {
+        duration_secs: u32,
+    },
+    ProgressBarCancelled,
+    ServerMsg {
+        msg_id: u16,
+    },
     DialogClosed,
     ToggleInventory,
     ToggleEquipment,
@@ -917,10 +958,12 @@ pub enum GameEvent {
         hp: u32,
         max_hp: u32,
     },
+    /// Coordinates are signed: the server sends -1,-1 when the member leaves
+    /// our map, which clears their marker.
     PartyMemberPosition {
         aid: u32,
-        x: u16,
-        y: u16,
+        x: i16,
+        y: i16,
     },
     PartyInviteReceived {
         party_grid: u32,
@@ -1072,10 +1115,17 @@ pub enum GameEvent {
     GuildMemberPositionsChanged {
         entries: Vec<(u32, u32, i32)>,
     },
+    /// Signed for the same reason as `PartyMemberPosition`.
     GuildMemberPosition {
         aid: u32,
-        x: u16,
-        y: u16,
+        x: i16,
+        y: i16,
+    },
+    GuildMemberOnline {
+        aid: u32,
+        gid: u32,
+        online: bool,
+        appearance: Option<GuildMemberAppearance>,
     },
     GuildSkills {
         point: i16,
@@ -1206,6 +1256,13 @@ pub enum GameEvent {
         gdid: u32,
         relation: i32,
     },
+    ConfirmedSkillTalkbox {
+        skill_id: u16,
+        level: i16,
+        x: i16,
+        y: i16,
+        message: String,
+    },
     ConfirmedGuildExpel {
         aid: u32,
         gid: u32,
@@ -1221,6 +1278,22 @@ pub enum GameEvent {
     RequestSelectEmblem,
     /// UI → client: upload the chosen emblem BMP file.
     RequestUploadEmblem {
+        path: String,
+    },
+
+    /// A mark the server put on the minimap (`ZC_COMPASS`): the town guide's
+    /// directions and quest arrows.
+    MinimapMark {
+        id: u8,
+        action: MarkAction,
+        x: u16,
+        y: u16,
+        color: u32,
+    },
+
+    /// UI → client: load a world-map texture from the GRF on demand. The client
+    /// answers with `WorldMapWindow::texture_loaded`.
+    RequestWorldMapTexture {
         path: String,
     },
 
@@ -1669,6 +1742,13 @@ pub struct PartyMemberData {
     pub map: String,
     pub leader: bool,
     pub online: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GuildMemberAppearance {
+    pub sex: i16,
+    pub head: i16,
+    pub head_palette: i16,
 }
 
 #[derive(Debug, Clone)]

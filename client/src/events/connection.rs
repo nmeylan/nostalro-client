@@ -114,6 +114,34 @@ impl App {
             .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
     }
 
+    /// The re-entry handshake resends the landing cell in `ZC_ACCEPT_ENTER`, so the
+    /// coordinates carried here are not needed.
+    pub(super) fn handle_zone_server_changed(&mut self, map_name: String, ip: u32, port: i16) {
+        tracing::info!(
+            "Zone server change to '{map_name}' at {}:{port}",
+            ip_u32_to_string(ip)
+        );
+        self.on_session_change(SessionChange::MapChange);
+        self.clear_map_actors();
+        self.game.session.current_map = None;
+        self.game.character.inventory.clear();
+        if let Some(session) = &mut self.game.session.login_session {
+            session.map_name = map_name;
+        }
+
+        let addr = format!("{}:{}", ip_u32_to_string(ip), port);
+        self.channel.send_cmd(NetworkCommand::Disconnect);
+        self.channel.send_cmd(NetworkCommand::Connect {
+            addr,
+            expect_aid: true,
+        });
+        if let Some(session) = &self.game.session.login_session {
+            self.channel.send_packet(build_zone_enter_packet(session));
+        }
+        self.channel
+            .send_cmd(NetworkCommand::SetKeepalive(KeepaliveMode::MapServer));
+    }
+
     pub(super) fn handle_accessible_maps_received(
         &mut self,
         maps: Vec<ragnarok_game::event::AccessibleMap>,
@@ -268,7 +296,7 @@ impl App {
             self.spawn_cart_visual(pid, design);
         }
 
-        self.position_camera_at(x as f32, y as f32);
+        self.warp_camera_to(x as f32, y as f32);
         self.char_select_window = None;
 
         if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
@@ -307,6 +335,7 @@ impl App {
             preload_window(&mut self.windows.hotkey_bar, renderer, grf);
             preload_window(&mut self.windows.basic_info_window, renderer, grf);
             preload_window(&mut self.windows.minimap_window, renderer, grf);
+            preload_window(&mut self.windows.world_map_window, renderer, grf);
             preload_window(&mut self.windows.status_window, renderer, grf);
             preload_window(&mut self.windows.levelup_notification, renderer, grf);
             preload_window(&mut self.windows.party_friends_window, renderer, grf);
@@ -384,6 +413,8 @@ impl App {
         self.game.companions.pet.clear_entity();
         self.game.quest_markers.clear();
         self.game.world.floor_items.clear();
+        self.game.world.graffiti.clear();
+        self.game.world.cast_marks.clear();
         self.game.assets.floor_item_sprites.clear();
         self.game.schedulers.repeat_sounds.clear();
         if let Some(guild) = &mut self.game.guild {
@@ -441,6 +472,8 @@ impl App {
                 }
             }
             self.windows.minimap_window.on_map_changed();
+            self.game.minimap_marks.clear();
+            self.windows.world_map_window.on_map_changed();
         } else {
             self.clear_map_actors();
         }
@@ -453,7 +486,7 @@ impl App {
         if let Some(entity) = self.game.world.entities.player_mut() {
             entity.movement.set_position(x as f32, y as f32);
         }
-        self.position_camera_at(x as f32, y as f32);
+        self.warp_camera_to(x as f32, y as f32);
 
         let surviving: Vec<u32> = self.game.world.entities.iter().map(|e| e.id).collect();
         for gid in surviving {

@@ -11,11 +11,11 @@ impl App {
             party.item_division_rule = old.item_division_rule;
         }
         for m in members {
-            let (hp, max_hp, x, y) = old
+            let (hp, max_hp, x, y, has_live_position) = old
                 .as_ref()
                 .and_then(|p| p.member(m.aid))
-                .map(|e| (e.hp, e.max_hp, e.x, e.y))
-                .unwrap_or((None, None, 0, 0));
+                .map(|e| (e.hp, e.max_hp, e.x, e.y, e.has_live_position))
+                .unwrap_or((None, None, 0, 0, false));
             party.members.push(PartyMember {
                 aid: m.aid,
                 name: m.name,
@@ -26,6 +26,7 @@ impl App {
                 max_hp,
                 x,
                 y,
+                has_live_position,
             });
         }
         self.game.party = Some(party);
@@ -42,6 +43,13 @@ impl App {
         x: u16,
         y: u16,
     ) {
+        let on_our_map = self
+            .game
+            .session
+            .current_map
+            .as_deref()
+            .map(ragnarok_game::map_key)
+            == Some(ragnarok_game::map_key(&map));
         let party = self
             .game
             .party
@@ -56,6 +64,7 @@ impl App {
             max_hp: None,
             x,
             y,
+            has_live_position: on_our_map,
         });
     }
 
@@ -83,9 +92,13 @@ impl App {
         }
     }
 
-    pub(super) fn handle_party_member_position(&mut self, aid: u32, x: u16, y: u16) {
+    pub(super) fn handle_party_member_position(&mut self, aid: u32, x: i16, y: i16) {
         if let Some(party) = &mut self.game.party {
-            party.set_position(aid, x, y);
+            if x < 0 || y < 0 {
+                party.clear_position_of(aid);
+            } else {
+                party.set_position(aid, x as u16, y as u16);
+            }
         }
     }
 

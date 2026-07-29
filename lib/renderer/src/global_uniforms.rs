@@ -51,6 +51,29 @@ impl Default for FogUniform {
     }
 }
 
+/// Maps a world XZ straight to a UV of the ground lightmap, so a model samples
+/// the very texel the terrain under it samples. `enabled` is 0 when the map has
+/// no lightmap or the player turned lightmaps off.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct CellLightUniform {
+    pub uv_scale: [f32; 2],
+    pub uv_bias: [f32; 2],
+    pub enabled: f32,
+    pub _pad: [f32; 3],
+}
+
+impl Default for CellLightUniform {
+    fn default() -> Self {
+        Self {
+            uv_scale: [0.0; 2],
+            uv_bias: [0.0; 2],
+            enabled: 0.0,
+            _pad: [0.0; 3],
+        }
+    }
+}
+
 pub struct GlobalUniforms {
     pub camera_buffer: wgpu::Buffer,
     pub light_buffer: wgpu::Buffer,
@@ -59,6 +82,11 @@ pub struct GlobalUniforms {
     pub point_light_capacity: usize,
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub bind_group: wgpu::BindGroup,
+    cell_light_buffer: wgpu::Buffer,
+    cell_light_view: wgpu::TextureView,
+    cell_light_sampler: wgpu::Sampler,
+    cell_light: CellLightUniform,
+    cell_light_available: bool,
 }
 
 impl GlobalUniforms {
@@ -95,6 +123,25 @@ impl GlobalUniforms {
             label: Some("fog_uniform"),
             contents: bytemuck::cast_slice(&[fog_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let cell_light = CellLightUniform::default();
+        let cell_light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("cell_light_uniform"),
+            contents: bytemuck::cast_slice(&[cell_light]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let cell_light_view =
+            create_cell_light_texture(device, 1, 1).create_view(&Default::default());
+        let cell_light_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("cell_light_sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            ..Default::default()
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -140,16 +187,45 @@ impl GlobalUniforms {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
-        let bind_group = Self::create_bind_group(
+        let bind_group = build_bind_group(
             device,
             &bind_group_layout,
             &camera_buffer,
             &light_buffer,
             &point_light_buffer,
             &fog_buffer,
+            &cell_light_view,
+            &cell_light_sampler,
+            &cell_light_buffer,
         );
 
         Self {
@@ -160,39 +236,93 @@ impl GlobalUniforms {
             point_light_capacity,
             bind_group_layout,
             bind_group,
+            cell_light_buffer,
+            cell_light_view,
+            cell_light_sampler,
+            cell_light,
+            cell_light_available: false,
         }
     }
 
-    fn create_bind_group(
+    fn rebuild_bind_group(&mut self, device: &wgpu::Device) {
+        self.bind_group = build_bind_group(
+            device,
+            &self.bind_group_layout,
+            &self.camera_buffer,
+            &self.light_buffer,
+            &self.point_light_buffer,
+            &self.fog_buffer,
+            &self.cell_light_view,
+            &self.cell_light_sampler,
+            &self.cell_light_buffer,
+        );
+    }
+
+    /// Uploads a map's per-cell light texture, or clears it when the map has no
+    /// lightmap to sample.
+    /// Uploads the ground lightmap for models to sample. `stride` is the texel
+    /// step between neighbouring cells, matching the terrain's layout.
+    pub fn update_cell_light(
+        &mut self,
         device: &wgpu::Device,
-        layout: &wgpu::BindGroupLayout,
-        camera_buffer: &wgpu::Buffer,
-        light_buffer: &wgpu::Buffer,
-        point_light_buffer: &wgpu::Buffer,
-        fog_buffer: &wgpu::Buffer,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("global_uniforms"),
-            layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: light_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: point_light_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: fog_buffer.as_entire_binding(),
-                },
+        queue: &wgpu::Queue,
+        map: Option<(u32, u32, &[u8])>,
+        cell_size: f32,
+        stride: f32,
+    ) {
+        let (width, height, pixels) = match map {
+            Some((w, h, p)) => (w, h, p),
+            None => (1, 1, &[0u8, 0, 0, 255][..]),
+        };
+
+        let texture = create_cell_light_texture(device, width, height);
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.cell_light_view = texture.create_view(&Default::default());
+        self.cell_light_available = map.is_some();
+        // Terrain puts cell (x, y)'s texel 0 at x * stride and spans to texel
+        // centre 7, so world x maps to (x / cell_size * stride + 0.5) texels.
+        self.cell_light = CellLightUniform {
+            uv_scale: [
+                stride / (cell_size * width as f32),
+                stride / (cell_size * height as f32),
             ],
-        })
+            uv_bias: [0.5 / width as f32, 0.5 / height as f32],
+            enabled: self.cell_light.enabled,
+            _pad: [0.0; 3],
+        };
+        self.write_cell_light(queue);
+        self.rebuild_bind_group(device);
+    }
+
+    pub fn set_cell_light_enabled(&mut self, queue: &wgpu::Queue, enabled: bool) {
+        self.cell_light.enabled = if enabled { 1.0 } else { 0.0 };
+        self.write_cell_light(queue);
+    }
+
+    fn write_cell_light(&self, queue: &wgpu::Queue) {
+        let mut uniform = self.cell_light;
+        if !self.cell_light_available {
+            uniform.enabled = 0.0;
+        }
+        queue.write_buffer(&self.cell_light_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
     pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
@@ -230,16 +360,74 @@ impl GlobalUniforms {
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 });
             self.point_light_capacity = payload.len();
-            self.bind_group = Self::create_bind_group(
-                device,
-                &self.bind_group_layout,
-                &self.camera_buffer,
-                &self.light_buffer,
-                &self.point_light_buffer,
-                &self.fog_buffer,
-            );
+            self.rebuild_bind_group(device);
         } else {
             queue.write_buffer(&self.point_light_buffer, 0, bytemuck::cast_slice(payload));
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    camera_buffer: &wgpu::Buffer,
+    light_buffer: &wgpu::Buffer,
+    point_light_buffer: &wgpu::Buffer,
+    fog_buffer: &wgpu::Buffer,
+    cell_light_view: &wgpu::TextureView,
+    cell_light_sampler: &wgpu::Sampler,
+    cell_light_buffer: &wgpu::Buffer,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("global_uniforms"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: light_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: point_light_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: fog_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(cell_light_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::Sampler(cell_light_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: cell_light_buffer.as_entire_binding(),
+            },
+        ],
+    })
+}
+
+fn create_cell_light_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("cell_light"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    })
 }

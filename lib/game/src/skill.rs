@@ -1,4 +1,5 @@
 pub use models::enums::skill::SkillTargetType;
+use models::enums::skill_enums::SkillEnum;
 
 /// Player-facing message for a skill-use failure `cause` (`USESKILL_FAIL_*`), or
 /// `None` when no message should be shown. Cause 0 (`USESKILL_FAIL_LEVEL`) is the
@@ -16,12 +17,24 @@ pub fn skill_failure_message(cause: u8) -> Option<&'static str> {
         8 => "Blue Gemstone required",
         9 => "Overweight",
         10 => "Skill failed",
+        11 => "Cannot use on this target",
+        12 => "You cannot carry any more Ancilla",
         13 => "Holy Water required",
-        17 => "Need another skill first",
-        18 => "Need a partner",
+        14 => "Ancilla required",
+        16 => "Need another skill first",
+        17 => "Need a partner",
+        18 => "You are facing the wrong direction",
         _ => return None,
     })
 }
+
+/// Ground skills whose cast carries a written message: the client collects the text
+/// itself and sends it with the placement, so the server has nothing to prompt for.
+pub fn skill_needs_talkbox(skill_id: u16) -> bool {
+    skill_id == SkillEnum::HtTalkiebox.id() as u16 || skill_id == SkillEnum::RgGraffiti.id() as u16
+}
+
+pub const TALKBOX_MESSAGE_MAX_LEN: usize = 79;
 
 pub struct SkillData {
     pub id: u16,
@@ -271,6 +284,8 @@ mod tests {
         assert_eq!(skill_failure_message(2), Some("Not enough HP"));
         assert_eq!(skill_failure_message(4), Some("Skill is on cooldown"));
         assert_eq!(skill_failure_message(7), Some("Red Gemstone required"));
+        assert_eq!(skill_failure_message(16), Some("Need another skill first"));
+        assert_eq!(skill_failure_message(17), Some("Need a partner"));
     }
 
     #[test]

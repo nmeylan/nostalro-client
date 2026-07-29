@@ -14,6 +14,8 @@ use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
 use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
 use ragnarok_game::data_table::item_name_table::ItemNameTable;
 use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::map_name_table::MapNameTable;
+use ragnarok_game::data_table::map_position_table::MapPositionTable;
 use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::data_table::skill_name_table::SkillNameTable;
 use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
@@ -99,7 +101,13 @@ use ragnarok_ui_component::game::vending_board;
 use ragnarok_ui_component::game::vending_setup_window::{
     VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
 };
+use ragnarok_ui_component::game::minimap_window::{
+    MINIMAP_WINDOW_ID, MarkerType, MinimapMarker, MinimapWindow, quest_marker_color,
+};
 use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
+use ragnarok_ui_component::game::world_map_window::{
+    WORLD_MAP_TEX, WORLD_MAP_WINDOW_ID, WorldMapWindow,
+};
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use ragnarok_ui_component::helper::head_board::BOARD_W;
 use ragnarok_ui_component::{InGameWindow, Window};
@@ -127,6 +135,8 @@ const GAME_COMPONENTS: &[&str] = &[
     "quest_detail",
     "graphic_options",
     "hotkey_config",
+    "world_map",
+    "minimap",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
@@ -288,6 +298,18 @@ enum State {
     },
     ChatRoomMember {
         win: ChatRoomMemberWindow,
+        character: Character,
+        data: DataTable,
+    },
+    Minimap {
+        win: MinimapWindow,
+        character: Character,
+        data: DataTable,
+    },
+    WorldMap {
+        win: WorldMapWindow,
+        party: Party,
+        local_aid: u32,
         character: Character,
         data: DataTable,
     },
@@ -1148,6 +1170,92 @@ fn create_single(name: &str) -> State {
                 data: DataTable::new(),
             }
         }
+        "minimap" => {
+            let mut win = MinimapWindow::new();
+            win.map_name = Some("prontera".to_string());
+            win.map_width = 400;
+            win.map_height = 400;
+            win.player_position = Some((156.0, 191.0));
+            win.player_direction = 4;
+            win.set_map_texture(Some(
+                "data/texture/유저인터페이스/map/prontera.bmp".to_string(),
+            ));
+            win.entity_markers = vec![
+                MinimapMarker {
+                    x: 150.0,
+                    y: 200.0,
+                    marker_type: MarkerType::PartyMember { leader: true },
+                    name: Some("Walkiry".to_string()),
+                },
+                MinimapMarker {
+                    x: 170.0,
+                    y: 180.0,
+                    marker_type: MarkerType::PartyMember { leader: false },
+                    name: Some("Lidia".to_string()),
+                },
+                MinimapMarker {
+                    x: 120.0,
+                    y: 160.0,
+                    marker_type: MarkerType::GuildMember,
+                    name: None,
+                },
+                MinimapMarker {
+                    x: 134.0,
+                    y: 221.0,
+                    marker_type: MarkerType::Mark([1.0, 0.0, 0.0]),
+                    name: None,
+                },
+                MinimapMarker {
+                    x: 200.0,
+                    y: 150.0,
+                    marker_type: MarkerType::Mark(quest_marker_color(2)),
+                    name: None,
+                },
+            ];
+            State::Minimap {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "world_map" => {
+            let local_aid = 2000001;
+            let member = |aid: u32, name: &str, map: &str, x: u16, y: u16| PartyMember {
+                aid,
+                name: name.to_string(),
+                map: map.to_string(),
+                leader: aid == local_aid,
+                online: true,
+                hp: None,
+                max_hp: None,
+                x,
+                y,
+                has_live_position: true,
+            };
+            let mut party = Party::new("Adventurers".to_string());
+            party.members = vec![
+                member(local_aid, "Walkiry", "prontera.gat", 156, 191),
+                member(2000002, "Lidia", "prontera.gat", 60, 340),
+                member(2000003, "Garm", "payon.gat", 0, 0),
+                member(2000004, "Sohee", "geffen.gat", 0, 0),
+            ];
+            let mut data = DataTable::new();
+            data.map_position = Some(MapPositionTable::parse(DEMO_MAP_POSITIONS.as_bytes()));
+            data.map_name = Some(MapNameTable::parse(DEMO_MAP_NAMES.as_bytes()));
+            let mut win = WorldMapWindow::new();
+            win.open();
+            win.current_map = Some("prontera".to_string());
+            win.map_width = 400;
+            win.map_height = 400;
+            win.player_position = Some((156.0, 191.0));
+            State::WorldMap {
+                win,
+                party,
+                local_aid,
+                character: Character::new(),
+                data,
+            }
+        }
         "chat_room_member" => {
             use ragnarok_game::chat_room::ChatRoomMember;
             let mut win = ChatRoomMemberWindow::new();
@@ -1623,6 +1731,7 @@ fn create_single(name: &str) -> State {
                 max_hp: Some(max_hp),
                 x: 0,
                 y: 0,
+                has_live_position: false,
             };
             party.members = vec![
                 member(local_aid, "Walkiry", "prontera.gat", true, true, 3200, 3200),
@@ -2167,6 +2276,16 @@ fn grf_init_single(
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
         }
+        State::Minimap { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+        }
+        State::WorldMap { win, .. } => {
+            win.set_has_grf_textures(true);
+            win.set_texture_sizes(size_fn);
+            win.texture_loaded(WORLD_MAP_TEX, true);
+            win.texture_loaded(&WorldMapWindow::minimap_texture_path("prontera"), true);
+        }
         State::CardInsert { dialog, .. } => {
             dialog.has_grf_textures = true;
             dialog.set_texture_sizes(size_fn);
@@ -2286,6 +2405,8 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::HotkeyConfig { .. } => Some(HOTKEY_CONFIG_WINDOW_ID),
         State::Quest { .. } => Some(QUEST_WINDOW_ID),
         State::QuestDetail { .. } => Some(QUEST_DETAIL_WINDOW_ID),
+        State::WorldMap { .. } => Some(WORLD_MAP_WINDOW_ID),
+        State::Minimap { .. } => Some(MINIMAP_WINDOW_ID),
         State::ChatRoomMember { .. } => Some(CHAT_ROOM_MEMBER_WINDOW_ID),
         State::StatusDemo { .. } => Some(STATUS_WINDOW_ID),
         State::PartyDemo { .. } => Some(PARTY_FRIENDS_WINDOW_ID),
@@ -2326,6 +2447,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::HotkeyConfig { win, .. } => Some((HOTKEY_CONFIG_WINDOW_ID, win)),
         State::Quest { win, .. } => Some((QUEST_WINDOW_ID, win)),
         State::QuestDetail { win, .. } => Some((QUEST_DETAIL_WINDOW_ID, win)),
+        State::WorldMap { win, .. } => Some((WORLD_MAP_WINDOW_ID, win)),
         State::ChatRoomMember { win, .. } => Some((CHAT_ROOM_MEMBER_WINDOW_ID, win)),
         State::Cart { win, .. } => Some((CART_WINDOW_ID, win)),
         State::Storage { win, .. } => Some((STORAGE_WINDOW_ID, win)),
@@ -2361,6 +2483,21 @@ fn modal_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         _ => Vec::new(),
     }
 }
+
+/// A few rows of the real position table, enough to see the current-map
+/// highlight and off-map party markers side by side.
+const DEMO_MAP_POSITIONS: &str = concat!(
+    "8#prontera.rsw#812#587#870#643#\n",
+    "8#izlude.rsw#871#644#902#676#\n",
+    "6#geffen.rsw#576#528#635#586#\n",
+    "11#payon.rsw#967#746#1013#803#\n",
+);
+const DEMO_MAP_NAMES: &str = concat!(
+    "prontera.rsw#Prontera, Capital of Rune Midgard#\n",
+    "izlude.rsw#Izlude, the Satellite City#\n",
+    "geffen.rsw#Geffen, the Magic City#\n",
+    "payon.rsw#Payon Town#\n",
+);
 
 const GALLERY_GAP: f32 = 12.0;
 const GALLERY_MARGIN: f32 = 8.0;
@@ -3021,6 +3158,25 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
         } => {
             let mut ctx = d.ctx(character, data);
             ctx.quest_log = &*log;
+            win.build(ui, &mut ctx);
+        }
+        State::Minimap {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, &mut d.ctx(character, data));
+        }
+        State::WorldMap {
+            win,
+            party,
+            local_aid,
+            character,
+            data,
+        } => {
+            let mut ctx = d.ctx(character, data);
+            ctx.party = Some(&*party);
+            ctx.local_aid = *local_aid;
             win.build(ui, &mut ctx);
         }
         State::ChatRoomMember {

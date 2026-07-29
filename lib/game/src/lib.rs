@@ -5,6 +5,7 @@ pub mod arrow;
 pub mod autocounter;
 pub mod banner;
 pub mod book;
+pub mod cast_scope;
 pub mod character;
 pub mod chat_command;
 pub mod chat_room;
@@ -19,6 +20,7 @@ pub use ragnarok_effects as effect;
 pub mod effects;
 pub mod emotion;
 pub mod gr2_model;
+pub mod graffiti;
 pub mod inventory;
 pub mod item;
 pub use cursor::RenderEntry;
@@ -33,8 +35,10 @@ pub mod hotkey;
 pub mod job_class;
 pub mod keybinding;
 pub mod level_aura;
+pub mod lightmap;
 pub mod mail;
 pub mod map_loader;
+pub mod minimap_mark;
 pub mod mob_info;
 pub mod movement;
 pub mod npc_dialog;
@@ -45,6 +49,7 @@ pub mod pet;
 pub mod pet_tables;
 pub mod pk_rank;
 pub mod poptip;
+pub mod progress_bar;
 pub mod quest;
 pub mod scheduled_hit;
 pub mod server_time;
@@ -57,3 +62,15 @@ pub mod sprite_path;
 pub mod status_icon;
 pub mod targeting;
 pub mod trade;
+
+/// Lookup key for a map: the bare name, lowercased. Map names reach us in three
+/// forms — `prontera` from the world map tables, `prontera.rsw` from the data
+/// tables, `prontera.gat` from the party and guild packets — and all three must
+/// resolve to the same map.
+pub fn map_key(name: &str) -> String {
+    let lower = name.trim().to_lowercase();
+    match lower.strip_suffix(".gat").or(lower.strip_suffix(".rsw")) {
+        Some(bare) => bare.to_string(),
+        None => lower,
+    }
+}

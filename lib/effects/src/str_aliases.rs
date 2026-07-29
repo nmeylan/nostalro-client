@@ -16,7 +16,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Smoke => &["smoke"],
         EffectId::Firefly => &["firefly"],
         EffectId::Torch => &["torch"],
-        EffectId::Firehit => &["firehit"],
+        EffectId::Firehit => &["firehit1", "firehit2", "firehit3"],
         EffectId::Windhit => &["windhit1", "windhit2", "windhit3"],
         EffectId::Poisonhit => &["poisonhit"],
         EffectId::Arrowshot => &["ArrowShot"],
@@ -178,7 +178,7 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Food04 => &["food_agi"],
         EffectId::Food05 => &["food_dex"],
         EffectId::Food06 => &["food_luk"],
-        EffectId::Firehit2 => &["firehit2"],
+        EffectId::Firehit2 => &["firehit1", "firehit2", "firehit3"],
         EffectId::NpcStop2 => &["npc_stop2"],
         EffectId::CookingOk => &["cook_suc"],
         EffectId::CookingFail => &["cook_fail"],
@@ -224,5 +224,57 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Ring4 => &["ring4"],
         EffectId::Energycoat => &["energycoat"],
         _ => &[],
+    }
+}
+
+/// Ids whose aliases are interchangeable variants the original game picks
+/// between at random on every spawn, rather than a preferred name followed by
+/// fallbacks.
+pub fn picks_random_variant(id: EffectId) -> bool {
+    matches!(
+        id,
+        EffectId::Firehit
+            | EffectId::Firehit2
+            | EffectId::Windhit
+            | EffectId::Pneuma
+            | EffectId::Pong
+    )
+}
+
+/// The file a spawn shows, given a per-spawn `roll`.
+pub fn str_variant(id: EffectId, roll: u64) -> &'static str {
+    let names = str_aliases(id);
+    match names {
+        [] => "",
+        [only] => only,
+        _ if !picks_random_variant(id) => names[0],
+        _ => {
+            let scrambled = roll.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 32;
+            names[(scrambled % names.len() as u64) as usize]
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hit_markers_with_variants_spread_across_all_of_them() {
+        for id in [EffectId::Firehit, EffectId::Firehit2] {
+            assert_eq!(
+                str_aliases(id),
+                &["firehit1", "firehit2", "firehit3"],
+                "{id:?} shares one variant set"
+            );
+        }
+        let picked: std::collections::BTreeSet<&str> =
+            (0..64).map(|roll| str_variant(EffectId::Firehit, roll)).collect();
+        assert_eq!(picked.len(), 3, "every variant gets used");
+
+        // A single-name effect always resolves to its one file.
+        assert_eq!(str_variant(EffectId::Thunderstorm, 7), "thunderstorm");
+        // A preferred-name-plus-fallbacks list is not a variant set.
+        assert_eq!(str_variant(EffectId::Lightbolt, 7), "Lightning");
     }
 }

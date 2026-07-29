@@ -31,16 +31,6 @@ pub const LV99: CastingRingParams = CastingRingParams {
     base_alpha: 0.25,
 };
 
-pub const LV995: CastingRingParams = CastingRingParams {
-    texture: "ring_white.tga",
-    color_rgb: [1.00, 1.00, 1.00],
-    bottom_size: 2.5,
-    top_size: 8.0,
-    height: 14.0,
-    alpha_max: 0.30,
-    base_alpha: 1.0,
-};
-
 pub const GREEN995: CastingRingParams = CastingRingParams {
     texture: "ring_white.tga",
     color_rgb: [0.14, 1.00, 0.14],
@@ -241,8 +231,8 @@ mod tests {
 
     #[test]
     fn variants_use_real_distinct_textures() {
-        assert_ne!(LV99.texture, LV995.texture);
-        for p in [LV99, LV995] {
+        assert_ne!(LV99.texture, GREEN995.texture);
+        for p in [LV99, GREEN995, MAP_AURA, BEGINSPELL8] {
             assert!(TEXTURES.contains(&p.texture));
         }
     }
@@ -256,16 +246,20 @@ mod tests {
 
         // Alias deleted + custom bucket ⇒ both green level-99 ids dispatch via
         // the factory, not a (missing) STR.
-        for id in [EffectId::Green995, EffectId::Green996] {
+        for id in [
+            EffectId::Green993,
+            EffectId::Green995,
+            EffectId::Green996,
+        ] {
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} should resolve to Custom"
             );
         }
+        let green = crate::effects::sparkle_column::GREEN99.color_rgb;
+        assert!(green[1] > green[0] && green[1] > green[2], "green column");
 
-        // 679 is the green sibling of LV995: same flared cone, green tint.
-        assert_eq!(GREEN995.texture, LV995.texture);
-        assert_ne!(GREEN995.color_rgb, LV995.color_rgb);
+        assert_eq!(GREEN995.texture, "ring_white.tga");
         assert!(
             GREEN995.color_rgb[1] > GREEN995.color_rgb[0]
                 && GREEN995.color_rgb[1] > GREEN995.color_rgb[2],

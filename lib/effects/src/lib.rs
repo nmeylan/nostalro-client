@@ -5,6 +5,7 @@ pub mod effect_queue;
 pub mod effect_trait;
 pub mod effects;
 pub mod factory;
+pub mod opt3;
 pub mod projectile;
 pub mod radial_emitter;
 pub mod sfx;
@@ -27,11 +28,16 @@ pub use effect_trait::{
     EffectRenderCtx, EffectUpdateCtx, NumberRequest,
 };
 pub use factory::make_effect;
+pub use opt3::{
+    OPT3_BLADESTOP, Opt3Reaction, monster_opt3_reaction, opt3_bit_for_icon, opt3_bits,
+    player_opt3_reaction,
+};
 pub use skill_effects::{
     CasterSkillEffects, CastingSkill, TargetSkillEffects, begin_cast_effect,
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     derive_hit_effect, fire_glyph_effect, ground_placed_effect, is_cast_circle, is_ground_cast,
-    merc_skill_base, merc_skill_base_id, potion_throw_index, target_skill_effects,
+    merc_skill_base, merc_skill_base_id, potion_throw_index, sevenwind_aura,
+    target_skill_effects,
 };
 pub use skill_units::{
     SkillUnitEntrySound, UNT_USED_TRAPS, skill_unit_effect, skill_unit_entry_sound,
@@ -40,8 +46,10 @@ pub use skill_units::{
 pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, SprBurstParams};
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;
-pub use status_buff::{StatusKind, StatusReaction, status_reaction};
-pub use str_aliases::str_aliases;
+pub use status_buff::{
+    EFST_SKE, StatusKind, StatusReaction, status_reaction, status_reaction_by_efst,
+};
+pub use str_aliases::{str_aliases, str_variant};
 pub use table::{custom_duration_ms, effect_spec, spawn_camera_shake};
 
 pub const ARROW_SPRITE: &str = "data/sprite/몬스터/skel_archer_arrow";

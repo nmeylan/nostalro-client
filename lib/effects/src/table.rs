@@ -324,7 +324,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Heartcasting => EffectSpec::Custom,
         EffectId::Colorpaper => EffectSpec::Custom,
         EffectId::Readyportal2 => EffectSpec::Custom,
-        EffectId::Couplecasting => EffectSpec::Custom,
+        EffectId::Couplecasting | EffectId::Homuncasting => EffectSpec::Custom,
         EffectId::Gravitation => EffectSpec::Custom,
         EffectId::WindBuff => EffectSpec::Custom,
         EffectId::Wind => EffectSpec::Custom,
@@ -698,7 +698,7 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Heartcasting => heartcasting::TOTAL_DURATION_MS,
         EffectId::Colorpaper => colorpaper::TOTAL_DURATION_MS,
         EffectId::Readyportal2 => portal2::READYPORTAL2_DURATION_MS,
-        EffectId::Couplecasting => couple_casting::TOTAL_DURATION_MS,
+        EffectId::Couplecasting | EffectId::Homuncasting => couple_casting::TOTAL_DURATION_MS,
         EffectId::Gravitation => gravitation::TOTAL_DURATION_MS,
         EffectId::WindBuff => 4294967295,
         EffectId::Wind => wind::TOTAL_DURATION_MS,
@@ -910,6 +910,7 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         | EffectId::Glow11
         | EffectId::Glow12
         | EffectId::Glow2
+        | EffectId::Green993
         | EffectId::Green995
         | EffectId::Green996
         | EffectId::TorchGreen
@@ -999,6 +1000,22 @@ const GROUND_UNIT_DURATION_MS: u32 = 99990;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn effects_with_a_renderer_are_not_shadowed_by_the_noop_bucket() {
+        // The level-99 aura's own ring, and the homunculus cast ring, both have
+        // renderers; a stale noop entry used to hide them.
+        for id in [EffectId::Level994, EffectId::Homuncasting] {
+            assert!(
+                matches!(effect_spec(id), Some(EffectSpec::Custom)),
+                "{id:?} resolves to Noop despite having a renderer"
+            );
+        }
+        assert_eq!(
+            custom_duration_ms(EffectId::Homuncasting),
+            custom_duration_ms(EffectId::Couplecasting),
+        );
+    }
 
     #[test]
     fn lv99_resolves_to_custom_factory_path() {

@@ -1,5 +1,6 @@
 mod render_list;
 
+use crate::game_state::CastMark;
 use crate::game_updates::CREATE_PREVIEW_GID;
 use crate::{App, ClipData};
 use ragnarok_game::ailment;
@@ -21,6 +22,15 @@ use ragnarok_renderer::{
 /// Action index of the ice-shatter in `얼음땡.act` (action 0 is the block).
 const FREEZE_SHATTER_ACTION: usize = 1;
 
+/// Negative Y is up, so this lifts the graffiti decal clear of the terrain.
+const GRAFFITI_GROUND_LIFT: f32 = -0.3;
+
+/// Base widening every shadow blob gets, on top of the per-job factor.
+const SHADOW_SCALE: f32 = 1.2;
+
+/// Floor items take a much smaller shadow than actors: `1.2 * 0.4`.
+const FLOOR_ITEM_SHADOW_SCALE: f32 = SHADOW_SCALE * 0.4;
+
 impl App {
     /// Stealth-visibility relationship of the local player to `gid`: their own
     /// body, a party member's, or a stranger's.
@@ -40,12 +50,25 @@ impl App {
         }
     }
 
+    /// Ground-lightmap tint for a sprite standing at `cell` (GAT coordinates).
+    fn actor_light(&self, cell: (f32, f32)) -> [f32; 3] {
+        let lightmap_on = self.renderer.as_ref().is_some_and(|r| r.lightmap_enabled());
+        if !lightmap_on {
+            return [1.0; 3];
+        }
+        match &self.game.session.actor_lightmap {
+            Some(lm) => lm.intensity_at_pos(cell.0, cell.1),
+            None => [1.0; 3],
+        }
+    }
+
     pub(crate) fn compose_and_render(
         &mut self,
         render_list: &[RenderEntry],
         floor_item_render_list: &[RenderEntry],
         cart_render_list: &[RenderEntry],
         elapsed: f32,
+        delta: f32,
         cursor_clips: Vec<ClipData>,
         lock_cursor_clips: Vec<ClipData>,
         mut world_overlay_calls: Vec<UiDrawCall>,
@@ -54,6 +77,10 @@ impl App {
     ) {
         ragnarok_profiling::profile_function!();
         let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
+        // Shadows lie flat on the terrain and belong under every sprite. World
+        // sprites write no depth of their own, so pass order is the only thing
+        // that puts them there: these are prepended once the loop is done.
+        let mut shadow_batches: Vec<SpriteBatch> = Vec::new();
         // Flat feet-depth body silhouettes, stamped into depth after the colour
         // pass so effects occlude against the body (gradient `[0,0]` => uniform z).
         let mut silhouette_batches: Vec<SpriteBatch> = Vec::new();
@@ -122,35 +149,40 @@ impl App {
 
                         // A hidden self keeps its shadow (visible gliding under
                         // Tunnel Drive) but no body.
-                        let draws_shadow = !is_fading
+                        let visible_body = !is_fading
                             && matches!(render, HiddenRender::Visible | HiddenRender::ShadowOnly);
-                        if draws_shadow {
-                            let shadow_scale = entry.sprite_scale * shadow_size(entity.job);
+                        let sits_or_lies =
+                            matches!(entity.state, EntityState::Sitting | EntityState::Dead);
+                        if visible_body && !sits_or_lies {
+                            let shadow_scale =
+                                entry.sprite_scale * SHADOW_SCALE * shadow_size(entity.job);
                             let mut shadow = sprite.build_shadow_batches(
                                 entry.screen_anchor,
                                 entry.depth,
                                 shadow_scale,
-                                entry.depth_gradient,
+                                entry.flat_depth_gradient,
                             );
-                            sprite_batches.append(&mut shadow);
+                            shadow_batches.append(&mut shadow);
+                        }
 
-                            // Gradient [0,0] gives the whole sprite one depth: its
-                            // feet. So effects occlude against the body at foot level.
-                            // Skip for the dead: their big death-pop frame would stamp
-                            // that depth over a ground effect they lie in and erase it.
-                            if render == HiddenRender::Visible && entity.state != EntityState::Dead
-                            {
-                                let mut sil = sprite.build_batches(
-                                    &entity.animation,
-                                    Some(entry.camera_dir),
-                                    entity.head_dir,
-                                    entry.screen_anchor,
-                                    entry.depth,
-                                    entry.sprite_scale,
-                                    [0.0, 0.0],
-                                );
-                                silhouette_batches.append(&mut sil);
-                            }
+                        // Gradient [0,0] gives the whole sprite one depth: its
+                        // feet. So effects occlude against the body at foot level.
+                        // Skip for the dead: their big death-pop frame would stamp
+                        // that depth over a ground effect they lie in and erase it.
+                        if visible_body
+                            && render == HiddenRender::Visible
+                            && entity.state != EntityState::Dead
+                        {
+                            let mut sil = sprite.build_batches(
+                                &entity.animation,
+                                Some(entry.camera_dir),
+                                entity.head_dir,
+                                entry.screen_anchor,
+                                entry.depth,
+                                entry.sprite_scale,
+                                [0.0, 0.0],
+                            );
+                            silhouette_batches.append(&mut sil);
                         }
 
                         if render == HiddenRender::ShadowOnly {
@@ -172,6 +204,7 @@ impl App {
                             body_channels.tint = Some(rgb);
                         }
                         body_channels.alpha *= body_alpha;
+                        body_channels.light = self.actor_light(entity.movement.position());
 
                         // A living sprite stands upright (depth varies head-to-feet).
                         // A corpse lies flat, so its depth follows the ground plane.
@@ -493,22 +526,16 @@ impl App {
                     if let Some(floor_item) = self.game.world.floor_items.get(&entry.id)
                         && let Some((tex, act)) = self.game.assets.floor_item_sprites.get(&entry.id)
                     {
-                        let y_offset = if floor_item.is_falling {
-                            let t = (elapsed - floor_item.drop_time) * 1000.0 / 24.0;
-                            let fall_y = -15.0 + (-0.6 + 0.083 * t as f64) * t as f64;
-                            (fall_y.min(0.0) as f32) * entry.sprite_scale
-                        } else {
-                            0.0
-                        };
+                        let blink_active = floor_item.blink_active(elapsed);
+                        let light = self.actor_light((floor_item.x as f32, floor_item.y as f32));
 
-                        let blink_frame = ((elapsed * 1000.0 / 24.0) as u32) % 92;
-                        let blink_active = blink_frame >= 90;
+                        let center = entry.screen_anchor;
 
-                        let center = [entry.screen_anchor[0], entry.screen_anchor[1] + y_offset];
-
-                        if !act.actions.is_empty() {
-                            let action = &act.actions[0];
+                        let motion = act.actions.first().and_then(|action| {
                             let motion_count = action.motions.len();
+                            if motion_count == 0 {
+                                return None;
+                            }
                             let delay_ms = act
                                 .delays
                                 .first()
@@ -516,37 +543,66 @@ impl App {
                                 .filter(|d| *d > 0.0)
                                 .unwrap_or(150.0);
                             let item_elapsed = elapsed - floor_item.drop_time;
-                            let motion_idx = if motion_count > 0 {
-                                ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count
-                            } else {
-                                0
-                            };
-                            if motion_idx < motion_count {
-                                let motion = &action.motions[motion_idx];
-                                for clip in &motion.clips {
-                                    if let Some((mut vertices, indices, tex_idx)) =
-                                        build_clip_quad(clip, tex, center, entry.depth, [0, 0])
-                                    {
-                                        scale_clip_vertices(
-                                            &mut vertices,
-                                            center,
-                                            entry.sprite_scale,
-                                            entry.depth_gradient,
-                                        );
-                                        if blink_active {
-                                            for v in &mut vertices {
-                                                v.color = [1.0, 1.0, 1.0, 1.0];
-                                            }
+                            let motion_idx =
+                                ((item_elapsed * 1000.0) / delay_ms) as usize % motion_count;
+                            action.motions.get(motion_idx)
+                        });
+
+                        // The shadow stays on the floor while the item arcs above it,
+                        // and sits at the sprite's base rather than its centre.
+                        if let Some((shadow_tex, shadow_act)) = &self.game.assets.shadow_sprite {
+                            let (anchor, depth, scale) = self
+                                .floor_item_ground_projection(floor_item)
+                                .unwrap_or((entry.screen_anchor, entry.depth, entry.sprite_scale));
+                            let base_drop = motion.map_or(0.0, |m| {
+                                m.clips
+                                    .iter()
+                                    .map(|clip| {
+                                        ragnarok_renderer::sprite::clip_bottom_offset(clip, tex)
+                                    })
+                                    .fold(0.0, f32::max)
+                            });
+                            let mut shadow = ragnarok_renderer::sprite::build_shadow_batches(
+                                shadow_act,
+                                shadow_tex,
+                                [anchor[0], anchor[1] + base_drop * entry.sprite_scale],
+                                depth,
+                                scale * FLOOR_ITEM_SHADOW_SCALE,
+                                entry.flat_depth_gradient,
+                            );
+                            shadow_batches.append(&mut shadow);
+                        }
+
+                        if let Some(motion) = motion {
+                            for clip in &motion.clips {
+                                if let Some((mut vertices, indices, tex_idx)) =
+                                    build_clip_quad(clip, tex, center, entry.depth, [0, 0])
+                                {
+                                    scale_clip_vertices(
+                                        &mut vertices,
+                                        center,
+                                        entry.sprite_scale,
+                                        entry.depth_gradient,
+                                    );
+                                    if blink_active {
+                                        for v in &mut vertices {
+                                            v.color = [1.0, 0.0, 0.0, 1.0];
                                         }
-                                        if tex_idx < tex.bind_groups.len() {
-                                            sprite_batches.push(SpriteBatch {
-                                                vertices,
-                                                indices,
-                                                texture: &tex.bind_groups[tex_idx],
-                                                additive: false,
-                                                no_depth: false,
-                                            });
+                                    } else {
+                                        for v in &mut vertices {
+                                            v.color[0] *= light[0];
+                                            v.color[1] *= light[1];
+                                            v.color[2] *= light[2];
                                         }
+                                    }
+                                    if tex_idx < tex.bind_groups.len() {
+                                        sprite_batches.push(SpriteBatch {
+                                            vertices,
+                                            indices,
+                                            texture: &tex.bind_groups[tex_idx],
+                                            additive: false,
+                                            no_depth: false,
+                                        });
                                     }
                                 }
                             }
@@ -564,6 +620,7 @@ impl App {
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= entity.alpha();
+                        body_channels.light = self.actor_light(entity.movement.position());
 
                         // Flat feet-depth silhouette so effects (e.g. the level 99
                         // aura) occlude against the cart instead of bleeding
@@ -605,6 +662,7 @@ impl App {
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
                         body_channels.alpha *= entity.alpha();
+                        body_channels.light = self.actor_light(entity.movement.position());
 
                         // Flat feet-depth silhouette so effects occlude against the
                         // falcon instead of bleeding through it (see the cart arm).
@@ -636,6 +694,9 @@ impl App {
                 }
             }
         }
+
+        shadow_batches.append(&mut sprite_batches);
+        let sprite_batches = shadow_batches;
 
         let mut inline_textures = Vec::new();
         let mut paperdoll_calls: Vec<UiDrawCall> = Vec::new();
@@ -1049,10 +1110,15 @@ impl App {
         all_ui_calls.extend(skill_level_calls);
         all_ui_calls.extend(roulette_calls);
 
+        let screen_ripple = self.game.session.screen_ripple
+            && self.config.show_skill_effects
+            && self.game.session.app_state == AppState::InGame;
+
         if let Some(renderer) = &mut self.renderer {
+            renderer.screen_distortion.set_active(screen_ripple);
             let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
             let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let arrow_draws: Vec<EffectPrimitiveDraw> = self
+            let mut arrow_draws: Vec<EffectPrimitiveDraw> = self
                 .game
                 .world
                 .arrows
@@ -1070,6 +1136,52 @@ impl App {
                     no_depth: false,
                 })
                 .collect();
+            if let (Some(gat), Some(coords)) = (
+                self.game.session.gat.as_ref(),
+                self.game.session.map_coords.as_ref(),
+            ) {
+                let cell_size = coords.cell_to_world(1.0, 0.0).0 - coords.cell_to_world(0.0, 0.0).0;
+                for (aid, g) in &self.game.world.graffiti {
+                    let (cx, cy) = (g.cell_x as f32 + 0.5, g.cell_y as f32 + 0.5);
+                    let (wx, _, wz) = coords.cell_to_world(cx, cy);
+                    let center = [wx, gat.get_height(cx, cy) + GRAFFITI_GROUND_LIFT, wz];
+                    let (corners, uv) =
+                        ragnarok_game::graffiti::decal_quad(center, g.yaw, cell_size);
+                    arrow_draws.push(EffectPrimitiveDraw::KeyedWorldQuad {
+                        corners,
+                        uv,
+                        texture_key: ragnarok_renderer::graffiti::texture_key(*aid),
+                        color: [1.0, 1.0, 1.0, 1.0],
+                        blend: BlendKind::Alpha,
+                        no_depth: false,
+                    });
+                }
+                for mark in self.game.world.cast_marks.values() {
+                    let CastMark::Scope(scope) = mark else {
+                        continue;
+                    };
+                    let (ox, oy) = scope.origin_cell();
+                    let color = scope.color();
+                    for row in 0..scope.size {
+                        for col in 0..scope.size {
+                            let (cx, cy) = (ox + col as i32, oy + row as i32);
+                            if !coords.is_valid_cell(cx, cy) {
+                                continue;
+                            }
+                            let c = coords.cell_corners_world(gat, cx, cy);
+                            let uv = scope.cell_uv(col, row);
+                            arrow_draws.push(EffectPrimitiveDraw::WorldQuad {
+                                corners: [c[0], c[1], c[3], c[2]],
+                                uv: [uv[0], uv[1], uv[3], uv[2]],
+                                texture: ragnarok_game::cast_scope::SCOPE_TEXTURE,
+                                color,
+                                blend: BlendKind::Alpha,
+                                no_depth: false,
+                            });
+                        }
+                    }
+                }
+            }
             let zoom = self
                 .game
                 .session
@@ -1124,6 +1236,7 @@ impl App {
                 cursor_batches: &cursor_batches,
                 inline_textures: &inline_textures,
                 elapsed,
+                delta,
             });
         }
     }

@@ -8,6 +8,8 @@ pub const OPT1_STONEWAIT: i16 = 6; // petrifying — still mobile
 // opt2 — bitmask (rathena `e_sc_opt2`)
 pub const OPT2_POISON: i16 = 0x0001;
 pub const OPT2_CURSE: i16 = 0x0002;
+pub const OPT2_SILENCE: i16 = 0x0004;
+pub const OPT2_CONFUSION: i16 = 0x0008;
 pub const OPT2_BLIND: i16 = 0x0010;
 pub const OPT2_ANGELUS: i16 = 0x0020;
 pub const OPT2_BLEEDING: i16 = 0x0040;

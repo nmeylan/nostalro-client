@@ -77,6 +77,10 @@ impl LockonEffect {
 }
 
 impl Effect for LockonEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta;
         self.frame_accum += ctx.delta * FRAMES_PER_SECOND;

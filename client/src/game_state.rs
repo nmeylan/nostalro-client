@@ -11,6 +11,7 @@ use ragnarok_game::ailment::AilmentOverlay;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::arrow::ArrowProjectile;
 use ragnarok_game::banner::BannerState;
+use ragnarok_game::cast_scope::CastScope;
 use ragnarok_game::character::Character;
 use ragnarok_game::chat_room::ChatRoomRegistry;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
@@ -26,14 +27,17 @@ use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
 use ragnarok_game::gr2_model::Gr2ModelInstance;
+use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::party::Party;
 use ragnarok_game::pet::PetState;
 use ragnarok_game::poptip::PoptipStack;
+use ragnarok_game::progress_bar::ProgressBar;
 use ragnarok_game::quest::{QuestLog, QuestMarker};
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::targeting::MapProperties;
 use ragnarok_network::session::Session;
+use ragnarok_renderer::camera::SavedCameraView;
 use ragnarok_renderer::{EntitySprite, SpriteTextures};
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::game::chat_window::{self};
@@ -64,6 +68,9 @@ pub struct PendingConfirms {
     pub pending_trade_request: Option<u32>,
     pub pending_adopt_request: Option<(u32, u32)>,
     pub pending_invite_aid: Option<u32>,
+    /// Character name and requested state of an in-flight whisper allow/deny; the
+    /// local block list only changes once the server confirms it.
+    pub pending_whisper_block: Option<(String, bool)>,
     active: Option<Box<dyn FnOnce(bool) -> Option<GameEvent>>>,
 }
 
@@ -80,6 +87,10 @@ pub struct CombatState {
     pub attack_request_cooldown: f32,
     pub attack_range: i16,
     pub attack_is_locked: bool,
+    /// Whether an attack request has gone out since the current target was picked.
+    /// The server keeps swinging until told to stop, so only then is a lock-on
+    /// cancel worth sending.
+    pub attack_request_sent: bool,
     pub waiting_item_throw_ack: bool,
     pub damage_numbers: DamageNumberManager,
     /// Destination clicked while the swing (or a pickup/hurt motion) held the
@@ -101,6 +112,7 @@ impl CombatState {
             attack_request_cooldown: 0.0,
             attack_range: 1,
             attack_is_locked: false,
+            attack_request_sent: false,
             waiting_item_throw_ack: false,
             damage_numbers: DamageNumberManager::new(),
             queued_move: None,
@@ -111,8 +123,9 @@ impl CombatState {
 #[derive(Default)]
 pub struct EffectKeys {
     pub status_buff_keys: HashMap<(u32, i16), u32>,
+    pub opt3_keys: HashMap<(u32, i32), u32>,
     pub next_status_buff_key: u32,
-    pub level_aura_keys: HashMap<u32, u32>,
+    pub level_aura_keys: HashMap<u32, (u32, &'static [EffectId])>,
     pub boss_aura_keys: HashMap<u32, u32>,
     /// gid -> (effect key, rank the tint was baked from)
     pub toprank_keys: HashMap<u32, (u32, i32)>,
@@ -126,6 +139,7 @@ pub struct EffectKeys {
 impl EffectKeys {
     pub fn clear(&mut self) {
         self.status_buff_keys.clear();
+        self.opt3_keys.clear();
         self.next_status_buff_key = 0;
         self.level_aura_keys.clear();
         self.boss_aura_keys.clear();
@@ -256,14 +270,21 @@ pub struct SessionState {
     pub map_properties: MapProperties,
     pub map_coords: Option<MapCoordinates>,
     pub gat: Option<GatFile>,
+    /// Per-cell ground-lightmap tint applied to sprites standing on the map.
+    pub actor_lightmap: Option<ragnarok_game::lightmap::ActorLightmap>,
     pub player_dead: bool,
     /// Set on indoor maps; locks the camera rotation to the fixed indoor angle.
     pub camera_locked: bool,
-    /// Camera yaw captured when entering an indoor map, restored on exit.
-    pub saved_camera_yaw: Option<f32>,
+    /// Hallucination: ripples the local player's whole screen.
+    pub screen_ripple: bool,
+    /// Pitch and zoom kept per environment, restored when a map of that kind is
+    /// entered again.
+    pub saved_camera_outdoor: SavedCameraView,
+    pub saved_camera_indoor: SavedCameraView,
     pub server_time: ServerTimeClock,
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
+    pub progress_bar: Option<ProgressBar>,
 }
 
 impl Default for SessionState {
@@ -282,11 +303,15 @@ impl SessionState {
             map_properties: MapProperties::default(),
             map_coords: None,
             gat: None,
+            actor_lightmap: None,
             player_dead: false,
             camera_locked: false,
-            saved_camera_yaw: None,
+            screen_ripple: false,
+            saved_camera_outdoor: SavedCameraView::default(),
+            saved_camera_indoor: SavedCameraView::default(),
             server_time: ServerTimeClock::new(),
             disconnect_dialog_shown: false,
+            progress_bar: None,
             pending_disconnect_exit: false,
         }
     }
@@ -304,6 +329,17 @@ pub struct World {
     /// the server sends a skill-unit update (e.g. an ankle snare springs).
     pub hidden_traps: HashMap<u32, (u8, [f32; 3])>,
     pub freeze_shatters: Vec<FreezeShatter>,
+    /// Graffiti ground decals keyed by unit AID.
+    pub graffiti: HashMap<u32, Graffiti>,
+    /// What each in-progress cast marks out, keyed by caster gid.
+    pub cast_marks: HashMap<u32, CastMark>,
+}
+
+/// The marker a cast puts on the world while it channels: a square on the ground
+/// for a placed cast, or a reticle riding the victim of a targeted one.
+pub enum CastMark {
+    Scope(CastScope),
+    Lockon { target_gid: u32, remaining: f32 },
 }
 
 #[derive(Default)]
@@ -330,6 +366,8 @@ pub struct AssetHandles {
     pub emotion_act: Option<ActFile>,
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
     pub floor_item_sprites: HashMap<u32, (Rc<SpriteTextures>, ActFile)>,
+    /// `shadow.spr` uploaded once, for actors that carry no sprite of their own.
+    pub shadow_sprite: Option<(SpriteTextures, ActFile)>,
     pub damage_number_textures: Option<SpriteTextures>,
     pub damage_number_act: Option<ragnarok_formats::act::ActFile>,
     pub damage_msg_textures: Option<SpriteTextures>,
@@ -444,6 +482,8 @@ pub struct GameState {
     /// Over-NPC quest markers keyed by NPC block id (account-id space). Cleared
     /// on map change; the server re-sends on load.
     pub quest_markers: std::collections::HashMap<u32, QuestMarker>,
+    /// Marks the server put on the minimap, e.g. the town guide's directions.
+    pub minimap_marks: ragnarok_game::minimap_mark::MinimapMarks,
     pub debug_show_pick_bounds: bool,
     pub show_ping: bool,
     pub show_fps: bool,
@@ -539,6 +579,7 @@ impl GameState {
             },
             quest_log: QuestLog::default(),
             quest_markers: std::collections::HashMap::new(),
+            minimap_marks: ragnarok_game::minimap_mark::MinimapMarks::default(),
             debug_show_pick_bounds: false,
             show_ping: false,
             show_fps: false,
@@ -934,8 +975,9 @@ mod effect_reset_tests {
 
         let keys = &mut game.effect_keys;
         keys.status_buff_keys.insert((1, 2), 3);
+        keys.opt3_keys.insert((1, 2), 3);
         keys.next_status_buff_key = 9;
-        keys.level_aura_keys.insert(1, 1);
+        keys.level_aura_keys.insert(1, (1, &[]));
         keys.boss_aura_keys.insert(1, 1);
         keys.toprank_keys.insert(1, (1, 1));
         keys.warp_portal_keys.insert(1, 1);
@@ -950,6 +992,7 @@ mod effect_reset_tests {
         assert!(queue.drain_despawns().is_empty());
         let keys = &game.effect_keys;
         assert!(keys.status_buff_keys.is_empty());
+        assert!(keys.opt3_keys.is_empty());
         assert_eq!(keys.next_status_buff_key, 0);
         assert!(keys.level_aura_keys.is_empty());
         assert!(keys.boss_aura_keys.is_empty());

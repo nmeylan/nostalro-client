@@ -15,7 +15,9 @@ use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::gr2_model::{self, AnimationClip, Gr2Action, Gr2ModelInstance, SkeletonPose};
 use ragnarok_game::sprite_loader;
-use ragnarok_game::sprite_path::{entity_sprite_base_path, weapon_view_id_to_type};
+use ragnarok_game::sprite_path::{
+    entity_sprite_base_path, is_undrawn_actor, weapon_view_id_to_type,
+};
 use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
 use ragnarok_renderer::{
     EntitySprite, SpriteTextures, build_entity_sprite, upload_sprite_textures,
@@ -320,7 +322,7 @@ impl App {
                 let cache_key = match entity_sprite_base_path(name_table, job) {
                     Some(p) => p,
                     None => {
-                        if job != 45 {
+                        if !is_undrawn_actor(job) {
                             tracing::warn!("No sprite path for id {job}");
                         }
                         return;

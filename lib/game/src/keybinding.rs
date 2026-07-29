@@ -24,10 +24,11 @@ pub enum HotkeyAction {
     SitStand,
     CycleMinimap,
     MercenaryFollow,
+    ToggleWorldMap,
 }
 
 impl HotkeyAction {
-    pub const ALL: [HotkeyAction; 21] = [
+    pub const ALL: [HotkeyAction; 22] = [
         HotkeyAction::ToggleInventory,
         HotkeyAction::ToggleEquipment,
         HotkeyAction::ToggleSkillTree,
@@ -49,6 +50,7 @@ impl HotkeyAction {
         HotkeyAction::SitStand,
         HotkeyAction::CycleMinimap,
         HotkeyAction::MercenaryFollow,
+        HotkeyAction::ToggleWorldMap,
     ];
 
     pub fn label(self) -> &'static str {
@@ -74,6 +76,7 @@ impl HotkeyAction {
             HotkeyAction::SitStand => "Sit / Stand",
             HotkeyAction::CycleMinimap => "Minimap",
             HotkeyAction::MercenaryFollow => "Merc. Follow",
+            HotkeyAction::ToggleWorldMap => "World Map",
         }
     }
 }
@@ -114,10 +117,16 @@ impl KeyChord {
         s
     }
 
+    /// Ctrl+P, which starts the frame profiler.
+    pub fn is_profiler(&self) -> bool {
+        self.key == "KeyP" && self.ctrl && !self.alt && !self.shift
+    }
+
     /// Keys that must never be rebound to an Interface action: they drive chat
     /// typing, battle-mode letter rows, text-input navigation, or debug overlays.
     pub fn is_reserved(&self) -> bool {
         if is_function_key(&self.key)
+            || self.is_profiler()
             || matches!(self.key.as_str(), "Enter" | "NumpadEnter" | "Escape")
         {
             return true;
@@ -129,7 +138,7 @@ impl KeyChord {
     /// consumed by chat/text input). Function keys and bare printables ARE
     /// allowed here — F1..F9 are the skill bar's own defaults.
     pub fn is_reserved_trigger(&self) -> bool {
-        matches!(self.key.as_str(), "Enter" | "NumpadEnter" | "Escape")
+        self.is_profiler() || matches!(self.key.as_str(), "Enter" | "NumpadEnter" | "Escape")
     }
 }
 
@@ -140,6 +149,8 @@ fn display_key(key: &str) -> String {
         rest.to_string()
     } else if let Some(rest) = key.strip_prefix("Numpad") {
         format!("Num {rest}")
+    } else if key == "Backquote" {
+        "`".to_string()
     } else {
         key.to_string()
     }
@@ -232,6 +243,7 @@ impl KeyBindings {
             (HotkeyAction::SitStand, plain("Insert")),
             (HotkeyAction::CycleMinimap, ctrl("Tab")),
             (HotkeyAction::MercenaryFollow, ctrl("KeyT")),
+            (HotkeyAction::ToggleWorldMap, ctrl("Backquote")),
         ]);
         Self { map }
     }
@@ -326,5 +338,11 @@ mod tests {
         assert!(KeyChord::new("F1", false, false, false).is_reserved());
         assert!(KeyChord::new("KeyA", false, false, false).is_reserved());
         assert!(!KeyChord::new("Insert", false, false, false).is_reserved());
+
+        let ctrl_p = KeyChord::new("KeyP", false, true, false);
+        assert!(ctrl_p.is_reserved());
+        assert!(ctrl_p.is_reserved_trigger());
+        assert!(bindings.action_for(&ctrl_p).is_none());
+        assert!(!KeyChord::new("KeyP", true, false, false).is_reserved_trigger());
     }
 }

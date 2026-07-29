@@ -3,7 +3,7 @@ pub mod controls;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::effect::EffectQueue;
@@ -17,7 +17,7 @@ use ragnarok_renderer::font_atlas::FontAtlas;
 use ragnarok_renderer::{FrameInputs, UiDrawCall, block_on};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -401,7 +401,10 @@ struct App {
     cached_map: Option<MapInfoCache>,
 
     last_frame: Instant,
+    next_frame: Instant,
 }
+
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 impl App {
     fn new(args: Args) -> Self {
@@ -432,6 +435,7 @@ impl App {
             reload_counter: 0,
             cached_map: None,
             last_frame: Instant::now(),
+            next_frame: Instant::now(),
         }
     }
 
@@ -868,6 +872,7 @@ impl App {
             cursor_batches: &[],
             inline_textures: &[],
             elapsed,
+            delta: elapsed,
         });
     }
 }
@@ -1079,12 +1084,20 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.render_frame();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 

@@ -36,6 +36,25 @@ pub struct DebugConfig {
     pub trace_texture_load: bool,
 }
 
+/// Behaviour the original game has no counterpart for, off unless opted into.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomConfig {
+    /// Green aura under boss monsters at level 99 or above.
+    pub boss_aura: bool,
+    /// Percentage of ACT frame sounds (monster grunts, footsteps) that play.
+    pub act_sound_percent: u32,
+}
+
+impl Default for CustomConfig {
+    fn default() -> Self {
+        Self {
+            boss_aura: false,
+            act_sound_percent: 100,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginServer {
     pub name: String,
@@ -73,6 +92,8 @@ pub struct Config {
     pub sfx_enabled: bool,
     pub bgm_path: String,
     pub emblem_path: String,
+    /// Screenshot escape hatch: drops the pitch band, the indoor rotation clamp
+    /// and the zoom clamp. Off keeps the original game's bands.
     pub free_camera: bool,
     pub dpi_scale: f32,
     pub grf_paths: Vec<String>,
@@ -120,6 +141,8 @@ pub struct Config {
     /// also render it as a GM to itself. Has no effect for non-GM accounts.
     #[serde(default)]
     pub see_self_as_gm_when_gm: bool,
+    #[serde(default)]
+    pub custom: CustomConfig,
 }
 
 fn default_account_backgrounds() -> Vec<String> {
@@ -176,6 +199,7 @@ impl Default for Config {
             account_backgrounds: default_account_backgrounds(),
             admin_account_ids: Vec::new(),
             see_self_as_gm_when_gm: false,
+            custom: CustomConfig::default(),
         }
     }
 }

@@ -44,14 +44,16 @@ use ragnarok_renderer::{
     block_on,
 };
 use ragnarok_ui::context::UiContext;
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::UiFrame;
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
 use ragnarok_ui_component::account::login_server_list_window::{
     LoginServerEntry, LoginServerListWindow,
 };
-use ragnarok_ui_component::account::login_window::{LoginFocus, LoginWindow};
+use ragnarok_ui_component::account::login_window::{
+    LoginFocus, LoginWindow, PASSWORD_ID, USERNAME_ID,
+};
 use ragnarok_ui_component::account::server_list_window::ServerListWindow;
 use ragnarok_ui_component::game::confirm_dialog::ConfirmDialog;
 use std::collections::HashMap;
@@ -261,18 +263,23 @@ impl App {
         self.windows.map_missing_window.hide();
         self.game.session.map_coords = map_data.coordinates;
         self.game.session.gat = map_data.gat;
-        let was_locked = self.game.session.camera_locked;
+        self.game.session.actor_lightmap = map_data.actor_lightmap;
+        let was_indoor = self.game.session.camera_locked;
         self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {
             renderer.clear_color = ragnarok_renderer::wgpu::Color::BLACK;
-            if map_data.indoor {
-                if !was_locked {
-                    self.game.session.saved_camera_yaw = Some(renderer.camera.yaw);
-                }
-                renderer.camera.lock_indoor();
-            } else if was_locked && let Some(yaw) = self.game.session.saved_camera_yaw.take() {
-                renderer.camera.yaw = yaw;
+            let leaving = renderer.camera.saved_view();
+            if was_indoor {
+                self.game.session.saved_camera_indoor = leaving;
+            } else {
+                self.game.session.saved_camera_outdoor = leaving;
             }
+            let restore = if map_data.indoor {
+                self.game.session.saved_camera_indoor
+            } else {
+                self.game.session.saved_camera_outdoor
+            };
+            renderer.camera.on_map_enter(map_data.indoor, restore);
         }
 
         self.game
@@ -382,6 +389,16 @@ impl App {
     }
 
     fn position_camera_at(&mut self, cell_x: f32, cell_y: f32) {
+        self.aim_camera_at(cell_x, cell_y, false);
+    }
+
+    /// Jump the camera onto a cell without the usual glide: on map entry and
+    /// warps the old target is meaningless.
+    fn warp_camera_to(&mut self, cell_x: f32, cell_y: f32) {
+        self.aim_camera_at(cell_x, cell_y, true);
+    }
+
+    fn aim_camera_at(&mut self, cell_x: f32, cell_y: f32, snap: bool) {
         if let (Some(coords), Some(renderer)) = (&self.game.session.map_coords, &mut self.renderer)
         {
             input::position_camera_at(
@@ -391,6 +408,9 @@ impl App {
                 cell_x,
                 cell_y,
             );
+            if snap {
+                renderer.camera.snap_target();
+            }
         }
     }
 
@@ -471,8 +491,8 @@ impl App {
             AppState::Login => {
                 if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
-                        LoginFocus::Username => Some(WidgetId(0)),
-                        LoginFocus::Password => Some(WidgetId(1)),
+                        LoginFocus::Username => Some(USERNAME_ID),
+                        LoginFocus::Password => Some(PASSWORD_ID),
                     };
                     let mut ui = UiFrame::new(
                         ui_ctx,
@@ -742,6 +762,14 @@ impl ApplicationHandler for App {
                             &grf,
                         ),
                     );
+                    self.game.data_table.msg_string = Some(
+                        ragnarok_game::data_table::msg_string_table::MsgStringTable::load(&grf),
+                    );
+                    self.game.data_table.map_position = Some(
+                        ragnarok_game::data_table::map_position_table::MapPositionTable::load(&grf),
+                    );
+                    self.game.data_table.map_name =
+                        Some(ragnarok_game::data_table::map_name_table::MapNameTable::load(&grf));
                     if let Ok(bytes) = grf.read_file("data/pettalktable.xml") {
                         self.game.data_table.pet_talk =
                             Some(ragnarok_formats::pettalk::PetTalkTable::parse(&bytes));
@@ -816,7 +844,7 @@ impl ApplicationHandler for App {
 
                 let hovered = self.update_grid_hover();
                 let render_list = self.compute_render_list();
-                let floor_item_render_list = self.compute_floor_item_render_list();
+                let floor_item_render_list = self.compute_floor_item_render_list(elapsed);
                 let mut cart_render_list = self.compute_cart_render_list();
                 cart_render_list.extend(self.compute_falcon_render_list());
                 // A stealthed actor the local player can't see is not hoverable or
@@ -899,6 +927,7 @@ impl ApplicationHandler for App {
                     &floor_item_render_list,
                     &cart_render_list,
                     elapsed,
+                    delta,
                     cursor_clips,
                     lock_cursor_clips,
                     world_overlay_calls,

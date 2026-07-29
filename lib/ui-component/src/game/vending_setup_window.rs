@@ -40,11 +40,11 @@ const RESET_BTN: ButtonTextures = ButtonTextures {
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
-pub const VENDING_AVAILABLE_WINDOW_ID: WidgetId = WidgetId(2700);
-const AVAIL_SCROLL_UP_ID: WidgetId = WidgetId(2701);
-const AVAIL_SCROLL_DOWN_ID: WidgetId = WidgetId(2702);
-const AVAIL_SCROLL_THUMB_ID: WidgetId = WidgetId(2703);
-const AVAIL_CELL_BASE_ID: u32 = 2720;
+pub const VENDING_AVAILABLE_WINDOW_ID: WidgetId = WidgetId(4900);
+const AVAIL_SCROLL_UP_ID: WidgetId = WidgetId(4901);
+const AVAIL_SCROLL_DOWN_ID: WidgetId = WidgetId(4902);
+const AVAIL_SCROLL_THUMB_ID: WidgetId = WidgetId(4903);
+const AVAIL_CELL_BASE_ID: u32 = 4920;
 
 // "Open a Shop" (staging list) layout.
 const WIN_W: f32 = 440.0;

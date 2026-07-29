@@ -18,6 +18,9 @@ pub struct PartyMember {
     pub max_hp: Option<u32>,
     pub x: u16,
     pub y: u16,
+    /// The server sends coordinates only while the member shares our map, and
+    /// -1,-1 when they leave it.
+    pub has_live_position: bool,
 }
 
 impl Party {
@@ -70,6 +73,13 @@ impl Party {
         if let Some(m) = self.member_mut(aid) {
             m.x = x;
             m.y = y;
+            m.has_live_position = true;
+        }
+    }
+
+    pub fn clear_position_of(&mut self, aid: u32) {
+        if let Some(m) = self.member_mut(aid) {
+            m.has_live_position = false;
         }
     }
 }
@@ -89,6 +99,7 @@ mod tests {
             max_hp: None,
             x: 0,
             y: 0,
+            has_live_position: false,
         }
     }
 
@@ -107,10 +118,10 @@ mod tests {
         assert_eq!((m.hp, m.max_hp), (Some(80), Some(200)));
 
         party.set_position(2, 150, 160);
-        assert_eq!(
-            (party.member(2).unwrap().x, party.member(2).unwrap().y),
-            (150, 160)
-        );
+        let m = party.member(2).unwrap();
+        assert_eq!((m.x, m.y, m.has_live_position), (150, 160, true));
+        party.clear_position_of(2);
+        assert!(!party.member(2).unwrap().has_live_position);
 
         party.remove_member(1);
         assert_eq!(party.members.len(), 1);

@@ -19,6 +19,11 @@ pub enum DamageNumberType {
 
 const DIGIT_SPACING: f32 = 8.0;
 const FRAME_MS: f32 = 24.0; // ms per animation tick
+/// A total holds full opacity this long before it starts to fade.
+const TOTAL_HOLD_FRAMES: f32 = 90.0;
+const TOTAL_FADE_PER_FRAME: f32 = 8.0;
+const DAMAGE_FADE_PER_FRAME: f32 = 3.4;
+const RECOVERY_FADE_PER_FRAME: f32 = 2.0;
 /// Shared by damage taken by the player and by the player's own misses.
 const PLAYER_RED: [f32; 3] = [1.0, 0.0, 0.0];
 
@@ -58,11 +63,19 @@ impl DamageNumberType {
         )
     }
 
+    /// Animation frames the number stays alive for.
+    fn life_frames(&self) -> f32 {
+        match self {
+            Self::Normal | Self::Skill | Self::Critical | Self::Enemy => 70.0,
+            Self::Miss | Self::Lucky => 80.0,
+            _ => 120.0,
+        }
+    }
+
     pub fn duration(&self) -> f32 {
         match self {
             Self::Combo | Self::MultiHit => 0.45,
-            Self::Miss | Self::Lucky => 80.0 * FRAME_MS / 1000.0,
-            _ => 120.0 * FRAME_MS / 1000.0,
+            other => other.life_frames() * FRAME_MS / 1000.0,
         }
     }
 }
@@ -164,17 +177,17 @@ impl DamageNumber {
         let f = self.frame();
         let alpha_255 = match self.number_type {
             DamageNumberType::ComboFinal | DamageNumberType::MultiHitTotal => {
-                if f < FRAME_MS / 2.0 {
-                    250.0
-                } else {
-                    250.0 - (f - FRAME_MS / 2.0) * 2.0
-                }
+                250.0 - (f - TOTAL_HOLD_FRAMES).max(0.0) * TOTAL_FADE_PER_FRAME
             }
             DamageNumberType::Combo | DamageNumberType::MultiHit => {
                 (1.0 - self.elapsed / 3.0) * 255.0
             }
             DamageNumberType::Miss | DamageNumberType::Lucky => 250.0 - f * 3.0,
-            _ => 255.0 - f * 2.0,
+            DamageNumberType::Normal
+            | DamageNumberType::Skill
+            | DamageNumberType::Critical
+            | DamageNumberType::Enemy => 250.0 - f * DAMAGE_FADE_PER_FRAME,
+            _ => 250.0 - f * RECOVERY_FADE_PER_FRAME,
         };
         (alpha_255 / 255.0).clamp(0.0, 1.0)
     }
@@ -423,12 +436,6 @@ impl DamageNumberManager {
         }
 
         if is_multi_hit {
-            self.add(DamageNumber::new(
-                entity_id,
-                hit.damage,
-                DamageNumberType::Skill,
-                direction,
-            ));
             let running_total = hit.damage * (hit.hit_index as i32 + 1);
             let combo_type = if hit.is_last_hit {
                 if is_skill {
@@ -678,6 +685,43 @@ mod tests {
         let before = mgr.numbers.len();
         mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false, false);
         assert_eq!(mgr.numbers.len(), before + 1);
+    }
+
+    #[test]
+    fn a_multi_hit_shows_only_its_running_total() {
+        let mut mgr = DamageNumberManager::new();
+        for (index, last) in [(0u16, false), (1, false), (2, true)] {
+            mgr.emit(
+                1,
+                0,
+                &ScheduledHit::multi_hit(30, 90, 17, index, last),
+                false,
+                false,
+            );
+        }
+        assert_eq!(mgr.numbers.len(), 1);
+        let total = &mgr.numbers[0];
+        assert_eq!(total.number_type, DamageNumberType::ComboFinal);
+        assert_eq!(total.value, 90);
+    }
+
+    #[test]
+    fn damage_fades_out_faster_and_earlier_than_a_total() {
+        let mut damage = DamageNumber::new(1, 100, DamageNumberType::Normal, 0);
+        let mut total = DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0);
+
+        // Frame 60: damage is most of the way out, the total has not begun to fade.
+        damage.elapsed = 60.0 * FRAME_MS / 1000.0;
+        total.elapsed = damage.elapsed;
+        assert!(damage.alpha() < total.alpha());
+        assert_eq!(total.alpha(), 250.0 / 255.0);
+
+        damage.elapsed = 71.0 * FRAME_MS / 1000.0;
+        total.elapsed = damage.elapsed;
+        assert!(damage.is_expired() && !total.is_expired());
+
+        total.elapsed = 121.0 * FRAME_MS / 1000.0;
+        assert!(total.is_expired());
     }
 
     #[test]

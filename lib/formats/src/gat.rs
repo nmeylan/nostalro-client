@@ -104,6 +104,16 @@ impl GatFile {
         self.cells[(y * self.width + x) as usize].is_walkable()
     }
 
+    /// Replaces a cell's terrain flags from a raw GAT cell type, as the server sends
+    /// on Ice Wall and script cell changes.
+    pub fn set_cell_type(&mut self, x: i32, y: i32, raw_type: i32) -> bool {
+        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+            return false;
+        }
+        self.cells[(y * self.width + x) as usize].cell_flags = raw_cell_to_flags(raw_type);
+        true
+    }
+
     pub fn get_height(&self, x: f32, y: f32) -> f32 {
         let cx = x as i32;
         let cy = y as i32;

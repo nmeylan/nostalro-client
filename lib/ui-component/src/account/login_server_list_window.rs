@@ -18,11 +18,11 @@ const OK_BTN_RIGHT: f32 = 50.0;
 const CANCEL_BTN_RIGHT: f32 = 5.0;
 const BTN_BOTTOM: f32 = 4.0;
 
-pub const LOGIN_SERVER_LIST_WINDOW_ID: WidgetId = WidgetId(120);
+pub const LOGIN_SERVER_LIST_WINDOW_ID: WidgetId = WidgetId(4400);
 const FALLBACK_TITLE_BAR_H: f32 = 30.0;
 
-const OK_ID: WidgetId = WidgetId(100);
-const CANCEL_ID: WidgetId = WidgetId(101);
+const OK_ID: WidgetId = WidgetId(4401);
+const CANCEL_ID: WidgetId = WidgetId(4402);
 
 const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_service.bmp";
 

@@ -70,6 +70,7 @@ use ragnarok_ui_component::game::read_mail_window::READ_MAIL_WINDOW_ID;
 use ragnarok_ui_component::game::read_mail_window::ReadMailWindow;
 use ragnarok_ui_component::game::shortcut_list_window::SHORTCUT_LIST_WINDOW_ID;
 use ragnarok_ui_component::game::shortcut_list_window::ShortcutListWindow;
+use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
 use ragnarok_ui_component::game::skill_tree_window::SKILL_WINDOW_ID;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::sound_options::SOUND_OPTIONS_WINDOW_ID;
@@ -89,6 +90,7 @@ use ragnarok_ui_component::game::vending_setup_window::{
 use ragnarok_ui_component::game::vending_shop_window::VENDING_SHOP_WINDOW_ID;
 use ragnarok_ui_component::game::vending_shop_window::VendingShopWindow;
 use ragnarok_ui_component::game::warp_list_window::WarpListWindow;
+use ragnarok_ui_component::game::world_map_window::{WORLD_MAP_WINDOW_ID, WorldMapWindow};
 
 pub struct Windows {
     pub chat_window: ChatWindow,
@@ -120,6 +122,7 @@ pub struct Windows {
     pub drop_dialog_has_grf_textures: bool,
     pub drop_quantity_dialog: Option<DropQuantityDialog>,
     pub guild_expel_dialog: Option<GuildExpelDialog>,
+    pub skill_talkbox_dialog: Option<SkillTalkboxDialog>,
     pub card_insert_dialog: Option<CardInsertDialog>,
     pub card_insert_dialog_has_grf_textures: bool,
     pub item_info_window: ItemInfoWindow,
@@ -145,6 +148,7 @@ pub struct Windows {
     pub pet_window: PetWindow,
     pub mercenary_skill_window: MercenarySkillWindow,
     pub homun_skill_window: HomunSkillWindow,
+    pub world_map_window: WorldMapWindow,
     pub context_menu: ContextMenu,
 }
 
@@ -186,6 +190,7 @@ impl Windows {
             drop_dialog_has_grf_textures: false,
             drop_quantity_dialog: None,
             guild_expel_dialog: None,
+            skill_talkbox_dialog: None,
             card_insert_dialog: None,
             card_insert_dialog_has_grf_textures: false,
             item_info_window: ItemInfoWindow::new(),
@@ -211,6 +216,7 @@ impl Windows {
             pet_window: PetWindow::new(),
             mercenary_skill_window: MercenarySkillWindow::new(),
             homun_skill_window: HomunSkillWindow::new(),
+            world_map_window: WorldMapWindow::new(),
             context_menu: ContextMenu::new(),
         }
     }
@@ -373,5 +379,9 @@ pub(crate) const REGISTRY: &[(WidgetId, Dispatch)] = &[
     (
         QUEST_DETAIL_WINDOW_ID,
         Dispatch::Trait(|w| &mut w.quest_detail_window as &mut dyn InGameWindow),
+    ),
+    (
+        WORLD_MAP_WINDOW_ID,
+        Dispatch::Trait(|w| &mut w.world_map_window as &mut dyn InGameWindow),
     ),
 ];

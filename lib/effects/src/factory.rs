@@ -1322,16 +1322,14 @@ pub fn make_effect(
         )),
         EffectId::Level995 => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
-            effects::casting_ring::LV995,
+            effects::casting_ring::LV99,
         )),
-        EffectId::Level992 => Box::new(effects::floor_aura::FloorAuraEffect::new(
-            anchor.point(),
-            effects::floor_aura::LV99_BLUE,
-        )),
-        EffectId::Level996 => Box::new(effects::floor_aura::FloorAuraEffect::new(
-            anchor.point(),
-            effects::floor_aura::LV99_GREEN,
-        )),
+        EffectId::Level992 | EffectId::Level996 => Box::new(
+            effects::floor_aura::FloorAuraEffect::new(
+                anchor.point(),
+                effects::floor_aura::LV99_BLUE,
+            ),
+        ),
         EffectId::Level993 => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
             anchor.point(),
             effects::sparkle_column::FREEZING,
@@ -1339,6 +1337,10 @@ pub fn make_effect(
         EffectId::Level994 => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
             anchor.point(),
             effects::sparkle_column::WHITELIGHT,
+        )),
+        EffectId::Green993 => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
+            anchor.point(),
+            effects::sparkle_column::GREEN99,
         )),
         EffectId::Green995 => Box::new(effects::casting_ring::CastingRingEffect::new(
             anchor.point(),
@@ -1356,7 +1358,7 @@ pub fn make_effect(
         EffectId::Beginspell => Box::new(
             effects::begin_spell::BeginSpellEffect::new(anchor.point()).with_life_ms(duration_ms),
         ),
-        EffectId::Couplecasting => Box::new(effects::couple_casting::CoupleCastingEffect::new(
+        EffectId::Couplecasting | EffectId::Homuncasting => Box::new(effects::couple_casting::CoupleCastingEffect::new(
             anchor.point(),
         )),
         EffectId::Aurablade => Box::new(effects::aura_blade::AuraBladeEffect::new(anchor.point())),

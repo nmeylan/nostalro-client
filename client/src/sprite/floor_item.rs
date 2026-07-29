@@ -60,6 +60,14 @@ impl App {
         };
         self.game.world.floor_items.insert(id, floor_item);
 
+        if self.game.assets.shadow_sprite.is_none()
+            && let Some(grf) = &self.grf
+            && let Some(data) = sprite_loader::load_shadow_sprite(grf)
+            && let Some(tex) = self.upload_sprite(&data)
+        {
+            self.game.assets.shadow_sprite = Some((tex, data.act));
+        }
+
         if let Some(res_name) = &resource_name
             && let Some(grf) = &self.grf
         {
@@ -77,11 +85,47 @@ impl App {
         }
     }
 
-    pub(crate) fn compute_floor_item_render_list(&self) -> Vec<RenderEntry> {
+    /// Screen anchor, depth and scale of the cell under an airborne item, where
+    /// its shadow belongs. `None` once the item has landed and the render entry's
+    /// own projection is already on the ground.
+    pub(crate) fn floor_item_ground_projection(
+        &self,
+        floor_item: &ragnarok_game::floor_item::FloorItem,
+    ) -> Option<([f32; 2], f32, f32)> {
+        if !floor_item.is_falling {
+            return None;
+        }
+        let (renderer, coords, screen_w, screen_h) = self.screen_dims()?;
+        let world = input::cell_world_pos(
+            floor_item.world_position(),
+            self.game.session.gat.as_ref(),
+            coords,
+        );
+        let (anchor, depth, _, scale, _) =
+            input::project_world_screen(world, coords, &renderer.camera, screen_w, screen_h)?;
+        Some((anchor, depth, scale))
+    }
+
+    pub(crate) fn compute_floor_item_render_list(&self, elapsed: f32) -> Vec<RenderEntry> {
         let mut render_list = Vec::new();
         if let Some((renderer, coords, screen_w, screen_h)) = self.screen_dims() {
             for floor_item in self.game.world.floor_items.values() {
-                let projected = input::entity_screen_params(
+                let mut world = input::cell_world_pos(
+                    floor_item.world_position(),
+                    self.game.session.gat.as_ref(),
+                    coords,
+                );
+                world[1] = floor_item.drop_height(elapsed, world[1]);
+                let projected = input::project_world_screen(
+                    world,
+                    coords,
+                    &renderer.camera,
+                    screen_w,
+                    screen_h,
+                );
+                // The item's shadow lies in the ground plane, so it needs the
+                // ground-lying gradient rather than the upright billboard one.
+                let ground_gradient = input::entity_ground_gradient(
                     floor_item.world_position(),
                     self.game.session.gat.as_ref(),
                     coords,
@@ -94,7 +138,7 @@ impl App {
                     RenderEntryKind::FloorItem,
                     floor_item.id,
                     projected,
-                    None,
+                    Some(ground_gradient),
                     Some(0),
                     |screen_anchor, _, _, sprite_scale| {
                         let half = 17.0 * sprite_scale;

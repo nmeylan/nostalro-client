@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialogConfig, InputDialog, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use crate::helper::colors::draw_price_right;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;

@@ -42,8 +42,8 @@ const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/wi
 pub const LOGIN_WINDOW_ID: WidgetId = WidgetId(10);
 const TITLE_BAR_H: f32 = 25.0;
 
-const USERNAME_ID: WidgetId = WidgetId(0);
-const PASSWORD_ID: WidgetId = WidgetId(1);
+pub const USERNAME_ID: WidgetId = WidgetId(0);
+pub const PASSWORD_ID: WidgetId = WidgetId(1);
 const CONNECT_ID: WidgetId = WidgetId(2);
 const EXIT_ID: WidgetId = WidgetId(3);
 const KEEP_ID: WidgetId = WidgetId(4);

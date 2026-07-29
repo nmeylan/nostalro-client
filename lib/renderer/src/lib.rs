@@ -7,10 +7,13 @@ pub mod font_atlas;
 pub mod fps;
 pub mod global_uniforms;
 pub mod gr2_model;
+pub mod graffiti;
 pub mod grid_selector;
 pub mod ground;
 pub mod ground_proxy;
 pub mod model;
+pub mod rsm_anim;
+pub mod screen_distortion;
 pub mod sprite;
 pub mod sprite_projection;
 pub mod texture;
@@ -23,6 +26,8 @@ pub use fps::Fps;
 pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
 
 pub use damage_number::render_damage_number_quads;
+pub use ragnarok_effects::sfx::{SfxEmission, SfxPos};
+
 pub use effect::{
     BlendBucket, BlendKind, DrawRecord, EffectDispatcher, PipelineKind, StrEffectCache,
     StrEffectEntry, StrEmitterInput, build_str_effect_batches, d3d_blend_to_wgpu,
@@ -41,7 +46,8 @@ pub use gr2_model::{Gr2ModelRenderer, Gr2ModelVertex, build_gr2_geometry};
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use ground_proxy::GroundProxyRenderer;
-pub use model::ModelRenderer;
+pub use model::{AnimatedModelRenderer, ModelRenderer};
+pub use screen_distortion::ScreenDistortion;
 pub use sprite::{
     BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
     SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_clip_quad_scaled,
@@ -98,6 +104,10 @@ pub struct FrameInputs<'a> {
     pub cursor_batches: &'a [SpriteBatch<'a>],
     pub inline_textures: &'a [&'a wgpu::BindGroup],
     pub elapsed: f32,
+    /// Seconds since the previous frame. Callers that render more than once per
+    /// frame (offscreen capture) must pass 0.0 for the extra passes so
+    /// time-stepped state is not advanced twice.
+    pub delta: f32,
 }
 
 pub struct Renderer {
@@ -108,6 +118,7 @@ pub struct Renderer {
     pub ground_renderer: Option<GroundRenderer>,
     pub ground_proxy: Option<GroundProxyRenderer>,
     pub model_renderer: Option<ModelRenderer>,
+    pub animated_model_renderer: Option<AnimatedModelRenderer>,
     pub skill_unit_models: std::collections::HashMap<u32, ModelRenderer>,
     /// Animated GR2 entity models keyed by entity gid (emperium, guardians…).
     pub gr2_models: std::collections::HashMap<u32, Gr2ModelRenderer>,
@@ -124,6 +135,7 @@ pub struct Renderer {
     pub font_px_height: f32,
     pub dpi_scale: f32,
     pub clear_color: wgpu::Color,
+    pub screen_distortion: ScreenDistortion,
     pub background_mode: BackgroundMode,
     /// The map's day lighting, captured in `load_map`. `set_day_night` patches the
     /// diffuse rgb over this so the day/night fade never loses the map's light dir,
@@ -149,8 +161,13 @@ fn build_effect_records<'tex>(
         if name.is_empty() {
             return None;
         }
-        name.split('|')
-            .find_map(|candidate| texture_cache.get(&effect::effect_texture_path(candidate)))
+        // Runtime-composed textures are registered under their own key, which must not
+        // be rewritten into a GRF path.
+        name.split('|').find_map(|candidate| {
+            texture_cache
+                .get(candidate)
+                .or_else(|| texture_cache.get(&effect::effect_texture_path(candidate)))
+        })
     };
     let mut records: Vec<DrawRecord<'tex>> = Vec::new();
     records.extend(prepare_billboard_records(
@@ -174,10 +191,9 @@ impl Renderer {
         dpi_scale: f32,
     ) -> Self {
         let device = RenderDevice::new(window).await;
-        let camera = Camera {
-            aspect: device.surface_config.width as f32 / device.surface_config.height as f32,
-            ..Default::default()
-        };
+        let camera = Camera::with_aspect(
+            device.surface_config.width as f32 / device.surface_config.height as f32,
+        );
         let global_uniforms = GlobalUniforms::new(&device.device);
         let texture_cache = TextureCache::new(&device.device, dpi_scale);
 
@@ -189,6 +205,8 @@ impl Renderer {
             &texture_cache.bind_group_layout,
             "font_atlas",
         );
+
+        let screen_distortion = ScreenDistortion::new(&device.device, device.surface_format);
 
         let white_img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 255, 255, 255]));
         let white_bind_group = texture::create_texture_bind_group(
@@ -250,6 +268,7 @@ impl Renderer {
             ground_renderer: None,
             ground_proxy: None,
             model_renderer: None,
+            animated_model_renderer: None,
             skill_unit_models: std::collections::HashMap::new(),
             gr2_models: std::collections::HashMap::new(),
             water_renderer: None,
@@ -270,6 +289,7 @@ impl Renderer {
                 b: 0.929,
                 a: 1.0,
             },
+            screen_distortion,
             background_mode: BackgroundMode::default(),
             base_light: LightUniform::default(),
             fog_scale: 240.0,
@@ -295,11 +315,17 @@ impl Renderer {
         self.lightmap_enabled
     }
 
+    pub fn lightmap_enabled(&self) -> bool {
+        self.lightmap_enabled
+    }
+
     pub fn set_lightmap_enabled(&mut self, enabled: bool) {
         self.lightmap_enabled = enabled;
         if let Some(ground) = &mut self.ground_renderer {
             ground.set_lightmap_enabled(enabled);
         }
+        self.global_uniforms
+            .set_cell_light_enabled(&self.device.queue, enabled);
         let mut light = self.base_light;
         if !enabled {
             for c in light.ambient_color.iter_mut().take(3) {
@@ -357,9 +383,6 @@ impl Renderer {
         if let Some(ambient) = rsw.light.ambient {
             light.ambient_color = [ambient[0], ambient[1], ambient[2], 1.0];
         }
-        if let Some(alpha) = rsw.light.shadow_map_alpha {
-            light.shadow_strength = alpha;
-        }
         self.base_light = light;
         self.global_uniforms
             .update_light(&self.device.queue, &light);
@@ -403,9 +426,20 @@ impl Renderer {
             self.device.surface_format,
         );
         self.ground_renderer = Some(ground_renderer);
+        let cell_lightmap = gnd.has_lightmap_data().then(|| {
+            let (w, h) = ground::cell_lightmap_size(gnd);
+            (w, h, ground::pack_cell_lightmap(gnd))
+        });
+        self.global_uniforms.update_cell_light(
+            &self.device.device,
+            &self.device.queue,
+            cell_lightmap.as_ref().map(|(w, h, p)| (*w, *h, p.as_slice())),
+            gnd.zoom,
+            ground::LIGHTMAP_CELL_STRIDE as f32,
+        );
         self.set_lightmap_enabled(self.lightmap_enabled);
 
-        self.model_renderer = ModelRenderer::from_rsw(
+        let props = ModelRenderer::from_rsw(
             rsw,
             gnd,
             grf,
@@ -415,6 +449,8 @@ impl Renderer {
             &mut self.texture_cache,
             self.device.surface_format,
         );
+        self.model_renderer = props.static_models;
+        self.animated_model_renderer = props.animated_models;
 
         self.water_renderer = WaterRenderer::from_water_settings(
             &rsw.water,
@@ -515,6 +551,35 @@ impl Renderer {
         all_loaded
     }
 
+    /// Builds a Graffiti message decal and registers it under `key`. Returns false
+    /// when the alphabet atlas is missing from the GRF.
+    pub fn build_graffiti_texture(&mut self, key: &str, message: &str, grf: &GrfArchive) -> bool {
+        let Ok(bytes) = grf.read_file(graffiti::ALPHABET_TEXTURE) else {
+            return false;
+        };
+        let Ok(atlas) = image::load_from_memory_with_format(&bytes, image::ImageFormat::Bmp) else {
+            return false;
+        };
+        let mut atlas = atlas.to_rgba8();
+        ragnarok_formats::apply_magenta_transparency(atlas.as_mut());
+        let composed = graffiti::compose(&atlas, message);
+        let (w, h) = (composed.width(), composed.height());
+        let bind_group = texture::create_texture_bind_group_from_rgba(
+            &self.device.device,
+            &self.device.queue,
+            composed.as_raw(),
+            w,
+            h,
+            &self.texture_cache.bind_group_layout,
+            key,
+            wgpu::FilterMode::Linear,
+            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::AddressMode::ClampToEdge,
+        );
+        self.texture_cache.insert(key, bind_group, w, h);
+        true
+    }
+
     /// Changes the UI scale at runtime. The font atlas is re-rasterized at the
     /// new scale so text stays crisp; per-frame layout picks up `dpi_scale`.
     pub fn set_dpi_scale(&mut self, dpi_scale: f32) {
@@ -584,7 +649,21 @@ impl Renderer {
         let phys_w = self.device.surface_config.width;
         let phys_h = self.device.surface_config.height;
         let clear = self.clear_color;
-        self.render_into(&view, &depth_view, phys_w, phys_h, clear, frame);
+        if self.screen_distortion.is_active() {
+            let scene_view = self
+                .screen_distortion
+                .scene_view(&self.device.device, phys_w, phys_h);
+            self.render_into(&scene_view, &depth_view, phys_w, phys_h, clear, frame);
+            let mut encoder = self
+                .device
+                .device
+                .create_command_encoder(&Default::default());
+            self.screen_distortion
+                .resolve(&mut encoder, &self.device.queue, &view);
+            self.device.queue.submit(std::iter::once(encoder.finish()));
+        } else {
+            self.render_into(&view, &depth_view, phys_w, phys_h, clear, frame);
+        }
         output.present();
     }
 
@@ -611,6 +690,7 @@ impl Renderer {
             cursor_batches,
             inline_textures,
             elapsed,
+            delta,
         } = frame;
         let logical_w = physical_w as f32 / self.dpi_scale;
         let logical_h = physical_h as f32 / self.dpi_scale;
@@ -627,6 +707,12 @@ impl Renderer {
 
         if let Some(water) = &self.water_renderer {
             water.update(&self.device.queue, elapsed);
+        }
+
+        if let Some(animated) = &mut self.animated_model_renderer {
+            // A long stall must not fling props through their whole animation
+            // in one step.
+            animated.update(&self.device.queue, delta.clamp(0.0, 0.25));
         }
 
         let view = color_view;
@@ -669,6 +755,10 @@ impl Renderer {
                         ragnarok_profiling::profile_scope!("model");
                         model.render(&mut pass, &self.global_uniforms, &self.texture_cache);
                     }
+                    if let Some(animated) = &self.animated_model_renderer {
+                        ragnarok_profiling::profile_scope!("animated-models");
+                        animated.render(&mut pass, &self.global_uniforms, &self.texture_cache);
+                    }
                     if !self.skill_unit_models.is_empty() {
                         ragnarok_profiling::profile_scope!("skill-unit-models");
                         for model in self.skill_unit_models.values() {
@@ -683,15 +773,6 @@ impl Renderer {
                     }
                     if let Some(grid) = &self.grid_selector {
                         grid.render(&mut pass, &self.global_uniforms, &self.texture_cache);
-                    }
-                    if let Some(water) = &self.water_renderer {
-                        ragnarok_profiling::profile_scope!("water");
-                        water.render(
-                            &mut pass,
-                            &self.global_uniforms,
-                            &self.texture_cache,
-                            elapsed,
-                        );
                     }
                 }
                 BackgroundMode::GroundProxy => {
@@ -756,6 +837,44 @@ impl Renderer {
                 &self.device.device,
                 &self.device.queue,
                 silhouette_batches,
+            );
+        }
+
+        // Water draws after the silhouette, never after the colour pass: the colour
+        // pass writes no depth, so at that point the body's pixels still hold the
+        // depth of the ground behind it and the surface would swallow the whole
+        // sprite. Against the silhouette's flat feet depth the surface cuts the body
+        // at the waterline instead, so a character wading in deep water is submerged
+        // further than one in the shallows.
+        if let (BackgroundMode::RswMap, Some(water)) = (self.background_mode, &self.water_renderer)
+        {
+            ragnarok_profiling::profile_scope!("water");
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("water"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            water.render(
+                &mut pass,
+                &self.global_uniforms,
+                &self.texture_cache,
+                elapsed,
             );
         }
 

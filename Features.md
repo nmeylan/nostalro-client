@@ -15,11 +15,16 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Map ground (batched by texture, lightmap atlas)
 - Water
 - Day / night cycle (light tint fade, world lighting)
+- Lightmap
 - Weather: fog, cloud, firework, snow, leaves
 - Ambient RSW effects: e.g. torch, smoke, bubble, fog
+- Animated model: windmill, mill
+- Distortion (effect hallucination)
 - Mob / entity sprites
 - GR2 3D models (emperium, guardians): pure-Rust Oodle0 + Bink texture decoders, skeletal animation
-- Minimap (with entity / party / quest / NPC markers)
+- Minimap (party members with names on hover, same-map guild members, server marks: quest + guide directions)
+- World map (Ctrl+`): current-map + player position, party markers with names, per-map minimap inset
+- Floor item shadow
 
 # Effects
 **All effect IDs (from 1 to 1050) are handled** through two generic players plus custom-coded families.
@@ -126,6 +131,7 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Emotions (emote balloons, /commands)
 - Full server-time sync of hits & moves
 - Marriage system
+- Complex skills: (e.g: autocounter, grafiti)
 
 # Status appearance
 - Status-icon bar (EFST icons, clock-wedge timer, tooltips)
@@ -220,6 +226,7 @@ Below what has been implemented and validated with rathena packetver 20120307
 - Marriage / couples (wedding costume, partner name, cut-ins, WE_ skill effects)
 - Adoption: Adopt baby, children sprite
 - Storage access
+- Worldmap
 
 ## Companions
 - Pet system (taming, roulette, hatching, accessory, performance, talk)

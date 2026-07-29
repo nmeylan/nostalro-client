@@ -303,6 +303,24 @@ pub fn create_texture_bind_group_nearest(
     )
 }
 
+pub fn create_texture_bind_group_clamped(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    img: &image::RgbaImage,
+    layout: &wgpu::BindGroupLayout,
+    label: &str,
+) -> wgpu::BindGroup {
+    create_texture_bind_group_filtered(
+        device,
+        queue,
+        img,
+        layout,
+        label,
+        wgpu::FilterMode::Linear,
+        wgpu::AddressMode::ClampToEdge,
+    )
+}
+
 pub fn create_font_atlas_bind_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,

@@ -1,5 +1,5 @@
 use crate::cursor::CursorType;
-use crate::entity::{Entity, EntityState, EntityType};
+use crate::entity::{Entity, EntityCategory, EntityState, EntityType};
 use models::enums::EnumWithMaskValueU64;
 use models::enums::map::MapPropertyFlags;
 use models::enums::skill::SkillTargetType;
@@ -149,12 +149,18 @@ pub fn hover_cursor(
     if target.state == EntityState::Dead || target.is_fading() {
         return None;
     }
-    if target.entity_type == EntityType::Npc && active_skill.is_none() {
-        return Some(if target.job == 45 {
-            CursorType::Warp
-        } else {
-            CursorType::Talk
-        });
+    let category = target.category();
+    if matches!(category, EntityCategory::Skill | EntityCategory::Invisible)
+        || crate::sprite_path::is_inert_actor(target.job)
+    {
+        return None;
+    }
+    if active_skill.is_none() {
+        match category {
+            EntityCategory::WarpPoint => return Some(CursorType::Warp),
+            EntityCategory::Npc => return Some(CursorType::Talk),
+            _ => {}
+        }
     }
     // Companions are interactable (right-click menu / owner commands) but not
     // attackable — make them pickable with the click cursor when no skill is armed.
@@ -292,6 +298,65 @@ mod tests {
             hover_cursor(&other, &town, Some(TargetClass::Offensive), me),
             None
         );
+    }
+
+    #[test]
+    fn skill_ground_units_are_not_interactive() {
+        use crate::sprite_path::{JT_WARPNPC, SKILL_UNIT_JOB_MIN};
+
+        let town = MapProperties::from_kind(MapKind::Normal);
+        let me = Some(1u32);
+        let sanctuary = entity(10, EntityType::Npc, SKILL_UNIT_JOB_MIN + 5);
+        let category = sanctuary.category();
+
+        assert_eq!(category, EntityCategory::Skill);
+        assert!(!category.has_name_plate());
+        assert!(!category.has_health_bar());
+        assert_eq!(hover_cursor(&sanctuary, &town, None, me), None);
+        assert_eq!(
+            hover_cursor(&sanctuary, &town, Some(TargetClass::Offensive), me),
+            None
+        );
+
+        let warp = entity(11, EntityType::Npc, JT_WARPNPC);
+        assert_eq!(hover_cursor(&warp, &town, None, me), Some(CursorType::Warp));
+        assert!(!warp.category().has_health_bar());
+
+        let shopkeeper = entity(12, EntityType::Npc, 60);
+        assert_eq!(
+            hover_cursor(&shopkeeper, &town, None, me),
+            Some(CursorType::Talk)
+        );
+    }
+
+    #[test]
+    fn trigger_actors_are_undrawn_and_only_the_clickable_ones_pick() {
+        use crate::sprite_path::{
+            JT_EFFECTLAUNCHER, JT_HIDDEN_NPC, JT_HIDDEN_WARP_NPC, JT_WARPNPC, is_undrawn_actor,
+        };
+
+        let town = MapProperties::from_kind(MapKind::Normal);
+        let me = Some(1u32);
+        for job in [
+            JT_WARPNPC,
+            JT_EFFECTLAUNCHER,
+            JT_HIDDEN_NPC,
+            JT_HIDDEN_WARP_NPC,
+        ] {
+            assert!(is_undrawn_actor(job), "job {job}");
+        }
+        assert!(!is_undrawn_actor(110));
+
+        let hidden_npc = entity(30, EntityType::Npc, JT_HIDDEN_NPC);
+        assert_eq!(
+            hover_cursor(&hidden_npc, &town, None, me),
+            Some(CursorType::Talk)
+        );
+
+        for job in [JT_EFFECTLAUNCHER, JT_HIDDEN_WARP_NPC] {
+            let inert = entity(31, EntityType::Npc, job);
+            assert_eq!(hover_cursor(&inert, &town, None, me), None, "job {job}");
+        }
     }
 
     #[test]

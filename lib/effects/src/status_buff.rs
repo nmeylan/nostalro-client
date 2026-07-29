@@ -1,13 +1,24 @@
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 
+use crate::sfx::SfxPos;
+
+/// A wave the status plays the moment it turns on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StatusSound {
+    pub wave: &'static str,
+    pub pos: SfxPos,
+    /// Heard only by the status bearer.
+    pub local_only: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StatusKind {
     Visual,
     PushCart,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StatusReaction {
     /// Re-launched for the whole duration and despawned when the status ends.
     pub aura: &'static [EffectId],
@@ -17,6 +28,11 @@ pub struct StatusReaction {
     pub on_deactivate: &'static [EffectId],
     /// Non-visual consequence routed to a dedicated handler.
     pub kind: StatusKind,
+    /// Darkens the world, for the bearer's eyes only.
+    pub night_filter: bool,
+    /// Ripples the whole screen, for the bearer's eyes only.
+    pub screen_ripple: bool,
+    pub on_activate_sound: Option<StatusSound>,
 }
 
 impl StatusReaction {
@@ -26,6 +42,52 @@ impl StatusReaction {
             on_activate: &[],
             on_deactivate: &[],
             kind: StatusKind::Visual,
+            night_filter: false,
+            screen_ripple: false,
+            on_activate_sound: None,
+        }
+    }
+
+    const fn sound(wave: &'static str, pos: SfxPos, local_only: bool) -> Self {
+        Self {
+            on_activate_sound: Some(StatusSound {
+                wave,
+                pos,
+                local_only,
+            }),
+            ..Self::new()
+        }
+    }
+
+    const fn with_sound(self, wave: &'static str, pos: SfxPos, local_only: bool) -> Self {
+        Self {
+            on_activate_sound: Some(StatusSound {
+                wave,
+                pos,
+                local_only,
+            }),
+            ..self
+        }
+    }
+
+    const fn screen_ripple() -> Self {
+        Self {
+            screen_ripple: true,
+            ..Self::new()
+        }
+    }
+
+    const fn night_filter() -> Self {
+        Self {
+            night_filter: true,
+            ..Self::new()
+        }
+    }
+
+    const fn with_night_filter(self) -> Self {
+        Self {
+            night_filter: true,
+            ..self
         }
     }
 
@@ -79,20 +141,108 @@ pub fn status_reaction(efst: ClientEffectIcon) -> Option<StatusReaction> {
         I::Magicpower => StatusReaction::aura(&[E::Lightblade]),
         I::Aurablade => StatusReaction::aura(&[E::Aurablade2]),
         I::Kaite => StatusReaction::aura(&[E::Reflectbody]),
-        I::Soullink => StatusReaction::aura(&[E::Asurabody]),
+        I::Soullink => StatusReaction::aura(&[E::Asurabody]).with_night_filter(),
+        I::Explosionspirits => StatusReaction::aura(&[E::Gumgang]),
         I::SgSunWarm => StatusReaction::aura(&[E::Doublegumgang, E::Redlightbody]),
         I::Mindbreaker => StatusReaction::on_activate(&[E::Magiccrasher2]),
-        I::Ting => StatusReaction::on_activate(&[E::Quakebody]),
+        I::Ting => StatusReaction::on_activate(&[E::Quakebody]).with_sound(
+            "effect\\t_벽튕김.wav",
+            SfxPos::World,
+            false,
+        ),
+        I::Chasewalk2 => {
+            StatusReaction::sound("lava_golem_move.wav", SfxPos::Ui(0.0), true)
+        }
         I::Run => StatusReaction::on_deactivate(&[E::Stopeffect]),
+        I::Illusion => StatusReaction::screen_ripple(),
         I::OnPushCart => StatusReaction::kind(StatusKind::PushCart),
         _ => return None,
     };
     Some(reaction)
 }
 
+/// Statuses the shared icon enum has no variant for. Moon rides the Star
+/// Gladiator's spirit sphere, and the Moon/Star warmth auras look the same as
+/// the Sun one.
+pub const EFST_MOON: i16 = 123;
+
+/// Eclipse (the Star Gladiator's Demon of the Sun, Moon and Stars).
+pub const EFST_DEVIL1: i16 = 152;
+pub const EFST_SKE: i16 = 160;
+pub const EFST_SG_MOON_WARM: i16 = 166;
+pub const EFST_SG_STAR_WARM: i16 = 167;
+
+/// [`status_reaction`] for statuses addressed by their raw id.
+pub fn status_reaction_by_efst(efst: i16) -> Option<StatusReaction> {
+    use EffectId as E;
+    match efst {
+        EFST_MOON => Some(StatusReaction::aura(&[E::Spherewind2])),
+        EFST_DEVIL1 => Some(StatusReaction::sound(
+            "effect\\_blind.wav",
+            SfxPos::Ui(-100.0),
+            true,
+        )),
+        EFST_SKE => Some(StatusReaction::night_filter()),
+        EFST_SG_MOON_WARM | EFST_SG_STAR_WARM => {
+            Some(StatusReaction::aura(&[E::Doublegumgang, E::Redlightbody]))
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn star_gladiator_and_monk_spheres_are_persistent_auras() {
+        use ClientEffectIcon as I;
+        use EffectId as E;
+
+        assert_eq!(
+            status_reaction(I::Explosionspirits).unwrap().aura,
+            &[E::Gumgang]
+        );
+        assert_eq!(
+            status_reaction_by_efst(EFST_MOON).unwrap().aura,
+            &[E::Spherewind2]
+        );
+        // The three warmth auras look the same, whichever heavenly body it is.
+        let sun = status_reaction(I::SgSunWarm).unwrap().aura;
+        assert_eq!(sun, &[E::Doublegumgang, E::Redlightbody]);
+        for efst in [EFST_SG_MOON_WARM, EFST_SG_STAR_WARM] {
+            assert_eq!(status_reaction_by_efst(efst).unwrap().aura, sun);
+        }
+        assert!(status_reaction_by_efst(EFST_MOON + 1).is_none());
+    }
+
+    #[test]
+    fn only_ske_and_soul_link_darken_the_world() {
+        use ClientEffectIcon as I;
+
+        let soullink = status_reaction(I::Soullink).unwrap();
+        assert!(soullink.night_filter);
+        assert_eq!(soullink.aura, &[EffectId::Asurabody]);
+
+        let ske = status_reaction_by_efst(EFST_SKE).unwrap();
+        assert!(ske.night_filter);
+        assert!(ske.aura.is_empty());
+
+        assert!(!status_reaction(I::Berserk).unwrap().night_filter);
+        assert!(!status_reaction_by_efst(EFST_MOON).unwrap().night_filter);
+    }
+
+    #[test]
+    fn only_illusion_ripples_the_screen() {
+        use ClientEffectIcon as I;
+
+        let illusion = status_reaction(I::Illusion).unwrap();
+        assert!(illusion.screen_ripple);
+        assert!(illusion.aura.is_empty());
+        assert!(!illusion.night_filter);
+
+        assert!(!status_reaction(I::Soullink).unwrap().screen_ripple);
+    }
 
     #[test]
     fn only_full_duration_auras_show_a_persistent_world_aura() {
@@ -152,6 +302,20 @@ mod tests {
         assert_eq!(
             status_reaction(I::Ting).unwrap().on_activate,
             &[EffectId::Quakebody]
+        );
+        assert_eq!(
+            status_reaction(I::Chasewalk2).unwrap().on_activate_sound,
+            Some(StatusSound {
+                wave: "lava_golem_move.wav",
+                pos: SfxPos::Ui(0.0),
+                local_only: true,
+            })
+        );
+        assert!(
+            status_reaction_by_efst(EFST_DEVIL1)
+                .unwrap()
+                .on_activate_sound
+                .is_some_and(|s| s.local_only && s.pos == SfxPos::Ui(-100.0))
         );
         assert_eq!(
             status_reaction(I::Run).unwrap().on_deactivate,

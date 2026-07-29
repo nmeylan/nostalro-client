@@ -25,6 +25,7 @@ use ragnarok_ui_component::game::inventory_window::InventoryWindow;
 use ragnarok_ui_component::game::item_info_window::ItemInfoWindow;
 use ragnarok_ui_component::game::mercenary_skill_window::MercenarySkillWindow;
 use ragnarok_ui_component::game::mercenary_window::MercenaryWindow;
+use ragnarok_ui_component::game::minimap_window::MinimapWindow;
 use ragnarok_ui_component::game::my_shop_window::MyShopWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
 use ragnarok_ui_component::game::npc_shop::NpcShop;
@@ -34,6 +35,7 @@ use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::game::vending_setup_window::VendingSetupWindow;
 use ragnarok_ui_component::game::vending_shop_window::VendingShopWindow;
+use ragnarok_ui_component::game::world_map_window::{WORLD_MAP_TEX, WorldMapWindow};
 use ragnarok_ui_component::helper::dialog_container::DialogContainer;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -184,6 +186,17 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "item_info" => ItemInfoWindow::grf_texture_paths(),
         "skill_tree" => SkillTreeWindow::grf_texture_paths(),
         "card_insert" => vec![],
+        "minimap" => {
+            let mut paths = MinimapWindow::grf_texture_paths();
+            paths.push("data/texture/유저인터페이스/map/prontera.bmp");
+            paths
+        }
+        "world_map" => {
+            let mut paths = WorldMapWindow::grf_texture_paths();
+            paths.push(WORLD_MAP_TEX);
+            paths.push("data/texture/유저인터페이스/map/prontera.bmp");
+            paths
+        }
         "mercenary" => MercenaryWindow::grf_texture_paths(),
         "mercenary_skill" => MercenarySkillWindow::grf_texture_paths(),
         "homun" => HomunWindow::grf_texture_paths(),

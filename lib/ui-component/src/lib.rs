@@ -1,6 +1,7 @@
 pub mod account;
 pub mod game;
 pub mod helper;
+pub mod widget_id;
 
 use ragnarok_ai::config::CompanionAiConfig;
 use ragnarok_game::character::Character;

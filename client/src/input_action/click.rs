@@ -3,14 +3,13 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::PendingSkillTarget;
-use ragnarok_game::entity::{EntityState, EntityType};
+use ragnarok_game::entity::{EntityCategory, EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::hide_allows_skill;
 use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
 use ragnarok_network::{
-    build_contact_npc_packet, build_pickup_item_packet, build_req_buy_frommc_packet,
-    build_req_enter_room_packet, build_request_move_packet, build_use_skill_packet,
-    build_use_skill_to_ground_packet,
+    build_contact_npc_packet, build_req_buy_frommc_packet, build_req_enter_room_packet,
+    build_request_move_packet, build_use_skill_packet,
 };
 
 impl App {
@@ -171,13 +170,7 @@ impl App {
                         let dx = (px as i32 - cx as i32).abs();
                         let dy = (py as i32 - cy as i32).abs();
                         if dx.max(dy) <= skill_range {
-                            self.channel.send_packet(build_use_skill_to_ground_packet(
-                                skill_id,
-                                level,
-                                cx as i16,
-                                cy as i16,
-                                self.active_packetver,
-                            ));
+                            self.cast_on_ground(skill_id, level, cx as i16, cy as i16);
                         } else {
                             self.game.pending_casts.pending_ground_cast =
                                 Some((skill_id, level, cx as i16, cy as i16));
@@ -197,36 +190,13 @@ impl App {
                 return;
             }
             self.game.combat.attack_target_id = None;
-            self.game.pending_casts.pending_pickup_item_id = None;
-            if let Some(floor_item) = self.game.world.floor_items.get(&item_id) {
-                let (px, py) = self
-                    .game
-                    .world
-                    .entities
-                    .player()
-                    .map(|e| e.movement.cell_position())
-                    .unwrap_or((0, 0));
-                let dx = (px as i32 - floor_item.x as i32).unsigned_abs();
-                let dy = (py as i32 - floor_item.y as i32).unsigned_abs();
-                if dx <= 1 && dy <= 1 {
-                    self.channel
-                        .send_packet(build_pickup_item_packet(item_id, self.active_packetver));
-                    if let Some(entity) = self.game.world.entities.player_mut() {
-                        entity.enter_pickup(0.5);
-                    }
-                } else if let Some(gat) = &self.game.session.gat {
-                    let dest_x = floor_item.x as i32;
-                    let dest_y = floor_item.y as i32;
-                    if let Some(move_action) = try_move_to(gat, px, py, dest_x, dest_y) {
-                        self.channel.send_packet(build_request_move_packet(
-                            move_action.dest_x,
-                            move_action.dest_y,
-                            self.active_packetver,
-                        ));
-                        self.game.pending_casts.pending_pickup_item_id = Some(item_id);
-                    }
-                }
-            }
+            self.game.pending_casts.pending_pickup_item_id = self
+                .game
+                .world
+                .floor_items
+                .contains_key(&item_id)
+                .then_some(item_id);
+            self.check_pending_pickup();
             return;
         }
         if let Some(entity_id) = self.game.hover.target_id()
@@ -246,8 +216,7 @@ impl App {
         }
         if let Some(entity_id) = self.game.hover.hovered_entity_id
             && let Some(entity) = self.game.world.entities.get(entity_id)
-            && entity.entity_type == EntityType::Npc
-            && entity.job != 45
+            && entity.category() == EntityCategory::Npc
         {
             self.channel
                 .send_packet(build_contact_npc_packet(entity_id, self.active_packetver));
@@ -272,7 +241,7 @@ impl App {
                 return;
             }
         }
-        self.game.combat.attack_target_id = None;
+        self.stop_attacking();
         self.game.pending_casts.pending_pickup_item_id = None;
         self.game.pending_casts.pending_ground_cast = None;
         // While running, the server auto-moves the character in a straight line and

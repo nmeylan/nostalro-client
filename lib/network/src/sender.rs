@@ -272,6 +272,27 @@ mod tests {
         assert_eq!(pkt.gid, 222);
         assert_eq!(pkt.answer, 1);
     }
+
+    /// The written message rides along with the placement, in the wide field the
+    /// server reads it from.
+    #[test]
+    fn talkbox_ground_cast_carries_its_message() {
+        let raw =
+            build_use_skill_to_ground_with_talkbox_packet(220, 1, 155, 182, "hi there", 20111102);
+        assert_eq!(raw.len(), 90);
+        assert_eq!(&raw[..2], &[0xad, 0x08]);
+
+        let parsed = packets::packets_parser::parse(&raw, 20111102);
+        let pkt = parsed
+            .as_any()
+            .downcast_ref::<PacketCzUseSkillTogroundWithtalkbox>()
+            .expect("expected PacketCzUseSkillTogroundWithtalkbox");
+        assert_eq!(pkt.skid, 220);
+        assert_eq!(pkt.selected_level, 1);
+        assert_eq!((pkt.x_pos, pkt.y_pos), (155, 182));
+        let message: String = pkt.contents.iter().take_while(|c| **c != '\0').collect();
+        assert_eq!(message, "hi there");
+    }
 }
 
 pub fn build_zone_enter_packet(session: &Session) -> Vec<u8> {
@@ -295,6 +316,18 @@ pub fn build_restart_packet(packetver: u32) -> Vec<u8> {
 pub fn build_return_savepoint_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzRestart::new(packetver);
     pkt.set_atype(0);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_progress_done_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzProgress::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_cancel_lockon_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzCancelLockon::new(packetver);
     pkt.fill_raw();
     pkt.raw
 }
@@ -883,6 +916,28 @@ pub fn build_use_skill_to_ground_packet(
     pkt.set_skid(skill_id);
     pkt.set_x_pos(x);
     pkt.set_y_pos(y);
+    pkt.fill_raw_with_packetver(Some(packetver));
+    pkt.raw
+}
+
+pub fn build_use_skill_to_ground_with_talkbox_packet(
+    skill_id: u16,
+    level: i16,
+    x: i16,
+    y: i16,
+    message: &str,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzUseSkillTogroundWithtalkbox::new(packetver);
+    pkt.set_selected_level(level);
+    pkt.set_skid(skill_id);
+    pkt.set_x_pos(x);
+    pkt.set_y_pos(y);
+    let mut bytes = [0u8; 80];
+    let src = message.as_bytes();
+    let n = src.len().min(79);
+    bytes[..n].copy_from_slice(&src[..n]);
+    pkt.set_contents(std::array::from_fn(|i| bytes[i] as char));
     pkt.fill_raw_with_packetver(Some(packetver));
     pkt.raw
 }

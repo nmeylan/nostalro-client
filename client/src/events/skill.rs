@@ -1,18 +1,20 @@
 use crate::App;
+use crate::game_state::CastMark;
 use models::enums::EnumWithStringValue;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::autocounter;
+use ragnarok_game::cast_scope::CastScope;
 use ragnarok_game::cursor::PendingSkillTarget;
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
-    is_trail_effect, potion_throw_index, target_skill_effects, trail_arrival_secs,
+    is_trail_effect, potion_throw_index, sevenwind_aura, target_skill_effects, trail_arrival_secs,
 };
-use ragnarok_game::entity::ChatBubbleState;
+use ragnarok_game::entity::{ChatBubbleState, EntityType};
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill::SkillTargetType;
@@ -546,6 +548,102 @@ impl App {
         self.queue_skill_sound(skill_cast_begin_sound(skill), caster_gid);
     }
 
+    /// What the cast marks out for as long as it runs: a reticle on the victim of
+    /// a targeted cast, or a square of ground under a placed one. A self-cast
+    /// marks nothing.
+    pub(super) fn spawn_cast_mark(
+        &mut self,
+        skill_id: u16,
+        caster_gid: u32,
+        target_gid: u32,
+        x: i16,
+        y: i16,
+        cast_ms: u32,
+    ) {
+        self.clear_cast_mark(caster_gid);
+        if cast_ms == 0 {
+            return;
+        }
+        if target_gid != 0 {
+            if target_gid == caster_gid || self.game.world.entities.get(target_gid).is_none() {
+                return;
+            }
+            self.effect_queue
+                .spawn_on_for(EffectId::Lockon, target_gid, cast_ms);
+            self.game.world.cast_marks.insert(
+                caster_gid,
+                CastMark::Lockon {
+                    target_gid,
+                    remaining: cast_ms as f32 / 1000.0,
+                },
+            );
+            return;
+        }
+        if x < 0 || y < 0 {
+            return;
+        }
+        let scope = CastScope::new(
+            skill_id,
+            x as u16,
+            y as u16,
+            self.is_hostile_caster(caster_gid),
+            cast_ms as f32 / 1000.0,
+        );
+        self.game
+            .world
+            .cast_marks
+            .insert(caster_gid, CastMark::Scope(scope));
+    }
+
+    /// Whether `caster_gid` placing a cast reads as an enemy, which paints its
+    /// ground scope red instead of white.
+    fn is_hostile_caster(&self, caster_gid: u32) -> bool {
+        let props = &self.game.session.map_properties;
+        let Some(caster) = self.game.world.entities.get(caster_gid) else {
+            return false;
+        };
+        if props.is_siege() {
+            let my_guild = self.game.guild.as_ref().map_or(0, |g| g.gdid);
+            return caster.guild_id != my_guild;
+        }
+        if !props.is_pvp() || self.game.world.entities.is_player(caster_gid) {
+            return false;
+        }
+        let in_my_party = self
+            .game
+            .party
+            .as_ref()
+            .is_some_and(|p| p.members.iter().any(|m| m.aid == caster_gid));
+        !in_my_party && caster.entity_type == EntityType::Monster
+    }
+
+    /// Drops whatever `caster_gid`'s cast was marking, so an interrupted cast
+    /// does not leave its reticle or ground square behind. A zero gid is the
+    /// local player, as on the cancel packet.
+    pub(crate) fn clear_cast_mark(&mut self, caster_gid: u32) {
+        let caster_gid = if caster_gid == 0 {
+            self.game.world.entities.player_id().unwrap_or(0)
+        } else {
+            caster_gid
+        };
+        if let Some(CastMark::Lockon { target_gid, .. }) =
+            self.game.world.cast_marks.remove(&caster_gid)
+        {
+            self.effect_holder
+                .despawn_effect_on_entity(EffectId::Lockon, target_gid);
+        }
+    }
+
+    pub(crate) fn update_cast_marks(&mut self, delta: f32) {
+        self.game.world.cast_marks.retain(|_, mark| match mark {
+            CastMark::Scope(scope) => scope.tick(delta),
+            CastMark::Lockon { remaining, .. } => {
+                *remaining -= delta;
+                *remaining > 0.0
+            }
+        });
+    }
+
     /// Cast effect on the caster + landing effect on the recipient for
     /// no-damage skills — the `cast` / `on_target` slots fired at
     /// `ZC_USE_SKILL` (buffs, heals, status grants). The damage-skill cast /
@@ -562,24 +660,33 @@ impl App {
         // caster→target line rather than sitting on the caster, matching the
         // original's launch-from-caster + reposition-to-target.
         let trail = self.skill_trail_endpoints(src_gid, target_gid);
+        let is_sevenwind = skill == SkillEnum::TkSevenwind;
         for e in caster_skill_effects(skill).cast {
+            let e = if is_sevenwind && *e == EffectId::Beginasura1 {
+                sevenwind_aura(level)
+            } else {
+                *e
+            };
             // High Jump's landing takes over from the leap: delete the airborne
             // Jumpbody so the caster drops in from above at the landing cell.
-            if *e == EffectId::Landbody {
+            if e == EffectId::Landbody {
                 self.effect_holder
                     .despawn_effect_on_entity(EffectId::Jumpbody, src_gid);
             }
+            if is_sevenwind {
+                self.effect_holder.despawn_effect_on_entity(e, src_gid);
+            }
             match trail {
                 // Potion Pitcher throws the potion icon for its level.
-                Some((from, to)) if *e == EffectId::Throwitem2 => {
+                Some((from, to)) if e == EffectId::Throwitem2 => {
                     let potion = potion_throw_index(skill, level).unwrap_or(1);
                     self.effect_queue
-                        .spawn_trail_with_count(*e, from, to, potion);
+                        .spawn_trail_with_count(e, from, to, potion);
                 }
-                Some((from, to)) if is_trail_effect(*e) => {
-                    self.effect_queue.spawn_trail(*e, from, to)
+                Some((from, to)) if is_trail_effect(e) => {
+                    self.effect_queue.spawn_trail(e, from, to)
                 }
-                _ => self.effect_queue.spawn_on(*e, src_gid),
+                _ => self.effect_queue.spawn_on(e, src_gid),
             }
         }
         // AL_HEAL and WE_MALE ("I Will Protect You") share the amount-tiered green

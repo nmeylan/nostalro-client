@@ -10,12 +10,13 @@ use models::enums::weapon::WeaponType;
 use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
-use ragnarok_game::day_night::EFST_SKE;
 use ragnarok_game::effect::{
-    StatusKind, UNT_USED_TRAPS, skill_unit_effect, skill_unit_entry_sound, status_reaction,
-    trap_model_name, trap_trigger_effect,
+    OPT3_BLADESTOP, StatusKind, UNT_USED_TRAPS, monster_opt3_reaction, opt3_bit_for_icon,
+    opt3_bits, player_opt3_reaction, skill_unit_effect, skill_unit_entry_sound, status_reaction,
+    status_reaction_by_efst, trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
@@ -27,12 +28,21 @@ use ragnarok_game::sprite_path::{
     cart_design_from_option, entity_type_from_job, has_falcon, is_hidden, visual_job,
 };
 use ragnarok_game::status_icon::status_icon_info;
+use ragnarok_renderer::SfxPos;
 
 /// A monster spawned with this value in the `head`/hair field is the player's pet.
 const PET_HEAD_MARKER: u16 = 100;
 
-const LEVEL_AURA_LAYERS: &[EffectId] = &[EffectId::Level99, EffectId::Level992, EffectId::Level993];
-const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Level993];
+/// The doubled mote column shows even with `/aura` off; the ring and the floor
+/// glow are what the toggle takes away.
+const LEVEL_AURA_MOTES: &[EffectId] = &[EffectId::Level993, EffectId::Level993];
+const LEVEL_AURA_LAYERS: &[EffectId] = &[
+    EffectId::Level993,
+    EffectId::Level993,
+    EffectId::Level99,
+    EffectId::Level992,
+];
+const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Green993];
 
 fn is_weather_effect(id: EffectId) -> bool {
     matches!(
@@ -251,6 +261,7 @@ impl App {
         if self.game.combat.attack_target_id == Some(gid) {
             self.game.combat.attack_target_id = None;
         }
+        self.clear_cast_mark(gid);
         if self.game.companions.pet.gid == Some(gid) {
             self.game.companions.pet.clear_entity();
         }
@@ -589,6 +600,12 @@ impl App {
             if gained(ailment::OPT2_CURSE) {
                 self.queue_status_sound(gid, StatusSoundKind::CurseSet);
             }
+            if gained(ailment::OPT2_SILENCE) {
+                self.queue_status_sound(gid, StatusSoundKind::SilenceSet);
+            }
+            if gained(ailment::OPT2_CONFUSION) {
+                self.queue_status_sound(gid, StatusSoundKind::ConfusionSet);
+            }
             if gained(ailment::OPT2_BLIND) {
                 self.queue_status_sound(gid, StatusSoundKind::BlindSet);
             }
@@ -712,10 +729,6 @@ impl App {
         self.refresh_pk_rank_aura(gid);
     }
 
-    /// Detect-hidden auras (Sight / Ruwach): the original shows no effect at
-    /// cast and instead re-launches the aura for as long as the OPTION bit is
-    /// set. Reconcile each against its option bit — spawn a persistent orbit
-    /// when the bit turns on, drop it when it clears.
     pub(super) fn refresh_detect_aura(&mut self, gid: u32) {
         let Some(effect_state) = self.game.world.entities.get(gid).map(|e| e.effect_state) else {
             return;
@@ -729,6 +742,7 @@ impl App {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Sight2, gid, key);
                 self.game.effect_keys.sight_aura_keys.insert(gid, key);
+                self.queue_status_sound(gid, StatusSoundKind::DetectOn);
             }
             (false, true) => {
                 if let Some(key) = self.game.effect_keys.sight_aura_keys.remove(&gid) {
@@ -746,6 +760,7 @@ impl App {
                 let key = self.next_entity_effect_key();
                 self.effect_queue.spawn_on_keyed(EffectId::Ruwach, gid, key);
                 self.game.effect_keys.ruwach_aura_keys.insert(gid, key);
+                self.queue_status_sound(gid, StatusSoundKind::DetectOn);
             }
             (false, true) => {
                 if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
@@ -753,6 +768,111 @@ impl App {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// opt3 arrives as a whole word, so reconcile every bit against the last one
+    /// seen: newly set bits launch their aura, cleared bits despawn it.
+    pub(super) fn handle_entity_opt3_changed(
+        &mut self,
+        gid: u32,
+        effect_state: i32,
+        base_level: i32,
+        opt3: i32,
+    ) {
+        let gid = self.game.world.entities.resolve_key(gid);
+        let Some((body_state, health_state, entity_type, previous)) = self
+            .game
+            .world
+            .entities
+            .get(gid)
+            .map(|e| (e.body_state, e.health_state, e.entity_type, e.opt3))
+        else {
+            return;
+        };
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
+            entity.opt3 = opt3;
+            entity.base_level = base_level as i16;
+        }
+        self.handle_entity_option_changed(gid, body_state, health_state, effect_state);
+
+        // A hidden actor shows none of these auras.
+        let visible_opt3 = if is_hidden(effect_state) { 0 } else { opt3 };
+        let is_player_actor = entity_type == EntityType::Player;
+        let reaction_of = |bit| {
+            if is_player_actor {
+                player_opt3_reaction(bit)
+            } else {
+                monster_opt3_reaction(bit)
+            }
+        };
+
+        let was = opt3_bits(previous);
+        let now = opt3_bits(visible_opt3);
+        for bit in was.iter().copied().filter(|b| !now.contains(b)) {
+            let Some(reaction) = reaction_of(bit) else {
+                continue;
+            };
+            if let Some(key) = self.game.effect_keys.opt3_keys.remove(&(gid, bit)) {
+                self.effect_queue.despawn(key);
+            }
+            for &id in reaction.on_clear {
+                self.effect_queue.spawn_on(id, gid);
+            }
+            if reaction.grip {
+                self.release_grip(gid);
+            }
+        }
+        for bit in now.iter().copied().filter(|b| !was.contains(b)) {
+            let Some(reaction) = reaction_of(bit) else {
+                continue;
+            };
+            if !reaction.aura.is_empty() {
+                let key = self.next_entity_effect_key();
+                for &id in reaction.aura {
+                    self.effect_queue.spawn_on_keyed(id, gid, key);
+                }
+                self.game.effect_keys.opt3_keys.insert((gid, bit), key);
+            }
+            if reaction.grip {
+                self.apply_grip(gid);
+            }
+        }
+    }
+
+    fn apply_grip(&mut self, gid: u32) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
+            entity.rooted = true;
+            entity.movement.stop();
+        }
+    }
+
+    fn release_grip(&mut self, gid: u32) {
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
+            entity.rooted = false;
+            entity.forced_animation = None;
+        }
+    }
+
+    /// The status icons and the opt3 word describe the same body buffs on two
+    /// channels. Only the icon carries a duration, so it owns the aura for its bit
+    /// and the spawn-time one steps aside.
+    fn sync_opt3_bit_with_status(&mut self, gid: u32, icon: ClientEffectIcon, active: bool) {
+        let Some(bit) = opt3_bit_for_icon(icon) else {
+            return;
+        };
+        if let Some(entity) = self.game.world.entities.get_mut(gid) {
+            if active {
+                entity.opt3 |= bit;
+            } else {
+                entity.opt3 &= !bit;
+            }
+        }
+        if let Some(key) = self.game.effect_keys.opt3_keys.remove(&(gid, bit)) {
+            self.effect_queue.despawn(key);
+        }
+        if !active && bit == OPT3_BLADESTOP {
+            self.release_grip(gid);
         }
     }
 
@@ -764,28 +884,31 @@ impl App {
         remain_ms: u32,
         val1: i32,
     ) {
-        if efst == EFST_SKE {
-            if self.game.world.entities.player_id() == Some(gid) {
-                self.game.schedulers.day_night.set_night(active);
+        let is_player = self.game.world.entities.player_id() == Some(gid);
+        let raw_reaction = status_reaction_by_efst(efst);
+        let icon = ClientEffectIcon::try_from_value(efst as usize).ok();
+
+        if let Some(icon) = icon {
+            if let Some(entity) = self.game.world.entities.get_mut(gid) {
+                entity.react_to_status(icon, active);
             }
-            return;
+            if is_player {
+                self.set_status_icon(efst, active, val1, remain_ms as u64);
+            }
+            self.sync_opt3_bit_with_status(gid, icon, active);
         }
 
-        let Ok(icon) = ClientEffectIcon::try_from_value(efst as usize) else {
-            return;
-        };
-
-        if let Some(entity) = self.game.world.entities.get_mut(gid) {
-            entity.react_to_status(icon, active);
-        }
-
-        if self.game.world.entities.player_id() == Some(gid) {
-            self.set_status_icon(efst, active, val1, remain_ms as u64);
-        }
-
-        let Some(reaction) = status_reaction(icon) else {
+        let Some(reaction) = raw_reaction.or_else(|| icon.and_then(status_reaction)) else {
             return;
         };
+
+        if reaction.night_filter && is_player {
+            self.game.schedulers.day_night.set_night(active);
+        }
+
+        if reaction.screen_ripple && is_player {
+            self.game.session.screen_ripple = active;
+        }
 
         if reaction.kind == StatusKind::PushCart {
             self.handle_push_cart_status(gid, active, val1);
@@ -803,6 +926,25 @@ impl App {
                     .spawn_on_keyed_for(id, gid, key, remain_ms);
             }
             self.game.effect_keys.status_buff_keys.insert(map_key, key);
+        }
+
+        if active
+            && let Some(sound) = reaction.on_activate_sound
+            && (is_player || !sound.local_only)
+        {
+            match sound.pos {
+                SfxPos::Ui(depth) => self.sound_queue.ui_at_depth(sound.wave, depth),
+                SfxPos::WorldAtDepth(depth) => {
+                    if let Some(pos) = self.entity_world_pos(gid) {
+                        self.sound_queue.world_at_depth(sound.wave, pos, depth);
+                    }
+                }
+                SfxPos::World => {
+                    if let Some(pos) = self.entity_world_pos(gid) {
+                        self.sound_queue.world(sound.wave, pos);
+                    }
+                }
+            }
         }
 
         let bursts = if active {
@@ -872,25 +1014,36 @@ impl App {
         } else {
             entity_level
         };
-        let want = alive
-            && self.config.display.show_level_aura
-            && level_aura::level_aura_visible(entity_type, base_level, effect_state);
-        let have = self.game.effect_keys.level_aura_keys.contains_key(&gid);
-        match (want, have) {
-            (true, false) => {
-                let key = self.next_entity_effect_key();
-                for &id in LEVEL_AURA_LAYERS {
-                    self.effect_queue.spawn_on_keyed(id, gid, key);
-                }
-                self.game.effect_keys.level_aura_keys.insert(gid, key);
+        let visible =
+            alive && level_aura::level_aura_visible(entity_type, base_level, effect_state);
+        let want = visible.then(|| {
+            if self.config.display.show_level_aura {
+                LEVEL_AURA_LAYERS
+            } else {
+                LEVEL_AURA_MOTES
             }
-            (false, true) => self.despawn_level_aura(gid),
-            _ => {}
+        });
+        let have = self.game.effect_keys.level_aura_keys.get(&gid).copied();
+        if have.map(|(_, layers)| layers) == want {
+            return;
+        }
+        if have.is_some() {
+            self.despawn_level_aura(gid);
+        }
+        if let Some(layers) = want {
+            let key = self.next_entity_effect_key();
+            for &id in layers {
+                self.effect_queue.spawn_on_keyed(id, gid, key);
+            }
+            self.game
+                .effect_keys
+                .level_aura_keys
+                .insert(gid, (key, layers));
         }
     }
 
     pub(crate) fn despawn_level_aura(&mut self, gid: u32) {
-        if let Some(key) = self.game.effect_keys.level_aura_keys.remove(&gid) {
+        if let Some((key, _)) = self.game.effect_keys.level_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
     }
@@ -910,6 +1063,7 @@ impl App {
             return;
         };
         let want = alive
+            && self.config.custom.boss_aura
             && self.config.display.show_level_aura
             && level_aura::boss_aura_visible(entity_type, is_boss, level, effect_state);
         let have = self.game.effect_keys.boss_aura_keys.contains_key(&gid);
@@ -1279,7 +1433,7 @@ impl App {
         };
         match code {
             0 | 7 | 9 => self.sound_queue.ui("levelup.wav"),
-            1 | 8 => self.sound_queue.ui("joblevelup.wav"),
+            1 | 8 => self.sound_queue.ui("effect\\st_job_level_up.wav"),
             _ => {}
         }
         self.effect_queue.spawn_on(id, gid);
@@ -1436,6 +1590,52 @@ impl App {
         self.effect_queue.despawn(aid);
         self.game.world.trap_units.remove(&aid);
         self.game.world.hidden_traps.remove(&aid);
+        self.game.world.graffiti.remove(&aid);
+    }
+
+    pub(super) fn handle_graffiti_entered(
+        &mut self,
+        aid: u32,
+        creator_aid: u32,
+        x: i16,
+        y: i16,
+        message: String,
+    ) {
+        let yaw = self
+            .game
+            .world
+            .entities
+            .get(self.game.world.entities.resolve_key(creator_aid))
+            .map(|e| e.direction as f32 * std::f32::consts::FRAC_PI_4)
+            .unwrap_or(0.0);
+        self.build_graffiti_texture(aid, &message);
+        self.game.world.graffiti.insert(
+            aid,
+            Graffiti {
+                creator_aid,
+                cell_x: x.max(0) as u16,
+                cell_y: y.max(0) as u16,
+                yaw,
+                message,
+            },
+        );
+    }
+
+    fn build_graffiti_texture(&mut self, aid: u32, message: &str) {
+        let key = ragnarok_renderer::graffiti::texture_key(aid);
+        let (Some(renderer), Some(grf)) = (self.renderer.as_mut(), self.grf.as_ref()) else {
+            return;
+        };
+        match renderer.build_graffiti_texture(&key, message, grf) {
+            true => {}
+            false => tracing::warn!("Failed to compose graffiti texture for unit {aid}"),
+        }
+    }
+
+    pub(super) fn handle_map_cell_changed(&mut self, x: i16, y: i16, cell_type: i32) {
+        if let Some(gat) = &mut self.game.session.gat {
+            gat.set_cell_type(x as i32, y as i32, cell_type);
+        }
     }
 
     /// A skill-unit update reveals a trap that was hidden from us (e.g. an ankle

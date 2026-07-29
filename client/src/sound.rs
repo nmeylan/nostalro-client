@@ -1,15 +1,20 @@
 use ragnarok_audio::attenuate;
 use ragnarok_game::sound::SoundSource;
+use ragnarok_renderer::SfxPos;
 
 use crate::App;
 
+/// Cheap xorshift for sound randomization (hit-sound variants, gates).
+pub(crate) fn next_rand(state: &mut u32) -> u32 {
+    *state ^= *state << 13;
+    *state ^= *state >> 17;
+    *state ^= *state << 5;
+    *state
+}
+
 impl App {
-    /// Cheap xorshift for sound randomization (hit-sound variants, gates).
     pub(crate) fn next_sfx_rand(&mut self) -> u32 {
-        self.sfx_rng ^= self.sfx_rng << 13;
-        self.sfx_rng ^= self.sfx_rng >> 17;
-        self.sfx_rng ^= self.sfx_rng << 5;
-        self.sfx_rng
+        next_rand(&mut self.sfx_rng)
     }
 
     /// Handle a server `ZC_SOUND`, dispatched on the `act` field: `Play` plays
@@ -65,10 +70,20 @@ impl App {
 
     /// Resolve queued sound requests to positional gains and hand them to the
     /// mixer. Runs every frame in every scene.
+    ///
+    /// Requests that name the same wave collapse to the loudest one: a splash
+    /// skill queues one identical hit wave per victim in the same frame, and
+    /// mixing N copies of one sample in phase multiplies its amplitude by N.
     pub(crate) fn drain_sound_queue(&mut self, delta: f32) {
-        // Fold effect-emitted sounds (feeds 1 & 2) into the queue as world sounds.
-        for (name, pos) in self.effect_holder.drain_sfx() {
-            self.sound_queue.world(name, pos);
+        // Fold effect-emitted sounds (feeds 1 & 2) into the queue.
+        for e in self.effect_holder.drain_sfx() {
+            match e.pos {
+                SfxPos::World => self.sound_queue.world(e.name, e.world_pos),
+                SfxPos::WorldAtDepth(depth) => {
+                    self.sound_queue.world_at_depth(e.name, e.world_pos, depth)
+                }
+                SfxPos::Ui(depth) => self.sound_queue.ui_at_depth(e.name, depth),
+            }
         }
 
         let listener = self.listener_pos();
@@ -77,29 +92,25 @@ impl App {
             listener.map(|l| [l[0], l[2]]),
             &mut self.sound_queue,
         );
-        let requests: Vec<_> = self.sound_queue.pending.drain(..).collect();
+        let resolved = self.sound_queue.drain_resolved(|req| match req.source {
+            SoundSource::Ui { depth } => {
+                attenuate(0.0, depth, 0.0, req.min_dist, req.max_dist) * req.vfactor
+            }
+            SoundSource::World { pos, depth } => {
+                let l = listener.unwrap_or(pos);
+                attenuate(
+                    pos[0] - l[0],
+                    depth,
+                    pos[2] - l[2],
+                    req.min_dist,
+                    req.max_dist,
+                ) * req.vfactor
+            }
+        });
         if let Some(grf) = self.grf.as_ref() {
-            for req in requests {
-                let gain = match req.source {
-                    SoundSource::Ui { depth } => {
-                        attenuate(0.0, depth, 0.0, req.min_dist, req.max_dist) * req.vfactor
-                    }
-                    SoundSource::World(pos) => {
-                        let l = listener.unwrap_or(pos);
-                        attenuate(
-                            pos[0] - l[0],
-                            0.0,
-                            pos[2] - l[2],
-                            req.min_dist,
-                            req.max_dist,
-                        ) * req.vfactor
-                    }
-                };
-                if gain <= 0.0 {
-                    continue;
-                }
-                let path = format!("data/wav/{}", req.name);
-                let disk_rel = req.name.replace('\\', "/");
+            for (name, gain) in resolved {
+                let path = format!("data/wav/{name}");
+                let disk_rel = name.replace('\\', "/");
                 self.sound.play_sfx(&path, gain, || {
                     grf.read_file(&path)
                         .ok()
