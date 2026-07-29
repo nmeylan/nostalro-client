@@ -382,9 +382,6 @@ impl Renderer {
         if let Some(ambient) = rsw.light.ambient {
             light.ambient_color = [ambient[0], ambient[1], ambient[2], 1.0];
         }
-        if let Some(alpha) = rsw.light.shadow_map_alpha {
-            light.shadow_strength = alpha;
-        }
         self.base_light = light;
         self.global_uniforms
             .update_light(&self.device.queue, &light);

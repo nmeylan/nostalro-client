@@ -78,7 +78,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ambient = light.ambient_color.rgb;
 
     let n_dot_l = max(dot(normalize(in.normal), normalize(light.light_dir.xyz)), 0.0);
-    let shadow = mix(1.0, lightmap.a, light.shadow_strength);
+    let shadow = lightmap.a;
     let combined_light = (sunlight * n_dot_l + ambient) * shadow;
 
     let contrast_correction = clamp(ambient + sunlight - sunlight * ambient, vec3<f32>(0.0), vec3<f32>(1.0));
