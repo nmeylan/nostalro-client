@@ -1390,8 +1390,8 @@ impl EntitySprite {
                 });
             }
         }
-        if let Some(hg_tex) = &self.headgear_mid_textures {
-            for (mut vertices, indices, tex_idx) in clips.headgear_mid {
+        if let Some(hg_tex) = &self.headgear_top_textures {
+            for (mut vertices, indices, tex_idx) in clips.headgear_top {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch {
                     vertices,
@@ -1402,8 +1402,8 @@ impl EntitySprite {
                 });
             }
         }
-        if let Some(hg_tex) = &self.headgear_top_textures {
-            for (mut vertices, indices, tex_idx) in clips.headgear_top {
+        if let Some(hg_tex) = &self.headgear_mid_textures {
+            for (mut vertices, indices, tex_idx) in clips.headgear_mid {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch {
                     vertices,
@@ -1467,11 +1467,11 @@ impl EntitySprite {
         if let Some(t) = &self.headgear_bottom_textures {
             groups.push((t, clips.headgear_bottom));
         }
-        if let Some(t) = &self.headgear_mid_textures {
-            groups.push((t, clips.headgear_mid));
-        }
         if let Some(t) = &self.headgear_top_textures {
             groups.push((t, clips.headgear_top));
+        }
+        if let Some(t) = &self.headgear_mid_textures {
+            groups.push((t, clips.headgear_mid));
         }
 
         let mut min = [f32::MAX, f32::MAX];
