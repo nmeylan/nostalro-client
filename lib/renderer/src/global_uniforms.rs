@@ -51,24 +51,25 @@ impl Default for FogUniform {
     }
 }
 
-/// Maps a world XZ to a texel of the per-cell light texture. `enabled` is 0 when
-/// the map has no lightmap or the player turned lightmaps off.
+/// Maps a world XZ straight to a UV of the ground lightmap, so a model samples
+/// the very texel the terrain under it samples. `enabled` is 0 when the map has
+/// no lightmap or the player turned lightmaps off.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CellLightUniform {
-    pub cell_size: f32,
-    pub width: f32,
-    pub height: f32,
+    pub uv_scale: [f32; 2],
+    pub uv_bias: [f32; 2],
     pub enabled: f32,
+    pub _pad: [f32; 3],
 }
 
 impl Default for CellLightUniform {
     fn default() -> Self {
         Self {
-            cell_size: 1.0,
-            width: 1.0,
-            height: 1.0,
+            uv_scale: [0.0; 2],
+            uv_bias: [0.0; 2],
             enabled: 0.0,
+            _pad: [0.0; 3],
         }
     }
 }
@@ -137,8 +138,8 @@ impl GlobalUniforms {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
@@ -190,7 +191,7 @@ impl GlobalUniforms {
                     binding: 4,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
@@ -199,7 +200,7 @@ impl GlobalUniforms {
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
@@ -259,15 +260,18 @@ impl GlobalUniforms {
 
     /// Uploads a map's per-cell light texture, or clears it when the map has no
     /// lightmap to sample.
+    /// Uploads the ground lightmap for models to sample. `stride` is the texel
+    /// step between neighbouring cells, matching the terrain's layout.
     pub fn update_cell_light(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        map: Option<&crate::cell_light::CellLightMap>,
+        map: Option<(u32, u32, &[u8])>,
         cell_size: f32,
+        stride: f32,
     ) {
         let (width, height, pixels) = match map {
-            Some(map) => (map.width, map.height, map.pixels.as_slice()),
+            Some((w, h, p)) => (w, h, p),
             None => (1, 1, &[0u8, 0, 0, 255][..]),
         };
 
@@ -293,11 +297,16 @@ impl GlobalUniforms {
         );
         self.cell_light_view = texture.create_view(&Default::default());
         self.cell_light_available = map.is_some();
+        // Terrain puts cell (x, y)'s texel 0 at x * stride and spans to texel
+        // centre 7, so world x maps to (x / cell_size * stride + 0.5) texels.
         self.cell_light = CellLightUniform {
-            cell_size,
-            width: width as f32,
-            height: height as f32,
+            uv_scale: [
+                stride / (cell_size * width as f32),
+                stride / (cell_size * height as f32),
+            ],
+            uv_bias: [0.5 / width as f32, 0.5 / height as f32],
             enabled: self.cell_light.enabled,
+            _pad: [0.0; 3],
         };
         self.write_cell_light(queue);
         self.rebuild_bind_group(device);

@@ -26,9 +26,8 @@ struct FogUniforms {
 };
 
 struct CellLightUniforms {
-    cell_size: f32,
-    width: f32,
-    height: f32,
+    uv_scale: vec2<f32>,
+    uv_bias: vec2<f32>,
     enabled: f32,
 };
 
@@ -47,12 +46,11 @@ fn cell_light_at(world_pos: vec3<f32>) -> vec3<f32> {
     if (cell_light.enabled <= 0.0) {
         return vec3<f32>(0.0);
     }
-    let cell = floor(vec2<f32>(world_pos.x, world_pos.z) / cell_light.cell_size);
-    let dims = vec2<f32>(cell_light.width, cell_light.height);
-    if (any(cell < vec2<f32>(0.0)) || any(cell >= dims)) {
+    let uv = vec2<f32>(world_pos.x, world_pos.z) * cell_light.uv_scale + cell_light.uv_bias;
+    if (any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0))) {
         return vec3<f32>(0.0);
     }
-    return textureSample(cell_light_texture, cell_light_sampler, (cell + 0.5) / dims).rgb;
+    return textureSample(cell_light_texture, cell_light_sampler, uv).rgb;
 }
 
 fn apply_fog(color: vec3<f32>, view_z: f32) -> vec3<f32> {

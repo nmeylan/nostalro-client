@@ -33,6 +33,9 @@ struct DrawBatch {
     texture_name: String,
     start_index: u32,
     index_count: u32,
+    /// Top surfaces read the map-wide cell texture; walls stay on the slice
+    /// atlas, which a world-XZ lookup cannot address.
+    top: bool,
 }
 
 pub struct GroundRenderer {
@@ -41,6 +44,7 @@ pub struct GroundRenderer {
     index_buffer: wgpu::Buffer,
     batches: Vec<DrawBatch>,
     lightmap_bind_group: wgpu::BindGroup,
+    cell_lightmap_bind_group: wgpu::BindGroup,
     lightmap_off_bind_group: wgpu::BindGroup,
     lightmap_enabled: bool,
 }
@@ -66,6 +70,8 @@ impl GroundRenderer {
             queue,
             &texture_cache.bind_group_layout,
         );
+        let cell_lightmap_bind_group =
+            build_cell_lightmap(gnd, device, queue, &texture_cache.bind_group_layout);
 
         // Disabled lightmap: black color map (adds nothing) with full alpha (no shadow).
         let off_img = image::RgbaImage::from_raw(1, 1, vec![0, 0, 0, 255]).unwrap();
@@ -106,6 +112,7 @@ impl GroundRenderer {
             index_buffer,
             batches,
             lightmap_bind_group,
+            cell_lightmap_bind_group,
             lightmap_off_bind_group,
             lightmap_enabled: true,
         }
@@ -121,21 +128,20 @@ impl GroundRenderer {
         global_uniforms: &'a GlobalUniforms,
         texture_cache: &'a TextureCache,
     ) {
-        let lightmap = if self.lightmap_enabled {
-            &self.lightmap_bind_group
-        } else {
-            &self.lightmap_off_bind_group
-        };
-
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &global_uniforms.bind_group, &[]);
-        pass.set_bind_group(2, lightmap, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         for batch in &self.batches {
             if let Some(tex_bg) = texture_cache.get(&batch.texture_name) {
+                let lightmap = match (self.lightmap_enabled, batch.top) {
+                    (false, _) => &self.lightmap_off_bind_group,
+                    (true, true) => &self.cell_lightmap_bind_group,
+                    (true, false) => &self.lightmap_bind_group,
+                };
                 pass.set_bind_group(1, tex_bg, &[]);
+                pass.set_bind_group(2, lightmap, &[]);
                 pass.draw_indexed(
                     batch.start_index..batch.start_index + batch.index_count,
                     0,
@@ -147,8 +153,10 @@ impl GroundRenderer {
 }
 
 fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Vec<DrawBatch>) {
-    let mut texture_quads: std::collections::HashMap<String, (Vec<GroundVertex>, Vec<u32>)> =
-        std::collections::HashMap::new();
+    let mut texture_quads: std::collections::HashMap<
+        (String, bool),
+        (Vec<GroundVertex>, Vec<u32>),
+    > = std::collections::HashMap::new();
 
     let face_normals = build_face_normals(gnd);
 
@@ -174,7 +182,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
 
                 let normals = smooth_vertex_normals(gnd, &face_normals, x, y);
 
-                let lm_uvs = lightmap_uvs(surface.lightmap_id, atlas_dim);
+                let lm_uvs = cell_lightmap_uvs(x, y, gnd.width, gnd.height);
 
                 let verts = [
                     GroundVertex {
@@ -208,7 +216,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 ];
 
                 let entry = texture_quads
-                    .entry(tex_name)
+                    .entry((tex_name, true))
                     .or_insert_with(|| (Vec::new(), Vec::new()));
                 let base = entry.0.len() as u32;
                 entry.0.extend_from_slice(&verts);
@@ -273,7 +281,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 ];
 
                 let entry = texture_quads
-                    .entry(tex_name)
+                    .entry((tex_name, false))
                     .or_insert_with(|| (Vec::new(), Vec::new()));
                 let base = entry.0.len() as u32;
                 entry.0.extend_from_slice(&verts);
@@ -338,7 +346,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 ];
 
                 let entry = texture_quads
-                    .entry(tex_name)
+                    .entry((tex_name, false))
                     .or_insert_with(|| (Vec::new(), Vec::new()));
                 let base = entry.0.len() as u32;
                 entry.0.extend_from_slice(&verts);
@@ -358,7 +366,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
     let mut all_indices = Vec::new();
     let mut batches = Vec::new();
 
-    for (tex_name, (verts, idxs)) in texture_quads {
+    for ((tex_name, top), (verts, idxs)) in texture_quads {
         let vertex_offset = all_vertices.len() as u32;
         let start_index = all_indices.len() as u32;
         all_vertices.extend_from_slice(&verts);
@@ -367,6 +375,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
             texture_name: tex_name,
             start_index,
             index_count: idxs.len() as u32,
+            top,
         });
     }
 
@@ -491,7 +500,6 @@ fn compute_quad_normal(positions: &[[f32; 3]; 4]) -> [f32; 3] {
 const LIGHTMAP_CELL: u32 = 8;
 const LIGHTMAP_BORDER: u32 = 1;
 const LIGHTMAP_STRIDE: u32 = LIGHTMAP_CELL + 2 * LIGHTMAP_BORDER;
-const LIGHTMAP_POSTERIZE: u8 = 16;
 
 fn lightmap_atlas_dim(lightmap_count: usize) -> u32 {
     if lightmap_count == 0 {
@@ -525,10 +533,6 @@ fn lightmap_uvs(lightmap_id: i16, atlas_grid: u32) -> [[f32; 2]; 4] {
     [[u0, v0], [u1, v0], [u0, v1], [u1, v1]]
 }
 
-fn posterize(c: u8) -> u8 {
-    (c / LIGHTMAP_POSTERIZE) * LIGHTMAP_POSTERIZE
-}
-
 fn pack_lightmap_atlas(lightmaps: &[Lightmap], grid: u32, atlas_size: u32) -> Vec<u8> {
     let mut pixels = vec![255u8; (atlas_size * atlas_size * 4) as usize];
 
@@ -547,15 +551,102 @@ fn pack_lightmap_atlas(lightmaps: &[Lightmap], grid: u32, atlas_size: u32) -> Ve
                 let px = cx + bx;
                 let py = cy + by;
                 let offset = ((py * atlas_size + px) * 4) as usize;
-                pixels[offset] = posterize(lm.color[lm_idx * 3]);
-                pixels[offset + 1] = posterize(lm.color[lm_idx * 3 + 1]);
-                pixels[offset + 2] = posterize(lm.color[lm_idx * 3 + 2]);
+                pixels[offset] = lm.color[lm_idx * 3];
+                pixels[offset + 1] = lm.color[lm_idx * 3 + 1];
+                pixels[offset + 2] = lm.color[lm_idx * 3 + 2];
                 pixels[offset + 3] = lm.shadow[lm_idx];
             }
         }
     }
 
     pixels
+}
+
+pub const LIGHTMAP_CELL_STRIDE: u32 = LIGHTMAP_CELL - 1;
+
+pub fn cell_lightmap_size(gnd: &GndFile) -> (u32, u32) {
+    (
+        gnd.width.max(1) as u32 * LIGHTMAP_CELL_STRIDE + 1,
+        gnd.height.max(1) as u32 * LIGHTMAP_CELL_STRIDE + 1,
+    )
+}
+
+/// One 8x8 lightmap per ground cell, laid out in map order and overlapping its
+/// neighbours by the shared edge texel. Cells without a top surface are left
+/// neutral (`[0, 0, 0, 255]`): colour adds nothing and shadow is unshadowed, so
+/// a neighbouring cell's edge interpolates toward "no light change" rather than
+/// toward a dark rim.
+pub fn pack_cell_lightmap(gnd: &GndFile) -> Vec<u8> {
+    let (tex_w, tex_h) = cell_lightmap_size(gnd);
+    let (tex_w, tex_h) = (tex_w as usize, tex_h as usize);
+    let mut pixels = vec![0u8; tex_w * tex_h * 4];
+    for p in pixels.chunks_exact_mut(4) {
+        p[3] = 255;
+    }
+
+    for y in 0..gnd.height {
+        for x in 0..gnd.width {
+            let cell = &gnd.cells[(y * gnd.width + x) as usize];
+            if cell.surface_up < 0 {
+                continue;
+            }
+            let lm_id = gnd.surfaces[cell.surface_up as usize].lightmap_id;
+            if lm_id < 0 {
+                continue;
+            }
+            let Some(lm) = gnd.lightmaps.get(lm_id as usize) else {
+                continue;
+            };
+
+            let bx = x as usize * LIGHTMAP_CELL_STRIDE as usize;
+            let by = y as usize * LIGHTMAP_CELL_STRIDE as usize;
+            for ty in 0..LIGHTMAP_CELL as usize {
+                for tx in 0..LIGHTMAP_CELL as usize {
+                    let src = ty * LIGHTMAP_CELL as usize + tx;
+                    let dst = ((by + ty) * tex_w + bx + tx) * 4;
+                    pixels[dst] = lm.color[src * 3];
+                    pixels[dst + 1] = lm.color[src * 3 + 1];
+                    pixels[dst + 2] = lm.color[src * 3 + 2];
+                    pixels[dst + 3] = lm.shadow[src];
+                }
+            }
+        }
+    }
+
+    pixels
+}
+
+/// Spans texel centre 0 to texel centre 7 of the cell's own 8x8. Because the
+/// last texel is shared with the next cell, one cell's trailing edge and its
+/// neighbour's leading edge resolve to the same texel centre, so the sample
+/// point stays a continuous function of world position.
+fn cell_lightmap_uvs(x: i32, y: i32, gnd_w: i32, gnd_h: i32) -> [[f32; 2]; 4] {
+    let tex_w = (gnd_w.max(1) * LIGHTMAP_CELL_STRIDE as i32 + 1) as f32;
+    let tex_h = (gnd_h.max(1) * LIGHTMAP_CELL_STRIDE as i32 + 1) as f32;
+    let ox = (x * LIGHTMAP_CELL_STRIDE as i32) as f32;
+    let oy = (y * LIGHTMAP_CELL_STRIDE as i32) as f32;
+    let u0 = (ox + 0.5) / tex_w;
+    let u1 = (ox + LIGHTMAP_CELL as f32 - 0.5) / tex_w;
+    let v0 = (oy + 0.5) / tex_h;
+    let v1 = (oy + LIGHTMAP_CELL as f32 - 0.5) / tex_h;
+    [[u0, v0], [u1, v0], [u0, v1], [u1, v1]]
+}
+
+fn build_cell_lightmap(
+    gnd: &GndFile,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    bind_group_layout: &wgpu::BindGroupLayout,
+) -> wgpu::BindGroup {
+    let (tex_w, tex_h) = cell_lightmap_size(gnd);
+    let img = image::RgbaImage::from_raw(tex_w, tex_h, pack_cell_lightmap(gnd)).unwrap();
+    texture::create_texture_bind_group_clamped(
+        device,
+        queue,
+        &img,
+        bind_group_layout,
+        "lightmap_cells",
+    )
 }
 
 fn build_lightmap_atlas(
@@ -681,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn pack_lightmap_atlas_splits_channels_posterizes_and_borders() {
+    fn pack_lightmap_atlas_splits_channels_and_borders() {
         let mut color = [0u8; 192];
         let mut shadow = [0u8; 64];
         color[0] = 200; // r
@@ -697,11 +788,75 @@ mod tests {
             [pixels[o], pixels[o + 1], pixels[o + 2], pixels[o + 3]]
         };
 
-        // color map -> RGB (posterized to 16 levels), shadow -> alpha
-        assert_eq!(at(1, 1), [192, 96, 48, 255]);
+        // color map -> RGB, shadow -> alpha
+        assert_eq!(at(1, 1), [200, 100, 50, 255]);
         // 1px border replicates the nearest interior texel
-        assert_eq!(at(0, 0), [192, 96, 48, 255]);
-        assert_eq!(at(0, 1), [192, 96, 48, 255]);
+        assert_eq!(at(0, 0), [200, 100, 50, 255]);
+        assert_eq!(at(0, 1), [200, 100, 50, 255]);
+    }
+
+    #[test]
+    fn cell_lightmap_blocks_are_map_ordered_and_meet_without_a_seam() {
+        let lm = |base: u8| Lightmap {
+            shadow: std::array::from_fn(|i| base + i as u8),
+            color: [0u8; 192],
+        };
+        let surface = |lightmap_id: i16| GndSurface {
+            tex_u: [0.0, 1.0, 0.0, 1.0],
+            tex_v: [0.0, 0.0, 1.0, 1.0],
+            texture_id: 0,
+            lightmap_id,
+            color_bgra: [255, 255, 255, 255],
+        };
+        let gnd = GndFile {
+            version: (1, 7),
+            width: 2,
+            height: 1,
+            zoom: 1.0,
+            textures: vec!["ground.bmp".to_string()],
+            lightmaps: vec![lm(0), lm(100)],
+            surfaces: vec![surface(0), surface(1)],
+            cells: (0..2)
+                .map(|i| GndCell {
+                    height_sw: 0.0,
+                    height_se: 0.0,
+                    height_nw: 0.0,
+                    height_ne: 0.0,
+                    surface_up: i,
+                    surface_south: -1,
+                    surface_east: -1,
+                })
+                .collect(),
+        };
+
+        // Two cells overlap by their shared edge column: 7 + 7 + 1 texels wide.
+        let (tex_w, tex_h) = cell_lightmap_size(&gnd);
+        assert_eq!((tex_w, tex_h), (15, 8));
+
+        let pixels = pack_cell_lightmap(&gnd);
+        let alpha = |x: usize, y: usize| pixels[(y * tex_w as usize + x) * 4 + 3];
+        for ty in 0..8 {
+            for tx in 0..7 {
+                assert_eq!(alpha(tx, ty), (ty * 8 + tx) as u8, "cell 0 texel ({tx},{ty})");
+                assert_eq!(
+                    alpha(8 + tx, ty),
+                    100 + (ty * 8 + tx + 1) as u8,
+                    "cell 1 texel ({},{ty})",
+                    tx + 1
+                );
+            }
+        }
+
+        let (vertices, _, _) = build_mesh(&gnd, 1);
+        let uv = |i: usize| vertices[i].lightmap_coord;
+        // Cell 0's trailing edge and cell 1's leading edge land on the same
+        // texel centre, so the sampled value matches across the boundary.
+        assert_eq!(uv(0)[0], 0.5 / 15.0);
+        assert_eq!(uv(1)[0], 7.5 / 15.0);
+        assert_eq!(uv(4)[0], 7.5 / 15.0);
+        assert_eq!(uv(5)[0], 14.5 / 15.0);
+        assert_eq!(uv(0)[1], 0.5 / 8.0);
+        assert_eq!(uv(3)[1], 7.5 / 8.0);
     }
 
     /// Two cells side by side in x, heights given as [sw, se, nw, ne].

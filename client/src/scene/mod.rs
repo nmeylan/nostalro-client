@@ -56,7 +56,7 @@ impl App {
             return [1.0; 3];
         }
         match &self.game.session.actor_lightmap {
-            Some(lm) => lm.intensity_at(cell.0 as i32, cell.1 as i32),
+            Some(lm) => lm.intensity_at_pos(cell.0, cell.1),
             None => [1.0; 3],
         }
     }

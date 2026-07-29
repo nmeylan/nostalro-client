@@ -1,5 +1,4 @@
 pub mod camera;
-pub mod cell_light;
 pub mod damage_number;
 mod device;
 pub mod effect;
@@ -425,11 +424,16 @@ impl Renderer {
             self.device.surface_format,
         );
         self.ground_renderer = Some(ground_renderer);
+        let cell_lightmap = gnd.has_lightmap_data().then(|| {
+            let (w, h) = ground::cell_lightmap_size(gnd);
+            (w, h, ground::pack_cell_lightmap(gnd))
+        });
         self.global_uniforms.update_cell_light(
             &self.device.device,
             &self.device.queue,
-            cell_light::CellLightMap::from_gnd(gnd).as_ref(),
+            cell_lightmap.as_ref().map(|(w, h, p)| (*w, *h, p.as_slice())),
             gnd.zoom,
+            ground::LIGHTMAP_CELL_STRIDE as f32,
         );
         self.set_lightmap_enabled(self.lightmap_enabled);
 
