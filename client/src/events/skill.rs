@@ -15,6 +15,8 @@ use ragnarok_game::effect::{
     is_trail_effect, potion_throw_index, sevenwind_aura, target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::entity::{ChatBubbleState, EntityType};
+use ragnarok_game::event::GameEvent;
+use ragnarok_game::job_class::job_class_name;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill::SkillTargetType;
@@ -23,6 +25,9 @@ use ragnarok_game::sound::tables::{
     SkillSoundPos, skill_cast_begin_sound, skill_projectile_sound, skill_use_sound,
 };
 use ragnarok_game::sprite_path::hide_allows_skill;
+use ragnarok_game::star_gladiator::{
+    FEEL_PLACE_CONFIRM_MSG, StarSubject, TARGET_HP_RESULT, star_notice,
+};
 use ragnarok_network::build_change_direction_packet;
 use ragnarok_network::build_shortcut_key_change_packet;
 use ragnarok_network::build_use_skill_packet;
@@ -892,6 +897,96 @@ impl App {
 }
 
 impl App {
+    pub(super) fn handle_star_place_request(&mut self, which: i8) {
+        let Some(message) = self
+            .game
+            .data_table
+            .msg_string
+            .as_ref()
+            .and_then(|t| t.get(FEEL_PLACE_CONFIRM_MSG))
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.game
+            .arm_confirm(&mut self.windows, &message, move |accept| {
+                accept.then_some(GameEvent::RequestAgreeStarPlace { which })
+            });
+    }
+
+    pub(super) fn handle_star_skill_notice(
+        &mut self,
+        map_name: String,
+        monster_id: i32,
+        star: u8,
+        result: u8,
+    ) {
+        if result == TARGET_HP_RESULT {
+            let text = format!("Target HP : {monster_id}");
+            self.game.broadcast.poptip.push(text.clone());
+            self.windows.chat_window.add_system(text);
+            return;
+        }
+        let Some(notice) = star_notice(result, star) else {
+            return;
+        };
+        let subject = match notice.subject {
+            StarSubject::FeelPlace => self
+                .game
+                .data_table
+                .map_name
+                .as_ref()
+                .and_then(|t| t.display_name(&map_name))
+                .unwrap_or(&map_name)
+                .to_string(),
+            StarSubject::HateMonster | StarSubject::MissionProgress | StarSubject::Mission
+                if map_name.is_empty() =>
+            {
+                job_class_name(monster_id as u16)
+            }
+            StarSubject::HateMonster | StarSubject::MissionProgress | StarSubject::Mission => {
+                map_name.clone()
+            }
+            StarSubject::MissionItem => self
+                .game
+                .data_table
+                .item_name
+                .as_ref()
+                .map(|t| t.get_name_or_id(monster_id as u16))
+                .unwrap_or_default(),
+            StarSubject::Nothing => String::new(),
+        };
+        let progress = star.to_string();
+        let args: &[&str] = match notice.subject {
+            StarSubject::FeelPlace | StarSubject::HateMonster => {
+                &[&self.game.character.name, &subject]
+            }
+            StarSubject::MissionProgress => &[&subject, &progress],
+            StarSubject::Mission | StarSubject::MissionItem => &[&subject],
+            StarSubject::Nothing => &[],
+        };
+        let Some(text) = self
+            .game
+            .data_table
+            .msg_string
+            .as_ref()
+            .and_then(|t| t.format(notice.msg_id, args))
+        else {
+            return;
+        };
+        self.game.broadcast.poptip.push(text.clone());
+        self.windows.chat_window.add_system(text);
+
+        if let (Some(effect), Some(player_gid)) =
+            (notice.effect, self.game.world.entities.player_id())
+        {
+            self.effect_queue.spawn_on(effect, player_gid);
+        }
+        if notice.chime {
+            self.sound_queue.ui("effect\\piring.wav");
+        }
+    }
+
     pub(super) fn handle_request_use_skill(&mut self, skill_id: u16, level: i16) {
         if self.player_hidden() && !hide_allows_skill(skill_id) {
             return;

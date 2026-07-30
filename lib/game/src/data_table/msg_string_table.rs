@@ -46,6 +46,11 @@ impl MsgStringTable {
             .filter(|s| !s.is_empty())
     }
 
+    /// Fills the entry's `%s` and `%d` placeholders from `args`, in order.
+    pub fn format(&self, id: u16, args: &[&str]) -> Option<String> {
+        self.get(id).map(|template| substitute(template, args))
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -53,6 +58,36 @@ impl MsgStringTable {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+}
+
+fn substitute(template: &str, args: &[&str]) -> String {
+    let mut out = String::with_capacity(template.len());
+    let mut chars = template.chars();
+    let mut args = args.iter();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            out.push(c);
+            continue;
+        }
+        match chars.clone().next() {
+            Some('%') => {
+                chars.next();
+                out.push('%');
+            }
+            Some(placeholder @ ('s' | 'd')) => {
+                chars.next();
+                match args.next() {
+                    Some(arg) => out.push_str(arg),
+                    None => {
+                        out.push('%');
+                        out.push(placeholder);
+                    }
+                }
+            }
+            _ => out.push('%'),
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -68,5 +103,19 @@ mod tests {
         assert_eq!(table.get(1), Some("Failed to Connect to Server."));
         assert_eq!(table.get(2), Some("Last line"));
         assert_eq!(table.get(3), None);
+    }
+
+    #[test]
+    fn format_fills_placeholders_in_order_and_keeps_missing_ones() {
+        let table = MsgStringTable::parse(b"[Mission] Target: %s (%d%%)#Hi %s and %s");
+
+        assert_eq!(
+            table.format(0, &["Poring", "40"]).as_deref(),
+            Some("[Mission] Target: Poring (40%)")
+        );
+        assert_eq!(
+            table.format(1, &["Bongun"]).as_deref(),
+            Some("Hi Bongun and %s")
+        );
     }
 }

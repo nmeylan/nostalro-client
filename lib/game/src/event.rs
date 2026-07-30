@@ -393,6 +393,18 @@ pub enum GameEvent {
         color: [f32; 4],
         banner: BannerKind,
     },
+    StarSkillNotice {
+        map_name: String,
+        monster_id: i32,
+        star: u8,
+        result: u8,
+    },
+    StarPlaceRequest {
+        which: i8,
+    },
+    RequestAgreeStarPlace {
+        which: i8,
+    },
     RequestSendChat {
         message: String,
     },

@@ -771,6 +771,19 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
 
+    if let Some(p) = any.downcast_ref::<PacketZcStarskill>() {
+        return vec![GameEvent::StarSkillNotice {
+            map_name: p.map_name.iter().take_while(|c| **c != '\0').collect(),
+            monster_id: p.monster_id,
+            star: p.star,
+            result: p.result,
+        }];
+    }
+
+    if let Some(p) = any.downcast_ref::<PacketZcStarplace>() {
+        return vec![GameEvent::StarPlaceRequest { which: p.which }];
+    }
+
     if let Some(p) = any.downcast_ref::<PacketZcAckReqname>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
         return vec![GameEvent::EntityNameReceived { gid: p.aid, name }];

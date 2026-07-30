@@ -1094,6 +1094,13 @@ pub fn build_ack_add_friend_packet(
     pkt.raw
 }
 
+pub fn build_agree_star_place_packet(which: i8, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzAgreeStarplace::new(packetver);
+    pkt.set_which(which);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_delete_friend_packet(aid: u32, gid: u32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzDeleteFriends::new(packetver);
     pkt.set_aid(aid);

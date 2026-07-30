@@ -11,9 +11,9 @@ use ragnarok_game::event::GameEvent;
 pub use sender::{
     build_ack_add_friend_packet, build_ack_exchange_item_packet, build_action_request_packet,
     build_active_quest_packet, build_add_exchange_item_packet, build_add_friend_packet,
-    build_adopt_reply_packet, build_adopt_request_packet, build_alchemist_rank_packet,
-    build_ally_guild, build_ans_join_guild, build_blacksmith_rank_packet,
-    build_cancel_exchange_item_packet, build_cancel_lockon_packet,
+    build_adopt_reply_packet, build_adopt_request_packet, build_agree_star_place_packet,
+    build_alchemist_rank_packet, build_ally_guild, build_ans_join_guild,
+    build_blacksmith_rank_packet, build_cancel_exchange_item_packet, build_cancel_lockon_packet,
     build_card_composition_list_packet, build_card_composition_packet, build_cartoff_packet,
     build_change_cart_packet, build_change_chat_owner_packet, build_change_chatroom_packet,
     build_change_direction_packet, build_change_party_exp_option_packet,

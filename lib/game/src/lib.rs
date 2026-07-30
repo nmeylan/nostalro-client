@@ -59,6 +59,7 @@ pub mod skill_action;
 pub mod sound;
 pub mod sprite_loader;
 pub mod sprite_path;
+pub mod star_gladiator;
 pub mod status_icon;
 pub mod targeting;
 pub mod trade;

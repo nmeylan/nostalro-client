@@ -138,8 +138,8 @@ impl App {
                 }
                 GameEvent::MapPropertyChanged(properties) => {
                     self.game.combat.damage_numbers.combat_hidden = properties.is_siege();
-                    let left_pk_zone = self.game.session.map_properties.is_pk_zone()
-                        && !properties.is_pk_zone();
+                    let left_pk_zone =
+                        self.game.session.map_properties.is_pk_zone() && !properties.is_pk_zone();
                     self.game.session.map_properties = properties;
                     if left_pk_zone {
                         self.clear_pvp_ranks();
@@ -859,6 +859,21 @@ impl App {
                     banner,
                 } => {
                     self.handle_broadcast_message(message, color, banner);
+                }
+                GameEvent::StarSkillNotice {
+                    map_name,
+                    monster_id,
+                    star,
+                    result,
+                } => {
+                    self.handle_star_skill_notice(map_name, monster_id, star, result);
+                }
+                GameEvent::StarPlaceRequest { which } => {
+                    self.handle_star_place_request(which);
+                }
+                GameEvent::RequestAgreeStarPlace { which } => {
+                    self.channel
+                        .send_packet(build_agree_star_place_packet(which, self.active_packetver));
                 }
 
                 GameEvent::ParameterChanged { var_id, value } => {
