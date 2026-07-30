@@ -85,6 +85,11 @@ impl App {
         // pass so effects occlude against the body (gradient `[0,0]` => uniform z).
         let mut silhouette_batches: Vec<SpriteBatch> = Vec::new();
         let mut cursor_batches: Vec<SpriteBatch> = Vec::new();
+        let camera_distance = self
+            .renderer
+            .as_ref()
+            .map(|r| r.camera.distance)
+            .unwrap_or(ragnarok_renderer::camera::DEFAULT_DISTANCE);
 
         // TODO refactor
         if !self.game.world.freeze_shatters.is_empty() {
@@ -204,6 +209,7 @@ impl App {
                             body_channels.tint = Some(rgb);
                         }
                         body_channels.alpha *= body_alpha;
+                        body_channels.lift_px += entity.hover_lift_px(camera_distance);
                         body_channels.light = self.actor_light(entity.movement.position());
 
                         // A living sprite stands upright (depth varies head-to-feet).

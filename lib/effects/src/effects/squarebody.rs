@@ -55,6 +55,11 @@ const KICKED: Config = Config {
 
 pub const TEXTURES: &[&str] = &[];
 
+fn jitter6(frame: u32) -> u32 {
+    let x = frame.wrapping_mul(2_654_435_761).wrapping_add(0x9E37_79B9);
+    (x ^ (x >> 15)) % 6
+}
+
 pub fn pressed_total_duration_ms() -> u32 {
     (PRESSED.total_frames / FPS * 1000.0) as u32
 }
@@ -118,7 +123,7 @@ impl Effect for SquareBodyEffect {
                 let size = if t <= 3.0 {
                     (100.0 - t * 20.0) * 0.01
                 } else if t <= 33.0 {
-                    0.4
+                    0.4 - (jitter6(t as u32) as f32) * 0.01
                 } else {
                     return None;
                 };

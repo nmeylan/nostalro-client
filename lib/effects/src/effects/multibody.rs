@@ -48,7 +48,15 @@ pub struct Params {
     undead: Option<UndeadAura>,
     /// When set, overrides the static copy fields.
     pulse: Option<DoublePulse>,
+    /// Extra additive draw of the weapon layer.
+    weapon_glow: Option<WeaponGlow>,
     total_frames: f32,
+}
+
+#[derive(Clone, Copy)]
+struct WeaponGlow {
+    /// Skip every other frame, so the blade pulses instead of holding.
+    alternate: bool,
 }
 
 impl Params {
@@ -76,6 +84,7 @@ pub const REFLECTBODY: Params = Params {
     }),
     undead: None,
     pulse: None,
+    weapon_glow: None,
     total_frames: 120.0,
 };
 
@@ -96,22 +105,34 @@ pub const ASSUMPTIO: Params = Params {
         period_frames: 180.0,
         tint: [255, 255, 255],
     }),
+    weapon_glow: None,
     total_frames: 120.0,
 };
 
+/// The weapon is drawn a second time additively on alternating frames, so the
+/// blade pulses without changing the actor.
 pub const LIGHTBLADE: Params = Params {
-    copies: 2,
-    scale_step: 0.04,
-    base_alpha: 0.4,
-    alpha_step: 0.15,
-    tint: [200, 220, 255],
+    copies: 0,
+    scale_step: 0.0,
+    base_alpha: 0.0,
+    alpha_step: 0.0,
+    tint: [255, 255, 255],
     additive: true,
     behind: false,
     body_alpha: 1.0,
     ripple: None,
     undead: None,
     pulse: None,
+    weapon_glow: Some(WeaponGlow { alternate: true }),
     total_frames: 120.0,
+};
+
+/// The blue-white sword light: a steadily glowing weapon. On a player this
+/// lights the weapon only — the body halo and blue cast belong to the separate
+/// path the original uses for monsters and NPCs.
+pub const LIGHTSWORD: Params = Params {
+    weapon_glow: Some(WeaponGlow { alternate: false }),
+    ..LIGHTBLADE
 };
 
 pub const UNDEADBODY: Params = Params {
@@ -132,6 +153,7 @@ pub const UNDEADBODY: Params = Params {
         max_alpha: 200.0 / 255.0,
     }),
     pulse: None,
+    weapon_glow: None,
     total_frames: 240.0,
 };
 
@@ -176,6 +198,13 @@ impl Effect for MultiBodyEffect {
             alpha: self.params.body_alpha,
             squeeze: 1.0,
         })
+    }
+
+    fn body_weapon_glow(&self) -> bool {
+        match self.params.weapon_glow {
+            Some(g) => !g.alternate || (self.age_frames as u32) % 2 == 0,
+            None => false,
+        }
     }
 
     fn body_copies(&self) -> Option<Vec<BodyCopy>> {
@@ -322,15 +351,28 @@ mod tests {
             "margin returns to base over a cycle"
         );
 
-        let lightblade = MultiBodyEffect::new(LIGHTBLADE);
-        assert!(
-            lightblade
-                .body_copies()
-                .unwrap()
-                .iter()
-                .all(|c| c.additive && !c.behind),
-            "glow on top"
-        );
+    }
+
+    #[test]
+    fn sword_lights_touch_the_weapon_only_and_the_spark_skips_every_other_frame() {
+        let mut spark = MultiBodyEffect::new(LIGHTBLADE);
+        assert!(spark.body_weapon_glow());
+        step(&mut spark, 1.0);
+        assert!(!spark.body_weapon_glow(), "skips every other frame");
+        step(&mut spark, 1.0);
+        assert!(spark.body_weapon_glow());
+
+        let mut glow = MultiBodyEffect::new(LIGHTSWORD);
+        assert!(glow.body_weapon_glow());
+        step(&mut glow, 1.0);
+        assert!(glow.body_weapon_glow(), "held every frame");
+
+        // Neither touches the actor: no halo, no tint, no dimming.
+        for e in [&spark, &glow] {
+            assert!(e.body_copies().is_none());
+            assert!(e.body_tint().is_none());
+            assert!(e.body_vertical().is_none());
+        }
     }
 
     #[test]

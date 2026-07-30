@@ -285,6 +285,39 @@ pub struct Entity {
     pub pet_accessory: u16,
     /// Account is listed as a GM: Operator body sprite and yellow name/guild/chat.
     pub is_gm: bool,
+    hover: HoverState,
+}
+
+/// The Star Gladiator Union hover: a slow bob whose height chases a target set
+/// by the pose. See [`Entity::tick_hover`] and [`Entity::hover_lift_px`].
+#[derive(Default, Clone, Copy)]
+struct HoverState {
+    /// Bob phase in degrees, stepping 2 per frame and wrapping at 360.
+    move_deg: u16,
+    /// Current height, stepping 1 every 15 frames toward the pose's target.
+    now: i16,
+    frame_accum: f32,
+}
+
+pub const JOB_STAR_GLADIATOR_UNION: u16 = 4048;
+
+impl HoverState {
+    fn tick_frame(&mut self, target: Option<i16>) {
+        self.move_deg = (self.move_deg + 2) % 360;
+        match target {
+            Some(target) => {
+                if self.move_deg % 30 == 0 {
+                    self.now += (target - self.now).signum();
+                }
+            }
+            None => self.now = (self.now - 1).max(0),
+        }
+    }
+
+    fn lift_px(&self, camera_distance: f32) -> f32 {
+        let bob = (self.now as f32) + (self.move_deg as f32).to_radians().sin() * 4.0;
+        (bob * 400.0 / camera_distance).max(0.0)
+    }
 }
 
 impl Entity {
@@ -375,7 +408,39 @@ impl Entity {
             is_pet: false,
             pet_accessory: 0,
             is_gm: false,
+            hover: HoverState::default(),
         }
+    }
+
+    /// Advances the Union hover. `warm` marks a red body-hit flash, which the
+    /// original counts as an upright pose. Other jobs never leave the ground, so
+    /// a Star Gladiator who transforms back sinks instead of snapping down.
+    pub fn tick_hover(&mut self, delta: f32, warm: bool) {
+        if self.job != JOB_STAR_GLADIATOR_UNION && self.hover.now == 0 {
+            return;
+        }
+        let target = if self.job != JOB_STAR_GLADIATOR_UNION {
+            None
+        } else {
+            match self.state {
+                EntityState::Standing | EntityState::Moving => Some(20),
+                EntityState::Sitting => Some(100),
+                _ if warm => Some(20),
+                _ => None,
+            }
+        };
+        self.hover.frame_accum += delta * 60.0;
+        while self.hover.frame_accum >= 1.0 {
+            self.hover.frame_accum -= 1.0;
+            self.hover.tick_frame(target);
+        }
+    }
+
+    pub fn hover_lift_px(&self, camera_distance: f32) -> f32 {
+        if self.job != JOB_STAR_GLADIATOR_UNION {
+            return 0.0;
+        }
+        self.hover.lift_px(camera_distance)
     }
 
     pub fn new_player(
@@ -927,6 +992,54 @@ mod tests {
 
     fn make_entity() -> Entity {
         Entity::new_player(1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0)
+    }
+
+    #[test]
+    fn union_star_gladiator_floats_higher_while_seated_and_only_that_job_leaves_the_ground() {
+        let mut e = make_entity();
+        e.job = JOB_STAR_GLADIATOR_UNION;
+        assert_eq!(e.hover_lift_px(200.0), 0.0, "starts on the ground");
+
+        e.state = EntityState::Standing;
+        e.tick_hover(10.0, false);
+        let standing = e.hover_lift_px(200.0);
+        assert!(standing > 0.0);
+
+        e.state = EntityState::Sitting;
+        e.tick_hover(20.0, false);
+        assert!(e.hover_lift_px(200.0) > standing, "sitting floats higher");
+
+        // Zooming out shrinks the on-screen lift.
+        assert!(e.hover_lift_px(800.0) < e.hover_lift_px(200.0));
+
+        let mut plain = make_entity();
+        plain.state = EntityState::Standing;
+        plain.tick_hover(10.0, false);
+        assert_eq!(plain.hover_lift_px(200.0), 0.0);
+    }
+
+    #[test]
+    fn hover_decays_when_the_pose_is_neither_upright_nor_seated_unless_flashing_red() {
+        let mut e = make_entity();
+        e.job = JOB_STAR_GLADIATOR_UNION;
+        e.state = EntityState::Standing;
+        e.tick_hover(10.0, false);
+        let airborne = e.hover_lift_px(200.0);
+
+        let mut warm = make_entity();
+        warm.job = e.job;
+        warm.state = EntityState::Standing;
+        warm.tick_hover(10.0, false);
+
+        e.state = EntityState::Dead;
+        warm.state = EntityState::Dead;
+        e.tick_hover(2.0, false);
+        warm.tick_hover(2.0, true);
+        assert!(e.hover_lift_px(200.0) < airborne, "sinks once knocked down");
+        assert!(
+            warm.hover_lift_px(200.0) > e.hover_lift_px(200.0),
+            "a red hit holds it up"
+        );
     }
 
     fn make_body_act(frames: usize, filler: &[usize]) -> ActFile {

@@ -86,14 +86,17 @@ impl Effect for QuakeBodyEffect {
 
     fn collect_draws(&self, _out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {}
 
-    fn body_shake(&self) -> Option<[f32; 2]> {
+    fn body_edge_jitter(&self) -> Option<[f32; 4]> {
         if !self.shaking() {
             return None;
         }
         let frame = self.process.floor() as u32;
+        let a = self.params.amplitude;
         Some([
-            jitter(frame, 1) * self.params.amplitude,
-            jitter(frame, 2) * self.params.amplitude,
+            jitter(frame, 1) * a,
+            jitter(frame, 2) * a,
+            jitter(frame, 3) * a,
+            jitter(frame, 4) * a,
         ])
     }
 
@@ -122,22 +125,23 @@ mod tests {
     }
 
     #[test]
-    fn quakebody3_shakes_only_in_its_window() {
+    fn quakebody3_jitters_each_edge_independently_only_in_its_window() {
         let mut e = QuakeBodyEffect::new(QUAKEBODY3);
         step(&mut e, 10.0);
-        assert!(e.body_shake().is_none(), "idle before frame 30");
+        assert!(e.body_edge_jitter().is_none(), "idle before frame 30");
         step(&mut e, 25.0);
-        let off = e.body_shake().expect("shaking inside window");
-        assert!(off[0].abs() <= QUAKEBODY3.amplitude && off != [0.0, 0.0]);
+        let j = e.body_edge_jitter().expect("shaking inside window");
+        assert!(j.iter().all(|v| v.abs() <= QUAKEBODY3.amplitude));
+        assert!(j[0] != j[1] || j[2] != j[3], "opposite edges move apart");
         step(&mut e, 15.0);
-        assert!(e.body_shake().is_none(), "idle after frame 50");
+        assert!(e.body_edge_jitter().is_none(), "idle after frame 50");
     }
 
     #[test]
     fn quakebody4_alternates_red_tint_while_shaking_others_dont() {
         let mut e = QuakeBodyEffect::new(QUAKEBODY4);
         step(&mut e, 25.0);
-        assert!(e.body_shake().is_some());
+        assert!(e.body_edge_jitter().is_some());
         let t0 = e.body_tint().expect("Quakebody4 tints while shaking");
         step(&mut e, 1.0);
         let t1 = e.body_tint().unwrap();

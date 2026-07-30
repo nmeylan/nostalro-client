@@ -1,7 +1,7 @@
 use crate::App;
 use models::enums::effect_id::EffectId;
 use ragnarok_game::app_state::AppState;
-use ragnarok_game::entity::EntityState;
+use ragnarok_game::entity::{EntityState, JOB_STAR_GLADIATOR_UNION};
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::OPTION_CHASEWALK;
 use ragnarok_network::build_request_move_packet;
@@ -70,6 +70,24 @@ impl App {
         }
         for (id, from, to) in prints {
             self.effect_queue.spawn_trail(id, from, to);
+        }
+    }
+
+    /// A Star Gladiator in Union form floats above the ground, bobbing slowly
+    /// and rising higher while seated.
+    pub(crate) fn update_hover(&mut self, delta: f32) {
+        let warm: Vec<u32> = self
+            .game
+            .world
+            .entities
+            .iter()
+            .filter(|e| e.job == JOB_STAR_GLADIATOR_UNION)
+            .map(|e| e.id)
+            .filter(|id| self.effect_holder.has_red_body_flash(*id))
+            .collect();
+        for entity in self.game.world.entities.iter_mut() {
+            let warm = warm.contains(&entity.id);
+            entity.tick_hover(delta, warm);
         }
     }
 

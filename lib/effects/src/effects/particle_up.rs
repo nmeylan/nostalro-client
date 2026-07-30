@@ -1,10 +1,13 @@
 //! Rising-sparkle status effects — Hptime/Sptime, Hated/Hated2, SmaReady, Sprinklesand (ids 331, 332, 543, 572, 546, 310).
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{BodyCopy, Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const SPAWN_PERIOD: u32 = 4;
+const FLASH_SWELL: f32 = 25.0;
+const FLASH_FADE_START: f32 = 150.0;
+const FLASH_END: f32 = 175.0;
 
 fn rgb(r: u8, g: u8, b: u8) -> [f32; 3] {
     [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0]
@@ -28,6 +31,9 @@ pub struct ParticleUpParams {
     pub glow_scale: f32,
     /// `false` keeps motes axis-aligned; spinning smears the star texture.
     pub spin: bool,
+    /// Additive body flash carried alongside the motes: it swells over the first
+    /// 25 frames, holds, then fades out between frames 150 and 175.
+    pub body_flash: Option<[u8; 3]>,
 }
 
 const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
@@ -46,6 +52,7 @@ const fn p(texture: &'static str, tint_rgb: (u8, u8, u8)) -> ParticleUpParams {
         stagger_start: false,
         glow_scale: 0.0,
         spin: true,
+        body_flash: None,
     }
 }
 
@@ -63,6 +70,7 @@ pub const HEAL_MOTE: ParticleUpParams = ParticleUpParams {
 };
 pub const SPTIME: ParticleUpParams = p("pok1.tga", (150, 150, 250));
 pub const HATED: ParticleUpParams = ParticleUpParams {
+    body_flash: Some([5, 5, 255]),
     spawn_end: 80,
     prims_per_spawn: 2, // denser field
     spread: 5.0,
@@ -74,11 +82,13 @@ pub const HATED: ParticleUpParams = ParticleUpParams {
 };
 pub const HATED2: ParticleUpParams = ParticleUpParams {
     tint_rgb: (250, 100, 100),
+    body_flash: None,
     ..HATED
 };
 pub const SMAREADY: ParticleUpParams = ParticleUpParams {
     spawn_start: 40,
     spawn_end: 120,
+    body_flash: None,
     ..HATED
 };
 pub const SPRINKLESAND: ParticleUpParams = ParticleUpParams {
@@ -213,11 +223,44 @@ impl Effect for ParticleUpEffect {
             self.frame_accum -= 1.0;
             self.step_frame();
         }
-        if self.frame > self.params.spawn_end && self.particles.is_empty() {
+        let flash_over = self.params.body_flash.is_none() || self.frame as f32 > FLASH_END;
+        if flash_over && self.frame > self.params.spawn_end && self.particles.is_empty() {
             EffectStatus::Dead
         } else {
             EffectStatus::Running
         }
+    }
+
+    fn body_copies(&self) -> Option<Vec<BodyCopy>> {
+        let tint = self.params.body_flash?;
+        let f = self.frame as f32;
+        let swell = if f <= FLASH_SWELL {
+            f
+        } else if f <= FLASH_FADE_START {
+            FLASH_SWELL
+        } else {
+            FLASH_END - f
+        };
+        let alpha_255 = if swell <= 10.0 {
+            swell * 15.0
+        } else if swell <= 20.0 {
+            160.0
+        } else {
+            155.0 - (swell - 20.0) * 5.0
+        };
+        if alpha_255 <= 0.0 {
+            return None;
+        }
+        let copy = BodyCopy {
+            offset_px: [0.0, 0.0],
+            margin_px: 0.0,
+            scale: [1.0, 1.0],
+            tint,
+            alpha: (alpha_255 / 255.0).clamp(0.0, 1.0),
+            additive: true,
+            behind: false,
+        };
+        Some(vec![copy, copy])
     }
 
     fn set_position(&mut self, pos: [f32; 3]) {
@@ -316,6 +359,22 @@ mod tests {
         // green channel dominates blue for the HP variant.
         let (_, c) = bb[0];
         assert!(c[1] > c[2], "HP sparkles are greenish: {c:?}");
+    }
+
+    #[test]
+    fn hated_pairs_its_motes_with_a_blue_body_flash_that_swells_then_fades() {
+        let mut e = ParticleUpEffect::new([0.0; 3], HATED);
+        tick(&mut e, 20);
+        let swelling = e.body_copies().expect("flashing");
+        assert_eq!(swelling.len(), 2);
+        assert!(swelling.iter().all(|c| c.additive && c.tint == [5, 5, 255]));
+        tick(&mut e, 150);
+        let fading = e.body_copies().expect("still fading");
+        assert!(fading[0].alpha < swelling[0].alpha);
+        assert_eq!(tick(&mut e, 20), EffectStatus::Dead);
+
+        let hated2 = ParticleUpEffect::new([0.0; 3], HATED2);
+        assert!(hated2.body_copies().is_none(), "only Hated flashes");
     }
 
     #[test]

@@ -434,7 +434,7 @@ fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
         WeaponType::Spear1H | WeaponType::Spear2H => "_창",
         WeaponType::Axe1H | WeaponType::Axe2H => "_도끼",
         WeaponType::Mace | WeaponType::Mace2H => "_클럽",
-        WeaponType::Staff | WeaponType::Staff2H => "_로드",
+        WeaponType::Staff | WeaponType::Staff2H => "_롯드",
         WeaponType::Bow => "_활",
         WeaponType::Knuckle => "_너클",
         WeaponType::Musical => "_악기",
@@ -769,6 +769,14 @@ mod tests {
         assert_eq!(
             weapon_sprite_path(0, 1, WeaponType::Sword1H),
             "data/sprite/인간족/초보자/초보자_남_검"
+        );
+    }
+
+    #[test]
+    fn staff_weapon_path() {
+        assert_eq!(
+            weapon_sprite_path(2, 1, WeaponType::Staff),
+            "data/sprite/인간족/마법사/마법사_남_롯드"
         );
     }
 

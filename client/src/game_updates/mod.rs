@@ -80,6 +80,7 @@ impl App {
         self.update_sprite_animation(delta);
         self.update_gr2_models(elapsed);
         self.update_running_footprints(delta);
+        self.update_hover(delta);
         self.update_cart_animations(delta);
         self.update_falcon_visuals(delta);
         self.update_pet_roulette(delta);

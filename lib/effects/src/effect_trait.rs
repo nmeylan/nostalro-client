@@ -111,8 +111,16 @@ pub trait Effect: Send {
         None
     }
 
-    fn body_shake(&self) -> Option<[f32; 2]> {
+    /// Independent per-edge jitter in screen pixels, ordered top, bottom, left,
+    /// right. Unequal edges stretch the body quad as well as move it.
+    fn body_edge_jitter(&self) -> Option<[f32; 4]> {
         None
+    }
+
+    /// One extra additive draw of the weapon layer, over its normal draw, this
+    /// frame.
+    fn body_weapon_glow(&self) -> bool {
+        false
     }
 
     fn body_afterimage(&self) -> Option<Afterimage> {

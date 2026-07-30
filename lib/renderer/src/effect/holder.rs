@@ -739,9 +739,13 @@ impl EffectHolder {
             if id != entity_id {
                 continue;
             }
-            if let Some(off) = c.body_shake() {
-                ch.shake[0] += off[0];
-                ch.shake[1] += off[1];
+            if let Some(j) = c.body_edge_jitter() {
+                for (acc, v) in ch.edge_jitter.iter_mut().zip(j) {
+                    *acc += v;
+                }
+            }
+            if c.body_weapon_glow() {
+                ch.weapon_glow = true;
             }
             if let Some(t) = c.body_tint() {
                 ch.tint = Some(t.rgb);
@@ -768,6 +772,18 @@ impl EffectHolder {
             }
         }
         ch
+    }
+
+    /// Whether a red body-hit flash is running on this actor. A hovering Star
+    /// Gladiator treats it as an upright pose.
+    pub fn has_red_body_flash(&self, entity_id: u32) -> bool {
+        self.effects.iter().any(|e| {
+            e.attach == Attach::Entity(entity_id)
+                && matches!(
+                    e.effect_id,
+                    EffectId::RedHit | EffectId::Redlightbody | EffectId::MadnessRed
+                )
+        })
     }
 
     pub fn take_body_action_for_entity(&mut self, entity_id: u32) -> Option<BodyAction> {
@@ -1417,17 +1433,17 @@ mod tests {
     }
 
     #[test]
-    fn quakebody_attached_to_entity_shakes_and_tints_only_that_entity() {
+    fn quakebody_attached_to_entity_jitters_and_tints_only_that_entity() {
         let mut h = EffectHolder::new();
         h.spawn(EffectId::Quakebody4, Attach::Entity(7), None)
             .expect("spawn");
         h.update(&ctx(25.0 / 60.0), &|_| None, &|_| None);
 
         let ch = h.body_channels_for_entity(7);
-        assert_ne!(ch.shake, [0.0, 0.0]);
+        assert_ne!(ch.edge_jitter, [0.0; 4]);
         assert!(ch.tint.is_some());
         let other = h.body_channels_for_entity(99);
-        assert_eq!(other.shake, [0.0, 0.0]);
+        assert_eq!(other.edge_jitter, [0.0; 4]);
         assert!(other.tint.is_none());
     }
 

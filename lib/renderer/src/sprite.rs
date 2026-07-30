@@ -1307,6 +1307,7 @@ impl EntitySprite {
         (screen_anchor[1] - min_y).max(0.0)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn build_batches(
         &self,
         animation: &ragnarok_formats::act::SpriteAnimationState,
@@ -1316,6 +1317,32 @@ impl EntitySprite {
         depth: f32,
         scale: f32,
         depth_gradient: [f32; 2],
+    ) -> Vec<SpriteBatch<'_>> {
+        self.build_layers(
+            animation,
+            camera_dir,
+            head_dir,
+            screen_anchor,
+            depth,
+            scale,
+            depth_gradient,
+            false,
+        )
+    }
+
+    /// `build_batches`, optionally adding one additive draw of the weapon layer
+    /// over its normal one. The glow keeps the weapon's slot in the layer order.
+    #[allow(clippy::too_many_arguments)]
+    fn build_layers(
+        &self,
+        animation: &ragnarok_formats::act::SpriteAnimationState,
+        camera_dir: Option<u8>,
+        head_dir: u8,
+        screen_anchor: [f32; 2],
+        depth: f32,
+        scale: f32,
+        depth_gradient: [f32; 2],
+        weapon_glow: bool,
     ) -> Vec<SpriteBatch<'_>> {
         let action_idx = match camera_dir {
             Some(dir) => animation.action_index(&self.body_act, dir),
@@ -1417,11 +1444,20 @@ impl EntitySprite {
         if let Some(weapon_tex) = &self.weapon_textures {
             for (mut vertices, indices, tex_idx) in clips.weapon {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
+                if weapon_glow {
+                    batches.push(SpriteBatch {
+                        vertices: vertices.clone(),
+                        indices: indices.clone(),
+                        texture: &weapon_tex.bind_groups[tex_idx],
+                        additive: false,
+                        no_depth: false,
+                    });
+                }
                 batches.push(SpriteBatch {
                     vertices,
                     indices,
                     texture: &weapon_tex.bind_groups[tex_idx],
-                    additive: false,
+                    additive: weapon_glow,
                     no_depth: false,
                 });
             }
@@ -1611,7 +1647,8 @@ pub fn build_shadow_batches<'a>(
 
 #[derive(Clone, Debug)]
 pub struct BodyChannels {
-    pub shake: [f32; 2],
+    /// Per-edge jitter in screen pixels: top, bottom, left, right.
+    pub edge_jitter: [f32; 4],
     pub tint: Option<[u8; 3]>,
     /// Ground-lightmap intensity of the cell the actor stands on.
     pub light: [f32; 3],
@@ -1622,13 +1659,15 @@ pub struct BodyChannels {
     pub angle: f32,
     pub squeeze: f32,
     pub additive: bool,
+    /// Draw the weapon layer a second time, additively, over its normal draw.
+    pub weapon_glow: bool,
     pub copies: Vec<ragnarok_effects::BodyCopy>,
 }
 
 impl Default for BodyChannels {
     fn default() -> Self {
         Self {
-            shake: [0.0, 0.0],
+            edge_jitter: [0.0; 4],
             tint: None,
             light: [1.0; 3],
             scale: 1.0,
@@ -1638,6 +1677,7 @@ impl Default for BodyChannels {
             angle: 0.0,
             squeeze: 1.0,
             additive: false,
+            weapon_glow: false,
             copies: Vec::new(),
         }
     }
@@ -1717,6 +1757,34 @@ fn apply_tint_alpha(batches: &mut [SpriteBatch], tint: Option<[u8; 3]>, alpha: f
     }
 }
 
+/// Moves the four edges of the composed body independently, remapping every
+/// vertex into the jittered box. Equal offsets on opposite edges translate;
+/// unequal ones stretch.
+fn apply_edge_jitter(
+    batches: &mut [SpriteBatch],
+    jitter: [f32; 4],
+    depth_gradient: [f32; 2],
+) -> Option<()> {
+    let (min, max) = batches_bbox(batches)?;
+    let (w, h) = (max[0] - min[0], max[1] - min[1]);
+    if w <= 0.0 || h <= 0.0 {
+        return None;
+    }
+    let [top, bottom, left, right] = jitter;
+    let (sx, sy) = ((w + right - left) / w, (h + bottom - top) / h);
+    for batch in batches {
+        for v in &mut batch.vertices {
+            let x = min[0] + left + (v.position[0] - min[0]) * sx;
+            let y = min[1] + top + (v.position[1] - min[1]) * sy;
+            v.position[2] +=
+                depth_gradient[0] * (x - v.position[0]) + depth_gradient[1] * (y - v.position[1]);
+            v.position[0] = x;
+            v.position[1] = y;
+        }
+    }
+    Some(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn compose_actor_batches<'a>(
     sprite: &'a EntitySprite,
@@ -1735,13 +1803,10 @@ pub fn compose_actor_batches<'a>(
     } else {
         camera_dir
     };
-    let anchor = [
-        screen_anchor[0] + channels.shake[0],
-        screen_anchor[1] + channels.shake[1] - channels.lift_px,
-    ];
+    let anchor = [screen_anchor[0], screen_anchor[1] - channels.lift_px];
     let scale = base_scale * channels.scale;
 
-    let mut live = sprite.build_batches(
+    let mut live = sprite.build_layers(
         animation,
         Some(dir),
         head_dir,
@@ -1749,6 +1814,7 @@ pub fn compose_actor_batches<'a>(
         depth,
         scale,
         depth_gradient,
+        channels.weapon_glow,
     );
     let (body_center, body_w, body_h) = batches_bbox(&live)
         .map(|(min, max)| {
@@ -1828,6 +1894,9 @@ pub fn compose_actor_batches<'a>(
             [1.0, 1.0],
             depth_gradient,
         );
+    }
+    if channels.edge_jitter != [0.0; 4] {
+        apply_edge_jitter(&mut live, channels.edge_jitter, depth_gradient);
     }
     apply_tint_alpha(&mut live, channels.tint, channels.alpha);
     if channels.additive {

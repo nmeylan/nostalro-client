@@ -392,6 +392,14 @@ pub fn make_effect(
         EffectId::Lightblade => Box::new(effects::multibody::MultiBodyEffect::new(
             effects::multibody::LIGHTBLADE,
         )),
+        EffectId::Aurablade2 => Box::new(
+            effects::multibody::MultiBodyEffect::new(effects::multibody::LIGHTSWORD)
+                .with_life_ms(duration_ms),
+        ),
+        EffectId::DaSpace => Box::new(
+            effects::multibody::MultiBodyEffect::new(effects::multibody::LIGHTSWORD)
+                .with_life_ms(duration_ms),
+        ),
         EffectId::Undeadbody => Box::new(
             effects::multibody::MultiBodyEffect::new(effects::multibody::UNDEADBODY)
                 .with_life_ms(duration_ms),

@@ -1096,7 +1096,7 @@ mod tests {
     /// aura (which is the persistent status path's job).
     /// Body-light effects that still resolve to `Noop`: they recolour or overlay
     /// the actor's own sprite layers, which the effect channel cannot express yet.
-    const UNRENDERED_BODY_LIGHT: &[EffectId] = &[EffectId::Aurablade2, EffectId::AsurabodyMonster];
+    const UNRENDERED_BODY_LIGHT: &[EffectId] = &[EffectId::AsurabodyMonster];
 
     fn plays_once(id: EffectId) -> bool {
         use crate::spec::EffectSpec::*;

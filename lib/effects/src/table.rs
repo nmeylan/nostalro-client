@@ -278,6 +278,8 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Reflectbody => EffectSpec::Custom,
         EffectId::Assumptio => EffectSpec::Custom,
         EffectId::Lightblade => EffectSpec::Custom,
+        EffectId::Aurablade2 => EffectSpec::Custom,
+        EffectId::DaSpace => EffectSpec::Custom,
         EffectId::Undeadbody => EffectSpec::Custom,
 
         EffectId::Aciddemon => EffectSpec::Custom,
@@ -657,6 +659,8 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Reflectbody => multibody::REFLECTBODY.total_duration_ms(),
         EffectId::Assumptio => multibody::ASSUMPTIO.total_duration_ms(),
         EffectId::Lightblade => multibody::LIGHTBLADE.total_duration_ms(),
+        EffectId::Aurablade2 => multibody::LIGHTSWORD.total_duration_ms(),
+        EffectId::DaSpace => multibody::LIGHTSWORD.total_duration_ms(),
         EffectId::Undeadbody => multibody::UNDEADBODY.total_duration_ms(),
         EffectId::Aciddemon => aciddemon::TOTAL_DURATION_MS,
         EffectId::Rainbow => rainbow::TOTAL_DURATION_MS,
