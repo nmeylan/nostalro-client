@@ -276,20 +276,23 @@ impl App {
             }
         };
         self.animation = initial_anim;
-        self.entity_sprite = Some(build_entity_sprite(
-            &renderer.device.device,
-            &renderer.device.queue,
-            &renderer.texture_cache.bind_group_layout,
-            data.body,
-            data.head,
-            data.weapon,
-            None,
-            data.headgear_top,
-            data.headgear_mid,
-            data.headgear_bottom,
-            data.shield,
-            None,
-        ));
+        self.entity_sprite = Some(
+            build_entity_sprite(
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+                data.body,
+                data.head,
+                data.weapon,
+                None,
+                data.headgear_top,
+                data.headgear_mid,
+                data.headgear_bottom,
+                data.shield,
+                None,
+            )
+            .with_layer_order(data.layer_order),
+        );
     }
 
     fn reload_weapon(&mut self) {

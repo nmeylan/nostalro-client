@@ -167,20 +167,23 @@ impl App {
             orc_face,
             is_gm,
         )?;
-        Some(Rc::new(build_entity_sprite(
-            &renderer.device.device,
-            &renderer.device.queue,
-            &renderer.texture_cache.bind_group_layout,
-            data.body,
-            data.head,
-            data.weapon,
-            data.weapon_trail,
-            data.headgear_top,
-            data.headgear_mid,
-            data.headgear_bottom,
-            data.shield,
-            data.shadow,
-        )))
+        Some(Rc::new(
+            build_entity_sprite(
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+                data.body,
+                data.head,
+                data.weapon,
+                data.weapon_trail,
+                data.headgear_top,
+                data.headgear_mid,
+                data.headgear_bottom,
+                data.shield,
+                data.shadow,
+            )
+            .with_layer_order(data.layer_order),
+        ))
     }
 
     /// Load the head/body sprite of every current guild member into a dedicated
@@ -245,20 +248,23 @@ impl App {
                 return;
             }
         };
-        let sprite = Rc::new(build_entity_sprite(
-            &renderer.device.device,
-            &renderer.device.queue,
-            &renderer.texture_cache.bind_group_layout,
-            data.body,
-            data.head,
-            data.weapon,
-            data.weapon_trail,
-            data.headgear_top,
-            data.headgear_mid,
-            data.headgear_bottom,
-            data.shield,
-            data.shadow,
-        ));
+        let sprite = Rc::new(
+            build_entity_sprite(
+                &renderer.device.device,
+                &renderer.device.queue,
+                &renderer.texture_cache.bind_group_layout,
+                data.body,
+                data.head,
+                data.weapon,
+                data.weapon_trail,
+                data.headgear_top,
+                data.headgear_mid,
+                data.headgear_bottom,
+                data.shield,
+                data.shadow,
+            )
+            .with_layer_order(data.layer_order),
+        );
         self.game.sprite_caches.sprites.insert(gid, sprite);
     }
 

@@ -1,5 +1,6 @@
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_formats::imf::{ImfFile, ImfLayerOrder};
 use ragnarok_formats::pal::PalFile;
 use ragnarok_formats::spr::SprFile;
 
@@ -9,7 +10,8 @@ use crate::data_table::accessory_table::AccessoryTable;
 use crate::data_table::name_table::NameTable;
 use crate::sprite_path::{
     body_palette_path, body_sprite_path, entity_sprite_base_path, head_palette_path,
-    head_sprite_path, mercenary_sprite_path, mercenary_weapon_sprite_path, weapon_sprite_path,
+    head_sprite_path, imf_fallback_job, imf_path, mercenary_imf_path, mercenary_sprite_path,
+    mercenary_weapon_sprite_path, weapon_sprite_path,
 };
 use models::enums::weapon::WeaponType;
 
@@ -63,6 +65,27 @@ pub fn load_sprite_data(grf: &GrfArchive, spr_path: &str, act_path: &str) -> Opt
 pub fn load_sprite_data_from_spr(grf: &GrfArchive, spr_path: &str) -> Option<SpriteData> {
     let base = spr_path.strip_suffix(".spr").unwrap_or(spr_path);
     load_sprite_data(grf, spr_path, &format!("{base}.act"))
+}
+
+pub fn read_layer_order(grf: &GrfArchive, path: &str) -> Option<ImfLayerOrder> {
+    let data = grf.read_file(path).ok()?;
+    match ImfFile::parse(&data) {
+        Ok(imf) => ImfLayerOrder::from_file(&imf),
+        Err(e) => {
+            tracing::warn!("Failed to parse IMF {path}: {e}");
+            None
+        }
+    }
+}
+
+pub fn load_layer_order(grf: &GrfArchive, job: u16, sex: u8) -> Option<ImfLayerOrder> {
+    let mut job = job;
+    loop {
+        if let Some(order) = read_layer_order(grf, &imf_path(job, sex)) {
+            return Some(order);
+        }
+        job = imf_fallback_job(job)?;
+    }
 }
 
 pub fn load_body_sprite(
@@ -332,6 +355,7 @@ pub struct PlayerSpriteData {
     pub headgear_bottom: Option<SpriteData>,
     pub shield: Option<SpriteData>,
     pub shadow: Option<SpriteData>,
+    pub layer_order: Option<ImfLayerOrder>,
 }
 
 fn load_headgear(
@@ -383,6 +407,7 @@ pub fn load_player_sprite_data(
             headgear_bottom: load_headgear(grf, accessory_table, head_bottom, sex),
             shield: None,
             shadow: load_shadow_sprite(grf),
+            layer_order: None,
         });
     }
     let body = load_body_sprite(grf, job, sex, cloth_color)?;
@@ -417,6 +442,7 @@ pub fn load_player_sprite_data(
         headgear_bottom,
         shield,
         shadow,
+        layer_order: load_layer_order(grf, job, sex),
     })
 }
 
@@ -458,6 +484,7 @@ pub fn load_mercenary_sprite_data(
         headgear_bottom: None,
         shield: None,
         shadow,
+        layer_order: mercenary_imf_path(name).and_then(|p| read_layer_order(grf, &p)),
     })
 }
 

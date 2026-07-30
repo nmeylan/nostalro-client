@@ -4,12 +4,15 @@ use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::gnd::GndFile;
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_formats::imf::ImfFile;
+use ragnarok_formats::imf::{ImfFile, ImfLayerOrder};
 use ragnarok_formats::pal::PalFile;
 use ragnarok_formats::rsm::RsmFile;
 use ragnarok_formats::rsw::RswFile;
 use ragnarok_formats::spr::SprFile;
 use ragnarok_formats::str_effect::StrEffectFile;
+
+/// Pickup action (3) at facing 2, in the action-type * 8 + facing space.
+const PICKUP_FACING_2: usize = 26;
 
 fn open_grf() -> Option<GrfArchive> {
     let path = ["data/testdata", "../../data/testdata"]
@@ -80,6 +83,11 @@ fn extract_and_parse_all_formats_from_grf() {
     let data = grf.read_file("data/imf/검사_남.imf").unwrap();
     let imf = ImfFile::parse(&data).expect("failed to parse imf");
     assert!(!imf.layers.is_empty());
+
+    let order = ImfLayerOrder::from_file(&imf).expect("failed to flatten imf");
+    assert!(order.body_over_head(PICKUP_FACING_2, 0));
+    assert!(order.body_over_head(PICKUP_FACING_2, 1));
+    assert!(!order.body_over_head(0, 0));
 }
 
 #[test]

@@ -262,20 +262,23 @@ impl App {
         };
         self.animation = SpriteAnimationState::new(0);
         self.is_composite = true;
-        self.entity_sprite = Some(build_entity_sprite(
-            &device.device,
-            &device.queue,
-            &tex_cache.bind_group_layout,
-            data.body,
-            data.head,
-            data.weapon,
-            data.weapon_trail,
-            data.headgear_top,
-            data.headgear_mid,
-            data.headgear_bottom,
-            data.shield,
-            None,
-        ));
+        self.entity_sprite = Some(
+            build_entity_sprite(
+                &device.device,
+                &device.queue,
+                &tex_cache.bind_group_layout,
+                data.body,
+                data.head,
+                data.weapon,
+                data.weapon_trail,
+                data.headgear_top,
+                data.headgear_mid,
+                data.headgear_bottom,
+                data.shield,
+                None,
+            )
+            .with_layer_order(data.layer_order),
+        );
         self.composite_job = job;
         self.composite_sex = sex;
         self.composite_head = head_id;

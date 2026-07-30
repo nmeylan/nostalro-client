@@ -1,4 +1,5 @@
 use ragnarok_formats::act::{ActFile, Motion, SpriteFrame, attachment_offset};
+use ragnarok_formats::imf::ImfLayerOrder;
 use ragnarok_formats::spr::{RgbaImageData, SpriteData};
 
 use crate::device::DEPTH_FORMAT;
@@ -855,6 +856,7 @@ pub struct CompositeClips {
     pub weapon: Vec<ClipQuad>,
     pub weapon_trail: Vec<ClipQuad>,
     pub shield: Vec<ClipQuad>,
+    pub body_motion_idx: usize,
 }
 
 /// Which motion of a body-part action to render. For idle/sit the whole actor is
@@ -892,7 +894,8 @@ pub fn build_composite_clips(
     let is_idle_or_sit = (base_action == 0 || base_action == 2) && entity.head_act.is_some();
 
     let part_motion_idx = |len: usize| part_motion_index(is_idle_or_sit, head_dir, motion_idx, len);
-    let body_motion = &body_action.motions[part_motion_idx(body_action.motions.len())];
+    let body_motion_idx = part_motion_idx(body_action.motions.len());
+    let body_motion = &body_action.motions[body_motion_idx];
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
@@ -1060,6 +1063,7 @@ pub fn build_composite_clips(
         weapon,
         weapon_trail,
         shield,
+        body_motion_idx,
     })
 }
 
@@ -1106,6 +1110,14 @@ pub struct EntitySprite {
     pub shield_act: Option<ActFile>,
     pub shadow_textures: Option<SpriteTextures>,
     pub shadow_act: Option<ActFile>,
+    pub layer_order: Option<ImfLayerOrder>,
+}
+
+impl EntitySprite {
+    pub fn with_layer_order(mut self, layer_order: Option<ImfLayerOrder>) -> Self {
+        self.layer_order = layer_order;
+        self
+    }
 }
 
 fn upload_optional(
@@ -1172,6 +1184,7 @@ pub fn build_entity_sprite(
         shield_act,
         shadow_textures,
         shadow_act,
+        layer_order: None,
     }
 }
 
@@ -1383,9 +1396,10 @@ impl EntitySprite {
             batches.append(&mut shield_batches);
         }
 
+        let mut body_batches = Vec::new();
         for (mut vertices, indices, tex_idx) in clips.body {
             scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-            batches.push(SpriteBatch {
+            body_batches.push(SpriteBatch {
                 vertices,
                 indices,
                 texture: &self.body_textures.bind_groups[tex_idx],
@@ -1393,10 +1407,11 @@ impl EntitySprite {
                 no_depth: false,
             });
         }
+        let mut head_batches = Vec::new();
         if let Some(head_tex) = &self.head_textures {
             for (mut vertices, indices, tex_idx) in clips.head {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                batches.push(SpriteBatch {
+                head_batches.push(SpriteBatch {
                     vertices,
                     indices,
                     texture: &head_tex.bind_groups[tex_idx],
@@ -1404,6 +1419,17 @@ impl EntitySprite {
                     no_depth: false,
                 });
             }
+        }
+        let body_over_head = self
+            .layer_order
+            .as_ref()
+            .is_some_and(|order| order.body_over_head(action_idx, clips.body_motion_idx));
+        if body_over_head {
+            batches.append(&mut head_batches);
+            batches.append(&mut body_batches);
+        } else {
+            batches.append(&mut body_batches);
+            batches.append(&mut head_batches);
         }
         if let Some(hg_tex) = &self.headgear_bottom_textures {
             for (mut vertices, indices, tex_idx) in clips.headgear_bottom {

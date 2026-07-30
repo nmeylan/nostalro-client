@@ -86,6 +86,11 @@ pub fn mercenary_sprite_path(name: &str) -> String {
     format!("data/sprite/인간족/몸통/{name}")
 }
 
+pub fn mercenary_imf_path(name: &str) -> Option<String> {
+    let base = name.rsplit(['/', '\\']).next()?;
+    Some(format!("data/imf/{base}.imf"))
+}
+
 /// The mercenary weapon sprite sits under `용병`, named `<body>_<weapon>` where
 /// the weapon character is the body name's first character (활 bow / 창 spear /
 /// 검 sword). The sex sub-path present on the body name is dropped here.
@@ -409,6 +414,24 @@ pub fn gm_body_sprite_path(sex: u8) -> String {
 pub fn gm_weapon_sprite_path(sex: u8) -> String {
     let sex_str = sex_kr(sex);
     format!("data/sprite/인간족/운영자/운영자_{sex_str}_검")
+}
+
+pub fn imf_path(job_class: u16, sex: u8) -> String {
+    let job = job_name_kr(job_class);
+    let sex_str = sex_kr(sex);
+    format!("data/imf/{job}_{sex_str}.imf")
+}
+
+/// The job whose IMF a class borrows when it ships none of its own: transcendent
+/// classes fall back to their pre-trans form, the seasonal costumes to the
+/// wedding outfit.
+pub fn imf_fallback_job(job_class: u16) -> Option<u16> {
+    match base_job(job_class) {
+        job @ 4001..=4022 => Some(job - 4001),
+        4047 | 4048 => Some(4046),
+        26 | 27 => Some(22),
+        _ => None,
+    }
 }
 
 pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
@@ -744,6 +767,21 @@ mod tests {
             skill_target_type: crate::skill::SkillTargetType::Passive,
         });
         assert!(!hide_blocks_move(OPTION_HIDE, knows(&list)));
+    }
+
+    #[test]
+    fn imf_path_falls_back_to_the_base_class() {
+        assert_eq!(imf_path(6, 1), "data/imf/도둑_남.imf");
+        assert_eq!(imf_fallback_job(6), None);
+        assert_eq!(imf_path(4030, 1), "data/imf/기사_남.imf");
+        assert_eq!(
+            imf_fallback_job(4013).map(|j| imf_path(j, 1)),
+            Some("data/imf/어세신_남.imf".to_string())
+        );
+        assert_eq!(
+            imf_fallback_job(26).map(|j| imf_path(j, 0)),
+            Some("data/imf/결혼_여.imf".to_string())
+        );
     }
 
     #[test]
