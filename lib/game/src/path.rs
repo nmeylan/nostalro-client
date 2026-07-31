@@ -8,6 +8,17 @@ pub struct MoveAction {
     pub path: Vec<PathNode>,
 }
 
+/// Cell reach as the server measures it: circular, minus a bonus that makes a
+/// straight line read one cell shorter than it is.
+pub fn reach_cell_distance(dx: i32, dy: i32) -> i32 {
+    let squared = (dx * dx + dy * dy) as f64;
+    (squared.sqrt() - 0.1).max(0.0) as i32
+}
+
+pub fn in_attack_range(px: i32, py: i32, target_x: i32, target_y: i32, range: i32) -> bool {
+    reach_cell_distance(px - target_x, py - target_y) <= range.max(0)
+}
+
 pub fn compute_destination_within_range(
     px: i32,
     py: i32,
@@ -18,16 +29,13 @@ pub fn compute_destination_within_range(
     let dx = px - target_x;
     let dy = py - target_y;
 
-    let abs_dx = dx.abs() as f64;
-    let abs_dy = dy.abs() as f64;
-
-    if abs_dx == 0.0 && abs_dy == 0.0 {
+    let length = ((dx * dx + dy * dy) as f64).sqrt();
+    if length == 0.0 {
         return (target_x, target_y);
     }
 
-    let max_dist = abs_dx.max(abs_dy);
-    let dir_x = (dx as f64 / max_dist) * range as f64;
-    let dir_y = (dy as f64 / max_dist) * range as f64;
+    let dir_x = (dx as f64 / length) * range as f64;
+    let dir_y = (dy as f64 / length) * range as f64;
 
     (
         target_x + dir_x.round() as i32,
@@ -175,7 +183,27 @@ mod tests {
     #[test]
     fn compute_destination_within_range_north_east() {
         let (dx, dy) = compute_destination_within_range(10, 5, 0, 0, 3);
-        assert_eq!((dx, dy), (3, 2));
+        assert_eq!((dx, dy), (3, 1));
+    }
+
+    #[test]
+    fn approach_cell_is_within_reach_on_every_diagonal() {
+        for range in 1..=9 {
+            let (dx, dy) = compute_destination_within_range(40, 40, 20, 20, range);
+            assert!(
+                in_attack_range(dx, dy, 20, 20, range),
+                "range {range} lands on ({dx},{dy}), out of reach"
+            );
+        }
+    }
+
+    #[test]
+    fn reach_is_circular_with_the_straight_line_bonus() {
+        assert!(in_attack_range(6, 0, 0, 0, 5));
+        assert!(!in_attack_range(7, 0, 0, 0, 5));
+        assert!(in_attack_range(3, 3, 0, 0, 5));
+        assert!(!in_attack_range(5, 5, 0, 0, 5));
+        assert!(in_attack_range(1, 1, 0, 0, 1));
     }
 
     #[test]
@@ -205,7 +233,7 @@ mod tests {
         let action = try_move_to_range(&gat, 0, 0, 4, 4, 2);
         assert!(action.is_some());
         let action = action.unwrap();
-        assert_eq!(action.dest_x, 2);
-        assert_eq!(action.dest_y, 2);
+        assert_eq!(action.dest_x, 3);
+        assert_eq!(action.dest_y, 3);
     }
 }

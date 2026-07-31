@@ -938,6 +938,18 @@ impl App {
                 GameEvent::AttackRangeChanged { range } => {
                     self.game.combat.attack_range = range;
                 }
+                GameEvent::AttackFailedForDistance {
+                    target_gid,
+                    target_x,
+                    target_y,
+                    x,
+                    y,
+                    range,
+                } => {
+                    self.handle_attack_failed_for_distance(
+                        target_gid, target_x, target_y, x, y, range,
+                    );
+                }
 
                 GameEvent::SkillCasting {
                     gid,

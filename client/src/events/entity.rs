@@ -543,6 +543,44 @@ impl App {
         }
     }
 
+    pub(super) fn handle_attack_failed_for_distance(
+        &mut self,
+        target_aid: u32,
+        target_x: u16,
+        target_y: u16,
+        x: u16,
+        y: u16,
+        range: i16,
+    ) {
+        self.game.combat.attack_range = range;
+
+        let target_id = self.game.world.entities.resolve_key(target_aid);
+        if self.game.combat.attack_target_id != Some(target_id) {
+            return;
+        }
+        let target_alive = self
+            .game
+            .world
+            .entities
+            .get(target_id)
+            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
+        if !target_alive {
+            self.stop_attacking();
+            return;
+        }
+
+        if let Some(target) = self.game.world.entities.get_mut(target_id) {
+            target
+                .movement
+                .correct_to_cell(target_x as f32, target_y as f32);
+        }
+        if let Some(player) = self.game.world.entities.player_mut() {
+            player.movement.correct_to_cell(x as f32, y as f32);
+        }
+        self.game.combat.attack_request_cooldown = 0.0;
+        self.resume_attack(target_id);
+    }
+
     pub(super) fn handle_entity_hp_changed(&mut self, gid: u32, hp: u32, max_hp: u32) {
         if self.game.world.entities.is_player(gid) {
             self.game.character.hp = hp;

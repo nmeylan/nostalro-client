@@ -1014,6 +1014,16 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             range: p.current_att_range,
         }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcAttackFailureForDistance>() {
+        return vec![GameEvent::AttackFailedForDistance {
+            target_gid: p.target_aid,
+            target_x: p.target_xpos.max(0) as u16,
+            target_y: p.target_ypos.max(0) as u16,
+            x: p.x_pos.max(0) as u16,
+            y: p.y_pos.max(0) as u16,
+            range: p.current_att_range,
+        }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcSpriteChange2>() {
         return vec![GameEvent::EntitySpriteChanged {
             gid: p.gid,
@@ -4800,6 +4810,37 @@ mod tests {
         match &result[0] {
             GameEvent::AttackRangeChanged { range } => assert_eq!(*range, 2),
             other => panic!("expected AttackRangeChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_attack_failure_for_distance_carries_positions_and_range() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAttackFailureForDistance::new(packetver);
+        pkt.set_target_aid(150000);
+        pkt.set_target_xpos(120);
+        pkt.set_target_ypos(80);
+        pkt.set_x_pos(115);
+        pkt.set_y_pos(78);
+        pkt.set_current_att_range(3);
+        pkt.fill_raw();
+        let result = dispatch_packet(&pkt, packetver);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            GameEvent::AttackFailedForDistance {
+                target_gid,
+                target_x,
+                target_y,
+                x,
+                y,
+                range,
+            } => {
+                assert_eq!(*target_gid, 150000);
+                assert_eq!((*target_x, *target_y), (120, 80));
+                assert_eq!((*x, *y), (115, 78));
+                assert_eq!(*range, 3);
+            }
+            other => panic!("expected AttackFailedForDistance, got {other:?}"),
         }
     }
 

@@ -6,7 +6,7 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::movement::direction_from_positions;
-use ragnarok_game::path::try_move_to;
+use ragnarok_game::path::{in_attack_range, try_move_to};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill::skill_needs_talkbox;
 use ragnarok_network::{
@@ -84,11 +84,13 @@ impl App {
             .unwrap_or((0, 0));
 
         let range = self.game.combat.attack_range as i32;
-        let dx = (px as i32 - target_pos.0 as i32).abs();
-        let dy = (py as i32 - target_pos.1 as i32).abs();
-        let dist = dx.max(dy);
-
-        if dist <= range {
+        if in_attack_range(
+            px as i32,
+            py as i32,
+            target_pos.0 as i32,
+            target_pos.1 as i32,
+            range,
+        ) {
             let player_state = self
                 .game
                 .world

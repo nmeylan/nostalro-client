@@ -305,6 +305,16 @@ pub enum GameEvent {
     AttackRangeChanged {
         range: i16,
     },
+    /// Attack refused as out of range; carries where both actors actually stand
+    /// and the range the refusal was measured against.
+    AttackFailedForDistance {
+        target_gid: u32,
+        target_x: u16,
+        target_y: u16,
+        x: u16,
+        y: u16,
+        range: i16,
+    },
     EntitySpriteChanged {
         gid: u32,
         sprite_type: u8,

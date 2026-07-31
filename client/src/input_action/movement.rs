@@ -6,7 +6,7 @@ use ragnarok_game::ailment;
 use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::entity::EntityType;
-use ragnarok_game::path::try_move_to_range;
+use ragnarok_game::path::{in_attack_range, try_move_to_range};
 use ragnarok_game::sprite_path::{OPTION_HIDE, hide_blocks_move};
 use ragnarok_game::targeting::can_attack;
 use ragnarok_network::{build_action_request_packet, build_request_move_packet};
@@ -126,18 +126,37 @@ impl App {
     }
 
     pub(crate) fn initiate_attack(&mut self, target_id: u32) {
-        if self.player_hidden() {
+        let locked = self.game.prefs.noctrl_mode || self.input.ctrl_pressed;
+        self.begin_attack(target_id, locked);
+    }
+
+    /// Re-enters the attack path after the server reported the target out of
+    /// range, keeping the lock the attack was started with. Drops the intent when
+    /// neither a swing nor a walk can be started, so the retry cannot loop.
+    pub(crate) fn resume_attack(&mut self, target_id: u32) {
+        let locked = self.game.combat.attack_is_locked;
+        let request_outstanding = self.game.combat.attack_request_sent;
+        if self.begin_attack(target_id, locked) {
             return;
+        }
+        self.game.combat.attack_request_sent = request_outstanding;
+        self.stop_attacking();
+    }
+
+    /// Returns whether the target ended up engaged: a swing went out, or a walk
+    /// toward it started.
+    fn begin_attack(&mut self, target_id: u32, locked: bool) -> bool {
+        if self.player_hidden() {
+            return false;
         }
         self.game.pending_casts.pending_pickup_item_id = None;
         self.game.combat.queued_move = None;
-        let locked = self.game.prefs.noctrl_mode || self.input.ctrl_pressed;
         self.game.combat.attack_is_locked = locked;
         self.game.combat.attack_request_sent = false;
 
         let target_pos = match self.game.world.entities.get(target_id) {
             Some(e) => e.movement.cell_position(),
-            None => return,
+            None => return false,
         };
         let (px, py) = self
             .game
@@ -148,16 +167,22 @@ impl App {
             .unwrap_or((0, 0));
 
         let range = self.game.combat.attack_range as i32;
-        let dx = (px as i32 - target_pos.0 as i32).abs();
-        let dy = (py as i32 - target_pos.1 as i32).abs();
-        let dist = dx.max(dy);
-
-        if dist <= range {
+        if in_attack_range(
+            px as i32,
+            py as i32,
+            target_pos.0 as i32,
+            target_pos.1 as i32,
+            range,
+        ) {
             self.send_attack_packet(target_id);
             self.game.combat.attack_target_id = Some(target_id);
             self.game.combat.attack_request_cooldown = 0.3;
+            true
         } else if self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range) {
             self.game.combat.attack_target_id = Some(target_id);
+            true
+        } else {
+            false
         }
     }
 
