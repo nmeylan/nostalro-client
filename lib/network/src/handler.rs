@@ -17,6 +17,7 @@ use ragnarok_game::guild::{
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::mail::{MailEntry, MailItem, OpenedMail};
 use ragnarok_game::minimap_mark::MarkAction;
+use ragnarok_game::monster_info::MonsterInfo;
 use ragnarok_game::quest::{QuestHuntEntry, QuestListEntry, QuestMissionData, QuestObjective};
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
@@ -1152,6 +1153,25 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             level: p.level,
             x: p.x_pos,
             y: p.y_pos,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMonsterInfo>() {
+        let t = &p.property_table;
+        return vec![GameEvent::MonsterInfoReceived {
+            info: MonsterInfo {
+                name: String::new(),
+                job: p.job as u16,
+                level: p.level,
+                size: p.size,
+                hp: p.hp,
+                def: p.def,
+                race: p.race_type,
+                mdef: p.mdef_power,
+                property: p.property,
+                resistances: [
+                    t.water, t.earth, t.fire, t.wind, t.poison, t.saint, t.dark, t.mental, t.undead,
+                ],
+            },
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillEntry>() {

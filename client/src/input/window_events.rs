@@ -46,6 +46,11 @@ impl App {
         event_loop.exit();
     }
 
+    pub(crate) fn handle_focus_changed(&mut self, focused: bool) {
+        self.window_focused = focused;
+        self.apply_sound_pause();
+    }
+
     pub(crate) fn handle_resize(&mut self, size: PhysicalSize<u32>) {
         if let Some(renderer) = &mut self.renderer {
             renderer.resize(size.width, size.height);

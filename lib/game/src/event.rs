@@ -6,6 +6,7 @@ use crate::inventory::{EquipmentItemData, NormalItemData};
 use crate::item::Item;
 use crate::mail::{MailEntry, OpenedMail};
 use crate::minimap_mark::MarkAction;
+use crate::monster_info::MonsterInfo;
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
@@ -346,6 +347,11 @@ pub enum GameEvent {
         level: i16,
         x: i16,
         y: i16,
+    },
+    /// Sense (WZ_ESTIMATION) result. `info.name` is left empty by the network
+    /// layer and resolved from the world entities on the client side.
+    MonsterInfoReceived {
+        info: MonsterInfo,
     },
     SkillUnitEntered {
         aid: u32,
@@ -923,6 +929,8 @@ pub enum GameEvent {
         sfx_volume: f32,
         bgm_enabled: bool,
         sfx_enabled: bool,
+        stereo: bool,
+        play_when_unfocused: bool,
         persist: bool,
     },
     ToggleGraphicOptions,

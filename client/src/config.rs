@@ -42,15 +42,37 @@ pub struct DebugConfig {
 pub struct CustomConfig {
     /// Green aura under boss monsters at level 99 or above.
     pub boss_aura: bool,
-    /// Percentage of ACT frame sounds (monster grunts, footsteps) that play.
-    pub act_sound_percent: u32,
+    pub sound: CustomSoundConfig,
 }
 
 impl Default for CustomConfig {
     fn default() -> Self {
         Self {
             boss_aura: false,
-            act_sound_percent: 100,
+            sound: CustomSoundConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomSoundConfig {
+    /// Percentage of ACT frame sounds (monster grunts, footsteps) that play.
+    pub act_percent: u32,
+    /// Pan world sounds across the stereo field. Off keeps distance attenuation
+    /// but centres everything.
+    pub stereo: bool,
+    /// Keep the mixer running while the window is not focused. The original
+    /// game always pauses.
+    pub play_when_unfocused: bool,
+}
+
+impl Default for CustomSoundConfig {
+    fn default() -> Self {
+        Self {
+            act_percent: 100,
+            stereo: true,
+            play_when_unfocused: false,
         }
     }
 }

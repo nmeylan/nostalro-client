@@ -10,6 +10,8 @@ struct Voice {
     pcm: Option<Arc<Pcm>>,
     cursor: usize,
     gain: f32,
+    /// -1 hard left, 0 centre, 1 hard right.
+    pan: f32,
     looping: bool,
 }
 
@@ -31,6 +33,15 @@ pub struct MixerCore {
     fade_step: f32,
     sfx_master: f32,
     bgm_master: f32,
+    paused: bool,
+    stereo: bool,
+}
+
+/// Left/right multipliers for `pan`. Centre stays at unity on both channels so
+/// panning never changes how loud an unpanned sound was.
+fn channel_gains(pan: f32) -> (f32, f32) {
+    let p = pan.clamp(-1.0, 1.0);
+    (1.0 - p.max(0.0), 1.0 + p.min(0.0))
 }
 
 impl MixerCore {
@@ -43,10 +54,12 @@ impl MixerCore {
             fade_step: 1.0 / (BGM_FADE_SECS * out_rate.max(1) as f32),
             sfx_master,
             bgm_master,
+            paused: false,
+            stereo: true,
         }
     }
 
-    pub fn play(&mut self, pcm: Arc<Pcm>, gain: f32) -> bool {
+    pub fn play(&mut self, pcm: Arc<Pcm>, gain: f32, pan: f32) -> bool {
         let Some(voice) = self.voices.iter_mut().find(|v| v.finished()) else {
             return false;
         };
@@ -54,6 +67,7 @@ impl MixerCore {
             pcm: Some(pcm),
             cursor: 0,
             gain,
+            pan,
             looping: false,
         };
         true
@@ -65,6 +79,7 @@ impl MixerCore {
                 pcm: Some(pcm),
                 cursor: 0,
                 gain: 1.0,
+                pan: 0.0,
                 looping: true,
             };
             self.bgm_fade = 1.0;
@@ -90,9 +105,23 @@ impl MixerCore {
         self.sfx_master = sfx;
     }
 
+    /// Silences output and freezes the BGM cursor. One-shot SFX are dropped
+    /// rather than resumed — a hit sound restarting minutes later is wrong.
+    /// Off collapses every voice to centre, keeping distance attenuation.
+    pub fn set_stereo(&mut self, stereo: bool) {
+        self.stereo = stereo;
+    }
+
+    pub fn set_paused(&mut self, paused: bool) {
+        if paused && !self.paused {
+            self.stop_all_sfx();
+        }
+        self.paused = paused;
+    }
+
     pub fn render(&mut self, out: &mut [f32], out_channels: usize) {
         out.fill(0.0);
-        if out_channels == 0 {
+        if out_channels == 0 || self.paused {
             return;
         }
         let frames = out.len() / out_channels;
@@ -106,8 +135,18 @@ impl MixerCore {
                 }
                 let ch = pcm.channels as usize;
                 let g = v.gain * self.sfx_master;
+                let (lg, rg) = if self.stereo && out_channels >= 2 {
+                    channel_gains(v.pan)
+                } else {
+                    (1.0, 1.0)
+                };
                 for c in 0..out_channels {
-                    out[base + c] += pcm.samples[v.cursor * ch + c.min(ch - 1)] * g;
+                    let s = pcm.samples[v.cursor * ch + c.min(ch - 1)] * g;
+                    out[base + c] += match c {
+                        0 => s * lg,
+                        1 => s * rg,
+                        _ => s,
+                    };
                 }
                 v.cursor += 1;
             }
@@ -127,6 +166,7 @@ impl MixerCore {
                     pcm: next,
                     cursor: 0,
                     gain: 1.0,
+                    pan: 0.0,
                     looping: true,
                 };
                 self.bgm_fade = 1.0;
@@ -166,9 +206,9 @@ mod tests {
     fn voice_pool_drops_beyond_capacity() {
         let mut m = MixerCore::new(1000, 1.0, 1.0);
         for _ in 0..NUM_SFX_VOICES {
-            assert!(m.play(pcm(100), 1.0));
+            assert!(m.play(pcm(100), 1.0, 0.0));
         }
-        assert!(!m.play(pcm(100), 1.0));
+        assert!(!m.play(pcm(100), 1.0, 0.0));
         assert_eq!(m.active_sfx_voices(), NUM_SFX_VOICES);
     }
 
@@ -176,7 +216,7 @@ mod tests {
     fn stop_all_sfx_clears_voices() {
         let mut m = MixerCore::new(1000, 1.0, 1.0);
         for _ in 0..NUM_SFX_VOICES {
-            assert!(m.play(pcm(1000), 1.0));
+            assert!(m.play(pcm(1000), 1.0, 0.0));
         }
         assert_eq!(m.active_sfx_voices(), NUM_SFX_VOICES);
         m.stop_all_sfx();
@@ -187,13 +227,13 @@ mod tests {
     fn finished_voice_is_reused() {
         let mut m = MixerCore::new(1000, 1.0, 1.0);
         for _ in 0..NUM_SFX_VOICES - 1 {
-            assert!(m.play(pcm(1000), 1.0));
+            assert!(m.play(pcm(1000), 1.0, 0.0));
         }
-        assert!(m.play(pcm(10), 1.0));
-        assert!(!m.play(pcm(100), 1.0));
+        assert!(m.play(pcm(10), 1.0, 0.0));
+        assert!(!m.play(pcm(100), 1.0, 0.0));
         let mut out = vec![0.0; 20 * 2];
         m.render(&mut out, 2);
-        assert!(m.play(pcm(100), 1.0));
+        assert!(m.play(pcm(100), 1.0, 0.0));
     }
 
     #[test]
@@ -244,7 +284,7 @@ mod tests {
     #[test]
     fn mono_sfx_mixed_into_both_channels() {
         let mut m = MixerCore::new(1000, 1.0, 1.0);
-        m.play(pcm(10), 1.0);
+        m.play(pcm(10), 1.0, 0.0);
         let mut out = vec![0.0; 8];
         m.render(&mut out, 2);
         assert_eq!(out[0], 0.5);

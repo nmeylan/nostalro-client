@@ -371,6 +371,9 @@ impl App {
                     entity.state = EntityState::Standing;
                     entity.state_timer = 0.0;
                 }
+                if self.game.world.entities.is_player(gid) {
+                    self.game.session.doridori.reset();
+                }
             }
             ActionType::Attack
             | ActionType::AttackNomotion

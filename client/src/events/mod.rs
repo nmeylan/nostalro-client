@@ -29,7 +29,7 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::autocounter;
 use ragnarok_game::chat_room::ChatRoom;
-use ragnarok_game::entity::ForcedAnimation;
+use ragnarok_game::entity::{EntityType, ForcedAnimation};
 use ragnarok_game::event::GameEvent;
 use ragnarok_network::*;
 use ragnarok_renderer::Renderer;
@@ -1026,6 +1026,21 @@ impl App {
                     if let Some(target) = falcon_target {
                         self.start_falcon_flight(src_gid, target);
                     }
+                }
+                GameEvent::MonsterInfoReceived { mut info } => {
+                    info.name = self
+                        .game
+                        .world
+                        .entities
+                        .iter()
+                        .find(|e| {
+                            e.entity_type == EntityType::Monster
+                                && e.job == info.job
+                                && e.name.is_some()
+                        })
+                        .and_then(|e| e.name.clone())
+                        .unwrap_or_else(|| format!("#{}", info.job));
+                    self.windows.monster_info_window.show(info);
                 }
                 GameEvent::SkillUnitEntered {
                     aid,
@@ -2505,16 +2520,22 @@ impl App {
                     sfx_volume,
                     bgm_enabled,
                     sfx_enabled,
+                    stereo,
+                    play_when_unfocused,
                     persist,
                 } => {
                     self.config.bgm_volume = bgm_volume;
                     self.config.sfx_volume = sfx_volume;
                     self.config.bgm_enabled = bgm_enabled;
                     self.config.sfx_enabled = sfx_enabled;
+                    self.config.custom.sound.stereo = stereo;
+                    self.config.custom.sound.play_when_unfocused = play_when_unfocused;
+                    self.sound.set_stereo(stereo);
                     self.sound.set_volumes(
                         self.config.effective_bgm_volume(),
                         self.config.effective_sfx_volume(),
                     );
+                    self.apply_sound_pause();
                     if persist {
                         self.config.save("config.json");
                     }

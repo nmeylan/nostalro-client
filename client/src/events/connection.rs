@@ -327,6 +327,7 @@ impl App {
             preload_window(&mut self.windows.quest_detail_window, renderer, grf);
             preload_window(&mut self.windows.item_info_window, renderer, grf);
             preload_window(&mut self.windows.book_window, renderer, grf);
+            preload_window(&mut self.windows.monster_info_window, renderer, grf);
             preload_window(&mut self.windows.sound_options, renderer, grf);
             preload_window(&mut self.windows.graphic_options, renderer, grf);
             preload_window(&mut self.windows.hotkey_config_window, renderer, grf);

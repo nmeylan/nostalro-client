@@ -21,6 +21,8 @@ impl App {
             self.config.sfx_volume,
             self.config.bgm_enabled,
             self.config.sfx_enabled,
+            self.config.custom.sound.stereo,
+            self.config.custom.sound.play_when_unfocused,
         );
         self.windows.sound_options.toggle();
     }

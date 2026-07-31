@@ -145,6 +145,7 @@ struct App {
     /// GameEvents produced by raw keyboard handling (skill-bar / emotion hotkeys),
     /// drained into `handle_ui_events` on the next redraw.
     pending_events: Vec<GameEvent>,
+    window_focused: bool,
     profiler: ragnarok_profiling::Profiler,
 }
 
@@ -162,11 +163,15 @@ impl App {
             config.sfx_volume,
             config.bgm_enabled,
             config.sfx_enabled,
+            config.custom.sound.stereo,
+            config.custom.sound.play_when_unfocused,
         );
         game.prefs.self_config.refuse_party_invite = config.refuse_party_invite;
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);
-        let sound = SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
+        let mut sound =
+            SoundManager::new(config.effective_bgm_volume(), config.effective_sfx_volume());
+        sound.set_stereo(config.custom.sound.stereo);
         Self {
             config,
             saved_window_positions,
@@ -207,6 +212,7 @@ impl App {
             fps_smoothed: 0.0,
             next_frame: Instant::now(),
             pending_events: Vec::new(),
+            window_focused: true,
             profiler: ragnarok_profiling::Profiler::default(),
         }
     }
@@ -800,6 +806,7 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => self.handle_close_requested(event_loop),
             WindowEvent::Resized(size) => self.handle_resize(size),
+            WindowEvent::Focused(focused) => self.handle_focus_changed(focused),
             WindowEvent::MouseInput { state, button, .. } => self.handle_mouse_input(state, button),
             WindowEvent::CursorMoved { position, .. } => self.handle_cursor_moved(position),
             WindowEvent::MouseWheel { delta, .. } => self.handle_mouse_wheel(delta),

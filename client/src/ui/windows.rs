@@ -54,6 +54,8 @@ use ragnarok_ui_component::game::mercenary_skill_window::MercenarySkillWindow;
 use ragnarok_ui_component::game::mercenary_window::MERCENARY_WINDOW_ID;
 use ragnarok_ui_component::game::mercenary_window::MercenaryWindow;
 use ragnarok_ui_component::game::minimap_window::MinimapWindow;
+use ragnarok_ui_component::game::monster_info_window::MONSTER_INFO_WINDOW_ID;
+use ragnarok_ui_component::game::monster_info_window::MonsterInfoWindow;
 use ragnarok_ui_component::game::my_shop_window::MY_SHOP_WINDOW_ID;
 use ragnarok_ui_component::game::my_shop_window::MyShopWindow;
 use ragnarok_ui_component::game::npc_dialog::NpcDialog;
@@ -127,6 +129,7 @@ pub struct Windows {
     pub card_insert_dialog_has_grf_textures: bool,
     pub item_info_window: ItemInfoWindow,
     pub book_window: BookWindow,
+    pub monster_info_window: MonsterInfoWindow,
     pub sound_options: SoundOptionsWindow,
     pub graphic_options: GraphicOptionsWindow,
     pub hotkey_config_window: HotkeyConfigWindow,
@@ -195,6 +198,7 @@ impl Windows {
             card_insert_dialog_has_grf_textures: false,
             item_info_window: ItemInfoWindow::new(),
             book_window: BookWindow::new(),
+            monster_info_window: MonsterInfoWindow::new(),
             sound_options: SoundOptionsWindow::new(),
             graphic_options: GraphicOptionsWindow::new(),
             hotkey_config_window: HotkeyConfigWindow::new(),
@@ -339,6 +343,10 @@ pub(crate) const REGISTRY: &[(WidgetId, Dispatch)] = &[
     (
         BOOK_WINDOW_ID,
         Dispatch::Trait(|w| &mut w.book_window as &mut dyn InGameWindow),
+    ),
+    (
+        MONSTER_INFO_WINDOW_ID,
+        Dispatch::Trait(|w| &mut w.monster_info_window as &mut dyn InGameWindow),
     ),
     (
         SOUND_OPTIONS_WINDOW_ID,

@@ -554,7 +554,7 @@ impl GrfEditorApp {
                 self.sound.stop_all_sfx();
                 let archive = &grf.archive;
                 self.sound
-                    .play_sfx(&name, 1.0, || archive.read_file(&name).ok());
+                    .play_sfx(&name, 1.0, 0.0, || archive.read_file(&name).ok());
             }
         }
 
@@ -585,7 +585,7 @@ impl GrfEditorApp {
             if play {
                 let archive = &grf.archive;
                 self.sound
-                    .play_sfx(&name, 1.0, || archive.read_file(&name).ok());
+                    .play_sfx(&name, 1.0, 0.0, || archive.read_file(&name).ok());
             }
             if stop {
                 self.sound.stop_all_sfx();

@@ -14,9 +14,9 @@ use ragnarok_game::data_table::card_illustration_table::CardIllustrationTable;
 use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
 use ragnarok_game::data_table::item_name_table::ItemNameTable;
 use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
+use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::data_table::map_name_table::MapNameTable;
 use ragnarok_game::data_table::map_position_table::MapPositionTable;
-use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
 use ragnarok_game::data_table::skill_name_table::SkillNameTable;
 use ragnarok_game::data_table::skill_tree_table::{SkillTreeEntry, SkillTreeTable};
 use ragnarok_game::event::SkillInfo;
@@ -69,6 +69,7 @@ use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::hotkey_config_window::{
     HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
 };
+use ragnarok_ui_component::game::input_dialog::{InputDialog, InputDialogConfig};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::{ITEM_INFO_WINDOW_ID, ItemInfoWindow};
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
@@ -77,10 +78,13 @@ use ragnarok_ui_component::game::mercenary_skill_window::{
     MERCENARY_SKILL_WINDOW_ID, MercenarySkillWindow,
 };
 use ragnarok_ui_component::game::mercenary_window::{MERCENARY_WINDOW_ID, MercenaryWindow};
+use ragnarok_ui_component::game::minimap_window::{
+    MINIMAP_WINDOW_ID, MarkerType, MinimapMarker, MinimapWindow, quest_marker_color,
+};
+use ragnarok_ui_component::game::monster_info_window::{MONSTER_INFO_WINDOW_ID, MonsterInfoWindow};
 use ragnarok_ui_component::game::my_shop_window::{MY_SHOP_WINDOW_ID, MyShopWindow};
 use ragnarok_ui_component::game::npc_dialog::{NPC_DIALOG_WINDOW_ID, NpcDialog};
 use ragnarok_ui_component::game::npc_shop::NpcShop;
-use ragnarok_ui_component::game::input_dialog::{InputDialogConfig, InputDialog};
 use ragnarok_ui_component::game::party_friends_window::{
     PARTY_FRIENDS_WINDOW_ID, PartyFriendsWindow,
 };
@@ -100,9 +104,6 @@ use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
 use ragnarok_ui_component::game::vending_board;
 use ragnarok_ui_component::game::vending_setup_window::{
     VENDING_SETUP_WINDOW_ID, VendingSetupWindow,
-};
-use ragnarok_ui_component::game::minimap_window::{
-    MINIMAP_WINDOW_ID, MarkerType, MinimapMarker, MinimapWindow, quest_marker_color,
 };
 use ragnarok_ui_component::game::vending_shop_window::{VENDING_SHOP_WINDOW_ID, VendingShopWindow};
 use ragnarok_ui_component::game::world_map_window::{
@@ -137,6 +138,7 @@ const GAME_COMPONENTS: &[&str] = &[
     "hotkey_config",
     "world_map",
     "minimap",
+    "monster_info",
 ];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
@@ -256,6 +258,11 @@ enum State {
     },
     Book {
         win: BookWindow,
+        character: Character,
+        data: DataTable,
+    },
+    MonsterInfo {
+        win: MonsterInfoWindow,
         character: Character,
         data: DataTable,
     },
@@ -1084,6 +1091,26 @@ fn create_single(name: &str) -> State {
                 ],
             });
             State::Book {
+                win,
+                character: Character::new(),
+                data: DataTable::new(),
+            }
+        }
+        "monster_info" => {
+            let mut win = MonsterInfoWindow::new();
+            win.show(ragnarok_game::monster_info::MonsterInfo {
+                name: "Poring".to_string(),
+                job: 1002,
+                level: 1,
+                size: 0,
+                hp: 50,
+                def: 0,
+                race: 3,
+                mdef: 5,
+                property: 21,
+                resistances: [100, 100, 100, 100, 100, 100, 100, 100, 100],
+            });
+            State::MonsterInfo {
                 win,
                 character: Character::new(),
                 data: DataTable::new(),
@@ -2244,6 +2271,10 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::MonsterInfo { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::ChatRoomCreate { win, .. } => {
             win.set_has_grf_textures(true);
             win.set_texture_sizes(size_fn);
@@ -2398,6 +2429,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Equipment { .. } => Some(EQ_WINDOW_ID),
         State::SkillTree { .. } => Some(SKILL_WINDOW_ID),
         State::Book { .. } => Some(BOOK_WINDOW_ID),
+        State::MonsterInfo { .. } => Some(MONSTER_INFO_WINDOW_ID),
         State::ChatRoomCreate { .. } => Some(CHAT_ROOM_CREATE_WINDOW_ID),
         State::Emotion { .. } => Some(EMOTION_WINDOW_ID),
         State::ShortcutList { .. } => Some(SHORTCUT_LIST_WINDOW_ID),
@@ -2440,6 +2472,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::GuildDemo { win, .. } => Some((GUILD_WINDOW_ID, win)),
         State::ItemInfo { win, .. } => Some((ITEM_INFO_WINDOW_ID, win)),
         State::Book { win, .. } => Some((BOOK_WINDOW_ID, win)),
+        State::MonsterInfo { win, .. } => Some((MONSTER_INFO_WINDOW_ID, win)),
         State::ChatRoomCreate { win, .. } => Some((CHAT_ROOM_CREATE_WINDOW_ID, win)),
         State::Emotion { win, .. } => Some((EMOTION_WINDOW_ID, win)),
         State::ShortcutList { win, .. } => Some((SHORTCUT_LIST_WINDOW_ID, win)),
@@ -3099,6 +3132,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, &mut d.ctx(character, data));
         }
         State::Book {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, &mut d.ctx(character, data));
+        }
+        State::MonsterInfo {
             win,
             character,
             data,

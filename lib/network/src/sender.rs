@@ -960,6 +960,12 @@ pub fn build_remove_option_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_doridori_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzDoridori::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 fn name_to_char24(name: &str) -> [char; 24] {
     let mut buf = [0 as char; 24];
     for (i, c) in name.chars().take(23).enumerate() {

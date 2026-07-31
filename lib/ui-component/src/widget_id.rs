@@ -71,6 +71,7 @@ pub const ID_BLOCKS: &[IdBlock] = &[
     block("game/companion_ai_config_window.rs", 5100, 5199),
     block("game/guild_window.rs", 5200, 5799),
     block("game/world_map_window.rs", 5800, 5899),
+    block("game/monster_info_window.rs", 5900, 5999),
 ];
 
 #[cfg(test)]

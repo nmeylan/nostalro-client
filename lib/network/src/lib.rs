@@ -23,7 +23,7 @@ pub use sender::{
     build_conclude_exchange_item_packet, build_config_packet, build_contact_npc_packet,
     build_create_chatroom_packet, build_delete_char_cancel_packet,
     build_delete_char_confirm_packet, build_delete_char_reserve_packet, build_delete_friend_packet,
-    build_drop_item_packet, build_emotion_packet, build_equip_item_packet,
+    build_doridori_packet, build_drop_item_packet, build_emotion_packet, build_equip_item_packet,
     build_exec_exchange_item_packet, build_exit_room_packet, build_expel_chat_member_packet,
     build_expel_party_member_packet, build_guild_chat_packet, build_guild_notice,
     build_homun_menu_packet, build_join_party_reply_packet, build_leave_party_packet,

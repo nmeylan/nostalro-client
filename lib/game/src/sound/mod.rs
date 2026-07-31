@@ -22,6 +22,15 @@ pub enum SoundSource {
     },
 }
 
+/// A queued request resolved against the listener: what to play, how loud, and
+/// where in the stereo field.
+#[derive(Debug, Clone)]
+pub struct ResolvedSound {
+    pub name: Cow<'static, str>,
+    pub gain: f32,
+    pub pan: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct SoundRequest {
     pub name: Cow<'static, str>,
@@ -118,23 +127,31 @@ impl SoundQueue {
         self.pending.drain(..)
     }
 
-    /// Drain to `(name, gain)`, dropping silent requests and collapsing repeats
-    /// of one wave to its loudest. Mixing N in-phase copies of a sample
-    /// multiplies its amplitude by N, which a splash skill would otherwise do
-    /// once per victim.
+    /// Drain to gain/pan pairs, dropping silent requests and collapsing repeats
+    /// of one wave to its loudest — the winner's pan comes with it. Mixing N
+    /// in-phase copies of a sample multiplies its amplitude by N, which a splash
+    /// skill would otherwise do once per victim.
     pub fn drain_resolved(
         &mut self,
-        gain_of: impl Fn(&SoundRequest) -> f32,
-    ) -> Vec<(Cow<'static, str>, f32)> {
-        let mut out: Vec<(Cow<'static, str>, f32)> = Vec::with_capacity(self.pending.len());
+        resolve: impl Fn(&SoundRequest) -> (f32, f32),
+    ) -> Vec<ResolvedSound> {
+        let mut out: Vec<ResolvedSound> = Vec::with_capacity(self.pending.len());
         for req in self.pending.drain(..) {
-            let gain = gain_of(&req);
+            let (gain, pan) = resolve(&req);
             if gain <= 0.0 {
                 continue;
             }
-            match out.iter_mut().find(|(name, _)| *name == req.name) {
-                Some((_, g)) => *g = g.max(gain),
-                None => out.push((req.name, gain)),
+            match out.iter_mut().find(|r| r.name == req.name) {
+                Some(existing) if gain > existing.gain => {
+                    existing.gain = gain;
+                    existing.pan = pan;
+                }
+                Some(_) => {}
+                None => out.push(ResolvedSound {
+                    name: req.name,
+                    gain,
+                    pan,
+                }),
             }
         }
         out
@@ -161,25 +178,27 @@ mod tests {
 
         let listener = [0.0f32, 0.0, 0.0];
         let resolved = q.drain_resolved(|r| match r.source {
-            SoundSource::Ui { .. } => 1.0,
+            SoundSource::Ui { .. } => (1.0, 0.0),
             SoundSource::World { pos, .. } => {
                 let d = ((pos[0] - listener[0]).powi(2) + (pos[2] - listener[2]).powi(2)).sqrt();
-                if d >= r.max_dist {
+                let gain = if d >= r.max_dist {
                     0.0
                 } else if d <= r.min_dist {
                     1.0
                 } else {
                     r.min_dist / d
-                }
+                };
+                (gain, pos[0].signum())
             }
         });
 
         assert_eq!(resolved.len(), 2, "{resolved:?}");
         let hit = resolved
             .iter()
-            .find(|(n, _)| n == "_enemy_hit_normal1.wav")
+            .find(|r| r.name == "_enemy_hit_normal1.wav")
             .unwrap();
-        assert_eq!(hit.1, 1.0, "the nearest victim sets the gain");
+        assert_eq!(hit.gain, 1.0, "the nearest victim sets the gain");
+        assert_eq!(hit.pan, 1.0, "and its pan rides along");
         assert!(q.pending.is_empty());
     }
 }

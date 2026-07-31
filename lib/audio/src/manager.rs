@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
+use crate::bgm_retry::BgmRetry;
 use crate::decode::{self, Pcm};
 use crate::mixer::MixerCore;
 
@@ -20,6 +21,7 @@ pub struct SoundManager {
     _stream: Option<cpal::Stream>,
     cache: HashMap<String, CacheEntry>,
     failed: HashSet<String>,
+    bgm_retry: BgmRetry,
     current_bgm: Option<String>,
     out_rate: u32,
     last_sweep: Instant,
@@ -34,6 +36,7 @@ impl SoundManager {
                 _stream: Some(stream),
                 cache: HashMap::new(),
                 failed: HashSet::new(),
+                bgm_retry: BgmRetry::default(),
                 current_bgm: None,
                 out_rate,
                 last_sweep: Instant::now(),
@@ -52,6 +55,7 @@ impl SoundManager {
             _stream: None,
             cache: HashMap::new(),
             failed: HashSet::new(),
+            bgm_retry: BgmRetry::default(),
             current_bgm: None,
             out_rate: 44100,
             last_sweep: Instant::now(),
@@ -63,7 +67,13 @@ impl SoundManager {
         self.core.is_some()
     }
 
-    pub fn play_sfx(&mut self, key: &str, gain: f32, load: impl FnOnce() -> Option<Vec<u8>>) {
+    pub fn play_sfx(
+        &mut self,
+        key: &str,
+        gain: f32,
+        pan: f32,
+        load: impl FnOnce() -> Option<Vec<u8>>,
+    ) {
         let Some(core) = &self.core else { return };
         if self.failed.contains(key) {
             return;
@@ -97,7 +107,7 @@ impl SoundManager {
                 }
             }
         };
-        if !core.lock().unwrap().play(pcm, gain) {
+        if !core.lock().unwrap().play(pcm, gain, pan) {
             self.dropped_voices += 1;
             tracing::trace!(
                 "sfx voice pool full, dropped {key} ({} total)",
@@ -111,24 +121,27 @@ impl SoundManager {
         if self.current_bgm.as_deref() == Some(key) {
             return;
         }
-        if self.failed.contains(key) {
-            return;
-        }
         let Some(bytes) = load() else {
             tracing::warn!("bgm not found: {key}");
-            self.failed.insert(key.to_string());
+            self.bgm_retry.schedule(key, Instant::now());
             return;
         };
         match decode::decode(&bytes, self.out_rate) {
             Ok(pcm) => {
                 core.lock().unwrap().play_bgm(Arc::new(pcm));
                 self.current_bgm = Some(key.to_string());
+                self.bgm_retry.clear();
             }
             Err(e) => {
                 tracing::warn!("failed to decode bgm {key}: {e}");
-                self.failed.insert(key.to_string());
+                self.bgm_retry.schedule(key, Instant::now());
             }
         }
+    }
+
+    /// The track to re-attempt, once its retry interval has elapsed.
+    pub fn take_bgm_retry(&mut self) -> Option<String> {
+        self.bgm_retry.take_due(Instant::now())
     }
 
     pub fn stop_bgm(&mut self) {
@@ -136,11 +149,24 @@ impl SoundManager {
             core.lock().unwrap().stop_bgm();
         }
         self.current_bgm = None;
+        self.bgm_retry.clear();
     }
 
     pub fn stop_all_sfx(&mut self) {
         if let Some(core) = &self.core {
             core.lock().unwrap().stop_all_sfx();
+        }
+    }
+
+    pub fn set_stereo(&mut self, stereo: bool) {
+        if let Some(core) = &self.core {
+            core.lock().unwrap().set_stereo(stereo);
+        }
+    }
+
+    pub fn set_paused(&mut self, paused: bool) {
+        if let Some(core) = &self.core {
+            core.lock().unwrap().set_paused(paused);
         }
     }
 
@@ -242,7 +268,7 @@ mod tests {
     fn disabled_manager_is_noop() {
         let mut m = SoundManager::disabled();
         assert!(!m.is_enabled());
-        m.play_sfx("x.wav", 1.0, || Some(vec![0u8; 4]));
+        m.play_sfx("x.wav", 1.0, 0.0, || Some(vec![0u8; 4]));
         m.play_bgm("01.mp3", || None);
         m.stop_bgm();
         m.set_volumes(0.5, 0.5);

@@ -56,7 +56,7 @@ impl App {
         let map_coords = self.game.session.map_coords.as_ref();
         let sound_queue = &mut self.sound_queue;
         let sfx_rng = &mut self.sfx_rng;
-        let act_sound_percent = self.config.custom.act_sound_percent;
+        let act_sound_percent = self.config.custom.sound.act_percent;
         let world_of = |cx: f32, cy: f32| match (gat, map_coords) {
             (Some(g), Some(c)) => {
                 let (wx, _, wz) = c.cell_to_world(cx + 0.5, cy + 0.5);
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn wav_named_frame_events_honour_the_throttle_and_non_wav_are_ignored() {
-        let (rate, names) = play_rate(CustomConfig::default().act_sound_percent);
+        let (rate, names) = play_rate(CustomConfig::default().sound.act_percent);
         assert_eq!(rate, 1.0, "the default plays every crossing");
         assert!(names.iter().all(|n| n.ends_with(".wav") && n != "atk"));
 

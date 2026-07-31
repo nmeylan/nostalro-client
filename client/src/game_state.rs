@@ -21,6 +21,7 @@ use ragnarok_game::cursor::{
 use ragnarok_game::damage_number::DamageNumberManager;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::day_night::DayNightState;
+use ragnarok_game::doridori::DoridoriTracker;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
 use ragnarok_game::entity_collection::EntityCollection;
@@ -285,6 +286,8 @@ pub struct SessionState {
     pub disconnect_dialog_shown: bool,
     pub pending_disconnect_exit: bool,
     pub progress_bar: Option<ProgressBar>,
+    /// Sliding window of `/doridori` head flips, for the sitting SP bonus.
+    pub doridori: DoridoriTracker,
 }
 
 impl Default for SessionState {
@@ -313,6 +316,7 @@ impl SessionState {
             disconnect_dialog_shown: false,
             progress_bar: None,
             pending_disconnect_exit: false,
+            doridori: DoridoriTracker::default(),
         }
     }
 }

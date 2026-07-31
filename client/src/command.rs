@@ -2,10 +2,10 @@ use crate::App;
 use ragnarok_game::entity::EntityState;
 use ragnarok_network::{
     build_action_request_packet, build_alchemist_rank_packet, build_blacksmith_rank_packet,
-    build_change_direction_packet, build_chat_packet, build_config_packet, build_emotion_packet,
-    build_exit_room_packet, build_guild_chat_packet, build_leave_party_packet,
-    build_lesseffect_packet, build_make_guild, build_make_party_packet, build_party_chat_packet,
-    build_party_invite_by_name_packet, build_remember_warppoint_packet,
+    build_change_direction_packet, build_chat_packet, build_config_packet, build_doridori_packet,
+    build_emotion_packet, build_exit_room_packet, build_guild_chat_packet,
+    build_leave_party_packet, build_lesseffect_packet, build_make_guild, build_make_party_packet,
+    build_party_chat_packet, build_party_invite_by_name_packet, build_remember_warppoint_packet,
     build_req_disorganize_guild, build_setting_whisper_pc_packet,
     build_setting_whisper_state_packet, build_stat_change_packet, build_taekwon_rank_packet,
     build_whisper_packet,
@@ -111,11 +111,20 @@ impl App {
                 }
             }
             ChatCommand::Doridori => {
-                if let Some(entity) = self.game.world.entities.player_mut() {
-                    entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
-                    let (head_dir, dir) = (entity.head_dir, entity.direction);
-                    self.channel
-                        .send_packet(build_change_direction_packet(head_dir, dir, pv));
+                let Some(entity) = self.game.world.entities.player_mut() else {
+                    return;
+                };
+                entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
+                let (head_dir, dir) = (entity.head_dir, entity.direction);
+                let sitting = entity.state == EntityState::Sitting;
+                self.channel
+                    .send_packet(build_change_direction_packet(head_dir, dir, pv));
+                if sitting {
+                    let now_ms = self.start_time.elapsed().as_millis() as u32;
+                    if self.game.session.doridori.record_flip(now_ms) {
+                        self.channel.send_packet(build_doridori_packet(pv));
+                        self.game.session.doridori.reset();
+                    }
                 }
             }
             ChatCommand::BingBing => self.turn_body(1),

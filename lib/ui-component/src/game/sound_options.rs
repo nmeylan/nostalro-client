@@ -13,18 +13,22 @@ const SFX_SLIDER_ID: WidgetId = WidgetId(2802);
 const BGM_MUTE_ID: WidgetId = WidgetId(2803);
 const SFX_MUTE_ID: WidgetId = WidgetId(2804);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2805);
+const UNFOCUSED_ID: WidgetId = WidgetId(2806);
+const STEREO_ID: WidgetId = WidgetId(2807);
 
 const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
 const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
 
 const WIN_W: f32 = 260.0;
-const WIN_H: f32 = 150.0;
+const WIN_H: f32 = 180.0;
 const TITLE_H: f32 = 20.0;
 const CLOSE_SIZE: f32 = 11.0;
 const ROW_H: f32 = 40.0;
 const SLIDER_W: f32 = 150.0;
 const SLIDER_H: f32 = 18.0;
 const CB_SIZE: f32 = 12.0;
+/// Checkbox-only rows sit tighter than the slider rows.
+const CB_ROW_H: f32 = 24.0;
 
 #[derive(Default)]
 pub struct SoundOptionsWindow {
@@ -34,6 +38,8 @@ pub struct SoundOptionsWindow {
     sfx_volume: f32,
     bgm_enabled: bool,
     sfx_enabled: bool,
+    stereo: bool,
+    play_when_unfocused: bool,
 }
 
 impl SoundOptionsWindow {
@@ -45,15 +51,27 @@ impl SoundOptionsWindow {
             sfx_volume: 0.8,
             bgm_enabled: true,
             sfx_enabled: true,
+            stereo: true,
+            play_when_unfocused: false,
         }
     }
 
     /// Sync the sliders/toggles to the current config values.
-    pub fn set_values(&mut self, bgm: f32, sfx: f32, bgm_on: bool, sfx_on: bool) {
+    pub fn set_values(
+        &mut self,
+        bgm: f32,
+        sfx: f32,
+        bgm_on: bool,
+        sfx_on: bool,
+        stereo: bool,
+        play_when_unfocused: bool,
+    ) {
         self.bgm_volume = bgm;
         self.sfx_volume = sfx;
         self.bgm_enabled = bgm_on;
         self.sfx_enabled = sfx_on;
+        self.stereo = stereo;
+        self.play_when_unfocused = play_when_unfocused;
     }
 
     pub fn toggle(&mut self) {
@@ -66,6 +84,8 @@ impl SoundOptionsWindow {
             sfx_volume: self.sfx_volume,
             bgm_enabled: self.bgm_enabled,
             sfx_enabled: self.sfx_enabled,
+            stereo: self.stereo,
+            play_when_unfocused: self.play_when_unfocused,
             persist,
         }
     }
@@ -215,6 +235,37 @@ impl InGameWindow for SoundOptionsWindow {
             label_color,
         );
 
+        let cb_row = |n: usize| row(2) + n as f32 * CB_ROW_H;
+        let mut changed = false;
+        for (n, id, checked, label) in [
+            (0, STEREO_ID, &mut self.stereo, "Stereo"),
+            (
+                1,
+                UNFOCUSED_ID,
+                &mut self.play_when_unfocused,
+                "Play while unfocused",
+            ),
+        ] {
+            let cb = Rect::new(
+                win.x + 12.0,
+                cb_row(n) + (SLIDER_H - CB_SIZE) / 2.0,
+                CB_SIZE,
+                CB_SIZE,
+            );
+            if ui.checkbox(id, cb, checked, &CHECKBOX).clicked() {
+                changed = true;
+            }
+            ui.text(
+                cb.x + CB_SIZE + 6.0,
+                cb_row(n) + SLIDER_H - 4.0,
+                label,
+                label_color,
+            );
+        }
+        if changed {
+            events.push(self.changed_event(true));
+        }
+
         ui.has_grf_textures = prev_grf;
         events
     }
@@ -227,9 +278,11 @@ mod tests {
     #[test]
     fn mute_toggle_and_value_sync() {
         let mut w = SoundOptionsWindow::new();
-        w.set_values(0.5, 0.3, true, false);
+        w.set_values(0.5, 0.3, true, false, false, true);
         assert_eq!(w.bgm_volume, 0.5);
         assert!(!w.sfx_enabled);
+        assert!(!w.stereo);
+        assert!(w.play_when_unfocused);
         w.toggle();
         assert!(w.open);
     }

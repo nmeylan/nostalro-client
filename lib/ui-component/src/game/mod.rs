@@ -33,6 +33,7 @@ pub mod map_missing_window;
 pub mod mercenary_skill_window;
 pub mod mercenary_window;
 pub mod minimap_window;
+pub mod monster_info_window;
 pub mod my_shop_window;
 pub mod npc_dialog;
 pub mod npc_shop;

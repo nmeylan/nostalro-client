@@ -1,4 +1,4 @@
-use ragnarok_audio::attenuate;
+use ragnarok_audio::{attenuate, pan};
 use ragnarok_game::sound::SoundSource;
 use ragnarok_renderer::SfxPos;
 
@@ -68,6 +68,26 @@ impl App {
         Some([wx, gat.get_height(cx + 0.5, cy + 0.5), wz])
     }
 
+    /// The original game always pauses on focus loss; `custom.sound.play_when_unfocused`
+    /// opts out of that.
+    pub(crate) fn apply_sound_pause(&mut self) {
+        let paused = !self.window_focused && !self.config.custom.sound.play_when_unfocused;
+        self.sound.set_paused(paused);
+    }
+
+    /// Screen-right axis in world XZ. Every world source is panned by its
+    /// projection onto it, so rotating the camera re-pans without moving any
+    /// source. Falls back to +X before the renderer exists.
+    fn listener_right(&self) -> [f32; 2] {
+        match self.renderer.as_ref() {
+            Some(renderer) => {
+                let right = renderer.camera.right_vector();
+                [right.x, right.z]
+            }
+            None => [1.0, 0.0],
+        }
+    }
+
     /// Resolve queued sound requests to positional gains and hand them to the
     /// mixer. Runs every frame in every scene.
     ///
@@ -92,32 +112,35 @@ impl App {
             listener.map(|l| [l[0], l[2]]),
             &mut self.sound_queue,
         );
+        let right = self.listener_right();
         let resolved = self.sound_queue.drain_resolved(|req| match req.source {
-            SoundSource::Ui { depth } => {
-                attenuate(0.0, depth, 0.0, req.min_dist, req.max_dist) * req.vfactor
-            }
+            SoundSource::Ui { depth } => (
+                attenuate(0.0, depth, 0.0, req.min_dist, req.max_dist) * req.vfactor,
+                0.0,
+            ),
             SoundSource::World { pos, depth } => {
                 let l = listener.unwrap_or(pos);
-                attenuate(
-                    pos[0] - l[0],
-                    depth,
-                    pos[2] - l[2],
-                    req.min_dist,
-                    req.max_dist,
-                ) * req.vfactor
+                let (dx, dz) = (pos[0] - l[0], pos[2] - l[2]);
+                (
+                    attenuate(dx, depth, dz, req.min_dist, req.max_dist) * req.vfactor,
+                    pan(dx, dz, right[0], right[1]),
+                )
             }
         });
         if let Some(grf) = self.grf.as_ref() {
-            for (name, gain) in resolved {
-                let path = format!("data/wav/{name}");
-                let disk_rel = name.replace('\\', "/");
-                self.sound.play_sfx(&path, gain, || {
+            for r in resolved {
+                let path = format!("data/wav/{}", r.name);
+                let disk_rel = r.name.replace('\\', "/");
+                self.sound.play_sfx(&path, r.gain, r.pan, || {
                     grf.read_file(&path)
                         .ok()
                         .or_else(|| std::fs::read(format!("wav/{disk_rel}")).ok())
                         .or_else(|| std::fs::read(format!("data/wav/{disk_rel}")).ok())
                 });
             }
+        }
+        if let Some(track) = self.sound.take_bgm_retry() {
+            self.play_bgm_track(&track);
         }
         self.sound.tick();
     }
