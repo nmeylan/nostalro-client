@@ -1,3 +1,9 @@
+use crate::entity::EmotionState;
+use ragnarok_formats::act::ActFile;
+
+/// Frame delay for an action whose ACT delay is missing or zero.
+const DEFAULT_FRAME_MS: f32 = 150.0;
+
 pub struct EmotionEntry {
     pub emote_type: u8,
     pub sprite_action: usize,
@@ -116,9 +122,80 @@ pub fn emote_type_for_command(command: &str) -> Option<u8> {
         .map(|e| e.emote_type)
 }
 
+/// `(action index, frame delay in ms, frame count)` for an emote, or `None` when
+/// `emotion.act` holds no usable action for it. Shared by the expiry clock and
+/// the draw so the balloon cannot outlive or outrun its own animation.
+pub fn emote_timing(act: &ActFile, emote_type: u8) -> Option<(usize, f32, usize)> {
+    let action_idx = emote_sprite_action(emote_type);
+    let frames = act.actions.get(action_idx)?.motions.len();
+    if frames == 0 {
+        return None;
+    }
+    let delay_ms = act
+        .delays
+        .get(action_idx)
+        .map(|d| d * 25.0)
+        .filter(|d| *d > 0.0)
+        .unwrap_or(DEFAULT_FRAME_MS);
+    Some((action_idx, delay_ms, frames))
+}
+
+/// How long an emote balloon shows: one pass of its action at the action's own
+/// frame delay.
+pub fn emote_duration(act: Option<&ActFile>, emote_type: u8) -> f32 {
+    act.and_then(|act| emote_timing(act, emote_type))
+        .map(|(_, delay_ms, frames)| frames as f32 * delay_ms / 1000.0)
+        .unwrap_or(EmotionState::FALLBACK_DURATION)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ragnarok_formats::act::{Action, Motion};
+
+    fn act_with(actions: &[(usize, f32)]) -> ActFile {
+        let motion = || Motion {
+            range1: [0; 4],
+            range2: [0; 4],
+            clips: Vec::new(),
+            event_id: -1,
+            attach_points: Vec::new(),
+        };
+        ActFile {
+            version: (2, 5),
+            events: Vec::new(),
+            actions: actions
+                .iter()
+                .map(|&(frames, _)| Action {
+                    motions: (0..frames).map(|_| motion()).collect(),
+                })
+                .collect(),
+            delays: actions.iter().map(|&(_, delay)| delay).collect(),
+        }
+    }
+
+    #[test]
+    fn emote_duration_is_one_pass_of_its_own_action() {
+        // Emote 4 draws action 5: 28 frames at a delay of 2 (50 ms) = 1.4 s.
+        let act = act_with(&[(1, 2.0), (1, 2.0), (1, 2.0), (1, 2.0), (1, 2.0), (28, 2.0)]);
+        assert!((emote_duration(Some(&act), 4) - 1.4).abs() < 1e-4);
+
+        assert_eq!(
+            emote_duration(None, 4),
+            EmotionState::FALLBACK_DURATION,
+            "no act loaded"
+        );
+        assert_eq!(
+            emote_duration(Some(&act), 200),
+            EmotionState::FALLBACK_DURATION,
+            "action out of range"
+        );
+        assert_eq!(
+            emote_duration(Some(&act_with(&[(0, 2.0)])), 0),
+            EmotionState::FALLBACK_DURATION,
+            "empty action"
+        );
+    }
 
     #[test]
     fn maps_mismatched_emote_to_sprite_and_falls_back_to_identity() {

@@ -325,46 +325,34 @@ impl App {
                             &self.game.assets.emotion_act,
                             &self.game.assets.emotion_textures,
                         ) {
-                            let action_idx =
-                                ragnarok_game::emotion::emote_sprite_action(emo.emotion_type);
-                            if action_idx < emo_act.actions.len() {
-                                let delay_ms = emo_act
-                                    .delays
-                                    .get(action_idx)
-                                    .map(|d| d * 25.0)
-                                    .filter(|d| *d > 0.0)
-                                    .unwrap_or(150.0);
-                                let motion_count = emo_act.actions[action_idx].motions.len();
-                                let motion_idx = if motion_count > 0 {
-                                    ((emo.elapsed * 1000.0) / delay_ms) as usize % motion_count
-                                } else {
-                                    0
-                                };
-                                if motion_idx < motion_count {
-                                    let motion = &emo_act.actions[action_idx].motions[motion_idx];
-                                    let emo_center = [
-                                        entry.screen_anchor[0],
-                                        entry.screen_anchor[1]
-                                            - entry.head_offset
-                                            - 6.0 * entry.sprite_scale,
-                                    ];
-                                    for clip in &motion.clips {
-                                        if let Some((vertices, indices, tex_idx)) = build_clip_quad(
-                                            clip,
-                                            emo_tex,
-                                            emo_center,
-                                            entry.depth,
-                                            [0, 0],
-                                        ) && tex_idx < emo_tex.bind_groups.len()
-                                        {
-                                            sprite_batches.push(SpriteBatch {
-                                                vertices,
-                                                indices,
-                                                texture: &emo_tex.bind_groups[tex_idx],
-                                                additive: false,
-                                                no_depth: false,
-                                            });
-                                        }
+                            if let Some((action_idx, delay_ms, frames)) =
+                                ragnarok_game::emotion::emote_timing(emo_act, emo.emotion_type)
+                            {
+                                let motion_idx =
+                                    (((emo.elapsed * 1000.0) / delay_ms) as usize).min(frames - 1);
+                                let motion = &emo_act.actions[action_idx].motions[motion_idx];
+                                let emo_center = [
+                                    entry.screen_anchor[0],
+                                    entry.screen_anchor[1]
+                                        - entry.head_offset
+                                        - 6.0 * entry.sprite_scale,
+                                ];
+                                for clip in &motion.clips {
+                                    if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                                        clip,
+                                        emo_tex,
+                                        emo_center,
+                                        entry.depth,
+                                        [0, 0],
+                                    ) && tex_idx < emo_tex.bind_groups.len()
+                                    {
+                                        sprite_batches.push(SpriteBatch {
+                                            vertices,
+                                            indices,
+                                            texture: &emo_tex.bind_groups[tex_idx],
+                                            additive: false,
+                                            no_depth: false,
+                                        });
                                     }
                                 }
                             }

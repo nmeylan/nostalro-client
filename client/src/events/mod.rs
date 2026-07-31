@@ -374,10 +374,14 @@ impl App {
                     self.handle_entity_sprite_changed(gid, sprite_type, value, value2);
                 }
                 GameEvent::EntityEmotion { gid, emotion_type } => {
+                    let duration = ragnarok_game::emotion::emote_duration(
+                        self.game.assets.emotion_act.as_ref(),
+                        emotion_type,
+                    );
                     self.game
                         .world
                         .entities
-                        .apply_entity_emotion(gid, emotion_type);
+                        .apply_entity_emotion(gid, emotion_type, duration);
                 }
 
                 GameEvent::NpcDialogText { npc_id, text } => {
@@ -2358,9 +2362,6 @@ impl App {
                 GameEvent::RequestPickupItem { id } => {
                     self.channel
                         .send_packet(build_pickup_item_packet(id, self.active_packetver));
-                    if let Some(entity) = self.game.world.entities.player_mut() {
-                        entity.enter_pickup(0.5);
-                    }
                 }
                 GameEvent::RequestCardInsertList { card_index } => {
                     self.game.pending_casts.pending_card_composition_index = Some(card_index);

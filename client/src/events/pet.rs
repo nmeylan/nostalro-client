@@ -186,10 +186,15 @@ impl App {
     pub(super) fn handle_pet_act(&mut self, gid: u32, data: i32) {
         let Some(code) = ragnarok_game::pet::decode_pet_talk(data) else {
             // Plain emotion id.
+            let emotion_type = data as u8;
+            let duration = ragnarok_game::emotion::emote_duration(
+                self.game.assets.emotion_act.as_ref(),
+                emotion_type,
+            );
             self.game
                 .world
                 .entities
-                .apply_entity_emotion(gid, data as u8);
+                .apply_entity_emotion(gid, emotion_type, duration);
             return;
         };
         // Talk line: resolve a random sentence from pettalktable.xml, keyed by the

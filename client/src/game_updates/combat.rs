@@ -333,9 +333,6 @@ impl App {
         if dx <= 1 && dy <= 1 {
             self.channel
                 .send_packet(build_pickup_item_packet(item_id, self.active_packetver));
-            if let Some(entity) = self.game.world.entities.player_mut() {
-                entity.enter_pickup(0.5);
-            }
             self.game.pending_casts.pending_pickup_item_id = None;
             return;
         }

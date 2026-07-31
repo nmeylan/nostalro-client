@@ -502,6 +502,15 @@ impl SpriteAnimationState {
         self.accumulated_ms = 0.0;
     }
 
+    /// Replays the current action from its first frame, whatever it was doing —
+    /// including a one-shot that already reached its last frame.
+    pub fn restart_motion(&mut self) {
+        self.motion_index = 0;
+        self.accumulated_ms = 0.0;
+        self.finished = false;
+        self.prev_motion = 0;
+    }
+
     pub fn set_motion_index(&mut self, idx: usize) {
         self.motion_index = idx;
     }

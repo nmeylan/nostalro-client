@@ -12,6 +12,8 @@ use crate::sprite_path::weapon_view_id_to_type;
 
 pub const AVG_ATTACKED_SPEED_SECS: f32 = 0.288;
 
+const PICKUP_MOTION_FALLBACK_SECS: f32 = 0.5;
+
 /// Attack-motion time (ms) that plays the swing at its native ACT frame delay.
 /// Slower attacks scale up to a cap of 2×, matching the original client.
 const AVG_ATTACK_MT_MS: f32 = 432.0;
@@ -176,20 +178,25 @@ impl EntityFade {
 pub struct EmotionState {
     pub emotion_type: u8,
     pub elapsed: f32,
+    /// One pass of the emote's own action; see
+    /// [`crate::emotion::emote_duration`].
+    pub duration: f32,
 }
 
 impl EmotionState {
-    pub const DISPLAY_DURATION: f32 = 2.5;
+    /// Used when `emotion.act` cannot supply a duration.
+    pub const FALLBACK_DURATION: f32 = 2.5;
 
-    pub fn new(emotion_type: u8) -> Self {
+    pub fn new(emotion_type: u8, duration: f32) -> Self {
         Self {
             emotion_type,
             elapsed: 0.0,
+            duration,
         }
     }
 
     pub fn is_expired(&self) -> bool {
-        self.elapsed >= Self::DISPLAY_DURATION
+        self.elapsed >= self.duration
     }
 }
 
@@ -499,6 +506,10 @@ impl Entity {
             self.enter_dead();
             return;
         }
+        if self.state == EntityState::Pickup && self.animation.is_finished() {
+            self.state = EntityState::Standing;
+            self.state_timer = 0.0;
+        }
         if self.state_timer > 0.0 {
             self.state_timer -= dt;
             if self.state_timer <= 0.0 {
@@ -651,14 +662,15 @@ impl Entity {
         self.fade.as_ref().is_some_and(|f| f.is_expired())
     }
 
-    /// The server echoes our own pickup back as an action packet, so a pickup
-    /// already in flight must not restart or extend the motion.
-    pub fn enter_pickup(&mut self, duration_secs: f32) {
-        if matches!(self.state, EntityState::Dead | EntityState::Pickup) {
+    /// `motion_secs` caps the pose for entities whose sprite animation never
+    /// reports the motion as finished; the motion itself ends the state.
+    pub fn enter_pickup(&mut self, motion_secs: Option<f32>) {
+        if self.state == EntityState::Dead {
             return;
         }
         self.state = EntityState::Pickup;
-        self.state_timer = duration_secs;
+        self.state_timer = motion_secs.unwrap_or(PICKUP_MOTION_FALLBACK_SECS);
+        self.animation.restart_motion();
     }
 
     pub fn apply_sprite_change(&mut self, sprite_type: u8, value: u16) {
@@ -1295,7 +1307,7 @@ mod tests {
     #[test]
     fn pickup_motion_locks_movement_until_it_ends() {
         let mut e = make_entity();
-        e.enter_pickup(0.5);
+        e.enter_pickup(Some(0.5));
         assert_eq!(e.state, EntityState::Pickup);
         assert!(e.is_move_locked());
 
@@ -1305,15 +1317,31 @@ mod tests {
     }
 
     #[test]
-    fn re_entering_pickup_does_not_extend_the_motion() {
+    fn each_pickup_replays_the_motion_and_the_pose_ends_with_it() {
+        use ragnarok_formats::act::MotionType;
+        let act = make_body_act(3, &[]);
+        let play_out = |e: &mut Entity| {
+            e.animation.set_action(e.action_index(), MotionType::OneShot);
+            for _ in 0..10 {
+                e.animation.update(0.05, &act, 0);
+            }
+        };
         let mut e = make_entity();
-        e.enter_pickup(0.5);
-        e.update_state(0.3);
-        assert_eq!(e.state, EntityState::Pickup);
 
-        e.enter_pickup(0.5);
-        e.update_state(0.3);
+        e.enter_pickup(Some(0.3));
+        play_out(&mut e);
+        assert!(e.animation.is_finished());
+
+        e.enter_pickup(Some(0.3));
+        assert_eq!(e.animation.motion_index(), 0);
+        e.update_state(0.016);
+        assert_eq!(e.state, EntityState::Pickup);
+        assert!(e.is_move_locked());
+
+        play_out(&mut e);
+        e.update_state(0.016);
         assert_eq!(e.state, EntityState::Standing);
+        assert!(!e.is_move_locked());
     }
 
     #[test]
@@ -1347,7 +1375,7 @@ mod tests {
         e.enter_skill_exec(1.0, 0, 1);
         assert_eq!(e.state, EntityState::Dead);
 
-        e.enter_pickup(1.0);
+        e.enter_pickup(Some(1.0));
         assert_eq!(e.state, EntityState::Dead);
 
         e.enter_casting(1.0, 0);
@@ -1435,16 +1463,18 @@ mod tests {
     }
 
     #[test]
-    fn emotion_expires_after_duration() {
+    fn emotion_expires_after_one_pass_of_its_action() {
         let mut e = make_entity();
-        e.emotion = Some(super::EmotionState::new(0));
+        e.emotion = Some(super::EmotionState::new(0, 1.4));
+
+        e.update_state(1.3);
         assert!(e.emotion.is_some());
 
-        e.update_state(1.0);
-        assert!(e.emotion.is_some());
-
-        e.update_state(1.6);
-        assert!(e.emotion.is_none());
+        e.update_state(0.2);
+        assert!(
+            e.emotion.is_none(),
+            "gone at the action's length, not at the 2.5 s fallback"
+        );
     }
 
     #[test]

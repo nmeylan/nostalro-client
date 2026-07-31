@@ -7,6 +7,7 @@ use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
+use ragnarok_formats::act::SpriteActionType;
 use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
@@ -482,8 +483,26 @@ impl App {
                 ));
             }
             ActionType::Itempickup => {
+                let motion_secs = self
+                    .game
+                    .world
+                    .entities
+                    .get(gid)
+                    .zip(self.game.sprite_caches.sprites.get(&gid))
+                    .filter(|(entity, _)| {
+                        matches!(
+                            entity.entity_type,
+                            EntityType::Player | EntityType::Mercenary
+                        )
+                    })
+                    .and_then(|(_, sprite)| {
+                        sprite
+                            .body_act
+                            .action_group_duration_ms(SpriteActionType::Pickup as usize)
+                    })
+                    .map(|ms| ms / 1000.0);
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
-                    entity.enter_pickup(0.5);
+                    entity.enter_pickup(motion_secs);
                 }
             }
             _ => {}

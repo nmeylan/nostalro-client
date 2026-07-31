@@ -164,9 +164,9 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_entity_emotion(&mut self, gid: u32, emotion_type: u8) {
+    pub fn apply_entity_emotion(&mut self, gid: u32, emotion_type: u8, duration: f32) {
         if let Some(entity) = self.entities.get_mut(&gid) {
-            entity.emotion = Some(EmotionState::new(emotion_type));
+            entity.emotion = Some(EmotionState::new(emotion_type, duration));
         }
     }
 
@@ -574,7 +574,7 @@ mod tests {
         col.apply_entity_name_received(100, "Poring".to_string());
         assert_eq!(col.get(100).unwrap().name.as_deref(), Some("Poring"));
 
-        col.apply_entity_emotion(100, 3);
+        col.apply_entity_emotion(100, 3, 1.4);
         assert!(col.get(100).unwrap().emotion.is_some());
         assert_eq!(
             col.get(100).unwrap().emotion.as_ref().unwrap().emotion_type,
