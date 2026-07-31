@@ -805,6 +805,9 @@ impl App {
                 GameEvent::ServerMsg { msg_id } => {
                     self.handle_server_msg(msg_id);
                 }
+                GameEvent::UserCount { count } => {
+                    self.handle_user_count(count);
+                }
                 GameEvent::SkillMsg { msg_no } => {
                     self.handle_skill_msg(msg_no);
                 }

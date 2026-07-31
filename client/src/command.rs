@@ -8,7 +8,7 @@ use ragnarok_network::{
     build_party_chat_packet, build_party_invite_by_name_packet, build_remember_warppoint_packet,
     build_req_disorganize_guild, build_setting_whisper_pc_packet,
     build_setting_whisper_state_packet, build_stat_change_packet, build_taekwon_rank_packet,
-    build_whisper_packet,
+    build_user_count_packet, build_whisper_packet,
 };
 
 impl App {
@@ -602,6 +602,9 @@ impl App {
             ChatCommand::Emote(emote_type) => {
                 self.channel
                     .send_packet(build_emotion_packet(emote_type, pv));
+            }
+            ChatCommand::UserCount => {
+                self.channel.send_packet(build_user_count_packet(pv));
             }
             ChatCommand::ToggleShowPing => {
                 self.game.show_ping = !self.game.show_ping;

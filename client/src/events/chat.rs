@@ -7,6 +7,8 @@ use ragnarok_ui_component::game::chat_room_member_window::{OTHER_MSG_COLOR, OWN_
 use ragnarok_ui_component::game::chat_window::ChatChannel;
 use ragnarok_ui_component::helper::colors::{CYAN, RED};
 
+const MSI_PLAYERS_CONNECTED: u16 = 178;
+
 impl App {
     pub(super) fn handle_broadcast_message(
         &mut self,
@@ -218,6 +220,17 @@ impl App {
         } else {
             self.windows.chat_window.add_notice(message);
         }
+    }
+
+    pub(super) fn handle_user_count(&mut self, count: i32) {
+        let line = self
+            .game
+            .data_table
+            .msg_string
+            .as_ref()
+            .and_then(|t| t.format(MSI_PLAYERS_CONNECTED, &[&count.to_string()]))
+            .unwrap_or_else(|| format!("There are {count} Players Currently Connected."));
+        self.windows.chat_window.add_notice(line);
     }
 
     pub(super) fn handle_skill_msg(&mut self, msg_no: i32) {

@@ -77,6 +77,8 @@ pub enum ChatCommand {
         mercenary: bool,
     },
     Emote(u8),
+    /// `/who` / `/w` — ask the server how many players are online.
+    UserCount,
     /// `/show_ping` — toggle the network sync/latency overlay.
     ToggleShowPing,
     /// `/show_fps` — toggle the frame-rate overlay.
@@ -205,6 +207,7 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
         "/noshift or /ns",
         "Use support skills without holding Shift.",
     ),
+    ("/who or /w", "Shows how many players are online."),
     ("/show_ping", "Toggles the network sync/latency overlay."),
     ("/show_fps", "Toggles the frame-rate overlay."),
     ("/h or /help", "Lists the in-game commands."),
@@ -314,7 +317,8 @@ pub fn parse_chat_command(input: &str) -> ChatCommand {
         "/show_ping" => ChatCommand::ToggleShowPing,
         "/show_fps" => ChatCommand::ToggleShowFps,
         "/h" | "/help" => ChatCommand::Help,
-        "/who" | "/w" | "/showname" | "/report" | "/loading" => ChatCommand::Outdated,
+        "/who" | "/w" => ChatCommand::UserCount,
+        "/showname" | "/report" | "/loading" => ChatCommand::Outdated,
         _ => match emote_type_for_command(raw_cmd) {
             Some(emote_type) => ChatCommand::Emote(emote_type),
             None if UNSUPPORTED.contains(&cmd.as_str()) => ChatCommand::Unsupported,
@@ -343,7 +347,9 @@ mod tests {
             }
         );
         assert_eq!(parse_chat_command("/lv"), ChatCommand::Emote(3));
-        assert_eq!(parse_chat_command("/who"), ChatCommand::Outdated);
+        assert_eq!(parse_chat_command("/who"), ChatCommand::UserCount);
+        assert_eq!(parse_chat_command("/w"), ChatCommand::UserCount);
+        assert_eq!(parse_chat_command("/loading"), ChatCommand::Outdated);
         assert_eq!(parse_chat_command("/nope"), ChatCommand::Unknown);
     }
 

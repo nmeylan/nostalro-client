@@ -1161,6 +1161,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcMsg>() {
         return vec![GameEvent::ServerMsg { msg_id: p.msg }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcUserCount>() {
+        return vec![GameEvent::UserCount { count: p.count }];
+    }
     if let Some(p) = any.downcast_ref::<PacketZcSkillmsg>() {
         return vec![GameEvent::SkillMsg { msg_no: p.msg_no }];
     }
@@ -4810,6 +4813,24 @@ mod tests {
         match &result[0] {
             GameEvent::AttackRangeChanged { range } => assert_eq!(*range, 2),
             other => panic!("expected AttackRangeChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn who_request_and_its_answer_round_trip() {
+        for packetver in [20040705, 20120307] {
+            let request = crate::sender::build_user_count_packet(packetver);
+            assert_eq!(request.len(), 2);
+            assert_eq!(u16::from_le_bytes([request[0], request[1]]), 0x00c1);
+        }
+
+        let packetver = 20120307;
+        let mut pkt = PacketZcUserCount::new(packetver);
+        pkt.set_count(137);
+        pkt.fill_raw();
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::UserCount { count } => assert_eq!(*count, 137),
+            other => panic!("expected UserCount, got {other:?}"),
         }
     }
 

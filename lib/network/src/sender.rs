@@ -521,6 +521,12 @@ pub fn build_lesseffect_packet(is_less: bool, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_user_count_packet(packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqUserCount::new(packetver);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_alchemist_rank_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzAlchemistRank::new(packetver);
     pkt.fill_raw();

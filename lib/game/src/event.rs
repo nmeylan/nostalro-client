@@ -940,6 +940,10 @@ pub enum GameEvent {
     ServerMsg {
         msg_id: u16,
     },
+    /// Answer to `/who`, sent to the requester alone.
+    UserCount {
+        count: i32,
+    },
     SkillMsg {
         msg_no: i32,
     },

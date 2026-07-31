@@ -59,7 +59,8 @@ pub use sender::{
     build_standing_resurrection_packet, build_stat_change_packet, build_taekwon_rank_packet,
     build_trycapture_packet, build_unequip_item_packet, build_upgrade_skill_packet,
     build_use_item_packet, build_use_skill_packet, build_use_skill_to_ground_packet,
-    build_use_skill_to_ground_with_talkbox_packet, build_whisper_packet, build_zone_enter_packet,
+    build_use_skill_to_ground_with_talkbox_packet, build_user_count_packet, build_whisper_packet,
+    build_zone_enter_packet,
 };
 use session::{Session, SessionState};
 use std::collections::VecDeque;
