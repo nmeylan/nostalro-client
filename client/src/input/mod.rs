@@ -12,6 +12,9 @@ pub struct InputState {
     /// Alt+right-click companion attack orders.
     pub right_press_target: Option<u32>,
     pub left_mouse_down: bool,
+    /// When and where the last right-press landed, for the world's own
+    /// double-click detection (UI widgets have their own on `Response`).
+    pub last_right_press: Option<(std::time::Instant, (f64, f64))>,
     pub last_mouse_pos: Option<(f64, f64)>,
     pub mouse_position: (f64, f64),
     pub walk_packet_cooldown: f32,
@@ -31,6 +34,7 @@ impl InputState {
             right_press_entity: None,
             right_press_target: None,
             left_mouse_down: false,
+            last_right_press: None,
             last_mouse_pos: None,
             mouse_position: (0.0, 0.0),
             walk_packet_cooldown: 0.0,

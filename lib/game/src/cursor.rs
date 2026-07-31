@@ -1,5 +1,6 @@
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
+use serde::{Deserialize, Serialize};
 
 use crate::entity_collection::EntityCollection;
 use crate::targeting::{MapProperties, TargetClass, hover_cursor};
@@ -76,6 +77,49 @@ pub struct RenderEntry {
     pub pick_bounds: [f32; 4],
     /// Screen pixels from feet to the top of action 0 motion 0; anchors floating elements.
     pub head_offset: f32,
+}
+
+/// What the drawn cursor may stick to. The OS pointer and hit-testing are
+/// unaffected; only the sprite moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapTarget {
+    Monster,
+    FloorItem,
+    /// A homunculus or mercenary while Aid Potion is armed. Always snaps — the
+    /// original game gives this case no toggle.
+    Companion,
+}
+
+/// `/snap`, `/skillsnap` and `/itemsnap`. Monsters get two toggles because the
+/// original game snaps to them under different rules while a skill is armed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MouseSnapPrefs {
+    pub monster_no_skill: bool,
+    pub monster_skill: bool,
+    pub item: bool,
+}
+
+impl Default for MouseSnapPrefs {
+    fn default() -> Self {
+        Self {
+            monster_no_skill: false,
+            monster_skill: true,
+            item: false,
+        }
+    }
+}
+
+impl MouseSnapPrefs {
+    /// `skill_armed`: an entity-targeted skill is waiting for its click.
+    pub fn snaps_to(&self, target: SnapTarget, skill_armed: bool) -> bool {
+        match target {
+            SnapTarget::Monster if skill_armed => self.monster_skill,
+            SnapTarget::Monster => self.monster_no_skill,
+            SnapTarget::FloorItem => self.item,
+            SnapTarget::Companion => true,
+        }
+    }
 }
 
 pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorType {
@@ -606,5 +650,30 @@ mod tests {
             ),
             Some((CursorType::Attack, 10)),
         );
+    }
+
+    #[test]
+    fn monster_snap_has_a_separate_toggle_per_skill_state() {
+        let prefs = MouseSnapPrefs::default();
+        assert!(!prefs.snaps_to(SnapTarget::Monster, false));
+        assert!(prefs.snaps_to(SnapTarget::Monster, true));
+        assert!(!prefs.snaps_to(SnapTarget::FloorItem, false));
+        assert!(!prefs.snaps_to(SnapTarget::FloorItem, true));
+
+        let all_on = MouseSnapPrefs {
+            monster_no_skill: true,
+            monster_skill: false,
+            item: true,
+        };
+        assert!(all_on.snaps_to(SnapTarget::Monster, false));
+        assert!(!all_on.snaps_to(SnapTarget::Monster, true));
+        assert!(all_on.snaps_to(SnapTarget::FloorItem, true));
+
+        let all_off = MouseSnapPrefs {
+            monster_no_skill: false,
+            monster_skill: false,
+            item: false,
+        };
+        assert!(all_off.snaps_to(SnapTarget::Companion, true));
     }
 }

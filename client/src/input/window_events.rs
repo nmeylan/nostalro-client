@@ -10,6 +10,7 @@ use ragnarok_game::event::GameEvent;
 use ragnarok_game::keybinding::{HotkeyAction, KeyChord};
 use ragnarok_network::build_action_request_packet;
 use ragnarok_renderer::camera::CameraControl;
+use ragnarok_ui::context::{DOUBLE_CLICK_DISTANCE, DOUBLE_CLICK_THRESHOLD_MS};
 use ragnarok_ui_component::game::context_menu::{ContextMenuAction, ContextMenuItem};
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
@@ -57,12 +58,33 @@ impl App {
         }
     }
 
+    /// Consumes the pending right-press so a third click can't count as another
+    /// double.
+    fn take_right_double_click(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        let pos = self.input.mouse_position;
+        let is_double = self.input.last_right_press.is_some_and(|(at, (px, py))| {
+            let dx = (pos.0 - px) as f32;
+            let dy = (pos.1 - py) as f32;
+            now.duration_since(at).as_millis() < DOUBLE_CLICK_THRESHOLD_MS
+                && (dx * dx + dy * dy).sqrt() < DOUBLE_CLICK_DISTANCE
+        });
+        self.input.last_right_press = if is_double { None } else { Some((now, pos)) };
+        is_double
+    }
+
     pub(crate) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
         if self.game.session.app_state == AppState::InGame {
             match button {
                 MouseButton::Right => {
                     self.input.right_mouse_down = state == ElementState::Pressed;
                     if self.input.right_mouse_down {
+                        if self.take_right_double_click() && !self.input.ui_hovered {
+                            let control = self.camera_control();
+                            if let Some(renderer) = &mut self.renderer {
+                                renderer.camera.apply_reset_gesture(control);
+                            }
+                        }
                         self.input.right_dragged = false;
                         // Picking clears the hovered ids while the button is held (rotate cursor),
                         // so capture the target now, before it's lost.

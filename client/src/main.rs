@@ -921,7 +921,8 @@ impl ApplicationHandler for App {
                         .send_packet(build_reqname_packet(entity_id, self.active_packetver));
                 }
 
-                let cursor_clips = self.build_cursor_sprite_clips(delta);
+                let cursor_clips =
+                    self.build_cursor_sprite_clips(delta, &render_list, &floor_item_render_list);
                 let lock_cursor_clips = self.build_lock_cursor_clips(delta, &render_list);
 
                 let world_overlay_calls = self.build_world_overlays(

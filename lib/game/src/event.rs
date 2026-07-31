@@ -942,6 +942,7 @@ pub enum GameEvent {
         fog: bool,
         show_skill_effects: bool,
         display: crate::display::DisplayOptions,
+        snap: crate::cursor::MouseSnapPrefs,
         refuse_trade: bool,
         refuse_party_invite: bool,
         persist: bool,

@@ -246,6 +246,7 @@ impl App {
                     self.config.fog,
                     show,
                     self.config.display.clone(),
+                    self.config.snap,
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
                     true,
@@ -264,6 +265,7 @@ impl App {
                     fog,
                     self.config.show_skill_effects,
                     self.config.display.clone(),
+                    self.config.snap,
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
                     true,
@@ -292,6 +294,7 @@ impl App {
                     self.config.fog,
                     self.config.show_skill_effects,
                     display,
+                    self.config.snap,
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
                     true,
@@ -308,6 +311,7 @@ impl App {
                     self.config.fog,
                     self.config.show_skill_effects,
                     self.config.display.clone(),
+                    self.config.snap,
                     refuse,
                     self.config.refuse_party_invite,
                     true,
@@ -324,6 +328,7 @@ impl App {
                     self.config.fog,
                     self.config.show_skill_effects,
                     self.config.display.clone(),
+                    self.config.snap,
                     self.config.refuse_trade,
                     refuse,
                     true,
@@ -453,6 +458,38 @@ impl App {
                 self.windows
                     .chat_window
                     .add_system(format!("Miss text: {status}"));
+            }
+            ChatCommand::ToggleMonsterSnap => {
+                self.config.snap.monster_no_skill = !self.config.snap.monster_no_skill;
+                let status = if self.config.snap.monster_no_skill {
+                    "ON"
+                } else {
+                    "OFF"
+                };
+                self.config.save("config.json");
+                self.windows
+                    .chat_window
+                    .add_system(format!("Monster cursor snap: {status}"));
+            }
+            ChatCommand::ToggleSkillSnap => {
+                self.config.snap.monster_skill = !self.config.snap.monster_skill;
+                let status = if self.config.snap.monster_skill {
+                    "ON"
+                } else {
+                    "OFF"
+                };
+                self.config.save("config.json");
+                self.windows
+                    .chat_window
+                    .add_system(format!("Skill cursor snap: {status}"));
+            }
+            ChatCommand::ToggleItemSnap => {
+                self.config.snap.item = !self.config.snap.item;
+                let status = if self.config.snap.item { "ON" } else { "OFF" };
+                self.config.save("config.json");
+                self.windows
+                    .chat_window
+                    .add_system(format!("Item cursor snap: {status}"));
             }
             ChatCommand::ToggleEqOpen => {
                 const CONFIG_OPEN_EQUIPMENT_WINDOW: i32 = 0;

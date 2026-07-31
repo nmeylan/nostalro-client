@@ -1,8 +1,8 @@
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
-const DOUBLE_CLICK_THRESHOLD_MS: u128 = 400;
-const DOUBLE_CLICK_DISTANCE: f32 = 5.0;
+pub const DOUBLE_CLICK_THRESHOLD_MS: u128 = 400;
+pub const DOUBLE_CLICK_DISTANCE: f32 = 5.0;
 
 pub struct UiContext {
     pub screen_width: f32,

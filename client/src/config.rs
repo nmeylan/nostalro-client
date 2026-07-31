@@ -23,6 +23,7 @@ impl Default for WindowStateEntry {
     }
 }
 
+pub use ragnarok_game::cursor::MouseSnapPrefs;
 pub use ragnarok_game::display::DisplayOptions;
 pub use ragnarok_game::keybinding::{EmotionKeys, KeyBindings};
 pub use ragnarok_profiling::debug::PacketTrace;
@@ -148,6 +149,8 @@ pub struct Config {
     pub refuse_trade: bool,
     pub refuse_party_invite: bool,
     pub display: DisplayOptions,
+    #[serde(default)]
+    pub snap: MouseSnapPrefs,
     /// Slot of the character selected last, restored to preselect it (and its page)
     /// on the next character-select screen. Client-side only; the server sends no
     /// "last used" marker.
@@ -224,6 +227,7 @@ impl Default for Config {
             refuse_trade: false,
             refuse_party_invite: false,
             display: DisplayOptions::default(),
+            snap: MouseSnapPrefs::default(),
             last_char_slot: None,
             map_recovery_command: default_map_recovery_command(),
             shortcut_commands: default_shortcut_commands(),

@@ -4,6 +4,7 @@ use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
 use crate::{BuildCtx, InGameWindow, Window};
+use ragnarok_game::cursor::MouseSnapPrefs;
 use ragnarok_game::display::DisplayOptions;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -23,6 +24,9 @@ const NAME_MONSTER_CB_ID: WidgetId = WidgetId(4210);
 const NAME_NPC_CB_ID: WidgetId = WidgetId(4211);
 const REFUSE_TRADE_CB_ID: WidgetId = WidgetId(4212);
 const REFUSE_PARTY_CB_ID: WidgetId = WidgetId(4213);
+const SNAP_MONSTER_CB_ID: WidgetId = WidgetId(4214);
+const SNAP_SKILL_CB_ID: WidgetId = WidgetId(4215);
+const SNAP_ITEM_CB_ID: WidgetId = WidgetId(4216);
 const UI_SCALE_OPTION_BASE: u32 = 4230;
 
 const UI_SCALE_OPTIONS: [u32; 6] = [75, 100, 125, 150, 175, 200];
@@ -34,7 +38,7 @@ const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 20.0;
 const CLOSE_SIZE: f32 = 11.0;
 const ROW_H: f32 = 22.0;
-const ROW_COUNT: f32 = 8.0;
+const ROW_COUNT: f32 = 9.0;
 const PAD: f32 = 8.0;
 const WIN_H: f32 = TITLE_H + PAD + ROW_COUNT * ROW_H + PAD;
 const CB_SIZE: f32 = 11.0;
@@ -48,6 +52,7 @@ pub struct GraphicOptionsWindow {
     fog: bool,
     show_skill_effects: bool,
     display: DisplayOptions,
+    snap: MouseSnapPrefs,
     refuse_trade: bool,
     refuse_party_invite: bool,
     dropdown: Dropdown,
@@ -69,6 +74,7 @@ impl GraphicOptionsWindow {
         fog: bool,
         show_skill_effects: bool,
         display: DisplayOptions,
+        snap: MouseSnapPrefs,
         refuse_trade: bool,
         refuse_party_invite: bool,
     ) {
@@ -79,6 +85,7 @@ impl GraphicOptionsWindow {
         self.fog = fog;
         self.show_skill_effects = show_skill_effects;
         self.display = display;
+        self.snap = snap;
         self.refuse_trade = refuse_trade;
         self.refuse_party_invite = refuse_party_invite;
     }
@@ -98,6 +105,7 @@ impl GraphicOptionsWindow {
             fog: self.fog,
             show_skill_effects: self.show_skill_effects,
             display: self.display.clone(),
+            snap: self.snap,
             refuse_trade: self.refuse_trade,
             refuse_party_invite: self.refuse_party_invite,
             persist: true,
@@ -334,6 +342,32 @@ impl InGameWindow for GraphicOptionsWindow {
             &mut self.refuse_party_invite,
         );
 
+        ui.text(x0, text_y(8), "Cursor snap:", label_color);
+        changed |= check_row(
+            ui,
+            8,
+            SNAP_MONSTER_CB_ID,
+            win.x + 92.0,
+            "Monster",
+            &mut self.snap.monster_no_skill,
+        );
+        changed |= check_row(
+            ui,
+            8,
+            SNAP_SKILL_CB_ID,
+            win.x + 165.0,
+            "Skill",
+            &mut self.snap.monster_skill,
+        );
+        changed |= check_row(
+            ui,
+            8,
+            SNAP_ITEM_CB_ID,
+            win.x + 220.0,
+            "Item",
+            &mut self.snap.item,
+        );
+
         if let Some(overlay) = dd_resp.overlay_rect {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
             if let Some(idx) =
@@ -400,6 +434,7 @@ mod tests {
             false,
             true,
             DisplayOptions::default(),
+            MouseSnapPrefs::default(),
             false,
             false,
         );
@@ -447,6 +482,43 @@ mod tests {
             GameEvent::GraphicsSettingsChanged { ui_scale, fog, .. } => {
                 assert_eq!(*ui_scale, 125.0, "picked the third option (125%)");
                 assert!(*fog, "earlier fog flip is part of the snapshot");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cursor_snap_row_flips_the_monster_toggle() {
+        let mut win = GraphicOptionsWindow::new();
+        win.set_values(
+            100.0,
+            false,
+            false,
+            true,
+            DisplayOptions::default(),
+            MouseSnapPrefs::default(),
+            false,
+            false,
+        );
+        win.toggle();
+        let mut state = StateCache::new();
+
+        let wy = (600.0 - WIN_H) / 2.0;
+        let cb_y = wy + TITLE_H + PAD + 8.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let events = build_at(
+            &mut win,
+            &mut state,
+            Some((
+                (800.0 - WIN_W) / 2.0 + 92.0 + CB_SIZE / 2.0,
+                cb_y + CB_SIZE / 2.0,
+            )),
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::GraphicsSettingsChanged { snap, .. } => {
+                assert!(snap.monster_no_skill);
+                assert!(snap.monster_skill, "skill snap is on by default");
+                assert!(!snap.item);
             }
             other => panic!("unexpected event: {other:?}"),
         }

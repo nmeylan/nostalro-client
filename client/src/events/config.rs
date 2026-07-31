@@ -35,6 +35,7 @@ impl App {
                 self.config.fog,
                 self.config.show_skill_effects,
                 self.config.display.clone(),
+                self.config.snap,
                 self.config.refuse_trade,
                 self.config.refuse_party_invite,
             );
@@ -50,6 +51,7 @@ impl App {
         fog: bool,
         show_skill_effects: bool,
         display: crate::config::DisplayOptions,
+        snap: crate::config::MouseSnapPrefs,
         refuse_trade: bool,
         refuse_party_invite: bool,
         persist: bool,
@@ -63,6 +65,7 @@ impl App {
         self.config.fog = fog;
         self.config.show_skill_effects = show_skill_effects;
         self.config.display = display;
+        self.config.snap = snap;
         self.config.refuse_trade = refuse_trade;
         self.config.refuse_party_invite = refuse_party_invite;
         self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;

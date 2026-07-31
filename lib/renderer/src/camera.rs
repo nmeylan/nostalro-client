@@ -66,6 +66,8 @@ const WHEEL_PITCH_STEP_DEG: f32 = 5.0;
 const BYPASS_MIN_DISTANCE: f32 = 5.0;
 const STAR_GAZE_DISTANCE_FACTOR: f32 = 3.0;
 const STAR_GAZE_MIN_PITCH_DEG: f32 = 50.0;
+const RESET_DISTANCE: f32 = 300.0;
+const RESET_PITCH_DEG: f32 = 50.0;
 
 const INTERP_STEP: f32 = 1.0 / 60.0;
 const INTERP_MAX_STEPS: f32 = 4.0;
@@ -215,6 +217,21 @@ impl Camera {
         }
         if control.ctrl {
             self.adjust_distance(-dy * DISTANCE_DRAG_PER_PIXEL, control);
+        }
+    }
+
+    /// Right-double-click in the world snaps one axis back to its default: Ctrl
+    /// the distance, Shift the pitch, neither the yaw. The yaw reset is refused
+    /// where free rotation is, since 0 sits outside the indoor band.
+    pub fn apply_reset_gesture(&mut self, control: CameraControl) {
+        if control.ctrl {
+            self.dest_distance = RESET_DISTANCE;
+        }
+        if control.shift {
+            self.dest_pitch = RESET_PITCH_DEG.to_radians();
+        }
+        if !control.ctrl && !control.shift && !control.indoor {
+            self.dest_yaw = 0.0;
         }
     }
 
@@ -678,6 +695,39 @@ mod tests {
 
         camera.apply_drag(500.0, 0.0, CameraControl { gm: true, ..indoor });
         assert!(camera.dest_yaw.to_degrees() > INDOOR_YAW_DEG + 20.0);
+    }
+
+    #[test]
+    fn reset_gesture_picks_one_axis_and_spares_the_indoor_yaw() {
+        let outdoor = CameraControl::default();
+        let mut camera = Camera::default();
+        camera.apply_drag(100.0, 0.0, outdoor);
+        camera.apply_wheel(10.0, outdoor);
+        let zoomed = camera.dest_distance;
+
+        camera.apply_reset_gesture(outdoor);
+        assert!(camera.dest_yaw.abs() < 1e-6);
+        assert!((camera.dest_distance - zoomed).abs() < 1e-6);
+
+        camera.apply_reset_gesture(CameraControl {
+            ctrl: true,
+            ..outdoor
+        });
+        assert!((camera.dest_distance - 300.0).abs() < 1e-4);
+
+        camera.apply_reset_gesture(CameraControl {
+            shift: true,
+            ..outdoor
+        });
+        assert!((camera.dest_pitch.to_degrees() - 50.0).abs() < 1e-4);
+
+        let indoor = CameraControl {
+            indoor: true,
+            ..Default::default()
+        };
+        camera.on_map_enter(true, SavedCameraView::default());
+        camera.apply_reset_gesture(indoor);
+        assert!((camera.dest_yaw.to_degrees() - INDOOR_YAW_DEG).abs() < 1e-4);
     }
 
     #[test]

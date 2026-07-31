@@ -47,6 +47,12 @@ pub enum ChatCommand {
     ToggleMiss,
     /// `/eqopen` — toggle whether other players can view your equipment.
     ToggleEqOpen,
+    /// `/snap` — stick the cursor to a hovered monster while no skill is armed.
+    ToggleMonsterSnap,
+    /// `/skillsnap` — stick the cursor to a hovered monster while a skill is armed.
+    ToggleSkillSnap,
+    /// `/itemsnap` — stick the cursor to a hovered floor item.
+    ToggleItemSnap,
     RefuseParty(bool),
     /// `/gc <msg>` or a `$`-prefixed line — send guild chat.
     GuildChat(String),
@@ -106,9 +112,6 @@ const UNSUPPORTED: &[&str] = &[
     "/quickspell",
     "/quickspell2",
     "/quickspell3",
-    "/snap",
-    "/skillsnap",
-    "/itemsnap",
     "/skillfail",
     "/sf",
     "/skip",
@@ -164,6 +167,12 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
     ("/battlemode or /bm", "Keyboard skill-bar mode."),
     ("/miss", "Toggles the Miss damage text."),
     ("/eqopen", "Toggles letting others view your equipment."),
+    ("/snap", "Toggles sticking the cursor to monsters."),
+    (
+        "/skillsnap",
+        "Toggles sticking the cursor to monsters while a skill is armed.",
+    ),
+    ("/itemsnap", "Toggles sticking the cursor to dropped items."),
     (
         "/gc <msg>",
         "Sends a guild-chat message ($ prefix works too).",
@@ -273,6 +282,9 @@ pub fn parse_chat_command(input: &str) -> ChatCommand {
         "/accept" => ChatCommand::RefuseParty(false),
         "/miss" => ChatCommand::ToggleMiss,
         "/eqopen" => ChatCommand::ToggleEqOpen,
+        "/snap" => ChatCommand::ToggleMonsterSnap,
+        "/skillsnap" => ChatCommand::ToggleSkillSnap,
+        "/itemsnap" => ChatCommand::ToggleItemSnap,
         "/effect" | "/mineffect" | "/minimize" => ChatCommand::ToggleEffect,
         "/gc" | "/guildchat" => ChatCommand::GuildChat(args.to_string()),
         "/hi" => ChatCommand::WhisperFriends(args.to_string()),
