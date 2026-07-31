@@ -147,6 +147,37 @@ fields cycles them itself: it reads `key_tab`, advances an internal focus enum,
 calls `set_focus`, then after building syncs back from `focused()` in case a
 click moved focus in the meantime.
 
+### Escape and Enter routing
+
+Escape and Enter each resolve to exactly one action per press.
+
+`UiFrame::take_escape()` is a single-consumer read: the first caller in a frame
+gets `true`, later callers get nothing, and `escape_pressed()` reports the same
+answer without consuming. In-game windows never read `ctx.key_escape`; they
+declare `wants_escape` / `on_escape` and the client's `route_escape`
+(`client/src/ui/escape.rs`) runs the chain before the window build loop:
+
+1. the chat input, if focused - Escape drops the line, and a 200 ms guard keeps
+   the same press from also dismissing a window
+2. a pending skill target, pet capture, or pet roulette
+3. the front-most modal: context menu, transient dialogs, confirm dialog, item
+   info, system menu, item list, warp list, NPC shop, NPC dialog
+4. registry windows walked front-to-back through the z-order, first claimant wins
+5. the current attack target
+6. otherwise the system menu opens - never while dead, so the respawn UI cannot be
+   dismissed
+
+`custom.window.exclude_close_via_esc` lists windows step 4 must skip, by the names
+in `ESC_WINDOW_NAMES`; Escape then reaches whatever is behind them. Server-driven
+modals are deliberately not listable - they must stay answerable.
+
+Enter uses the same idea with the existing keyboard block: after the Escape chain,
+`modal_owns_keyboard` asks every window's `owns_keyboard` and calls
+`UiFrame::block_keyboard()`, which suppresses `enter_pressed()` and
+`escape_pressed()`. Modals keep reading `ctx.key_enter` directly; anything that
+must lose to a modal - today the chat activate and send paths - reads
+`enter_pressed()`.
+
 ### Text editing
 
 A text field owns a `TextInput` (`text_input.rs`). Its `process_keys(ctx)`
@@ -293,6 +324,10 @@ frame.
 - `setup_modal(ui)` - declare modal layering before the frame builds.
 - `build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent>` -
   build this window's UI for the frame and return the game events it produced.
+- `wants_escape(ctx)` / `on_escape(ctx)` - claim and handle Escape. Default
+  `false` / no-op, so bars and notifications stay out of the router.
+- `owns_keyboard(ctx)` - this window is answering Enter (a modal awaiting OK, or a
+  nested input dialog). Default `false`.
 
 `BuildCtx` is the live game state a window reads during `build`: character, data
 table, party, friends, guild, quest log, companions, pet, companion AI config,

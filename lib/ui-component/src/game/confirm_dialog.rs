@@ -130,6 +130,32 @@ impl ConfirmDialog {
         }
     }
 
+    /// Escape cancels a two-button box and dismisses a lone-OK box as OK. A
+    /// buttonless box declines the key: only its owner can take it down.
+    /// Returns whether the key was used.
+    pub fn escape(&mut self) -> bool {
+        let Some(state) = &self.state else {
+            return false;
+        };
+        if state.no_buttons {
+            return false;
+        }
+        let result = if state.show_cancel {
+            ConfirmResult::Cancel
+        } else {
+            ConfirmResult::Ok
+        };
+        let deliver_result = state.deliver_result;
+        let mut state = self.state.take().unwrap();
+        if deliver_result {
+            self.result = Some(result);
+        }
+        if let Some(mut callback) = state.onclose.take() {
+            callback(result);
+        }
+        true
+    }
+
     pub fn build(&mut self, ui: &mut UiFrame) {
         let state = match &mut self.state {
             Some(s) => s,
@@ -229,16 +255,14 @@ impl ConfirmDialog {
         let mut callback = state.onclose.take();
         let deliver_result = state.deliver_result;
         let enter = ui.ctx.key_enter;
-        let escape = ui.ctx.key_escape;
 
         let mut cancelled = false;
         if state.show_cancel {
             let cancel = ui.button(CANCEL_BTN_ID, btns[0], &CANCEL_BTN, "Cancel");
-            cancelled = cancel.clicked() || escape;
+            cancelled = cancel.clicked();
         }
         let ok = ui.button(OK_BTN_ID, btns[num_buttons - 1], &OK_BTN, "OK");
-        // Enter confirms; Escape on a lone OK box dismisses it as OK.
-        let confirmed = ok.clicked() || enter || (!state.show_cancel && escape);
+        let confirmed = ok.clicked() || enter;
 
         if cancelled {
             if deliver_result {

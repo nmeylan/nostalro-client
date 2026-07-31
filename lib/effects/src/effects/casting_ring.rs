@@ -246,11 +246,7 @@ mod tests {
 
         // Alias deleted + custom bucket ⇒ both green level-99 ids dispatch via
         // the factory, not a (missing) STR.
-        for id in [
-            EffectId::Green993,
-            EffectId::Green995,
-            EffectId::Green996,
-        ] {
+        for id in [EffectId::Green993, EffectId::Green995, EffectId::Green996] {
             assert!(
                 matches!(effect_spec(id), Some(EffectSpec::Custom)),
                 "{id:?} should resolve to Custom"

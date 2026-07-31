@@ -150,9 +150,7 @@ pub fn status_reaction(efst: ClientEffectIcon) -> Option<StatusReaction> {
             SfxPos::World,
             false,
         ),
-        I::Chasewalk2 => {
-            StatusReaction::sound("lava_golem_move.wav", SfxPos::Ui(0.0), true)
-        }
+        I::Chasewalk2 => StatusReaction::sound("lava_golem_move.wav", SfxPos::Ui(0.0), true),
         I::Run => StatusReaction::on_deactivate(&[E::Stopeffect]),
         I::Illusion => StatusReaction::screen_ripple(),
         I::OnPushCart => StatusReaction::kind(StatusKind::PushCart),

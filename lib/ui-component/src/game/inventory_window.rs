@@ -170,6 +170,23 @@ impl Window for InventoryWindow {
 }
 
 impl InGameWindow for InventoryWindow {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.qty_dialog.is_some()
+    }
+
+    fn wants_escape(&self, ctx: &BuildCtx) -> bool {
+        ctx.character.inventory.is_open()
+    }
+
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        if self.qty_dialog.is_some() {
+            self.qty_dialog = None;
+        } else {
+            ctx.character.inventory.close();
+        }
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;

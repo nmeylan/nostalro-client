@@ -350,7 +350,6 @@ mod tests {
             (back - base).abs() < 0.1,
             "margin returns to base over a cycle"
         );
-
     }
 
     #[test]

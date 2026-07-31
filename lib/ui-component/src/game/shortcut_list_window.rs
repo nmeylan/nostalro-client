@@ -117,6 +117,15 @@ impl Window for ShortcutListWindow {
 }
 
 impl InGameWindow for ShortcutListWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;

@@ -121,6 +121,14 @@ impl Window for MyShopWindow {
 }
 
 impl InGameWindow for MyShopWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        vec![GameEvent::RequestCloseStore]
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;

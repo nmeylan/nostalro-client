@@ -433,7 +433,9 @@ impl Renderer {
         self.global_uniforms.update_cell_light(
             &self.device.device,
             &self.device.queue,
-            cell_lightmap.as_ref().map(|(w, h, p)| (*w, *h, p.as_slice())),
+            cell_lightmap
+                .as_ref()
+                .map(|(w, h, p)| (*w, *h, p.as_slice())),
             gnd.zoom,
             ground::LIGHTMAP_CELL_STRIDE as f32,
         );

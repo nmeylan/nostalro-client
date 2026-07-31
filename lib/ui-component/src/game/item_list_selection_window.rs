@@ -114,7 +114,7 @@ impl ItemListSelectionWindow {
     /// The server locks the character (menuskill) while the list is open and only
     /// clears it on a reply. Closing must still answer with an invalid sentinel so
     /// the server's cancel path runs without performing the action.
-    fn cancel(&mut self, events: &mut Vec<GameEvent>) {
+    pub fn cancel(&mut self, events: &mut Vec<GameEvent>) {
         if let Some(context) = self.context.clone() {
             let event = match context {
                 ListContext::MakingArrow | ListContext::ElementalConverter => {
@@ -191,11 +191,6 @@ impl ItemListSelectionWindow {
             self.confirm(&mut events);
             return events;
         }
-        if ui.ctx.key_escape {
-            self.cancel(&mut events);
-            return events;
-        }
-
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
         let grf = self.has_grf_textures;
@@ -438,11 +433,8 @@ mod tests {
         let mut win = ItemListSelectionWindow::new();
         win.open("Make Arrow", ListContext::MakingArrow, vec![row(1750, 0)]);
 
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        let events = win.build(&mut ui);
+        let mut events = Vec::new();
+        win.cancel(&mut events);
 
         assert!(!win.is_open());
         assert!(

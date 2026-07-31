@@ -254,6 +254,15 @@ impl Window for ChatRoomMemberWindow {
 }
 
 impl InGameWindow for ChatRoomMemberWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        vec![GameEvent::RequestLeaveChatRoom]
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;

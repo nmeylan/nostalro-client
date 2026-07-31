@@ -941,8 +941,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 /// list registers after it, show no impact spark of their own.
 fn skips_generic_hit(skill: SkillEnum) -> bool {
     let id = skill.id();
-    (SkillEnum::TkRun.id()..=SkillEnum::SlSka.id()).contains(&id)
-        || id >= SkillEnum::TkMission.id()
+    (SkillEnum::TkRun.id()..=SkillEnum::SlSka.id()).contains(&id) || id >= SkillEnum::TkMission.id()
 }
 
 /// The spark the attack itself puts on the target, independent of the skill's
@@ -1536,7 +1535,9 @@ mod tests {
     }
 
     fn hit_markers(skill: Option<SkillEnum>, is_crit: bool, job: JobName) -> Vec<EffectId> {
-        derive_hit_effect(skill, is_crit, job, false).iter().collect()
+        derive_hit_effect(skill, is_crit, job, false)
+            .iter()
+            .collect()
     }
 
     #[test]
@@ -1552,7 +1553,10 @@ mod tests {
             "a self-inflicted hit shows no spark"
         );
 
-        assert_eq!(hit_markers(Some(S::MgColdbolt), false, Novice), [E::Coldhit]);
+        assert_eq!(
+            hit_markers(Some(S::MgColdbolt), false, Novice),
+            [E::Coldhit]
+        );
         assert_eq!(
             hit_markers(Some(S::MoBodyrelocation), false, Novice),
             [E::Hit1]

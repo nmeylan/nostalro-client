@@ -190,6 +190,15 @@ impl Window for PartyHelperWindow {
 }
 
 impl InGameWindow for PartyHelperWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.open = false;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;

@@ -80,4 +80,22 @@ pub trait Window {
 pub trait InGameWindow: Window {
     fn setup_modal(&self, _ui: &mut UiFrame) {}
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent>;
+    /// Whether this window claims Escape right now. The caller offers the key to
+    /// the front-most claimant only, so a window that is merely visible without
+    /// being dismissable (bars, notifications) keeps the `false` default.
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        false
+    }
+    /// Escape reached this window: close it, or leave an inner mode (a nested
+    /// dialog, a sub-page) and stay open.
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        Vec::new()
+    }
+    /// Whether this window is currently answering Enter — a modal waiting for an
+    /// OK, or a nested input dialog. The caller then blocks the key for every
+    /// window that reads it through [`UiFrame::enter_pressed`], so one press
+    /// cannot both confirm the modal and open the chat line.
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        false
+    }
 }

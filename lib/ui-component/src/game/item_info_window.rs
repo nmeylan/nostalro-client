@@ -371,6 +371,15 @@ impl Window for ItemInfoWindow {
 }
 
 impl InGameWindow for ItemInfoWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let data = ctx.data;
@@ -420,7 +429,6 @@ impl InGameWindow for ItemInfoWindow {
                 grf,
                 bg_size,
                 extra_h,
-                true,
             );
             self.scroll_offset = result.scroll_offset;
 
@@ -573,7 +581,6 @@ impl InGameWindow for ItemInfoWindow {
                 grf,
                 bg_size,
                 VIEW_SECTION_H,
-                false,
             );
             self.card_scroll_offset = result.scroll_offset;
 
@@ -680,7 +687,6 @@ fn build_info_window(
     grf: bool,
     bg_size: (f32, f32),
     extra_height: f32,
-    escape_closes: bool,
 ) -> InfoWindowResult {
     let (container_w, container_h) = if grf {
         bg_size
@@ -769,7 +775,7 @@ fn build_info_window(
         CLOSE_OFF_TEX,
         Some('x'),
     );
-    let closed = close_resp.clicked() || (escape_closes && ui.ctx.key_escape);
+    let closed = close_resp.clicked();
     if closed {
         return InfoWindowResult {
             win_x: win.x,

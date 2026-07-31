@@ -176,6 +176,24 @@ impl Window for MailboxWindow {
 }
 
 impl InGameWindow for MailboxWindow {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.amount_dialog.is_some()
+    }
+
+    fn wants_escape(&self, ctx: &BuildCtx) -> bool {
+        ctx.character.mail.window_open
+    }
+
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        if self.amount_dialog.is_some() {
+            self.amount_dialog = None;
+            return Vec::new();
+        }
+        ctx.character.mail.window_open = false;
+        ctx.character.mail.read_open = false;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;

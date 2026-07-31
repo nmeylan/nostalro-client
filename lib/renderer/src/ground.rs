@@ -837,7 +837,11 @@ mod tests {
         let alpha = |x: usize, y: usize| pixels[(y * tex_w as usize + x) * 4 + 3];
         for ty in 0..8 {
             for tx in 0..7 {
-                assert_eq!(alpha(tx, ty), (ty * 8 + tx) as u8, "cell 0 texel ({tx},{ty})");
+                assert_eq!(
+                    alpha(tx, ty),
+                    (ty * 8 + tx) as u8,
+                    "cell 0 texel ({tx},{ty})"
+                );
                 assert_eq!(
                     alpha(8 + tx, ty),
                     100 + (ty * 8 + tx + 1) as u8,

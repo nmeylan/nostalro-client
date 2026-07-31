@@ -316,6 +316,15 @@ impl Window for HotkeyConfigWindow {
 }
 
 impl InGameWindow for HotkeyConfigWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open() && self.capturing.is_none()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
@@ -373,7 +382,7 @@ impl InGameWindow for HotkeyConfigWindow {
             CLOSE_OFF_TEX,
             Some('x'),
         );
-        if close_resp.clicked() || (ui.ctx.key_escape && self.capturing.is_none()) {
+        if close_resp.clicked() {
             self.close();
             ui.has_grf_textures = prev_grf;
             return events;

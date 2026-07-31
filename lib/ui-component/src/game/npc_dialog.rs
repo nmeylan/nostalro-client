@@ -173,6 +173,39 @@ impl Window for NpcDialog {
 }
 
 impl InGameWindow for NpcDialog {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.dialog.is_open()
+    }
+
+    /// An open dialog always claims Escape, even in the states that do nothing
+    /// with it: the server holds the character until it gets a reply, so the key
+    /// must not reach a window behind it.
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.dialog.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        let npc_id = self.dialog.npc_id;
+        match self.dialog.state {
+            NpcDialogState::WaitingForClose => {
+                self.dialog.close();
+                vec![GameEvent::RequestNpcClose { npc_id }]
+            }
+            NpcDialogState::WaitingForMenu => {
+                self.dialog.close();
+                vec![GameEvent::RequestNpcMenuSelect {
+                    npc_id,
+                    choice: 255,
+                }]
+            }
+            NpcDialogState::WaitingForDealType => {
+                self.dialog.close();
+                Vec::new()
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
@@ -194,7 +227,7 @@ impl InGameWindow for NpcDialog {
                 }
             }
             NpcDialogState::WaitingForClose => {
-                if ui.ctx.key_enter || ui.ctx.key_escape {
+                if ui.ctx.key_enter {
                     events.push(GameEvent::RequestNpcClose {
                         npc_id: self.dialog.npc_id,
                     });
@@ -203,14 +236,6 @@ impl InGameWindow for NpcDialog {
                 }
             }
             NpcDialogState::WaitingForMenu => {
-                if ui.ctx.key_escape {
-                    events.push(GameEvent::RequestNpcMenuSelect {
-                        npc_id: self.dialog.npc_id,
-                        choice: 255,
-                    });
-                    self.dialog.close();
-                    return events;
-                }
                 let total_items = self.dialog.menu_items.len();
                 if ui.ctx.key_up && self.dialog.selected_menu_index > 0 {
                     self.dialog.selected_menu_index -= 1;
@@ -250,12 +275,6 @@ impl InGameWindow for NpcDialog {
                     });
                     self.string_input.text.clear();
                     self.string_input.cursor_pos = 0;
-                    self.dialog.close();
-                    return events;
-                }
-            }
-            NpcDialogState::WaitingForDealType => {
-                if ui.ctx.key_escape {
                     self.dialog.close();
                     return events;
                 }
@@ -714,12 +733,10 @@ mod tests {
 
         let mut character = Character::new();
         let data = DataTable::new();
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = crate::BuildCtx::test(&mut character, &data);
 
-        let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert!(npc.wants_escape(&ctx));
+        let events = npc.on_escape(&mut ctx);
         assert_eq!(events.len(), 1);
         match &events[0] {
             GameEvent::RequestNpcMenuSelect { npc_id, choice } => {
@@ -738,12 +755,10 @@ mod tests {
 
         let mut character = Character::new();
         let data = DataTable::new();
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = crate::BuildCtx::test(&mut character, &data);
 
-        let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert!(npc.wants_escape(&ctx));
+        let events = npc.on_escape(&mut ctx);
         assert!(events.is_empty());
         assert!(!npc.dialog.is_open());
     }

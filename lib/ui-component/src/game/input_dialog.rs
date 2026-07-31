@@ -118,7 +118,7 @@ impl InputDialog {
     }
 
     pub fn build(&mut self, ui: &mut UiFrame) -> InputDialogResult {
-        if self.escape_cancels && ui.ctx.key_escape {
+        if self.escape_cancels && ui.take_escape() {
             return InputDialogResult::Cancel;
         }
 

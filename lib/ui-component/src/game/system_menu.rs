@@ -87,7 +87,6 @@ pub struct SystemMenu {
     pub dead: bool,
     pub can_resurrect: bool,
     pub has_grf_textures: bool,
-    pub allow_escape_toggle: bool,
     pending_confirm: PendingConfirm,
     confirm_dialog: ConfirmDialog,
     confirm_dialog_out_param: Rc<Cell<Option<ConfirmResult>>>,
@@ -108,7 +107,6 @@ impl SystemMenu {
             dead: false,
             can_resurrect: false,
             has_grf_textures: false,
-            allow_escape_toggle: false,
             pending_confirm: PendingConfirm::None,
             confirm_dialog: ConfirmDialog::new(),
             confirm_dialog_out_param: Rc::new(Cell::new(None)),
@@ -171,21 +169,27 @@ impl Window for SystemMenu {
 }
 
 impl InGameWindow for SystemMenu {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.open && !self.dead
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        if self.pending_confirm != PendingConfirm::None {
+            self.pending_confirm = PendingConfirm::None;
+        } else {
+            self.open = false;
+        }
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
         let mut events = Vec::new();
-
-        if self.allow_escape_toggle
-            && ui.ctx.key_escape
-            && !self.dead
-            && self.pending_confirm == PendingConfirm::None
-        {
-            self.open = !self.open;
-            if !self.open {
-                return events;
-            }
-        }
 
         if !self.open {
             return events;
@@ -220,8 +224,6 @@ impl InGameWindow for SystemMenu {
                         self.pending_confirm = PendingConfirm::None;
                     }
                 }
-            } else if ui.ctx.key_escape {
-                self.pending_confirm = PendingConfirm::None;
             }
             return events;
         }
@@ -474,38 +476,16 @@ mod tests {
     }
 
     #[test]
-    fn escape_toggles_menu() {
+    fn escape_closes_an_open_menu() {
         let mut menu = SystemMenu::new();
-        let mut state = StateCache::new();
         let mut character = Character::new();
         let data = DataTable::new();
-        assert!(!menu.open);
+        let mut ctx = crate::BuildCtx::test(&mut character, &data);
 
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
-        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-        assert!(menu.open);
-
-        let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
-        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-        assert!(!menu.open);
-    }
-
-    #[test]
-    fn escape_blocked_when_not_allowed() {
-        let mut menu = SystemMenu::new();
-        let mut state = StateCache::new();
-        let mut character = Character::new();
-        let data = DataTable::new();
-
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = false;
-        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert!(!menu.wants_escape(&ctx));
+        menu.open = true;
+        assert!(menu.wants_escape(&ctx));
+        menu.on_escape(&mut ctx);
         assert!(!menu.open);
     }
 
@@ -523,7 +503,6 @@ mod tests {
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(!menu.open);
     }
@@ -542,7 +521,6 @@ mod tests {
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
@@ -566,7 +544,6 @@ mod tests {
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
@@ -584,7 +561,6 @@ mod tests {
         ctx.mouse_y = btn_y + btn_h / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
@@ -608,7 +584,6 @@ mod tests {
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
@@ -626,7 +601,6 @@ mod tests {
         ctx.mouse_y = btn_y + btn_h / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(e, GameEvent::QuitGame)));
         assert!(!menu.open);
@@ -654,7 +628,6 @@ mod tests {
         ctx.mouse_y = cancel_btn_y + btn_h / 2.0;
         ctx.mouse_clicked = true;
         let mut ui = make_frame(&ctx, &mut state);
-        menu.allow_escape_toggle = true;
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::None);
@@ -719,15 +692,11 @@ mod tests {
     fn escape_cannot_close_death_menu() {
         let mut menu = SystemMenu::new();
         menu.open_dead();
-        menu.allow_escape_toggle = true;
-        let mut state = StateCache::new();
         let mut character = Character::new();
         let data = DataTable::new();
+        let ctx = crate::BuildCtx::test(&mut character, &data);
 
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert!(!menu.wants_escape(&ctx));
         assert!(menu.open);
         assert!(menu.dead);
     }

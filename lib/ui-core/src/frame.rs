@@ -34,6 +34,7 @@ pub struct UiFrame<'a> {
     modal_layers: Vec<WidgetId>,
     in_popup_layer: bool,
     keyboard_blocked: bool,
+    escape_consumed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -256,6 +257,7 @@ impl<'a> UiFrame<'a> {
             modal_layers: Vec::new(),
             in_popup_layer: false,
             keyboard_blocked: false,
+            escape_consumed: false,
         }
     }
 
@@ -271,7 +273,17 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn escape_pressed(&self) -> bool {
-        self.ctx.key_escape && !self.keyboard_blocked
+        self.ctx.key_escape && !self.keyboard_blocked && !self.escape_consumed
+    }
+
+    /// Claims the Escape key for this frame. Escape has exactly one consumer:
+    /// the first caller gets `true`, every later caller sees nothing.
+    pub fn take_escape(&mut self) -> bool {
+        if !self.escape_pressed() {
+            return false;
+        }
+        self.escape_consumed = true;
+        true
     }
 
     pub fn get_z_order(&mut self) -> Vec<WidgetId> {
@@ -1137,6 +1149,21 @@ mod tests {
         saved_positions: &'a HashMap<u32, [f32; 2]>,
     ) -> UiFrame<'a> {
         UiFrame::new(ctx, atlas, state, 0.0, false, None, saved_positions)
+    }
+
+    #[test]
+    fn only_the_first_caller_gets_escape() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.key_escape = true;
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+
+        assert!(ui.escape_pressed());
+        assert!(ui.take_escape());
+        assert!(!ui.take_escape());
+        assert!(!ui.escape_pressed());
     }
 
     #[test]

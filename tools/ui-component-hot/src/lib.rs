@@ -3069,7 +3069,6 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             add_button(ui, "Open system Dialog", WidgetId(599), 10.0, 10.0, |_ui| {
                 menu.open = true;
             });
-            menu.allow_escape_toggle = true;
             menu.build(ui, &mut d.ctx(character, data));
         }
         State::CharSelect { win } => {

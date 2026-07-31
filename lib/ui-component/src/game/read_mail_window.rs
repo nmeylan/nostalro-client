@@ -132,6 +132,16 @@ impl Window for ReadMailWindow {
 }
 
 impl InGameWindow for ReadMailWindow {
+    fn wants_escape(&self, ctx: &BuildCtx) -> bool {
+        ctx.character.mail.read_open && ctx.character.mail.opened.is_some()
+    }
+
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        ctx.character.mail.read_open = false;
+        ctx.character.mail.opened = None;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;

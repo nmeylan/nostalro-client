@@ -136,6 +136,15 @@ impl Window for SkillTreeWindow {
 }
 
 impl InGameWindow for SkillTreeWindow {
+    fn wants_escape(&self, ctx: &BuildCtx) -> bool {
+        ctx.character.skills.is_open()
+    }
+
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        ctx.character.skills.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;

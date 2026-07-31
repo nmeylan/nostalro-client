@@ -1,3 +1,4 @@
+use crate::ui::escape::EscapeState;
 use ragnarok_ui::frame::WidgetId;
 use ragnarok_ui_component::InGameWindow;
 use ragnarok_ui_component::game::basic_info_window::BASIC_INFO_WINDOW_ID;
@@ -153,6 +154,7 @@ pub struct Windows {
     pub homun_skill_window: HomunSkillWindow,
     pub world_map_window: WorldMapWindow,
     pub context_menu: ContextMenu,
+    pub escape: EscapeState,
 }
 
 impl Default for Windows {
@@ -222,6 +224,7 @@ impl Windows {
             homun_skill_window: HomunSkillWindow::new(),
             world_map_window: WorldMapWindow::new(),
             context_menu: ContextMenu::new(),
+            escape: EscapeState::default(),
         }
     }
 }

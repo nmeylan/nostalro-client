@@ -94,7 +94,7 @@ impl WarpListWindow {
         self.close();
     }
 
-    fn cancel(&mut self, events: &mut Vec<GameEvent>) {
+    pub fn cancel(&mut self, events: &mut Vec<GameEvent>) {
         events.push(GameEvent::RequestSelectWarppoint {
             skill_id: self.skill_id,
             map_name: "cancel".to_string(),
@@ -123,11 +123,6 @@ impl WarpListWindow {
             self.confirm(&mut events);
             return events;
         }
-        if ui.ctx.key_escape {
-            self.cancel(&mut events);
-            return events;
-        }
-
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
@@ -300,11 +295,8 @@ mod tests {
         let mut win = WarpListWindow::new();
         win.open(27, vec!["Random".into()]);
 
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
-        let events = win.build(&mut ui);
+        let mut events = Vec::new();
+        win.cancel(&mut events);
 
         assert!(events.iter().any(|e| matches!(
             e,

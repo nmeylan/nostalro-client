@@ -86,6 +86,15 @@ impl Window for MonsterInfoWindow {
 }
 
 impl InGameWindow for MonsterInfoWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
         if self.info.is_none() {
             return Vec::new();
@@ -135,7 +144,7 @@ impl InGameWindow for MonsterInfoWindow {
             CLOSE_OFF_TEX,
             Some('x'),
         );
-        if close_resp.clicked() || ui.ctx.key_escape {
+        if close_resp.clicked() {
             self.close();
             ui.has_grf_textures = prev_grf;
             return Vec::new();

@@ -197,6 +197,15 @@ impl Window for PartyFriendsWindow {
 }
 
 impl InGameWindow for PartyFriendsWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.open = false;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         if !self.open {
             return Vec::new();

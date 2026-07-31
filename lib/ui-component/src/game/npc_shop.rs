@@ -133,6 +133,10 @@ impl Window for NpcShop {
 }
 
 impl InGameWindow for NpcShop {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.shop.is_open()
+    }
+
     fn setup_modal(&self, ui: &mut UiFrame) {
         if !self.shop.is_open() {
             return;
@@ -144,6 +148,18 @@ impl InGameWindow for NpcShop {
         ui.set_modal(&modal_ids);
     }
 
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.shop.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        if self.qty_popup.is_some() {
+            self.qty_popup = None;
+            return Vec::new();
+        }
+        vec![GameEvent::RequestNpcShopClose]
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
@@ -152,15 +168,6 @@ impl InGameWindow for NpcShop {
         }
 
         let mut events = Vec::new();
-
-        if ui.ctx.key_escape {
-            if self.qty_popup.is_some() {
-                self.qty_popup = None;
-                return events;
-            }
-            events.push(GameEvent::RequestNpcShopClose);
-            return events;
-        }
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
@@ -815,12 +822,10 @@ mod tests {
 
         let mut character = Character::new();
         let data = DataTable::new();
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = crate::BuildCtx::test(&mut character, &data);
 
-        let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        assert!(shop_ui.wants_escape(&ctx));
+        let events = shop_ui.on_escape(&mut ctx);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::RequestNpcShopClose));
         assert!(shop_ui.shop.is_open());
@@ -892,12 +897,9 @@ mod tests {
 
         let mut character = Character::new();
         let data = DataTable::new();
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = crate::BuildCtx::test(&mut character, &data);
 
-        let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        let events = shop_ui.on_escape(&mut ctx);
         assert!(events.is_empty());
         assert!(shop_ui.qty_popup.is_none());
         assert!(shop_ui.shop.is_open());

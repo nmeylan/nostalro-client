@@ -166,6 +166,9 @@ impl App {
             config.custom.sound.stereo,
             config.custom.sound.play_when_unfocused,
         );
+        windows
+            .escape
+            .set_excluded(&config.custom.window.exclude_close_via_esc);
         game.prefs.self_config.refuse_party_invite = config.refuse_party_invite;
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);

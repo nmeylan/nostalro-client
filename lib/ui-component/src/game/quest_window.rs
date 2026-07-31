@@ -337,6 +337,15 @@ impl Window for QuestWindow {
 }
 
 impl InGameWindow for QuestWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.open = false;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let data = ctx.data;
         let quest_log = ctx.quest_log;
@@ -487,6 +496,15 @@ impl Window for QuestDetailWindow {
 }
 
 impl InGameWindow for QuestDetailWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let data = ctx.data;
         if !self.open {

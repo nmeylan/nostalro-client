@@ -257,6 +257,24 @@ impl Window for TradeWindow {
 }
 
 impl InGameWindow for TradeWindow {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.qty_dialog.is_some()
+    }
+
+    fn wants_escape(&self, ctx: &BuildCtx) -> bool {
+        ctx.character.trade.is_active()
+    }
+
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        if self.qty_dialog.is_some() {
+            self.qty_dialog = None;
+            return Vec::new();
+        }
+        ctx.character.trade.reset();
+        self.reset_input();
+        vec![GameEvent::RequestCancelExchange]
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
@@ -420,7 +438,6 @@ impl InGameWindow for TradeWindow {
         let cancel = ui.button(CANCEL_BTN_ID, cancel_rect, &CANCEL_BTN, "Cancel");
 
         // --- Quantity dialog (modal) ---
-        let dialog_was_open = self.qty_dialog.is_some();
         if let Some((index, dialog)) = &mut self.qty_dialog {
             match dialog.build(ui) {
                 InputDialogResult::Submitted => {
@@ -440,8 +457,7 @@ impl InGameWindow for TradeWindow {
             }
         }
 
-        let esc = !dialog_was_open && ui.ctx.key_escape;
-        if cancel.clicked() || esc {
+        if cancel.clicked() {
             events.push(GameEvent::RequestCancelExchange);
             character.trade.reset();
             self.zeny_input.text.clear();

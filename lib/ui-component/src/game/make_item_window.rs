@@ -422,6 +422,18 @@ impl Window for MakeItemWindow {
 }
 
 impl InGameWindow for MakeItemWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        vec![GameEvent::RequestMakingItem {
+            item_id: 0,
+            materials: [0; 3],
+        }]
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let _data = ctx.data;

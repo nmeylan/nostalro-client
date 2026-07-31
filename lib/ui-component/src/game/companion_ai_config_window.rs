@@ -1710,6 +1710,16 @@ fn push_quad(ui: &mut UiFrame, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) 
 }
 
 impl InGameWindow for CompanionAiConfigWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.visible
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.visible = false;
+        self.open_enum = None;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         self.build_body(ui, &mut *ctx.companion_ai)
     }

@@ -35,6 +35,18 @@ impl GuildExpelDialog {
 }
 
 impl InGameWindow for GuildExpelDialog {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        true
+    }
+
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        true
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;

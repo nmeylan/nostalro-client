@@ -1,3 +1,4 @@
+pub mod escape;
 pub mod in_game;
 pub mod windows;
 

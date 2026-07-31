@@ -198,10 +198,9 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Holycross => &[fixed_ui_at0!("effect\\cru_holy cross.wav")],
         E::Striphelm => &[at!(Fixed("effect\\strip.wav"), &[6])],
         E::RgCoin => &[fixed_at0!("effect\\rog_steal coin.wav")],
-        E::Flamelauncher
-        | E::Frostweapon
-        | E::Lightningloader
-        | E::Seismicweapon => &[at_depth!(Fixed("_enemy_hit_wind1.wav"), &[10], -150.0)],
+        E::Flamelauncher | E::Frostweapon | E::Lightningloader | E::Seismicweapon => {
+            &[at_depth!(Fixed("_enemy_hit_wind1.wav"), &[10], -150.0)]
+        }
         E::Hit2 => &[fixed_at0!("effect\\EF_hit2.wav")],
         E::Hit3 => &[fixed_at0!("effect\\EF_hit3.wav")],
         E::Hit4 => &[fixed_at0!("effect\\EF_hit4.wav")],
@@ -486,9 +485,7 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
             fixed_at0!("effect\\assasin_enchantpoison.wav"),
             fixed_at0!("effect\\EF_PoisonAttack.wav"),
         ],
-        E::Stripweapon | E::Stripshield | E::Striparmor => {
-            &[at!(Fixed("effect\\strip.wav"), &[6])]
-        }
+        E::Stripweapon | E::Stripshield | E::Striparmor => &[at!(Fixed("effect\\strip.wav"), &[6])],
         E::Food01 | E::Food02 | E::Food03 | E::Food04 | E::Food05 => {
             &[fixed_at0!("_heal_effect.wav")]
         }
@@ -499,9 +496,7 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
             &[fixed_at0!("effect\\EF_Endure.wav")]
         }
         E::Aldef2 => &[fixed_at0!("effect\\sage_spell breake.wav")],
-        E::Vallentine2 | E::Itemfast | E::Ro2year => {
-            &[fixed_at0!("effect\\vallentine.wav")]
-        }
+        E::Vallentine2 | E::Itemfast | E::Ro2year => &[fixed_at0!("effect\\vallentine.wav")],
         E::PokLove | E::PokWhite | E::PokValen | E::PokBirth | E::PokChristmas => {
             &[fixed_ui_at0!("effect\\itempokjuk.wav")]
         }

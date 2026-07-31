@@ -223,6 +223,15 @@ impl MercenaryWindow {
 }
 
 impl InGameWindow for MercenaryWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.visible
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.visible = false;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         self.build_body(ui, ctx.mercenary)
     }

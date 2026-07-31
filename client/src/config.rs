@@ -43,6 +43,7 @@ pub struct CustomConfig {
     /// Green aura under boss monsters at level 99 or above.
     pub boss_aura: bool,
     pub sound: CustomSoundConfig,
+    pub window: CustomWindowConfig,
 }
 
 impl Default for CustomConfig {
@@ -50,8 +51,18 @@ impl Default for CustomConfig {
         Self {
             boss_aura: false,
             sound: CustomSoundConfig::default(),
+            window: CustomWindowConfig::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomWindowConfig {
+    /// Windows Escape must leave alone, by the names in
+    /// `ui::escape::ESC_WINDOW_NAMES` (case- and space-insensitive). Escape then
+    /// moves on to the next window behind them.
+    pub exclude_close_via_esc: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -371,6 +382,14 @@ mod tests {
         assert_eq!(config.login_servers.len(), 1);
         assert_eq!(config.login_servers[0].port, 6900);
         assert_eq!(config.screen_width, 1024);
+        assert!(config.custom.window.exclude_close_via_esc.is_empty());
+
+        let json = r#"{"custom": {"window": {"exclude_close_via_esc": ["Stats", "Inventory"]}}}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.custom.window.exclude_close_via_esc,
+            vec!["Stats".to_string(), "Inventory".to_string()]
+        );
     }
 
     #[test]

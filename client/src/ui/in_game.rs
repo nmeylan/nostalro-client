@@ -1,4 +1,5 @@
 use crate::game_state::{GameState, TOKEN_OF_SIEGFRIED};
+use crate::ui::escape::{EscapeGame, modal_owns_keyboard, route_escape};
 use crate::ui::windows::{Dispatch, REGISTRY, Windows};
 use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::event::GameEvent;
@@ -22,7 +23,6 @@ pub fn build_in_game_ui(
     texture_size_fn: &dyn Fn(&str) -> Option<(u32, u32)>,
     _render_list: &[RenderEntry],
 ) -> Vec<GameEvent> {
-    let chat_was_active = windows.chat_window.is_active();
     let mut events = Vec::new();
 
     windows.npc_shop.setup_modal(ui);
@@ -67,6 +67,26 @@ pub fn build_in_game_ui(
             windows.world_map_window.player_position = Some(player.movement.position());
             windows.world_map_window.player_direction = player.direction;
         }
+    }
+
+    // Snapshot before the Escape router, which can dismiss the dialog itself.
+    let had_disconnect_dialog =
+        game.session.disconnect_dialog_shown && windows.confirm_dialog.state.is_some();
+
+    events.extend(route_escape(
+        ui,
+        windows,
+        EscapeGame {
+            pending_casts: &mut game.pending_casts,
+            capture_targeting: &mut game.companions.capture_targeting,
+            pet_roulette: &mut game.companions.pet_roulette,
+            combat: &mut game.combat,
+        },
+        &mut ctx,
+    ));
+
+    if modal_owns_keyboard(windows, &ctx) {
+        ui.block_keyboard();
     }
 
     let z_order = ui.get_z_order();
@@ -135,29 +155,10 @@ pub fn build_in_game_ui(
 
     events.extend(windows.status_icon_bar.build(ui, &mut ctx));
 
-    let npc_dialog_open = windows.npc_dialog.dialog.is_open();
     events.extend(windows.npc_dialog.build(ui, &mut ctx));
-    let shop_open = windows.npc_shop.shop.is_open();
     events.extend(windows.npc_shop.build(ui, &mut ctx));
-    let warp_list_open = windows.warp_list_window.is_open();
     events.extend(windows.warp_list_window.build(ui));
-    let item_list_open = windows.item_list_selection_window.is_open();
     events.extend(windows.item_list_selection_window.build(ui));
-    let mut allow_escape =
-        !chat_was_active && !npc_dialog_open && !shop_open && !warp_list_open && !item_list_open;
-    if allow_escape && ui.ctx.key_escape && game.pending_casts.pending_skill_target.is_some() {
-        game.pending_casts.pending_skill_target = None;
-        allow_escape = false;
-    }
-    if allow_escape
-        && ui.ctx.key_escape
-        && (game.companions.capture_targeting || game.companions.pet_roulette.is_some())
-    {
-        game.companions.capture_targeting = false;
-        game.companions.pet_roulette = None;
-        allow_escape = false;
-    }
-    windows.system_menu.allow_escape_toggle = allow_escape;
     windows.system_menu.can_resurrect = windows.system_menu.dead
         && !game.session.map_properties.enable_pk()
         && !game.session.map_properties.is_siege()
@@ -175,8 +176,6 @@ pub fn build_in_game_ui(
         &mut ctx,
     ));
 
-    let had_disconnect_dialog =
-        game.session.disconnect_dialog_shown && windows.confirm_dialog.state.is_some();
     windows.confirm_dialog.build(ui);
     if had_disconnect_dialog && windows.confirm_dialog.state.is_none() {
         game.session.pending_disconnect_exit = true;

@@ -1332,12 +1332,12 @@ pub fn make_effect(
             anchor.point(),
             effects::casting_ring::LV99,
         )),
-        EffectId::Level992 | EffectId::Level996 => Box::new(
-            effects::floor_aura::FloorAuraEffect::new(
+        EffectId::Level992 | EffectId::Level996 => {
+            Box::new(effects::floor_aura::FloorAuraEffect::new(
                 anchor.point(),
                 effects::floor_aura::LV99_BLUE,
-            ),
-        ),
+            ))
+        }
         EffectId::Level993 => Box::new(effects::sparkle_column::SparkleColumnEffect::new(
             anchor.point(),
             effects::sparkle_column::FREEZING,
@@ -1366,9 +1366,9 @@ pub fn make_effect(
         EffectId::Beginspell => Box::new(
             effects::begin_spell::BeginSpellEffect::new(anchor.point()).with_life_ms(duration_ms),
         ),
-        EffectId::Couplecasting | EffectId::Homuncasting => Box::new(effects::couple_casting::CoupleCastingEffect::new(
-            anchor.point(),
-        )),
+        EffectId::Couplecasting | EffectId::Homuncasting => Box::new(
+            effects::couple_casting::CoupleCastingEffect::new(anchor.point()),
+        ),
         EffectId::Aurablade => Box::new(effects::aura_blade::AuraBladeEffect::new(anchor.point())),
         EffectId::Blackdevil => {
             Box::new(effects::black_devil::BlackDevilEffect::new(anchor.point()))

@@ -268,8 +268,9 @@ mod tests {
                 "{id:?} shares one variant set"
             );
         }
-        let picked: std::collections::BTreeSet<&str> =
-            (0..64).map(|roll| str_variant(EffectId::Firehit, roll)).collect();
+        let picked: std::collections::BTreeSet<&str> = (0..64)
+            .map(|roll| str_variant(EffectId::Firehit, roll))
+            .collect();
         assert_eq!(picked.len(), 3, "every variant gets used");
 
         // A single-name effect always resolves to its one file.

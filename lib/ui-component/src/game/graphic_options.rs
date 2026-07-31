@@ -131,6 +131,16 @@ impl Window for GraphicOptionsWindow {
 }
 
 impl InGameWindow for GraphicOptionsWindow {
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.open = false;
+        self.dropdown.open = false;
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
@@ -187,7 +197,7 @@ impl InGameWindow for GraphicOptionsWindow {
             CLOSE_OFF_TEX,
             Some('x'),
         );
-        if close_resp.clicked() || ui.ctx.key_escape {
+        if close_resp.clicked() {
             self.open = false;
             self.dropdown.open = false;
             ui.has_grf_textures = prev_grf;

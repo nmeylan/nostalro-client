@@ -263,6 +263,15 @@ impl ChatWindow {
         self.active
     }
 
+    /// Drops the input focus and the half-typed line without sending it.
+    pub fn cancel_input(&mut self) {
+        self.input.text.clear();
+        self.input.cursor_pos = 0;
+        self.history_index = None;
+        self.draft.clear();
+        self.active = false;
+    }
+
     pub fn contains_point(&self, x: f32, y: f32) -> bool {
         self.bounding_rect
             .as_ref()
@@ -860,7 +869,7 @@ impl InGameWindow for ChatWindow {
             ui.bring_to_front(CHAT_WINDOW_ID);
         }
 
-        if ui.ctx.key_enter && !self.active {
+        if ui.enter_pressed() && !self.active {
             self.active = true;
             let forced = if ui.ctx.ctrl_pressed {
                 Some(SendChannel::Party)
@@ -881,7 +890,7 @@ impl InGameWindow for ChatWindow {
         }
 
         if self.active {
-            if ui.ctx.key_enter {
+            if ui.enter_pressed() {
                 if !self.input.text.trim().is_empty() {
                     let message = self.input.text.clone();
                     if self.sent_history.last() != Some(&message) {
@@ -925,12 +934,6 @@ impl InGameWindow for ChatWindow {
                         });
                     }
                 }
-                self.active = false;
-            } else if ui.ctx.key_escape {
-                self.input.text.clear();
-                self.input.cursor_pos = 0;
-                self.history_index = None;
-                self.draft.clear();
                 self.active = false;
             } else {
                 if self.history_index.is_some() && !ui.ctx.typed_chars.is_empty() {

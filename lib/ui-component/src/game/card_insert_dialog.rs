@@ -148,6 +148,19 @@ impl Window for CardInsertDialog {
 }
 
 impl InGameWindow for CardInsertDialog {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
+        self.open
+    }
+
+    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.close();
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let _character = &mut *ctx.character;
         let _data = ctx.data;
@@ -158,10 +171,6 @@ impl InGameWindow for CardInsertDialog {
         let mut events = Vec::new();
         let grf = self.has_grf_textures;
 
-        if ui.ctx.key_escape {
-            self.close();
-            return vec![GameEvent::DialogClosed];
-        }
         if ui.ctx.key_enter && self.selected_index.is_some() {
             let idx = self.selected_index.unwrap();
             let equip_index = self.eligible_items[idx].inventory_index;
@@ -363,16 +372,13 @@ mod tests {
         dialog.open(10, "Poring Card".into(), test_items());
         assert!(dialog.is_open());
 
-        let mut state = StateCache::new();
-        let mut ctx = UiContext::new(800.0, 600.0);
-        ctx.key_escape = true;
         let mut character = Character::new();
         let data = DataTable::new();
-        let mut ui = make_frame(&ctx, &mut state);
-        let events = dialog.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        let mut ctx = crate::BuildCtx::test(&mut character, &data);
+        assert!(dialog.wants_escape(&ctx));
+        dialog.on_escape(&mut ctx);
 
         assert!(!dialog.is_open());
-        assert!(events.iter().any(|e| matches!(e, GameEvent::DialogClosed)));
     }
 
     #[test]

@@ -130,6 +130,23 @@ impl Window for CartWindow {
 }
 
 impl InGameWindow for CartWindow {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.qty_dialog.is_some()
+    }
+
+    fn wants_escape(&self, ctx: &BuildCtx) -> bool {
+        ctx.character.cart.is_open()
+    }
+
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        if self.qty_dialog.is_some() {
+            self.qty_dialog = None;
+        } else {
+            ctx.character.cart.close();
+        }
+        Vec::new()
+    }
+
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
         let character = &mut *ctx.character;
         let data = ctx.data;
