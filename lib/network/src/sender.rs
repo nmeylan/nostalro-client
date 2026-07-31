@@ -527,6 +527,45 @@ pub fn build_user_count_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+pub fn build_give_manner_point_packet(
+    target_aid: u32,
+    positive: bool,
+    point: i16,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzReqGiveMannerPoint::new(packetver);
+    pkt.set_other_aid(target_aid);
+    pkt.set_atype(if positive {
+        ragnarok_game::gm::MANNER_TYPE_PLUS
+    } else {
+        ragnarok_game::gm::MANNER_TYPE_MINUS
+    });
+    pkt.set_point(point.clamp(0, 30000));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_give_manner_byname_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqGiveMannerByname::new(packetver);
+    pkt.set_char_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_status_gm_packet(name: &str, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqStatusGm::new(packetver);
+    pkt.set_char_name(name_to_char24(name));
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_account_name_packet(aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqAccountname::new(packetver);
+    pkt.set_aid(aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
 pub fn build_alchemist_rank_packet(packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzAlchemistRank::new(packetver);
     pkt.fill_raw();

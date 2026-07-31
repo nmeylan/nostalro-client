@@ -435,6 +435,16 @@ impl App {
         )
     }
 
+    pub(crate) fn is_gm_account(&self) -> bool {
+        let account_id = self
+            .game
+            .session
+            .login_session
+            .as_ref()
+            .map_or(0, |s| s.account_id);
+        self.config.is_gm_account(account_id)
+    }
+
     fn spawn_network(&mut self) {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (event_tx, event_rx) = mpsc::unbounded_channel();

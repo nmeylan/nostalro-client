@@ -73,6 +73,8 @@ pub struct PendingConfirms {
     /// Character name and requested state of an in-flight whisper allow/deny; the
     /// local block list only changes once the server confirms it.
     pub pending_whisper_block: Option<(String, bool)>,
+    /// Target of the last `/check`; the stat block reply carries no name.
+    pub pending_gm_check: Option<String>,
     active: Option<Box<dyn FnOnce(bool) -> Option<GameEvent>>>,
 }
 

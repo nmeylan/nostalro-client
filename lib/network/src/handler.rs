@@ -13,6 +13,7 @@ use ragnarok_game::event::{
     HomunculusProperty, MercenaryInfo, MvpFeedbackKind, PartyMemberData, PetProperty,
     SelfConfigKind, ServerInfo, SkillInfo,
 };
+use ragnarok_game::gm::GmStatus;
 use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
@@ -1163,6 +1164,53 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcUserCount>() {
         return vec![GameEvent::UserCount { count: p.count }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckGiveMannerPoint>() {
+        return vec![GameEvent::MannerPointResult { result: p.result }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyMannerPointGiven>() {
+        return vec![GameEvent::MannerPointGiven {
+            positive: p.atype == ragnarok_game::gm::MANNER_TYPE_PLUS,
+            other_name: raw_euc_kr(&p.other_char_name_raw),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckStatusGm>() {
+        return vec![GameEvent::GmStatusReceived {
+            status: Box::new(GmStatus {
+                str: p.str,
+                str_cost: p.standard_str,
+                agi: p.agi,
+                agi_cost: p.standard_agi,
+                vit: p.vit,
+                vit_cost: p.standard_vit,
+                int: p.int,
+                int_cost: p.standard_int,
+                dex: p.dex,
+                dex_cost: p.standard_dex,
+                luk: p.luk,
+                luk_cost: p.standard_luk,
+                atk: p.att_power,
+                atk_plus: p.refining_power,
+                matk_max: p.max_matt_power,
+                matk_min: p.min_matt_power,
+                def: p.itemdef_power,
+                def_plus: p.plusdef_power,
+                mdef: p.mdef_power,
+                mdef_plus: p.plusmdef_power,
+                hit: p.hit_success_value,
+                flee: p.avoid_success_value,
+                flee_plus: p.plus_avoid_success_value,
+                critical: p.critical_success_value,
+                aspd: p.aspd,
+                aspd_plus: p.plus_aspd,
+            }),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckAccountname>() {
+        return vec![GameEvent::AccountNameReceived {
+            aid: p.aid,
+            name: raw_euc_kr(&p.name_raw),
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillmsg>() {
         return vec![GameEvent::SkillMsg { msg_no: p.msg_no }];
@@ -4831,6 +4879,85 @@ mod tests {
         match &dispatch_packet(&pkt, packetver)[0] {
             GameEvent::UserCount { count } => assert_eq!(*count, 137),
             other => panic!("expected UserCount, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn manner_report_request_and_its_two_answers_round_trip() {
+        let packetver = 20120307;
+
+        let request = crate::sender::build_give_manner_point_packet(2000042, false, 60, packetver);
+        assert_eq!(u16::from_le_bytes([request[0], request[1]]), 0x0149);
+        assert_eq!(request.len(), 9);
+        assert_eq!(
+            u32::from_le_bytes([request[2], request[3], request[4], request[5]]),
+            2000042
+        );
+        assert_eq!(request[6], ragnarok_game::gm::MANNER_TYPE_MINUS);
+        assert_eq!(i16::from_le_bytes([request[7], request[8]]), 60);
+
+        let by_name = crate::sender::build_give_manner_byname_packet("Hunter", packetver);
+        assert_eq!(u16::from_le_bytes([by_name[0], by_name[1]]), 0x0212);
+        assert_eq!(by_name.len(), 26);
+
+        let mut ack = PacketZcAckGiveMannerPoint::new(packetver);
+        ack.set_result(0);
+        ack.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&ack, packetver).as_slice(),
+            [GameEvent::MannerPointResult { result: 0 }]
+        ));
+
+        let mut given = PacketZcNotifyMannerPointGiven::new(packetver);
+        given.set_atype(1);
+        let mut gm_name = [0 as char; 24];
+        for (i, c) in "Sysop".chars().enumerate() {
+            gm_name[i] = c;
+        }
+        given.set_other_char_name(gm_name);
+        given.fill_raw();
+        match &dispatch_packet(&given, packetver)[0] {
+            GameEvent::MannerPointGiven {
+                positive,
+                other_name,
+            } => {
+                assert!(!positive);
+                assert_eq!(other_name, "Sysop");
+            }
+            other => panic!("expected MannerPointGiven, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn check_request_and_its_stat_block_round_trip() {
+        let packetver = 20120307;
+
+        let request = crate::sender::build_status_gm_packet("Hunter", packetver);
+        assert_eq!(u16::from_le_bytes([request[0], request[1]]), 0x0213);
+        assert_eq!(request.len(), 26);
+
+        let mut pkt = PacketZcAckStatusGm::new(packetver);
+        pkt.set_str(90);
+        pkt.set_standard_str(15);
+        pkt.set_luk(7);
+        pkt.set_att_power(120);
+        pkt.set_refining_power(30);
+        pkt.set_min_matt_power(40);
+        pkt.set_max_matt_power(55);
+        pkt.set_aspd(180);
+        pkt.fill_raw();
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::GmStatusReceived { status } => {
+                assert_eq!(status.str, 90);
+                assert_eq!(status.str_cost, 15);
+                assert_eq!(status.luk, 7);
+                assert_eq!(status.aspd, 180);
+                let lines = status.lines();
+                assert!(lines[0].starts_with("STR 90"));
+                assert!(lines[2].contains("ATK 120+30"));
+                assert!(lines[2].contains("MATK 40~55"));
+            }
+            other => panic!("expected GmStatusReceived, got {other:?}"),
         }
     }
 

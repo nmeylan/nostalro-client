@@ -6,6 +6,7 @@ mod config;
 mod connection;
 mod entity;
 mod friends;
+mod gm;
 mod guild;
 mod inventory;
 mod lifecycle;
@@ -31,6 +32,7 @@ use ragnarok_game::autocounter;
 use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_game::entity::{EntityType, ForcedAnimation};
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::gm::MANNER_POINT_STEP;
 use ragnarok_game::show_digit::ShowDigitClock;
 use ragnarok_network::*;
 use ragnarok_renderer::Renderer;
@@ -807,6 +809,21 @@ impl App {
                 }
                 GameEvent::UserCount { count } => {
                     self.handle_user_count(count);
+                }
+                GameEvent::MannerPointResult { result } => {
+                    self.handle_manner_point_result(result);
+                }
+                GameEvent::MannerPointGiven {
+                    positive,
+                    other_name,
+                } => {
+                    self.handle_manner_point_given(positive, other_name);
+                }
+                GameEvent::GmStatusReceived { status } => {
+                    self.handle_gm_status(&status);
+                }
+                GameEvent::AccountNameReceived { aid, name } => {
+                    self.handle_account_name(aid, name);
                 }
                 GameEvent::SkillMsg { msg_no } => {
                     self.handle_skill_msg(msg_no);
@@ -2993,6 +3010,52 @@ impl App {
                 GameEvent::RequestPetAct { data } => {
                     self.channel
                         .send_packet(build_pet_act_packet(data, self.active_packetver));
+                }
+                GameEvent::RequestMannerPoint {
+                    target_aid,
+                    positive,
+                } => {
+                    if positive {
+                        self.channel.send_packet(build_give_manner_point_packet(
+                            target_aid,
+                            true,
+                            MANNER_POINT_STEP,
+                            self.active_packetver,
+                        ));
+                    } else {
+                        let name = self
+                            .game
+                            .world
+                            .entities
+                            .get(target_aid)
+                            .and_then(|e| e.name.clone())
+                            .unwrap_or_else(|| "this player".to_string());
+                        self.game.arm_confirm(
+                            &mut self.windows,
+                            &format!("Take manner points from {name}? This cannot be undone."),
+                            move |accept| {
+                                accept.then_some(GameEvent::GiveMannerPoint {
+                                    target_aid,
+                                    positive: false,
+                                })
+                            },
+                        );
+                    }
+                }
+                GameEvent::GiveMannerPoint {
+                    target_aid,
+                    positive,
+                } => {
+                    self.channel.send_packet(build_give_manner_point_packet(
+                        target_aid,
+                        positive,
+                        MANNER_POINT_STEP,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RequestAccountName { aid } => {
+                    self.channel
+                        .send_packet(build_account_name_packet(aid, self.active_packetver));
                 }
                 GameEvent::RequestPetFeed => {
                     self.game.arm_confirm(

@@ -322,6 +322,26 @@ impl App {
                 });
             }
         }
+        if self.is_gm_account() {
+            items.push(ContextMenuItem {
+                label: "Give Manner Point".to_string(),
+                action: ContextMenuAction::GiveMannerPoint {
+                    target_aid: entity_id,
+                    positive: true,
+                },
+            });
+            items.push(ContextMenuItem {
+                label: "Take Manner Point".to_string(),
+                action: ContextMenuAction::GiveMannerPoint {
+                    target_aid: entity_id,
+                    positive: false,
+                },
+            });
+            items.push(ContextMenuItem {
+                label: "Account Name".to_string(),
+                action: ContextMenuAction::AccountName { aid: entity_id },
+            });
+        }
         self.windows
             .context_menu
             .open_at(mx as f32, my as f32, items);

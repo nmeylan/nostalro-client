@@ -944,6 +944,25 @@ pub enum GameEvent {
     UserCount {
         count: i32,
     },
+    /// 0x014a: outcome of a manner-point adjustment, or the notice that our own
+    /// chat got blocked.
+    MannerPointResult {
+        result: u32,
+    },
+    /// 0x014b: who adjusted our manner points, and in which direction.
+    MannerPointGiven {
+        positive: bool,
+        other_name: String,
+    },
+    /// 0x0214: the `/check` stat block of another character.
+    GmStatusReceived {
+        status: Box<crate::gm::GmStatus>,
+    },
+    /// 0x01e0: account name behind an account id.
+    AccountNameReceived {
+        aid: u32,
+        name: String,
+    },
     SkillMsg {
         msg_no: i32,
     },
@@ -1700,6 +1719,19 @@ pub enum GameEvent {
     },
     RespondAdoptionRequest {
         accept: bool,
+    },
+
+    /// Picked from the context menu; a minus point asks for confirmation first.
+    RequestMannerPoint {
+        target_aid: u32,
+        positive: bool,
+    },
+    GiveMannerPoint {
+        target_aid: u32,
+        positive: bool,
+    },
+    RequestAccountName {
+        aid: u32,
     },
 
     Acknowledged,

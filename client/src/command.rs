@@ -3,12 +3,12 @@ use ragnarok_game::entity::EntityState;
 use ragnarok_network::{
     build_action_request_packet, build_alchemist_rank_packet, build_blacksmith_rank_packet,
     build_change_direction_packet, build_chat_packet, build_config_packet, build_doridori_packet,
-    build_emotion_packet, build_exit_room_packet, build_guild_chat_packet,
-    build_leave_party_packet, build_lesseffect_packet, build_make_guild, build_make_party_packet,
-    build_party_chat_packet, build_party_invite_by_name_packet, build_remember_warppoint_packet,
-    build_req_disorganize_guild, build_setting_whisper_pc_packet,
-    build_setting_whisper_state_packet, build_stat_change_packet, build_taekwon_rank_packet,
-    build_user_count_packet, build_whisper_packet,
+    build_emotion_packet, build_exit_room_packet, build_give_manner_byname_packet,
+    build_guild_chat_packet, build_leave_party_packet, build_lesseffect_packet, build_make_guild,
+    build_make_party_packet, build_party_chat_packet, build_party_invite_by_name_packet,
+    build_remember_warppoint_packet, build_req_disorganize_guild, build_setting_whisper_pc_packet,
+    build_setting_whisper_state_packet, build_stat_change_packet, build_status_gm_packet,
+    build_taekwon_rank_packet, build_user_count_packet, build_whisper_packet,
 };
 
 impl App {
@@ -606,6 +606,14 @@ impl App {
             ChatCommand::UserCount => {
                 self.channel.send_packet(build_user_count_packet(pv));
             }
+            ChatCommand::CheckStatus(name) => {
+                self.game.pending_confirms.pending_gm_check = Some(name.clone());
+                self.channel.send_packet(build_status_gm_packet(&name, pv));
+            }
+            ChatCommand::ReportManner(name) => {
+                self.channel
+                    .send_packet(build_give_manner_byname_packet(&name, pv));
+            }
             ChatCommand::ToggleShowPing => {
                 self.game.show_ping = !self.game.show_ping;
                 let status = if self.game.show_ping { "ON" } else { "OFF" };
@@ -634,11 +642,15 @@ impl App {
                     .add_system("This command is no longer available.".to_string());
             }
             ChatCommand::Unknown => {
-                let cmd = command.split_whitespace().next().unwrap_or("");
-                self.windows
-                    .chat_window
-                    .add_system(format!("Unknown command: {cmd}"));
+                self.reply_unknown_command(command);
             }
         }
+    }
+
+    fn reply_unknown_command(&mut self, command: &str) {
+        let cmd = command.split_whitespace().next().unwrap_or("");
+        self.windows
+            .chat_window
+            .add_system(format!("Unknown command: {cmd}"));
     }
 }

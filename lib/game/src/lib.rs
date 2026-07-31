@@ -21,6 +21,7 @@ pub mod doridori;
 pub use ragnarok_effects as effect;
 pub mod effects;
 pub mod emotion;
+pub mod gm;
 pub mod gr2_model;
 pub mod graffiti;
 pub mod inventory;

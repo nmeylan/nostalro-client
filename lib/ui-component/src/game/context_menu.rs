@@ -61,6 +61,13 @@ pub enum ContextMenuAction {
     PetCommand {
         csub: i8,
     },
+    GiveMannerPoint {
+        target_aid: u32,
+        positive: bool,
+    },
+    AccountName {
+        aid: u32,
+    },
 }
 
 pub struct ContextMenuItem {
@@ -206,6 +213,18 @@ impl ContextMenu {
                 }
                 ContextMenuAction::PetCommand { csub } => {
                     events.push(GameEvent::RequestPetCommand { csub });
+                }
+                ContextMenuAction::GiveMannerPoint {
+                    target_aid,
+                    positive,
+                } => {
+                    events.push(GameEvent::RequestMannerPoint {
+                        target_aid,
+                        positive,
+                    });
+                }
+                ContextMenuAction::AccountName { aid } => {
+                    events.push(GameEvent::RequestAccountName { aid });
                 }
             }
             self.close();

@@ -79,6 +79,10 @@ pub enum ChatCommand {
     Emote(u8),
     /// `/who` / `/w` — ask the server how many players are online.
     UserCount,
+    /// `/check <name>` — GM: read another character's stat block.
+    CheckStatus(String),
+    /// `/rc <name>` — GM: take manner points from a character by name.
+    ReportManner(String),
     /// `/show_ping` — toggle the network sync/latency overlay.
     ToggleShowPing,
     /// `/show_fps` — toggle the frame-rate overlay.
@@ -208,6 +212,8 @@ pub const COMMAND_HELP: &[(&str, &str)] = &[
         "Use support skills without holding Shift.",
     ),
     ("/who or /w", "Shows how many players are online."),
+    ("/check <name>", "GM: shows a character's stats."),
+    ("/rc <name>", "GM: takes manner points from a character."),
     ("/show_ping", "Toggles the network sync/latency overlay."),
     ("/show_fps", "Toggles the frame-rate overlay."),
     ("/h or /help", "Lists the in-game commands."),
@@ -318,6 +324,8 @@ pub fn parse_chat_command(input: &str) -> ChatCommand {
         "/show_fps" => ChatCommand::ToggleShowFps,
         "/h" | "/help" => ChatCommand::Help,
         "/who" | "/w" => ChatCommand::UserCount,
+        "/check" if !args.is_empty() => ChatCommand::CheckStatus(args.to_string()),
+        "/rc" if !args.is_empty() => ChatCommand::ReportManner(args.to_string()),
         "/showname" | "/report" | "/loading" => ChatCommand::Outdated,
         _ => match emote_type_for_command(raw_cmd) {
             Some(emote_type) => ChatCommand::Emote(emote_type),
@@ -351,6 +359,15 @@ mod tests {
         assert_eq!(parse_chat_command("/w"), ChatCommand::UserCount);
         assert_eq!(parse_chat_command("/loading"), ChatCommand::Outdated);
         assert_eq!(parse_chat_command("/nope"), ChatCommand::Unknown);
+        assert_eq!(
+            parse_chat_command("/check Hunter"),
+            ChatCommand::CheckStatus("Hunter".to_string())
+        );
+        assert_eq!(
+            parse_chat_command("/rc Hunter"),
+            ChatCommand::ReportManner("Hunter".to_string())
+        );
+        assert_eq!(parse_chat_command("/check"), ChatCommand::Unknown);
     }
 
     #[test]
