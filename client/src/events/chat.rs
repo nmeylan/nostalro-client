@@ -1,8 +1,11 @@
 use crate::App;
 use ragnarok_game::banner::BannerKind;
 use ragnarok_game::entity::ChatBubbleState;
+use ragnarok_game::event::{FameKind, MvpFeedbackKind};
+use ragnarok_game::skill_msg::{SKILL_MSG_COLOR, skill_msg_line};
 use ragnarok_ui_component::game::chat_room_member_window::{OTHER_MSG_COLOR, OWN_MSG_COLOR};
 use ragnarok_ui_component::game::chat_window::ChatChannel;
+use ragnarok_ui_component::helper::colors::{CYAN, RED};
 
 impl App {
     pub(super) fn handle_broadcast_message(
@@ -215,5 +218,62 @@ impl App {
         } else {
             self.windows.chat_window.add_notice(message);
         }
+    }
+
+    pub(super) fn handle_skill_msg(&mut self, msg_no: i32) {
+        let Some(line) = skill_msg_line(msg_no) else {
+            tracing::debug!("Unknown skill msg {msg_no}");
+            return;
+        };
+        self.windows.chat_window.add_message(
+            line.to_string(),
+            SKILL_MSG_COLOR,
+            ChatChannel::System,
+        );
+        self.game.broadcast.poptip.push(line.to_string());
+    }
+
+    pub(super) fn handle_mvp_feedback(&mut self, kind: MvpFeedbackKind) {
+        let (line, color) = match kind {
+            MvpFeedbackKind::Item { item_id } => {
+                let name = self
+                    .game
+                    .data_table
+                    .item_name
+                    .as_ref()
+                    .map(|t| t.get_name_or_id(item_id))
+                    .unwrap_or_else(|| format!("Item #{item_id}"));
+                (
+                    format!("Congratulations! You are the MVP! Your reward item is {name} !!"),
+                    CYAN,
+                )
+            }
+            MvpFeedbackKind::Exp { exp } => (
+                format!("Congratulations! You are the MVP! Your reward EXP Points are {exp} !!"),
+                CYAN,
+            ),
+            MvpFeedbackKind::ItemDropped => (
+                "You are the MVP, but cannot obtain the reward because you are overweight."
+                    .to_string(),
+                RED,
+            ),
+        };
+        self.windows
+            .chat_window
+            .add_message(line, color, ChatChannel::System);
+    }
+
+    pub(super) fn handle_fame_points_gained(&mut self, kind: FameKind, point: i32, total: i32) {
+        self.windows
+            .chat_window
+            .add_system(kind.point_line(point, total));
+    }
+
+    pub(super) fn handle_pvp_points_received(&mut self, win: i32, lose: i32, point: i32) {
+        self.windows.chat_window.add_message(
+            format!("You have {win} win(s), {lose} loss(es) and {point} PvP point(s)."),
+            CYAN,
+            ChatChannel::System,
+        );
     }
 }

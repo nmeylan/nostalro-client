@@ -31,6 +31,7 @@ use ragnarok_game::autocounter;
 use ragnarok_game::chat_room::ChatRoom;
 use ragnarok_game::entity::{EntityType, ForcedAnimation};
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::show_digit::ShowDigitClock;
 use ragnarok_network::*;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
@@ -364,6 +365,15 @@ impl App {
                 }
                 GameEvent::MvpReward { gid } => {
                     self.handle_mvp_reward(gid);
+                }
+                GameEvent::MvpFeedback { kind } => {
+                    self.handle_mvp_feedback(kind);
+                }
+                GameEvent::FamePointsGained { kind, point, total } => {
+                    self.handle_fame_points_gained(kind, point, total);
+                }
+                GameEvent::PvpPointsReceived { win, lose, point } => {
+                    self.handle_pvp_points_received(win, lose, point);
                 }
                 GameEvent::EntitySpriteChanged {
                     gid,
@@ -794,6 +804,28 @@ impl App {
                 }
                 GameEvent::ServerMsg { msg_id } => {
                     self.handle_server_msg(msg_id);
+                }
+                GameEvent::SkillMsg { msg_no } => {
+                    self.handle_skill_msg(msg_no);
+                }
+                GameEvent::BindOnEquipNotice { index } => {
+                    self.handle_bind_on_equip_notice(index);
+                }
+                GameEvent::TalkboxContents { aid, message } => {
+                    self.handle_talkbox_contents(aid, message);
+                }
+                GameEvent::ShowDigit { mode, value } => {
+                    self.game.show_digit = Some(ShowDigitClock::new(mode, value));
+                }
+                GameEvent::BossInfoReceived {
+                    kind,
+                    x,
+                    y,
+                    respawn_hour,
+                    respawn_minute,
+                    name,
+                } => {
+                    self.handle_boss_info(kind, x, y, respawn_hour, respawn_minute, name);
                 }
                 GameEvent::WhisperSettingResult { allow, result, all } => {
                     self.handle_whisper_setting_result(allow, result, all);

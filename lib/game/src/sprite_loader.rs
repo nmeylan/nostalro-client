@@ -524,6 +524,14 @@ pub fn load_rank_font_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     )
 }
 
+pub fn load_time_font_sprite(grf: &GrfArchive) -> Option<SpriteData> {
+    load_sprite_data(
+        grf,
+        "data/sprite/이팩트/timefont.spr",
+        "data/sprite/이팩트/timefont.act",
+    )
+}
+
 pub fn load_damage_miss_msg_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,

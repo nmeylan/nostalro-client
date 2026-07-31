@@ -44,6 +44,12 @@ impl App {
             self.game.assets.rank_font_textures = Some(textures);
             self.game.assets.rank_font_act = Some(sprite_data.act);
         }
+        if let Some(sprite_data) = sprite_loader::load_time_font_sprite(grf)
+            && let Some(textures) = self.upload_sprite(&sprite_data)
+        {
+            self.game.assets.time_font_textures = Some(textures);
+            self.game.assets.time_font_act = Some(sprite_data.act);
+        }
     }
 
     pub(crate) fn preload_item_icons(&mut self, icon_paths: Vec<String>) {

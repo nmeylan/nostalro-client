@@ -1018,6 +1018,46 @@ impl App {
             }
         }
 
+        if let Some(clock) = &self.game.show_digit
+            && let (Some(act), Some(tex), Some(renderer)) = (
+                &self.game.assets.time_font_act,
+                &self.game.assets.time_font_textures,
+                &self.renderer,
+            )
+        {
+            let sw = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+            for quad in clock.quads(sw) {
+                let Some(motion) = act
+                    .actions
+                    .get(quad.action)
+                    .and_then(|action| action.motions.first())
+                else {
+                    continue;
+                };
+                for clip in &motion.clips {
+                    if let Some((vertices, indices, tex_idx)) =
+                        build_clip_quad(clip, tex, [quad.x, quad.y], 0.0, [0, 0])
+                        && tex_idx < tex.bind_groups.len()
+                    {
+                        let idx = inline_textures.len();
+                        inline_textures.push(&tex.bind_groups[tex_idx]);
+                        world_overlay_calls.push(UiDrawCall {
+                            vertices: vertices
+                                .iter()
+                                .map(|sv| UiVertex {
+                                    position: [sv.position[0], sv.position[1]],
+                                    tex_coord: sv.tex_coord,
+                                    color: sv.color,
+                                })
+                                .collect(),
+                            indices,
+                            texture: UiTextureRef::Inline(idx),
+                        });
+                    }
+                }
+            }
+        }
+
         if let Some(cursor_tex) = &self.game.assets.cursor_textures {
             for (vertices, indices, tex_idx) in lock_cursor_clips {
                 cursor_batches.push(SpriteBatch {

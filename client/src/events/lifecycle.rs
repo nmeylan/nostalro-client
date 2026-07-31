@@ -55,6 +55,9 @@ impl App {
                 self.game.world.floor_items.clear();
                 self.game.world.graffiti.clear();
                 self.game.world.cast_marks.clear();
+                self.game.world.talkbox_bubbles.clear();
+                self.game.boss_mark = None;
+                self.game.show_digit = None;
                 self.game.assets.floor_item_sprites.clear();
                 self.game.chat_rooms.clear();
                 self.game.combat.waiting_item_throw_ack = false;

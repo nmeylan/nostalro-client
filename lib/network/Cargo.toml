@@ -10,3 +10,4 @@ packets = { workspace = true }
 models = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+encoding_rs = { workspace = true }

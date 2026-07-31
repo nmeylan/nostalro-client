@@ -24,6 +24,7 @@ use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::doridori::DoridoriTracker;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
+use ragnarok_game::entity::ChatBubbleState;
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
@@ -337,6 +338,11 @@ pub struct World {
     pub graffiti: HashMap<u32, Graffiti>,
     /// What each in-progress cast marks out, keyed by caster gid.
     pub cast_marks: HashMap<u32, CastMark>,
+    /// Talkie Box text with the world position of the box that holds it, keyed
+    /// by skill unit AID. The position is captured when the text arrives: the
+    /// server turns the box into a sprung trap immediately afterwards, which
+    /// takes it out of `trap_units`.
+    pub talkbox_bubbles: HashMap<u32, ([f32; 3], ChatBubbleState)>,
 }
 
 /// The marker a cast puts on the world while it channels: a square on the ground
@@ -378,6 +384,8 @@ pub struct AssetHandles {
     pub damage_msg_act: Option<ragnarok_formats::act::ActFile>,
     pub rank_font_textures: Option<SpriteTextures>,
     pub rank_font_act: Option<ragnarok_formats::act::ActFile>,
+    pub time_font_textures: Option<SpriteTextures>,
+    pub time_font_act: Option<ragnarok_formats::act::ActFile>,
 }
 
 pub struct Schedulers {
@@ -488,6 +496,9 @@ pub struct GameState {
     pub quest_markers: std::collections::HashMap<u32, QuestMarker>,
     /// Marks the server put on the minimap, e.g. the town guide's directions.
     pub minimap_marks: ragnarok_game::minimap_mark::MinimapMarks,
+    /// The map's MVP as last reported to a Convex Mirror.
+    pub boss_mark: Option<ragnarok_game::boss_info::BossMark>,
+    pub show_digit: Option<ragnarok_game::show_digit::ShowDigitClock>,
     pub debug_show_pick_bounds: bool,
     pub show_ping: bool,
     pub show_fps: bool,
@@ -584,6 +595,8 @@ impl GameState {
             quest_log: QuestLog::default(),
             quest_markers: std::collections::HashMap::new(),
             minimap_marks: ragnarok_game::minimap_mark::MinimapMarks::default(),
+            boss_mark: None,
+            show_digit: None,
             debug_show_pick_bounds: false,
             show_ping: false,
             show_fps: false,

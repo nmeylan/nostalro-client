@@ -10,13 +10,14 @@ use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_game::ailment;
 use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
+use ragnarok_game::boss_info::{BossInfoKind, BossMark, boss_info_line};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     OPT3_BLADESTOP, StatusKind, UNT_USED_TRAPS, monster_opt3_reaction, opt3_bit_for_icon,
     opt3_bits, player_opt3_reaction, skill_unit_effect, skill_unit_entry_sound, status_reaction,
     status_reaction_by_efst, trap_model_name, trap_trigger_effect,
 };
-use ragnarok_game::entity::{Entity, EntityState, EntityType};
+use ragnarok_game::entity::{ChatBubbleState, Entity, EntityState, EntityType};
 use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
@@ -1613,6 +1614,54 @@ impl App {
         self.game.world.trap_units.remove(&aid);
         self.game.world.hidden_traps.remove(&aid);
         self.game.world.graffiti.remove(&aid);
+        self.game.world.talkbox_bubbles.remove(&aid);
+    }
+
+    /// Someone stepped on a Talkie Box: its message rides above the box itself,
+    /// not in the chat log. Boxes cast by others were placed hidden to us, so
+    /// they are still on the hidden side.
+    pub(super) fn handle_talkbox_contents(&mut self, aid: u32, message: String) {
+        if message.is_empty() {
+            return;
+        }
+        let Some(&(_, world)) = self
+            .game
+            .world
+            .trap_units
+            .get(&aid)
+            .or_else(|| self.game.world.hidden_traps.get(&aid))
+        else {
+            tracing::debug!("Talkie Box {aid} has no known position");
+            return;
+        };
+        self.game
+            .world
+            .talkbox_bubbles
+            .insert(aid, (world, ChatBubbleState::new(message)));
+    }
+
+    pub(super) fn handle_boss_info(
+        &mut self,
+        kind: BossInfoKind,
+        x: u16,
+        y: u16,
+        respawn_hour: u16,
+        respawn_minute: u16,
+        name: String,
+    ) {
+        match kind {
+            BossInfoKind::Alive | BossInfoKind::AliveAnnounced => {
+                self.game.boss_mark = Some(BossMark {
+                    x,
+                    y,
+                    name: name.clone(),
+                });
+            }
+            BossInfoKind::NotOnMap | BossInfoKind::Dead => self.game.boss_mark = None,
+        }
+        if let Some(line) = boss_info_line(kind, &name, respawn_hour, respawn_minute) {
+            self.windows.chat_window.add_notice(line);
+        }
     }
 
     pub(super) fn handle_graffiti_entered(

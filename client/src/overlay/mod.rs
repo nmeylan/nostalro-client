@@ -36,6 +36,7 @@ const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
 const MOB_INFO_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const EMBLEM_HOVER_SIZE: f32 = 24.0;
 const EMBLEM_HEAD_SIZE: f32 = 24.0;
+const TALKBOX_BUBBLE_LIFT: f32 = 20.0;
 
 impl App {
     pub(crate) fn build_world_overlays(
@@ -54,6 +55,7 @@ impl App {
         self.build_persistent_bars(hovered_entity_id, render_list, &mut calls);
         self.build_cast_bars(render_list, &mut calls);
         self.build_chat_bubbles(render_list, &mut calls);
+        self.build_talkbox_bubbles(&mut calls);
         self.build_vending_boards(render_list, &mut calls);
         self.build_chat_room_boards(render_list, &mut calls);
         self.build_floor_item_tooltip(hovered_floor_item_id, floor_item_render_list, &mut calls);
@@ -406,10 +408,6 @@ impl App {
     }
 
     fn build_chat_bubbles(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
-        let renderer = match &self.renderer {
-            Some(r) => r,
-            None => return,
-        };
         for entry in render_list {
             let entity = match self.game.world.entities.get(entry.id) {
                 Some(e) => e,
@@ -419,56 +417,88 @@ impl App {
                 Some(b) => b,
                 None => continue,
             };
-
-            let padding = 4.0;
-            let lines = ragnarok_ui::draw::word_wrap(
+            self.build_speech_bubble(
                 &bubble.message,
-                150.0,
-                |t| renderer.font_atlas.measure_text(t),
-                false,
+                entry.screen_anchor[0],
+                entry.screen_anchor[1] - entry.head_offset - 5.0,
+                calls,
             );
+        }
+    }
 
-            let line_h = renderer.font_atlas.line_height;
-            let total_h = line_h * lines.len() as f32 + padding * 2.0;
-            let widest = lines
-                .iter()
-                .map(|l| renderer.font_atlas.measure_text(l))
-                .fold(0.0_f32, f32::max);
-            let box_w = widest + padding * 2.0;
-            let box_x = entry.screen_anchor[0] - box_w / 2.0;
-            let box_y = entry.screen_anchor[1] - entry.head_offset - 5.0 - total_h;
+    /// Talkie Box text, over the box rather than over an actor: skill units are
+    /// not entities, so their anchor is the position captured with the text.
+    fn build_talkbox_bubbles(&self, calls: &mut Vec<UiDrawCall>) {
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let screen_w = renderer.device.surface_config.width as f32 / renderer.dpi_scale;
+        let screen_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        for (world, bubble) in self.game.world.talkbox_bubbles.values() {
+            let Some((sx, sy)) = renderer
+                .camera
+                .world_to_screen(world[0], world[1], world[2], screen_w, screen_h)
+            else {
+                continue;
+            };
+            self.build_speech_bubble(&bubble.message, sx, sy - TALKBOX_BUBBLE_LIFT, calls);
+        }
+    }
 
-            let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
-                box_x,
-                box_y,
-                box_w,
-                total_h,
-                [0.0, 0.0, 0.0, 0.8],
+    /// A centred speech bubble whose bottom edge sits at `bottom_y`.
+    fn build_speech_bubble(
+        &self,
+        message: &str,
+        center_x: f32,
+        bottom_y: f32,
+        calls: &mut Vec<UiDrawCall>,
+    ) {
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let padding = 4.0;
+        let lines = ragnarok_ui::draw::word_wrap(
+            message,
+            150.0,
+            |t| renderer.font_atlas.measure_text(t),
+            false,
+        );
+
+        let line_h = renderer.font_atlas.line_height;
+        let total_h = line_h * lines.len() as f32 + padding * 2.0;
+        let widest = lines
+            .iter()
+            .map(|l| renderer.font_atlas.measure_text(l))
+            .fold(0.0_f32, f32::max);
+        let box_w = widest + padding * 2.0;
+        let box_x = center_x - box_w / 2.0;
+        let box_y = bottom_y - total_h;
+
+        let (bg_verts, bg_idx) =
+            ragnarok_ui::draw::quad_vertices(box_x, box_y, box_w, total_h, [0.0, 0.0, 0.0, 0.8]);
+        calls.push(UiDrawCall {
+            vertices: bg_verts.to_vec(),
+            indices: bg_idx.to_vec(),
+            texture: UiTextureRef::White,
+        });
+
+        for (i, line) in lines.iter().enumerate() {
+            let line_w = renderer.font_atlas.measure_text(line);
+            let lx = center_x - line_w / 2.0;
+            let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
+            let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                line,
+                lx,
+                ly,
+                [1.0, 1.0, 1.0, 1.0],
+                &renderer.font_atlas,
             );
-            calls.push(UiDrawCall {
-                vertices: bg_verts.to_vec(),
-                indices: bg_idx.to_vec(),
-                texture: UiTextureRef::White,
-            });
-
-            for (i, line) in lines.iter().enumerate() {
-                let line_w = renderer.font_atlas.measure_text(line);
-                let lx = entry.screen_anchor[0] - line_w / 2.0;
-                let ly = box_y + padding + line_h / 2.0 + line_h * i as f32;
-                let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                    line,
-                    lx,
-                    ly,
-                    [1.0, 1.0, 1.0, 1.0],
-                    &renderer.font_atlas,
-                );
-                if !verts.is_empty() {
-                    calls.push(UiDrawCall {
-                        vertices: verts,
-                        indices,
-                        texture: UiTextureRef::FontAtlas,
-                    });
-                }
+            if !verts.is_empty() {
+                calls.push(UiDrawCall {
+                    vertices: verts,
+                    indices,
+                    texture: UiTextureRef::FontAtlas,
+                });
             }
         }
     }

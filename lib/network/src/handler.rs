@@ -6,10 +6,12 @@ use models::enums::status::StatusTypes;
 use models::enums::vanish::VanishType;
 use packets::packets::*;
 use ragnarok_game::banner::BannerKind;
+use ragnarok_game::boss_info::BossInfoKind;
 use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::event::{
-    AccessibleMap, CharacterInfo, FriendData, GameEvent, GuildMemberAppearance, HomunculusProperty,
-    MercenaryInfo, PartyMemberData, PetProperty, SelfConfigKind, ServerInfo, SkillInfo,
+    AccessibleMap, CharacterInfo, FameKind, FriendData, GameEvent, GuildMemberAppearance,
+    HomunculusProperty, MercenaryInfo, MvpFeedbackKind, PartyMemberData, PetProperty,
+    SelfConfigKind, ServerInfo, SkillInfo,
 };
 use ragnarok_game::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
@@ -19,6 +21,7 @@ use ragnarok_game::mail::{MailEntry, MailItem, OpenedMail};
 use ragnarok_game::minimap_mark::MarkAction;
 use ragnarok_game::monster_info::MonsterInfo;
 use ragnarok_game::quest::{QuestHuntEntry, QuestListEntry, QuestMissionData, QuestObjective};
+use ragnarok_game::show_digit::ShowDigitMode;
 use ragnarok_game::targeting::{MapKind, MapProperties};
 use tracing::debug;
 
@@ -883,6 +886,49 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcMvp>() {
         return vec![GameEvent::MvpReward { gid: p.aid }];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcMvpGettingItem>() {
+        return vec![GameEvent::MvpFeedback {
+            kind: MvpFeedbackKind::Item { item_id: p.itid },
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcMvpGettingSpecialExp>() {
+        return vec![GameEvent::MvpFeedback {
+            kind: MvpFeedbackKind::Exp { exp: p.exp },
+        }];
+    }
+    if any.downcast_ref::<PacketZcThrowMvpitem>().is_some() {
+        return vec![GameEvent::MvpFeedback {
+            kind: MvpFeedbackKind::ItemDropped,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBlacksmithPoint>() {
+        return vec![GameEvent::FamePointsGained {
+            kind: FameKind::Blacksmith,
+            point: p.point,
+            total: p.total_point,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAlchemistPoint>() {
+        return vec![GameEvent::FamePointsGained {
+            kind: FameKind::Alchemist,
+            point: p.point,
+            total: p.total_point,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcTaekwonPoint>() {
+        return vec![GameEvent::FamePointsGained {
+            kind: FameKind::Taekwon,
+            point: p.point,
+            total: p.total_point,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckPvppoint>() {
+        return vec![GameEvent::PvpPointsReceived {
+            win: p.pvp.win_point,
+            lose: p.pvp.lose_point,
+            point: p.pvp.point,
+        }];
+    }
 
     if let Some(p) = any.downcast_ref::<PacketZcCouplename>() {
         let name: String = p.couple_name.iter().take_while(|c| **c != '\0').collect();
@@ -1104,6 +1150,40 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcMsg>() {
         return vec![GameEvent::ServerMsg { msg_id: p.msg }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcSkillmsg>() {
+        return vec![GameEvent::SkillMsg { msg_no: p.msg_no }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyBindOnEquip>() {
+        return vec![GameEvent::BindOnEquipNotice { index: p.index }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcTalkboxChatcontents>() {
+        return vec![GameEvent::TalkboxContents {
+            aid: p.aid,
+            message: raw_euc_kr(&p.contents_raw),
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcShowdigit>() {
+        let Some(mode) = ShowDigitMode::from_packet(p.atype) else {
+            return vec![];
+        };
+        return vec![GameEvent::ShowDigit {
+            mode,
+            value: p.value,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcBossInfo>() {
+        let Some(kind) = BossInfoKind::from_packet(p.info_type) else {
+            return vec![];
+        };
+        return vec![GameEvent::BossInfoReceived {
+            kind,
+            x: p.x_pos.max(0) as u16,
+            y: p.y_pos.max(0) as u16,
+            respawn_hour: p.min_hour,
+            respawn_minute: p.min_minute,
+            name: raw_euc_kr(&p.name_raw),
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcProgress>() {
         return vec![GameEvent::ProgressBarStarted {
@@ -2048,11 +2128,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck>() {
+        // This id reports success as 1 while its successor reports it as 0, and
+        // servers do mix the two up. The position is unambiguous: it is only
+        // filled in when the item went on.
         return vec![GameEvent::InventoryEquipResult {
             index: p.index,
             wear_location: p.wear_location,
             view_id: p.view_id,
-            success: p.result == 1,
+            success: p.wear_location != 0,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcReqWearEquipAck2>() {
@@ -3088,6 +3171,13 @@ fn classify_banner(msg: String) -> (String, BannerKind) {
 fn raw_cstr(bytes: &[u8]) -> String {
     let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..end]).into_owned()
+}
+
+/// Fixed-width text fields are not NUL-guaranteed: cut at the first NUL, then
+/// decode, so Korean text survives.
+fn raw_euc_kr(bytes: &[u8]) -> String {
+    let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+    encoding_rs::EUC_KR.decode(&bytes[..end]).0.into_owned()
 }
 
 /// ZC_*_RANK payloads carry 10 names (24 bytes each) followed by 10 int points.
@@ -4489,6 +4579,198 @@ mod tests {
         match &dispatch_packet(&mvp, packetver)[0] {
             GameEvent::MvpReward { gid } => assert_eq!(*gid, 150001),
             other => panic!("expected MvpReward, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_fame_points_maps_each_kind_to_its_own_line() {
+        let packetver = 20120307;
+        let mut smith = PacketZcBlacksmithPoint::new(packetver);
+        smith.set_point(1);
+        smith.set_total_point(12);
+        let mut alchemist = PacketZcAlchemistPoint::new(packetver);
+        alchemist.set_point(2);
+        alchemist.set_total_point(24);
+        let mut taekwon = PacketZcTaekwonPoint::new(packetver);
+        taekwon.set_point(3);
+        taekwon.set_total_point(36);
+
+        let lines: Vec<String> = [
+            &smith as &dyn Packet,
+            &alchemist as &dyn Packet,
+            &taekwon as &dyn Packet,
+        ]
+        .into_iter()
+        .map(|pkt| match &dispatch_packet(pkt, packetver)[0] {
+            GameEvent::FamePointsGained { kind, point, total } => kind.point_line(*point, *total),
+            other => panic!("expected FamePointsGained, got {other:?}"),
+        })
+        .collect();
+
+        assert_eq!(
+            lines,
+            vec![
+                "[Blacksmith Point] You gained 1 point(s), for a total of 12.",
+                "[Alchemist Point] You gained 2 point(s), for a total of 24.",
+                "[TaeKwon Point] You gained 3 point(s), for a total of 36.",
+            ]
+        );
+    }
+
+    #[test]
+    fn dispatch_mvp_feedback_and_pvp_points() {
+        let packetver = 20120307;
+        let mut item = PacketZcMvpGettingItem::new(packetver);
+        item.set_itid(603);
+        match &dispatch_packet(&item, packetver)[0] {
+            GameEvent::MvpFeedback {
+                kind: MvpFeedbackKind::Item { item_id },
+            } => assert_eq!(*item_id, 603),
+            other => panic!("expected MvpFeedback item, got {other:?}"),
+        }
+
+        let mut exp = PacketZcMvpGettingSpecialExp::new(packetver);
+        exp.set_exp(4321);
+        match &dispatch_packet(&exp, packetver)[0] {
+            GameEvent::MvpFeedback {
+                kind: MvpFeedbackKind::Exp { exp },
+            } => assert_eq!(*exp, 4321),
+            other => panic!("expected MvpFeedback exp, got {other:?}"),
+        }
+
+        let thrown = PacketZcThrowMvpitem::new(packetver);
+        match &dispatch_packet(&thrown, packetver)[0] {
+            GameEvent::MvpFeedback {
+                kind: MvpFeedbackKind::ItemDropped,
+            } => {}
+            other => panic!("expected MvpFeedback dropped, got {other:?}"),
+        }
+
+        let mut pvp = PacketZcAckPvppoint::new(packetver);
+        let mut info = PVPINFO::new(packetver);
+        info.set_win_point(7);
+        info.set_lose_point(2);
+        info.set_point(50);
+        pvp.set_pvp(info);
+        match &dispatch_packet(&pvp, packetver)[0] {
+            GameEvent::PvpPointsReceived { win, lose, point } => {
+                assert_eq!((*win, *lose, *point), (7, 2, 50));
+            }
+            other => panic!("expected PvpPointsReceived, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn skillmsg_resolves_known_ids_and_stays_silent_otherwise() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcSkillmsg::new(packetver);
+        pkt.set_msg_no(0x17);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::SkillMsg { msg_no } => assert_eq!(
+                ragnarok_game::skill_msg::skill_msg_line(*msg_no),
+                Some("Max HP +100%.")
+            ),
+            other => panic!("expected SkillMsg, got {other:?}"),
+        }
+
+        pkt.set_msg_no(0x1a);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::SkillMsg { msg_no } => {
+                assert_eq!(ragnarok_game::skill_msg::skill_msg_line(*msg_no), None)
+            }
+            other => panic!("expected SkillMsg, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn talkbox_contents_trim_at_the_first_nul_and_decode_euc_kr() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcTalkboxChatcontents::new(packetver);
+        pkt.set_aid(4000);
+        let mut contents = [0xffu8; 80];
+        // "프론테라" followed by a NUL and trailing junk.
+        let text: &[u8] = &[
+            0xc7, 0xc1, 0xb7, 0xd0, 0xc5, 0xd7, 0xb6, 0xf3, 0x00, b'j', b'u', b'n', b'k',
+        ];
+        contents[..text.len()].copy_from_slice(text);
+        pkt.set_contents_raw(contents);
+
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::TalkboxContents { aid, message } => {
+                assert_eq!(*aid, 4000);
+                assert_eq!(message, "프론테라");
+            }
+            other => panic!("expected TalkboxContents, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn showdigit_and_boss_info_reject_unknown_types() {
+        let packetver = 20120307;
+        let mut digit = PacketZcShowdigit::new(packetver);
+        digit.set_atype(3);
+        digit.set_value(60);
+        match &dispatch_packet(&digit, packetver)[0] {
+            GameEvent::ShowDigit { mode, value } => {
+                assert_eq!(*mode, ShowDigitMode::FastCountDown);
+                assert_eq!(*value, 60);
+            }
+            other => panic!("expected ShowDigit, got {other:?}"),
+        }
+        digit.set_atype(9);
+        assert!(dispatch_packet(&digit, packetver).is_empty());
+
+        let mut boss = PacketZcBossInfo::new(packetver);
+        boss.set_info_type(3);
+        boss.set_min_hour(1);
+        boss.set_min_minute(30);
+        match &dispatch_packet(&boss, packetver)[0] {
+            GameEvent::BossInfoReceived {
+                kind,
+                respawn_hour,
+                respawn_minute,
+                ..
+            } => {
+                assert_eq!(*kind, BossInfoKind::Dead);
+                assert_eq!((*respawn_hour, *respawn_minute), (1, 30));
+            }
+            other => panic!("expected BossInfoReceived, got {other:?}"),
+        }
+        boss.set_info_type(7);
+        assert!(dispatch_packet(&boss, packetver).is_empty());
+    }
+
+    #[test]
+    fn equip_ack_reads_the_position_not_the_result_code() {
+        let packetver = 20111102;
+        // What rathena sends on success: result 0, real position, sprite id.
+        let ok = [0xaa, 0x00, 0x0c, 0x00, 0x00, 0x01, 0x2a, 0x00, 0x00];
+        match &dispatch_packet(&*packets::packets_parser::parse(&ok, packetver), packetver)[0] {
+            GameEvent::InventoryEquipResult {
+                index,
+                wear_location,
+                view_id,
+                success,
+            } => {
+                assert_eq!((*index, *wear_location, *view_id), (12, 0x0100, 42));
+                assert!(*success, "a filled-in position means the item went on");
+            }
+            other => panic!("expected InventoryEquipResult, got {other:?}"),
+        }
+
+        // Every failure path leaves the position empty, whatever the code.
+        for code in [0u8, 1, 2] {
+            let fail = [0xaa, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, code];
+            match &dispatch_packet(
+                &*packets::packets_parser::parse(&fail, packetver),
+                packetver,
+            )[0]
+            {
+                GameEvent::InventoryEquipResult { success, .. } => {
+                    assert!(!*success, "result {code} with no position is a refusal")
+                }
+                other => panic!("expected InventoryEquipResult, got {other:?}"),
+            }
         }
     }
 

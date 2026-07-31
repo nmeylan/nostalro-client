@@ -3095,6 +3095,7 @@ dependencies = [
 name = "ragnarok-network"
 version = "0.1.0"
 dependencies = [
+ "encoding_rs",
  "models",
  "packets",
  "ragnarok-game",

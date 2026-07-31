@@ -1,6 +1,7 @@
 use crate::game_state::{GameState, TOKEN_OF_SIEGFRIED};
 use crate::ui::escape::{EscapeGame, modal_owns_keyboard, route_escape};
 use crate::ui::windows::{Dispatch, REGISTRY, Windows};
+use ragnarok_game::boss_info::BossMark;
 use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::guild::Guild;
@@ -148,6 +149,7 @@ pub fn build_in_game_ui(
         ctx.guild,
         &game.quest_markers,
         &game.minimap_marks,
+        game.boss_mark.as_ref(),
         game.session.current_map.as_deref(),
         ctx.local_aid,
     );
@@ -325,14 +327,18 @@ fn run_transient_dialog<D: InGameWindow>(
     confirmed
 }
 
-/// What the minimap marks: party members and same-map guild members, plus the
-/// server's own mark channel (quest markers and `ZC_COMPASS` viewpoints). NPCs
-/// and portals are deliberately absent — the original never marked them.
+const BOSS_MARK_COLOR: [f32; 3] = [1.0, 0.2, 0.2];
+
+/// What the minimap marks: party members and same-map guild members, the
+/// server's own mark channel (quest markers and `ZC_COMPASS` viewpoints) and the
+/// Convex Mirror's MVP. NPCs and portals are deliberately absent — the original
+/// never marked them.
 fn collect_minimap_markers(
     party: Option<&Party>,
     guild: Option<&Guild>,
     quest_markers: &HashMap<u32, QuestMarker>,
     marks: &MinimapMarks,
+    boss_mark: Option<&BossMark>,
     current_map: Option<&str>,
     local_aid: u32,
 ) -> Vec<MinimapMarker> {
@@ -384,6 +390,14 @@ fn collect_minimap_markers(
             y: mark.y as f32,
             marker_type: MarkerType::Mark(mark.rgb()),
             name: None,
+        });
+    }
+    if let Some(boss) = boss_mark {
+        markers.push(MinimapMarker {
+            x: boss.x as f32,
+            y: boss.y as f32,
+            marker_type: MarkerType::Mark(BOSS_MARK_COLOR),
+            name: Some(boss.name.clone()),
         });
     }
     markers
@@ -585,11 +599,17 @@ mod tests {
             },
         );
 
+        let boss = BossMark {
+            x: 100,
+            y: 100,
+            name: "Baphomet".to_string(),
+        };
         let markers = collect_minimap_markers(
             Some(&party),
             None,
             &quest_markers,
             &marks,
+            Some(&boss),
             Some("prontera"),
             1,
         );
@@ -612,9 +632,9 @@ mod tests {
             .collect();
         assert_eq!(
             mark_colors,
-            vec![quest_marker_color(2), [1.0, 0.0, 0.0]],
-            "quest marker then the viewpoint mark, both on the mark channel"
+            vec![quest_marker_color(2), [1.0, 0.0, 0.0], BOSS_MARK_COLOR],
+            "quest marker, the viewpoint mark and the MVP, all on the mark channel"
         );
-        assert_eq!(markers.len(), 4, "no NPC or portal markers");
+        assert_eq!(markers.len(), 5, "no NPC or portal markers");
     }
 }

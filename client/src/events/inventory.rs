@@ -8,6 +8,9 @@ use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::item::Item;
 use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
+use ragnarok_ui_component::game::chat_window::ChatChannel;
+
+const BIND_ON_EQUIP_COLOR: [f32; 4] = [1.0, 1.0, 0.431, 1.0];
 
 impl App {
     pub(crate) fn item_is_book(&self, item_id: u16) -> bool {
@@ -217,6 +220,23 @@ impl App {
             .show(formatted_name, count, icon_path);
     }
 
+    pub(super) fn handle_bind_on_equip_notice(&mut self, index: u16) {
+        let Some(name) = self.game.character.inventory.get_item(index).map(|item| {
+            format_equipment_display_name(
+                item,
+                self.game.data_table.item_slot_count.as_ref(),
+                self.game.data_table.card_name.as_ref(),
+            )
+        }) else {
+            return;
+        };
+        self.windows.chat_window.add_message(
+            format!("{name} becomes bound to your account once equipped."),
+            BIND_ON_EQUIP_COLOR,
+            ChatChannel::System,
+        );
+    }
+
     pub(super) fn handle_inventory_equip_result(
         &mut self,
         index: u16,
@@ -252,6 +272,10 @@ impl App {
                 }
                 self.reload_player_sprite(player_id);
             }
+        } else {
+            self.windows
+                .chat_window
+                .add_error("You cannot equip this item.".to_string());
         }
     }
 

@@ -297,6 +297,22 @@ impl App {
             self.remove_gr2_model(gid);
         }
     }
+
+    pub(crate) fn update_talkbox_bubbles(&mut self, delta: f32) {
+        self.game.world.talkbox_bubbles.retain(|_, (_, bubble)| {
+            bubble.elapsed += delta;
+            !bubble.is_expired()
+        });
+    }
+
+    pub(crate) fn update_show_digit(&mut self, delta: f32) {
+        if let Some(clock) = &mut self.game.show_digit {
+            clock.update(delta);
+            if clock.is_finished() {
+                self.game.show_digit = None;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

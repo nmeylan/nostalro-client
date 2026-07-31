@@ -1,4 +1,5 @@
 use crate::banner::BannerKind;
+use crate::boss_info::BossInfoKind;
 use crate::guild::{
     GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
@@ -7,6 +8,7 @@ use crate::item::Item;
 use crate::mail::{MailEntry, OpenedMail};
 use crate::minimap_mark::MarkAction;
 use crate::monster_info::MonsterInfo;
+use crate::show_digit::ShowDigitMode;
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
@@ -267,6 +269,19 @@ pub enum GameEvent {
     },
     MvpReward {
         gid: u32,
+    },
+    MvpFeedback {
+        kind: MvpFeedbackKind,
+    },
+    FamePointsGained {
+        kind: FameKind,
+        point: i32,
+        total: i32,
+    },
+    PvpPointsReceived {
+        win: i32,
+        lose: i32,
+        point: i32,
     },
     ParameterChanged {
         var_id: u16,
@@ -914,6 +929,30 @@ pub enum GameEvent {
     ProgressBarCancelled,
     ServerMsg {
         msg_id: u16,
+    },
+    SkillMsg {
+        msg_no: i32,
+    },
+    /// The equipment at this inventory index becomes account-bound when worn.
+    BindOnEquipNotice {
+        index: u16,
+    },
+    /// A Talkie Box was stepped on: its text belongs to the skill unit `aid`.
+    TalkboxContents {
+        aid: u32,
+        message: String,
+    },
+    ShowDigit {
+        mode: ShowDigitMode,
+        value: i32,
+    },
+    BossInfoReceived {
+        kind: BossInfoKind,
+        x: u16,
+        y: u16,
+        respawn_hour: u16,
+        respawn_minute: u16,
+        name: String,
     },
     DialogClosed,
     ToggleInventory,
@@ -1671,6 +1710,31 @@ impl SelfConfigKind {
             SelfConfigKind::HomunculusAutofeed => 3,
             SelfConfigKind::RefusePartyInvite => -1,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MvpFeedbackKind {
+    Item { item_id: u16 },
+    Exp { exp: u32 },
+    ItemDropped,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FameKind {
+    Blacksmith,
+    Alchemist,
+    Taekwon,
+}
+
+impl FameKind {
+    pub fn point_line(self, point: i32, total: i32) -> String {
+        let rank = match self {
+            FameKind::Blacksmith => "Blacksmith",
+            FameKind::Alchemist => "Alchemist",
+            FameKind::Taekwon => "TaeKwon",
+        };
+        format!("[{rank} Point] You gained {point} point(s), for a total of {total}.")
     }
 }
 

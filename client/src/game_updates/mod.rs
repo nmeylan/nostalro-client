@@ -85,6 +85,8 @@ impl App {
         self.update_falcon_visuals(delta);
         self.update_pet_roulette(delta);
         self.update_fades(delta);
+        self.update_talkbox_bubbles(delta);
+        self.update_show_digit(delta);
         self.game.schedulers.day_night.tick(delta);
         if self.game.schedulers.day_night.take_dirty()
             && let Some(renderer) = &mut self.renderer

@@ -37,6 +37,11 @@ impl ItemNameTable {
             identified_entries.len(),
             unidentified_entries.len(),
         );
+        if unidentified_entries.is_empty() {
+            tracing::warn!(
+                "{UNIDENTIFIED_PATH} is missing: unidentified items will show their real name"
+            );
+        }
 
         Self {
             identified_entries,
