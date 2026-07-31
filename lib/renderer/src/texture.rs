@@ -196,6 +196,7 @@ pub fn load_keyed_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
+    address_mode: wgpu::AddressMode,
 ) -> Option<(wgpu::BindGroup, u32, u32)> {
     let (data, resolved_path) = read_with_ext_fallback(path, grf)?;
 
@@ -233,7 +234,7 @@ pub fn load_keyed_texture(
         path,
         wgpu::FilterMode::Nearest,
         format,
-        wgpu::AddressMode::Repeat,
+        address_mode,
     );
     Some((bg, w, h))
 }

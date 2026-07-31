@@ -750,6 +750,28 @@ pub fn build_close_store_packet(packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
+/// `CZ_ACK_STORE_PASSWORD.Type`.
+const STORE_PASSWORD_CHANGE: i16 = 2;
+const STORE_PASSWORD_CHECK: i16 = 3;
+
+pub fn build_ack_store_password_packet(
+    change: bool,
+    password: &str,
+    new_password: &str,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzAckStorePassword::new(packetver);
+    pkt.set_atype(if change {
+        STORE_PASSWORD_CHANGE
+    } else {
+        STORE_PASSWORD_CHECK
+    });
+    pkt.set_password(to_char_array::<16>(password));
+    pkt.set_new_password(to_char_array::<16>(new_password));
+    pkt.fill_raw_with_packetver(Some(packetver));
+    pkt.raw
+}
+
 pub fn build_req_exchange_item_packet(target_aid: u32, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzReqExchangeItem::new(packetver);
     pkt.set_aid(target_aid);
@@ -1070,6 +1092,27 @@ pub fn build_adopt_reply_packet(
     let mut pkt = PacketCzJoinBaby::new(packetver);
     pkt.set_aid(father_aid);
     pkt.set_gid(mother_aid);
+    pkt.set_answer(if accept { 1 } else { 0 });
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_marry_request_packet(target_aid: u32, packetver: u32) -> Vec<u8> {
+    let mut pkt = PacketCzReqJoinCouple::new(packetver);
+    pkt.set_aid(target_aid);
+    pkt.fill_raw();
+    pkt.raw
+}
+
+pub fn build_marry_reply_packet(
+    proposer_aid: u32,
+    proposer_gid: u32,
+    accept: bool,
+    packetver: u32,
+) -> Vec<u8> {
+    let mut pkt = PacketCzJoinCouple::new(packetver);
+    pkt.set_aid(proposer_aid);
+    pkt.set_gid(proposer_gid);
     pkt.set_answer(if accept { 1 } else { 0 });
     pkt.fill_raw();
     pkt.raw

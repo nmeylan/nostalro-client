@@ -66,6 +66,7 @@ pub const ID_BLOCKS: &[IdBlock] = &[
     block("game/warp_list_window.rs", 4600, 4699),
     block("game/context_menu.rs", 4700, 4799),
     block("game/chat_room_member_window.rs", 4800, 4899),
+    block("game/storage_password_window.rs", 5000, 5099),
     // Second blocks, for modules whose derived ranges outgrew their first one.
     block("game/vending_setup_window.rs", 4900, 4999),
     block("game/companion_ai_config_window.rs", 5100, 5199),

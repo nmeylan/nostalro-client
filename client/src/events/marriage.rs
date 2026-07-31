@@ -1,5 +1,7 @@
 use crate::App;
 use models::enums::effect_id::EffectId;
+use ragnarok_game::event::GameEvent;
+use ragnarok_network::build_marry_request_packet;
 
 /// GRF base path for an NPC cutin illustration.
 pub(crate) fn cutin_texture_path(image: &str) -> String {
@@ -10,6 +12,30 @@ impl App {
     pub(super) fn handle_wedding_celebration(&mut self, account_id: u32) {
         let key = self.game.world.entities.resolve_key(account_id);
         self.effect_queue.spawn_on(EffectId::Colorpaper, key);
+    }
+
+    pub(super) fn handle_marriage_proposed(&mut self, aid: u32, gid: u32, name: String) {
+        self.game.pending_confirms.pending_marriage_proposal = Some((aid, gid));
+        let msg = format!("{name} wishes to marry you. Do you accept?");
+        self.game.arm_confirm(&mut self.windows, &msg, |accept| {
+            Some(GameEvent::RespondMarriageProposal { accept })
+        });
+    }
+
+    /// Consumes the click that picks the proposal target. Clicking anything that
+    /// is not another player keeps the cursor armed, as the original game does.
+    pub(crate) fn try_marriage_target_click(&mut self) -> bool {
+        if !self.game.pending_casts.marriage_targeting {
+            return false;
+        }
+        if let Some(target_aid) = self.game.hover.hovered_player_id {
+            self.game.pending_casts.marriage_targeting = false;
+            self.channel.send_packet(build_marry_request_packet(
+                target_aid,
+                self.active_packetver,
+            ));
+        }
+        true
     }
 
     pub(super) fn handle_divorced(&mut self, name: String) {

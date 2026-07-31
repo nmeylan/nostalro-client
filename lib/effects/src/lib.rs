@@ -63,6 +63,14 @@ pub fn effect_texture_path(name: &str) -> String {
     }
 }
 
+/// Textures the rotated ground grids sample: their quads run UVs outside
+/// `[0, 1]`, so wrapping would tile the art back over the grid border.
+pub const CLAMPED_TEXTURES: &[&str] = &[effects::ground_sample::TEXTURE];
+
+pub fn texture_wraps(path: &str) -> bool {
+    !CLAMPED_TEXTURES.iter().any(|name| path.ends_with(name))
+}
+
 pub fn effect_texture_paths() -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
     let texture_lists: &[&[&str]] = &[
@@ -320,6 +328,14 @@ mod tests {
             paths.iter().any(|p| p.ends_with("ring_yellow.tga")),
             "Warp's texture is included",
         );
+    }
+
+    #[test]
+    fn the_rotated_ground_grid_texture_is_preloaded_clamped() {
+        let grid = effect_texture_path(effects::ground_sample::TEXTURE);
+        assert!(effect_texture_paths().contains(&grid));
+        assert!(!texture_wraps(&grid));
+        assert!(texture_wraps(&effect_texture_path("ring_yellow.tga")));
     }
 
     #[test]

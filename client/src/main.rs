@@ -911,6 +911,7 @@ impl ApplicationHandler for App {
                             .is_some(),
                         capture_targeting: self.game.companions.capture_targeting,
                         pending_skill: self.game.pending_casts.pending_skill_target.is_some(),
+                        marriage_targeting: self.game.pending_casts.marriage_targeting,
                     },
                 );
                 self.game.assets.cursor_animation.set_cursor_type(cursor);

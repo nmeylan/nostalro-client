@@ -98,6 +98,9 @@ use ragnarok_ui_component::game::shortcut_list_window::{
 };
 use ragnarok_ui_component::game::skill_tree_window::{SKILL_WINDOW_ID, SkillTreeWindow};
 use ragnarok_ui_component::game::status_window::{STATUS_WINDOW_ID, StatusWindow};
+use ragnarok_ui_component::game::storage_password_window::{
+    STORAGE_PASSWORD_WINDOW_ID, StoragePasswordMode, StoragePasswordWindow,
+};
 use ragnarok_ui_component::game::storage_window::{STORAGE_WINDOW_ID, StorageWindow};
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::game::trade_window::{TRADE_WINDOW_ID, TradeWindow};
@@ -117,6 +120,7 @@ use std::collections::HashMap;
 const GAME_COMPONENTS: &[&str] = &[
     "inventory",
     "storage",
+    "storage_password",
     "cart_select",
     "npc_shop",
     "npc_dialog",
@@ -180,6 +184,11 @@ enum State {
     },
     Storage {
         win: StorageWindow,
+        character: Character,
+        data: DataTable,
+    },
+    StoragePassword {
+        win: StoragePasswordWindow,
         character: Character,
         data: DataTable,
     },
@@ -585,6 +594,15 @@ fn create_single(name: &str) -> State {
             State::Storage {
                 win: StorageWindow::new(),
                 character,
+                data: DataTable::new(),
+            }
+        }
+        "storage_password" => {
+            let mut win = StoragePasswordWindow::new();
+            win.open_with(StoragePasswordMode::SetNew);
+            State::StoragePassword {
+                win,
+                character: Character::new(),
                 data: DataTable::new(),
             }
         }
@@ -2138,6 +2156,10 @@ fn grf_init_single(
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);
         }
+        State::StoragePassword { win, .. } => {
+            win.has_grf_textures = true;
+            win.set_texture_sizes(size_fn);
+        }
         State::VendingSetup { win, character, .. } => {
             if let Some(table) = table {
                 character.cart.resolve_resource_names(table);
@@ -2422,6 +2444,7 @@ fn z_order_id(state: &State) -> Option<WidgetId> {
         State::Mailbox { .. } => Some(MAILBOX_WINDOW_ID),
         State::ReadMail { .. } => Some(READ_MAIL_WINDOW_ID),
         State::CartSelect { .. } => Some(CART_SELECT_WINDOW_ID),
+        State::StoragePassword { .. } => Some(STORAGE_PASSWORD_WINDOW_ID),
         State::VendingSetup { .. } => Some(VENDING_SETUP_WINDOW_ID),
         State::MyShop { .. } => Some(MY_SHOP_WINDOW_ID),
         State::VendingBuy { .. } => Some(VENDING_SHOP_WINDOW_ID),
@@ -2489,6 +2512,7 @@ fn gallery_windows(state: &State) -> Vec<(WidgetId, (f32, f32))> {
         State::Mailbox { win, .. } => Some((MAILBOX_WINDOW_ID, win)),
         State::ReadMail { win, .. } => Some((READ_MAIL_WINDOW_ID, win)),
         State::CartSelect { win, .. } => Some((CART_SELECT_WINDOW_ID, win)),
+        State::StoragePassword { win, .. } => Some((STORAGE_PASSWORD_WINDOW_ID, win)),
         State::VendingSetup { win, .. } => Some((VENDING_SETUP_WINDOW_ID, win)),
         State::MyShop { win, .. } => Some((MY_SHOP_WINDOW_ID, win)),
         State::VendingBuy { win, .. } => Some((VENDING_SHOP_WINDOW_ID, win)),
@@ -2944,6 +2968,13 @@ fn build_single(state: &mut State, ui: &mut UiFrame) {
             win.build(ui, &mut d.ctx(character, data));
         }
         State::CartSelect {
+            win,
+            character,
+            data,
+        } => {
+            win.build(ui, &mut d.ctx(character, data));
+        }
+        State::StoragePassword {
             win,
             character,
             data,

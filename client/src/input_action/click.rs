@@ -17,6 +17,9 @@ impl App {
         if self.try_pet_modal_click() {
             return;
         }
+        if self.try_marriage_target_click() {
+            return;
+        }
         if ragnarok_profiling::debug::trace_input() {
             tracing::info!(
                 "handle_left_click: pending_companion={:?} hovered_entity={:?}",

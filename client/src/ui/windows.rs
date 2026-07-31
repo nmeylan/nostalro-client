@@ -81,6 +81,8 @@ use ragnarok_ui_component::game::sound_options::SoundOptionsWindow;
 use ragnarok_ui_component::game::status_icon_bar::StatusIconBarWindow;
 use ragnarok_ui_component::game::status_window::STATUS_WINDOW_ID;
 use ragnarok_ui_component::game::status_window::StatusWindow;
+use ragnarok_ui_component::game::storage_password_window::STORAGE_PASSWORD_WINDOW_ID;
+use ragnarok_ui_component::game::storage_password_window::StoragePasswordWindow;
 use ragnarok_ui_component::game::storage_window::STORAGE_WINDOW_ID;
 use ragnarok_ui_component::game::storage_window::StorageWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
@@ -101,6 +103,7 @@ pub struct Windows {
     pub inventory_window: InventoryWindow,
     pub cart_window: CartWindow,
     pub storage_window: StorageWindow,
+    pub storage_password_window: StoragePasswordWindow,
     pub trade_window: TradeWindow,
     pub mailbox_window: MailboxWindow,
     pub read_mail_window: ReadMailWindow,
@@ -171,6 +174,7 @@ impl Windows {
             inventory_window: InventoryWindow::new(),
             cart_window: CartWindow::new(),
             storage_window: StorageWindow::new(),
+            storage_password_window: StoragePasswordWindow::new(),
             trade_window: TradeWindow::new(),
             mailbox_window: MailboxWindow::new(),
             read_mail_window: ReadMailWindow::new(),
@@ -261,6 +265,10 @@ pub(crate) const REGISTRY: &[(WidgetId, Dispatch)] = &[
     (
         STORAGE_WINDOW_ID,
         Dispatch::Trait(|w| &mut w.storage_window as &mut dyn InGameWindow),
+    ),
+    (
+        STORAGE_PASSWORD_WINDOW_ID,
+        Dispatch::Trait(|w| &mut w.storage_password_window as &mut dyn InGameWindow),
     ),
     (
         TRADE_WINDOW_ID,

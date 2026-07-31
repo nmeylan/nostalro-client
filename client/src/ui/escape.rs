@@ -170,6 +170,10 @@ pub fn route_escape(
         *game.pet_roulette = None;
         return events;
     }
+    if game.pending_casts.marriage_targeting {
+        game.pending_casts.marriage_targeting = false;
+        return events;
+    }
 
     if windows.context_menu.is_open() {
         windows.context_menu.close();

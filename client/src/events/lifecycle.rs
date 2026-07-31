@@ -24,6 +24,7 @@ impl App {
                 self.game.world.arrows.clear();
                 self.game.combat.damage_numbers.clear();
                 self.game.character.storage.clear();
+                self.windows.storage_password_window.close();
                 self.game.character.trade.reset();
                 self.windows.trade_window.reset_input();
                 self.game.pending_confirms.pending_trade_partner = None;
@@ -32,6 +33,7 @@ impl App {
                 self.game.pending_casts.pending_skill_target = None;
                 self.game.pending_casts.pending_skill_id = None;
                 self.game.pending_casts.pending_skill_level = None;
+                self.game.pending_casts.marriage_targeting = false;
                 self.game.combat.attack_target_id = None;
                 self.game.combat.attack_request_sent = false;
                 self.game.combat.queued_move = None;
@@ -75,6 +77,7 @@ impl App {
                 self.game.companions.pet = ragnarok_game::pet::PetState::default();
                 self.game.companions.capture_targeting = false;
                 self.game.companions.pet_roulette = None;
+                self.game.pending_casts.marriage_targeting = false;
                 self.game.quest_log.clear();
                 self.game.quest_markers.clear();
                 self.game.minimap_marks.clear();

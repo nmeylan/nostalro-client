@@ -11,7 +11,7 @@ use ragnarok_game::chat_room::ChatRoomMember;
 use ragnarok_game::event::{
     AccessibleMap, CharacterInfo, FameKind, FriendData, GameEvent, GuildMemberAppearance,
     HomunculusProperty, MercenaryInfo, MvpFeedbackKind, PartyMemberData, PetProperty,
-    SelfConfigKind, ServerInfo, SkillInfo,
+    SelfConfigKind, ServerInfo, SkillInfo, StoragePasswordOutcome, StoragePasswordPrompt,
 };
 use ragnarok_game::gm::GmStatus;
 use ragnarok_game::guild::{
@@ -937,6 +937,17 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcCongratulation>() {
         return vec![GameEvent::WeddingCelebration { account_id: p.aid }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcReqCouple>() {
+        let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
+        return vec![GameEvent::MarriageProposed {
+            proposer_aid: p.aid,
+            proposer_gid: p.gid,
+            name,
+        }];
+    }
+    if any.downcast_ref::<PacketZcStartCouple>().is_some() {
+        return vec![GameEvent::MarriageProposalArmed];
     }
     if let Some(p) = any.downcast_ref::<PacketZcDivorce>() {
         let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
@@ -2448,6 +2459,21 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if any.downcast_ref::<PacketZcCloseStore>().is_some() {
         return vec![GameEvent::StorageClosed];
     }
+    if let Some(p) = any.downcast_ref::<PacketZcReqStorePassword>() {
+        return StoragePasswordPrompt::from_info(p.info)
+            .map(|prompt| GameEvent::StoragePasswordRequest { prompt })
+            .into_iter()
+            .collect();
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcResultStorePassword>() {
+        return StoragePasswordOutcome::from_result(p.result)
+            .map(|outcome| GameEvent::StoragePasswordResult {
+                outcome,
+                error_count: p.error_count,
+            })
+            .into_iter()
+            .collect();
+    }
 
     if let Some(p) = any.downcast_ref::<PacketZcReqExchangeItem2>() {
         let name: String = p.name.iter().take_while(|c| **c != '\0').collect();
@@ -3707,6 +3733,53 @@ mod tests {
             .downcast_ref::<PacketCzReqChangecart>()
             .expect("parsed as change-cart request");
         assert_eq!(p.num, 3);
+    }
+
+    #[test]
+    fn storage_password_prompt_result_and_reply() {
+        let packetver = 20111102;
+
+        let prompt: Vec<u8> = vec![0x3a, 0x02, 0x00, 0x00];
+        assert!(matches!(
+            dispatch_packet(
+                &*packets::packets_parser::parse(&prompt, packetver),
+                packetver
+            )
+            .as_slice(),
+            [GameEvent::StoragePasswordRequest {
+                prompt: StoragePasswordPrompt::NotSetYet
+            }]
+        ));
+
+        let mut result = PacketZcResultStorePassword::new(packetver);
+        result.set_result(7);
+        result.set_error_count(2);
+        result.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&result, packetver).as_slice(),
+            [GameEvent::StoragePasswordResult {
+                outcome: StoragePasswordOutcome::CheckFailed,
+                error_count: 2
+            }]
+        ));
+
+        let mut unknown = PacketZcResultStorePassword::new(packetver);
+        unknown.set_result(99);
+        unknown.fill_raw();
+        assert!(dispatch_packet(&unknown, packetver).is_empty());
+
+        // 0x0281 <type>.W <password>.16B <new password>.16B
+        let reply = crate::sender::build_ack_store_password_packet(false, "1234", "", packetver);
+        assert_eq!(reply.len(), 36);
+        assert_eq!(u16::from_le_bytes([reply[0], reply[1]]), 0x0281);
+        assert_eq!(i16::from_le_bytes([reply[2], reply[3]]), 3);
+        assert_eq!(&reply[4..8], b"1234");
+        assert!(reply[8..].iter().all(|b| *b == 0));
+
+        let change = crate::sender::build_ack_store_password_packet(true, "", "5678", packetver);
+        assert_eq!(i16::from_le_bytes([change[2], change[3]]), 2);
+        assert!(change[4..20].iter().all(|b| *b == 0));
+        assert_eq!(&change[20..24], b"5678");
     }
 
     #[test]
@@ -6032,6 +6105,65 @@ mod tests {
             dispatch_packet(&divorce, packetver).as_slice(),
             [GameEvent::Divorced { name }] if name == "Romeo"
         ));
+    }
+
+    #[test]
+    fn marriage_proposal_arms_cursor_then_replies_to_the_proposer() {
+        let packetver = 20120307;
+
+        let mut start = PacketZcStartCouple::new(packetver);
+        start.fill_raw();
+        assert!(matches!(
+            dispatch_packet(&start, packetver).as_slice(),
+            [GameEvent::MarriageProposalArmed]
+        ));
+
+        // 0x1e5 <target aid>.L — the click that picks the partner.
+        let request = crate::sender::build_marry_request_packet(4001, packetver);
+        assert_eq!(request.len(), 6);
+        assert_eq!(u16::from_le_bytes([request[0], request[1]]), 0x01e5);
+        assert_eq!(
+            u32::from_le_bytes([request[2], request[3], request[4], request[5]]),
+            4001
+        );
+
+        let mut proposal = PacketZcReqCouple::new(packetver);
+        proposal.set_aid(111);
+        proposal.set_gid(222);
+        let mut name = [0u8; 24];
+        name[.."Romeo".len()].copy_from_slice(b"Romeo");
+        proposal.set_name(name.map(|c| c as char));
+        proposal.fill_raw();
+        let (aid, gid) = match &dispatch_packet(&proposal, packetver)[..] {
+            [
+                GameEvent::MarriageProposed {
+                    proposer_aid,
+                    proposer_gid,
+                    name,
+                },
+            ] => {
+                assert_eq!(name, "Romeo");
+                (*proposer_aid, *proposer_gid)
+            }
+            other => panic!("expected MarriageProposed, got {other:?}"),
+        };
+
+        // 0x1e3 <proposer aid>.L <proposer gid>.L <answer>.L
+        let reply = crate::sender::build_marry_reply_packet(aid, gid, true, packetver);
+        assert_eq!(reply.len(), 14);
+        assert_eq!(u16::from_le_bytes([reply[0], reply[1]]), 0x01e3);
+        assert_eq!(
+            u32::from_le_bytes([reply[2], reply[3], reply[4], reply[5]]),
+            111
+        );
+        assert_eq!(
+            u32::from_le_bytes([reply[6], reply[7], reply[8], reply[9]]),
+            222
+        );
+        assert_eq!(
+            i32::from_le_bytes([reply[10], reply[11], reply[12], reply[13]]),
+            1
+        );
     }
 
     #[test]

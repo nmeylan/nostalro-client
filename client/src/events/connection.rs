@@ -305,6 +305,7 @@ impl App {
             preload_window(&mut self.windows.inventory_window, renderer, grf);
             preload_window(&mut self.windows.cart_window, renderer, grf);
             preload_window(&mut self.windows.storage_window, renderer, grf);
+            preload_window(&mut self.windows.storage_password_window, renderer, grf);
             preload_window(&mut self.windows.trade_window, renderer, grf);
             preload_window(&mut self.windows.mailbox_window, renderer, grf);
             preload_window(&mut self.windows.read_mail_window, renderer, grf);

@@ -48,6 +48,7 @@ pub mod skill_tree_window;
 pub mod sound_options;
 pub mod status_icon_bar;
 pub mod status_window;
+pub mod storage_password_window;
 pub mod storage_window;
 pub mod system_menu;
 pub mod trade_window;

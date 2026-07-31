@@ -69,6 +69,8 @@ pub struct PendingConfirms {
     pub pending_trade_partner: Option<(u32, String)>,
     pub pending_trade_request: Option<u32>,
     pub pending_adopt_request: Option<(u32, u32)>,
+    /// Proposer's aid and gid from ZC_REQ_COUPLE, echoed back in the reply.
+    pub pending_marriage_proposal: Option<(u32, u32)>,
     pub pending_invite_aid: Option<u32>,
     /// Character name and requested state of an in-flight whisper allow/deny; the
     /// local block list only changes once the server confirms it.
@@ -188,6 +190,7 @@ pub struct CursorPending {
     pub pending_companion_skill: bool,
     pub capture_targeting: bool,
     pub pending_skill: bool,
+    pub marriage_targeting: bool,
 }
 
 pub fn cursor_type_from_hover(
@@ -214,6 +217,7 @@ pub fn cursor_type_from_hover(
         || pending.pending_companion_skill
         || pending.capture_targeting
         || pending.pending_skill
+        || pending.marriage_targeting
     {
         CursorType::Lock
     } else if hover.hovered_chat_room.is_some() {
@@ -251,6 +255,9 @@ pub struct PendingCasts {
     /// Shop title submitted with CZ_REQ_OPENSTORE2; applied to our own entity on
     /// open since the server sends ZC_STORE_ENTRY to everyone but us.
     pub pending_shop_name: Option<String>,
+    /// Armed by ZC_START_COUPLE: the next click on another player proposes
+    /// marriage to them. The original game models it as a pseudo-skill cursor.
+    pub marriage_targeting: bool,
 }
 
 pub struct Companions {
@@ -876,6 +883,7 @@ mod cursor_from_hover_tests {
             pending_companion_skill: false,
             capture_targeting: false,
             pending_skill: false,
+            marriage_targeting: false,
         }
     }
 

@@ -30,6 +30,11 @@ fn is_muted_packet(name: &str) -> bool {
     )
 }
 
+/// Packets whose payload carries a password: traced by name and length only.
+fn carries_secret(name: &str) -> bool {
+    matches!(name, "PacketCaLogin" | "PacketCzAckStorePassword")
+}
+
 pub struct Connection {
     reader: OwnedReadHalf,
     writer: OwnedWriteHalf,
@@ -55,14 +60,18 @@ impl Connection {
                 panic::catch_unwind(|| packets_parser::parse(data, packetver).name().to_string())
                     .unwrap_or_else(|_| "<parse panic>".to_string());
             if !is_muted_packet(&name) {
-                let preview: Vec<String> =
-                    data.iter().take(16).map(|b| format!("{b:02x}")).collect();
-                tracing::info!(
-                    "send packet: {} ({} bytes) [{}]",
-                    name,
-                    data.len(),
-                    preview.join(" ")
-                );
+                if carries_secret(&name) {
+                    tracing::info!("send packet: {} ({} bytes)", name, data.len());
+                } else {
+                    let preview: Vec<String> =
+                        data.iter().take(16).map(|b| format!("{b:02x}")).collect();
+                    tracing::info!(
+                        "send packet: {} ({} bytes) [{}]",
+                        name,
+                        data.len(),
+                        preview.join(" ")
+                    );
+                }
             }
         }
         self.writer.write_all(data).await

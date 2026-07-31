@@ -32,6 +32,7 @@ use ragnarok_ui_component::game::npc_shop::NpcShop;
 use ragnarok_ui_component::game::party_friends_window::PartyFriendsWindow;
 use ragnarok_ui_component::game::shortcut_list_window::ShortcutListWindow;
 use ragnarok_ui_component::game::skill_tree_window::SkillTreeWindow;
+use ragnarok_ui_component::game::storage_password_window::StoragePasswordWindow;
 use ragnarok_ui_component::game::system_menu::SystemMenu;
 use ragnarok_ui_component::game::vending_setup_window::VendingSetupWindow;
 use ragnarok_ui_component::game::vending_shop_window::VendingShopWindow;
@@ -185,6 +186,7 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "dialog_container" => DialogContainer::grf_texture_paths(),
         "item_info" => ItemInfoWindow::grf_texture_paths(),
         "skill_tree" => SkillTreeWindow::grf_texture_paths(),
+        "storage_password" => StoragePasswordWindow::grf_texture_paths(),
         "card_insert" => vec![],
         "minimap" => {
             let mut paths = MinimapWindow::grf_texture_paths();

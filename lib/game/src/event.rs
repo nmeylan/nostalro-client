@@ -688,6 +688,25 @@ pub enum GameEvent {
         amount: i16,
     },
     StorageClosed,
+    /// 0x23a: the storage the player just opened is password gated.
+    StoragePasswordRequest {
+        prompt: StoragePasswordPrompt,
+    },
+    /// 0x23c: how the check or the change went, plus the wrong-attempt count.
+    StoragePasswordResult {
+        outcome: StoragePasswordOutcome,
+        error_count: i16,
+    },
+    /// The player accepted setting a first password: open the dialog in set mode.
+    OpenStoragePasswordPrompt {
+        prompt: StoragePasswordPrompt,
+    },
+    /// Dialog → 0x23b.
+    RequestStoragePassword {
+        change: bool,
+        password: String,
+        new_password: String,
+    },
 
     ExchangeRequested {
         name: String,
@@ -1691,6 +1710,23 @@ pub enum GameEvent {
     WeddingCelebration {
         account_id: u32,
     },
+    /// 0x1e2: `name` proposes marriage; the reply carries their aid and gid back.
+    MarriageProposed {
+        proposer_aid: u32,
+        proposer_gid: u32,
+        name: String,
+    },
+    /// 0x1e4: the wedding NPC hands the player a target cursor — the next click on
+    /// another player proposes to them.
+    MarriageProposalArmed,
+    /// Proposal cursor click → 0x1e5.
+    RequestMarriage {
+        target_aid: u32,
+    },
+    /// Proposal dialog → 0x1e3.
+    RespondMarriageProposal {
+        accept: bool,
+    },
     /// 0x205: you are divorced from `name`.
     Divorced {
         name: String,
@@ -1755,6 +1791,46 @@ impl SelfConfigKind {
             SelfConfigKind::PetAutofeed => 2,
             SelfConfigKind::HomunculusAutofeed => 3,
             SelfConfigKind::RefusePartyInvite => -1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoragePasswordPrompt {
+    NotSetYet,
+    Required,
+    LockedOut,
+}
+
+impl StoragePasswordPrompt {
+    pub fn from_info(info: i16) -> Option<Self> {
+        match info {
+            0 => Some(StoragePasswordPrompt::NotSetYet),
+            1 => Some(StoragePasswordPrompt::Required),
+            8 => Some(StoragePasswordPrompt::LockedOut),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoragePasswordOutcome {
+    ChangeOk,
+    ChangeFailed,
+    CheckOk,
+    CheckFailed,
+    LockedOut,
+}
+
+impl StoragePasswordOutcome {
+    pub fn from_result(result: i16) -> Option<Self> {
+        match result {
+            4 => Some(StoragePasswordOutcome::ChangeOk),
+            5 => Some(StoragePasswordOutcome::ChangeFailed),
+            6 => Some(StoragePasswordOutcome::CheckOk),
+            7 => Some(StoragePasswordOutcome::CheckFailed),
+            8 => Some(StoragePasswordOutcome::LockedOut),
+            _ => None,
         }
     }
 }

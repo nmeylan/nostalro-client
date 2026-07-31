@@ -1,8 +1,13 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::item::ItemType;
+use ragnarok_game::event::{GameEvent, StoragePasswordOutcome, StoragePasswordPrompt};
 use ragnarok_game::inventory::{EquipmentItemData, NormalItemData};
 use ragnarok_game::item::Item;
+use ragnarok_ui_component::game::storage_password_window::StoragePasswordMode;
+
+/// Wrong attempts the server allows before it locks the storage.
+const PASSWORD_ATTEMPTS: i16 = 3;
 
 impl App {
     pub(super) fn handle_storage_normal_items(&mut self, items: Vec<NormalItemData>) {
@@ -98,5 +103,73 @@ impl App {
 
     pub(super) fn handle_storage_closed(&mut self) {
         self.game.character.storage.clear();
+        self.windows.storage_password_window.close();
+    }
+
+    pub(super) fn handle_storage_password_request(&mut self, prompt: StoragePasswordPrompt) {
+        match prompt {
+            StoragePasswordPrompt::NotSetYet => {
+                self.game.arm_confirm(
+                    &mut self.windows,
+                    "No storage password is set. Set one now?",
+                    |accept| {
+                        accept.then_some(GameEvent::OpenStoragePasswordPrompt {
+                            prompt: StoragePasswordPrompt::NotSetYet,
+                        })
+                    },
+                );
+            }
+            StoragePasswordPrompt::Required => {
+                self.open_storage_password_dialog(prompt);
+            }
+            StoragePasswordPrompt::LockedOut => self.show_storage_password_penalty(),
+        }
+    }
+
+    pub(super) fn open_storage_password_dialog(&mut self, prompt: StoragePasswordPrompt) {
+        let mode = match prompt {
+            StoragePasswordPrompt::NotSetYet => StoragePasswordMode::SetNew,
+            StoragePasswordPrompt::Required => StoragePasswordMode::Enter,
+            StoragePasswordPrompt::LockedOut => return,
+        };
+        self.windows.storage_password_window.open_with(mode);
+    }
+
+    pub(super) fn handle_storage_password_result(
+        &mut self,
+        outcome: StoragePasswordOutcome,
+        error_count: i16,
+    ) {
+        let window = &mut self.windows.storage_password_window;
+        match outcome {
+            StoragePasswordOutcome::ChangeOk => {
+                window.open_with(StoragePasswordMode::Enter);
+                window.set_message("Password changed. Enter it to continue.".to_string());
+            }
+            StoragePasswordOutcome::ChangeFailed => {
+                window.open_with(StoragePasswordMode::Enter);
+                window.set_message("The password could not be changed.".to_string());
+            }
+            StoragePasswordOutcome::CheckOk => window.close(),
+            StoragePasswordOutcome::CheckFailed => {
+                if !window.is_open() {
+                    window.open_with(StoragePasswordMode::Enter);
+                }
+                let left = (PASSWORD_ATTEMPTS - error_count).max(0);
+                window.set_message(format!("Wrong password. {left} attempt(s) left."));
+            }
+            StoragePasswordOutcome::LockedOut => {
+                window.close();
+                self.show_storage_password_penalty();
+            }
+        }
+    }
+
+    fn show_storage_password_penalty(&mut self) {
+        self.windows.confirm_dialog.show(
+            "The password was wrong 3 times. The storage is locked for a while.",
+            false,
+            |_| {},
+        );
     }
 }

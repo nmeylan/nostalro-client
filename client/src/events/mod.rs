@@ -728,6 +728,30 @@ impl App {
                 GameEvent::StorageClosed => {
                     self.handle_storage_closed();
                 }
+                GameEvent::StoragePasswordRequest { prompt } => {
+                    self.handle_storage_password_request(prompt);
+                }
+                GameEvent::OpenStoragePasswordPrompt { prompt } => {
+                    self.open_storage_password_dialog(prompt);
+                }
+                GameEvent::StoragePasswordResult {
+                    outcome,
+                    error_count,
+                } => {
+                    self.handle_storage_password_result(outcome, error_count);
+                }
+                GameEvent::RequestStoragePassword {
+                    change,
+                    password,
+                    new_password,
+                } => {
+                    self.channel.send_packet(build_ack_store_password_packet(
+                        change,
+                        &password,
+                        &new_password,
+                        self.active_packetver,
+                    ));
+                }
 
                 GameEvent::ExchangeRequested { name, gid, level } => {
                     self.handle_exchange_requested(name, gid, level);
@@ -1637,6 +1661,34 @@ impl App {
                 }
                 GameEvent::WeddingCelebration { account_id } => {
                     self.handle_wedding_celebration(account_id);
+                }
+                GameEvent::MarriageProposed {
+                    proposer_aid,
+                    proposer_gid,
+                    name,
+                } => {
+                    self.handle_marriage_proposed(proposer_aid, proposer_gid, name);
+                }
+                GameEvent::MarriageProposalArmed => {
+                    self.game.pending_casts.marriage_targeting = true;
+                }
+                GameEvent::RequestMarriage { target_aid } => {
+                    self.channel.send_packet(build_marry_request_packet(
+                        target_aid,
+                        self.active_packetver,
+                    ));
+                }
+                GameEvent::RespondMarriageProposal { accept } => {
+                    if let Some((proposer_aid, proposer_gid)) =
+                        self.game.pending_confirms.pending_marriage_proposal.take()
+                    {
+                        self.channel.send_packet(build_marry_reply_packet(
+                            proposer_aid,
+                            proposer_gid,
+                            accept,
+                            self.active_packetver,
+                        ));
+                    }
                 }
                 GameEvent::Divorced { name } => {
                     self.handle_divorced(name);

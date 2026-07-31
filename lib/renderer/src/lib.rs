@@ -509,12 +509,18 @@ impl Renderer {
                 loaded.push(path);
                 continue;
             }
+            let address_mode = if ragnarok_effects::texture_wraps(path) {
+                wgpu::AddressMode::Repeat
+            } else {
+                wgpu::AddressMode::ClampToEdge
+            };
             match texture::load_keyed_texture(
                 path,
                 grf,
                 &self.device.device,
                 &self.device.queue,
                 &self.texture_cache.bind_group_layout,
+                address_mode,
             ) {
                 Some((bind_group, w, h)) => {
                     self.texture_cache.insert(path, bind_group, w, h);
