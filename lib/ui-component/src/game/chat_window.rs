@@ -740,7 +740,7 @@ impl InGameWindow for ChatWindow {
         let input_h = INPUT_H;
         let padding = PADDING;
         let scrollbar_w = SCROLLBAR_W;
-        let max_msg_h = screen_h - input_h - (50.0);
+        let max_msg_h = (screen_h - input_h - (50.0)).max(MIN_MSG_AREA_H);
 
         let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
         if !state.initialized {
@@ -838,6 +838,22 @@ impl InGameWindow for ChatWindow {
                 state.chat_w = chat_w;
             }
         }
+        chat_w = chat_w.min(ui.ctx.screen_width.max(MIN_CHAT_W));
+        msg_area_h = msg_area_h.min(max_msg_h);
+        {
+            let fitted_h = if size_index >= 2 && msg_area_h > 0.0 {
+                msg_area_h + input_h
+            } else {
+                input_h
+            };
+            let (screen_w, screen_h) = (ui.ctx.screen_width, ui.ctx.screen_height);
+            let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
+            state.chat_w = chat_w;
+            state.msg_area_h = msg_area_h;
+            state.pos_x = state.pos_x.clamp(0.0, (screen_w - chat_w).max(0.0));
+            state.pos_y = state.pos_y.clamp(0.0, (screen_h - fitted_h).max(0.0));
+        }
+
         let tex_scale = chat_w / TEX_NATIVE_W;
 
         let show_messages = size_index >= 2 && msg_area_h > 0.0;
@@ -1250,6 +1266,29 @@ mod tests {
             let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
             assert_eq!(ws.size_index, expected_index);
         }
+    }
+
+    #[test]
+    fn shrinking_screen_refits_window_into_view() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        assert!(ws.pos_y > 300.0, "default layout sits near the bottom");
+
+        let ctx = UiContext::new(480.0, 300.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+
+        let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        assert_eq!(ws.pos_x, 0.0);
+        assert_eq!(ws.pos_y + ws.msg_area_h + INPUT_H, 300.0);
     }
 
     #[test]
