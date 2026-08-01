@@ -9,7 +9,7 @@ use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::SpriteActionType;
 use ragnarok_game::ailment;
-use ragnarok_game::arrow::{ArrowProjectile, flight_secs_for_cell_distance};
+use ragnarok_game::arrow::{ArrowProjectile, arrow_shower_cells, flight_secs_for_cell_distance};
 use ragnarok_game::boss_info::{BossInfoKind, BossMark, boss_info_line};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
@@ -18,6 +18,7 @@ use ragnarok_game::effect::{
     status_reaction_by_efst, trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{ChatBubbleState, Entity, EntityState, EntityType};
+use ragnarok_game::entity_collection::GROUND_SKILL_EXEC_SECS;
 use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
@@ -536,6 +537,44 @@ impl App {
         let double_attack_term = 0.2;
         for i in 0..count.max(1) {
             let delay = (land_at - flight + i as f32 * double_attack_term).max(0.0);
+            self.game
+                .world
+                .arrows
+                .push(ArrowProjectile::new(from, to, delay, flight));
+        }
+    }
+
+    /// Arrow Shower rains an arrow on the aimed cell and on each of its eight
+    /// neighbours, so several land on bare ground.
+    pub(super) fn spawn_arrow_shower(&mut self, src_gid: u32, x: i16, y: i16) {
+        if x < 0 || y < 0 {
+            return;
+        }
+        let Some(caster) = self.game.world.entities.get(src_gid) else {
+            return;
+        };
+        let shooter = caster.movement.cell_position();
+        let base_action = caster.action_index();
+        let direction = caster.direction;
+        let (Some(gat), Some(coords)) = (&self.game.session.gat, &self.game.session.map_coords)
+        else {
+            return;
+        };
+        let cell_world = |x: f32, y: f32| {
+            let (wx, _, wz) = coords.cell_to_world(x + 0.5, y + 0.5);
+            [wx, gat.get_height(x + 0.5, y + 0.5) - 10.0, wz]
+        };
+        let from = cell_world(shooter.0 as f32, shooter.1 as f32);
+        let legs = arrow_shower_cells((x as u16, y as u16)).map(|(cx, cy)| {
+            let (dx, dy) = (cx as f32 - shooter.0 as f32, cy as f32 - shooter.1 as f32);
+            let flight = flight_secs_for_cell_distance((dx * dx + dy * dy).sqrt());
+            (cell_world(cx as f32, cy as f32), flight)
+        });
+
+        let land_at =
+            GROUND_SKILL_EXEC_SECS * self.atk_keyframe_fraction(src_gid, base_action, direction);
+        for (to, flight) in legs {
+            let delay = (land_at - flight).max(0.0);
             self.game
                 .world
                 .arrows

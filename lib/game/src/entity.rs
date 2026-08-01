@@ -1321,7 +1321,8 @@ mod tests {
         use ragnarok_formats::act::MotionType;
         let act = make_body_act(3, &[]);
         let play_out = |e: &mut Entity| {
-            e.animation.set_action(e.action_index(), MotionType::OneShot);
+            e.animation
+                .set_action(e.action_index(), MotionType::OneShot);
             for _ in 0..10 {
                 e.animation.update(0.05, &act, 0);
             }

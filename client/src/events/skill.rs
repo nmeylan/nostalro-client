@@ -195,14 +195,17 @@ impl App {
         // Attack2 motion. Multi-hit skills (e.g. Arrow Vulcan) fire one per hit.
         if let Some(caster) = self.game.world.entities.get(src_gid) {
             let weapon = caster.weapon;
-            let fires_arrow = match skill_motion_type(skill_id) {
-                SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
-                SkillMotionType::Attack2 => matches!(
-                    weapon,
-                    Some(WeaponType::Bow | WeaponType::Whip | WeaponType::Musical)
-                ),
-                _ => false,
-            };
+            // Arrow Shower rains its own nine-arrow fan off the ground packet,
+            // so the per-target arrow would double up on it.
+            let fires_arrow = SkillEnum::from_id(skill_id as u32) != SkillEnum::AcShower
+                && match skill_motion_type(skill_id) {
+                    SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
+                    SkillMotionType::Attack2 => matches!(
+                        weapon,
+                        Some(WeaponType::Bow | WeaponType::Whip | WeaponType::Musical)
+                    ),
+                    _ => false,
+                };
             if fires_arrow {
                 let shooter_cell = caster.movement.cell_position();
                 if let Some(tp) = target_pos {
@@ -433,7 +436,12 @@ impl App {
     /// Fraction `[0, 1)` through the caster's attack/skill animation at which
     /// its swing connects — the `atk` keyframe. Defaults to mid-animation when
     /// the caster sprite or action is unavailable.
-    fn atk_keyframe_fraction(&self, caster_gid: u32, base_action: usize, direction: u8) -> f32 {
+    pub(super) fn atk_keyframe_fraction(
+        &self,
+        caster_gid: u32,
+        base_action: usize,
+        direction: u8,
+    ) -> f32 {
         let Some(sprite) = self.game.sprite_caches.sprites.get(&caster_gid) else {
             return 0.5;
         };

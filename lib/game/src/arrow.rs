@@ -5,6 +5,23 @@ pub fn flight_secs_for_cell_distance(dist_cells: f32) -> f32 {
     BASE * (dist_cells / 8.0).clamp(0.05, 1.0)
 }
 
+/// The nine cells an Arrow Shower rains on: the aimed cell first, then its
+/// eight neighbours in the order the original game fans them out.
+pub fn arrow_shower_cells(center: (u16, u16)) -> [(i32, i32); 9] {
+    const OFFSETS: [(i32, i32); 9] = [
+        (0, 0),
+        (1, 0),
+        (1, 1),
+        (1, -1),
+        (-1, 0),
+        (-1, 1),
+        (-1, -1),
+        (0, 1),
+        (0, -1),
+    ];
+    OFFSETS.map(|(dx, dy)| (center.0 as i32 + dx, center.1 as i32 + dy))
+}
+
 pub struct ArrowProjectile {
     shooter_pos: [f32; 3],
     target_pos: [f32; 3],
@@ -88,5 +105,29 @@ mod tests {
         assert!((end[0] - 10.0).abs() < 0.001);
         assert!((end[2] - 20.0).abs() < 0.001);
         assert!(arrow.is_done());
+    }
+
+    #[test]
+    fn arrow_shower_rains_the_aimed_cell_then_its_eight_neighbours() {
+        assert_eq!(
+            arrow_shower_cells((100, 50)),
+            [
+                (100, 50),
+                (101, 50),
+                (101, 51),
+                (101, 49),
+                (99, 50),
+                (99, 51),
+                (99, 49),
+                (100, 51),
+                (100, 49),
+            ]
+        );
+
+        // A cell fan on the map edge keeps all nine legs; the off-map ones just
+        // read as negative.
+        let edge = arrow_shower_cells((0, 0));
+        assert_eq!(edge[4], (-1, 0));
+        assert_eq!(edge[8], (0, -1));
     }
 }

@@ -5,6 +5,9 @@ use crate::mob_info::MobInfo;
 use crate::movement::direction_from_positions;
 use models::enums::skill_enums::SkillEnum;
 
+/// How long a caster stays in its skill motion for a ground-placed skill.
+pub const GROUND_SKILL_EXEC_SECS: f32 = 0.6;
+
 pub struct EntityCollection {
     entities: HashMap<u32, Entity>,
     player_id: Option<u32>,
@@ -264,7 +267,7 @@ impl EntityCollection {
             if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
                 entity.direction = dir;
             }
-            entity.enter_skill_exec(0.6, skill_id, 1);
+            entity.enter_skill_exec(GROUND_SKILL_EXEC_SECS, skill_id, 1);
         }
     }
 

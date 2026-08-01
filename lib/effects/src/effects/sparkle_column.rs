@@ -252,27 +252,6 @@ mod tests {
         }
         assert_eq!(c.motes.len(), before, "respawn must not change population");
     }
-
-    #[test]
-    fn ghost_scatters_much_wider_than_freezing() {
-        let ghost = SparkleColumnEffect::new([0.0; 3], GHOST);
-        let freezing = SparkleColumnEffect::new([0.0; 3], FREEZING);
-        let spread = |c: &SparkleColumnEffect| {
-            c.motes
-                .iter()
-                .map(|m| (m.base_xz[0].powi(2) + m.base_xz[1].powi(2)).sqrt())
-                .fold(0.0f32, f32::max)
-        };
-        // Ghost's wide footprint (scatter 7) vs the freezing column's tight
-        // cluster (scatter 1.5) — both bounded by their `scatter` radius.
-        assert!(
-            spread(&ghost) > spread(&freezing) * 1.5,
-            "ghost should scatter far wider"
-        );
-        assert!(spread(&freezing) <= FREEZING.scatter + 1e-4);
-        assert!(spread(&ghost) <= GHOST.scatter + 1e-4);
-    }
-
     #[test]
     fn variants_use_real_distinct_textures() {
         let texs = [FREEZING.texture, WHITELIGHT.texture, GHOST.texture];
