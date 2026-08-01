@@ -163,6 +163,7 @@ pub fn route_escape(
         game.pending_casts.pending_skill_target = None;
         game.pending_casts.pending_skill_id = None;
         game.pending_casts.pending_skill_level = None;
+        game.pending_casts.pending_skill_unit_cast = None;
         return events;
     }
     if *game.capture_targeting || game.pet_roulette.is_some() {

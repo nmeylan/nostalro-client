@@ -24,18 +24,23 @@ pub enum CursorType {
 pub enum PendingSkillTarget {
     Entity { skill_id: u16, level: i16 },
     Ground { skill_id: u16, level: i16 },
+    SkillUnit { skill_id: u16, level: i16 },
 }
 
 impl PendingSkillTarget {
     pub fn skill_id(&self) -> u16 {
         match self {
-            Self::Entity { skill_id, .. } | Self::Ground { skill_id, .. } => *skill_id,
+            Self::Entity { skill_id, .. }
+            | Self::Ground { skill_id, .. }
+            | Self::SkillUnit { skill_id, .. } => *skill_id,
         }
     }
 
     pub fn level(&self) -> i16 {
         match self {
-            Self::Entity { level, .. } | Self::Ground { level, .. } => *level,
+            Self::Entity { level, .. }
+            | Self::Ground { level, .. }
+            | Self::SkillUnit { level, .. } => *level,
         }
     }
 }
@@ -48,7 +53,14 @@ pub struct PendingCompanionSkill {
     pub is_mercenary: bool,
     pub skill_id: u16,
     pub level: i16,
-    pub is_ground: bool,
+    pub target: CompanionSkillTarget,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompanionSkillTarget {
+    Entity,
+    Ground,
+    SkillUnit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -103,11 +103,14 @@ pub enum TargetClass {
     Supportive,
     SelfOnly,
     Ground,
+    /// Cast on a deployed skill unit (a trap), not on an entity or a cell.
+    SkillUnit,
 }
 
 pub fn skill_target_class(target_type: SkillTargetType) -> TargetClass {
     match target_type {
-        SkillTargetType::Ground | SkillTargetType::Trap => TargetClass::Ground,
+        SkillTargetType::Trap => TargetClass::SkillUnit,
+        SkillTargetType::Ground => TargetClass::Ground,
         SkillTargetType::MySelf | SkillTargetType::Party => TargetClass::SelfOnly,
         SkillTargetType::Friend => TargetClass::Supportive,
         SkillTargetType::Target | SkillTargetType::Passive => TargetClass::Offensive,
@@ -177,6 +180,7 @@ pub fn hover_cursor(
         Some(TargetClass::Offensive) => {
             can_attack(target, map, player_id).then_some(CursorType::Attack)
         }
+        Some(TargetClass::SkillUnit) => None,
         Some(TargetClass::Ground) | None => {
             can_attack(target, map, player_id).then_some(CursorType::Attack)
         }
@@ -193,7 +197,7 @@ pub fn skill_target_allowed(
         return false;
     }
     match class {
-        TargetClass::Ground => false,
+        TargetClass::Ground | TargetClass::SkillUnit => false,
         TargetClass::SelfOnly => relationship(target.id, player_id) == Relationship::Myself,
         TargetClass::Supportive => target.entity_type != EntityType::Npc,
         TargetClass::Offensive => can_attack(target, map, player_id),
@@ -263,6 +267,24 @@ mod tests {
             skill_target_class(SkillTargetType::Ground),
             TargetClass::Ground
         );
+        assert_eq!(
+            skill_target_class(SkillTargetType::Trap),
+            TargetClass::SkillUnit
+        );
+    }
+
+    #[test]
+    fn trap_targeting_never_resolves_to_an_entity() {
+        let me = Some(1u32);
+        let pvp = MapProperties::from_kind(MapKind::FreePvp);
+        let class = skill_target_class(SkillTargetType::Trap);
+        for target in [
+            entity(10, EntityType::Monster, 1002),
+            entity(20, EntityType::Player, 0),
+        ] {
+            assert!(!skill_target_allowed(class, &target, &pvp, me));
+            assert_eq!(hover_cursor(&target, &pvp, Some(class), me), None);
+        }
     }
 
     #[test]

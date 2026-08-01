@@ -294,6 +294,71 @@ impl App {
         }
     }
 
+    pub(crate) fn check_pending_skill_unit_cast(&mut self) {
+        let (skill_id, level, unit_id) = match self.game.pending_casts.pending_skill_unit_cast {
+            Some(v) => v,
+            None => return,
+        };
+
+        let Some(cell) = self.game.world.trap_units.get(&unit_id).map(|t| t.cell) else {
+            self.game.pending_casts.pending_skill_unit_cast = None;
+            return;
+        };
+
+        if let Some(player) = self.game.world.entities.player()
+            && matches!(
+                player.state,
+                EntityState::Casting
+                    | EntityState::SkillExec
+                    | EntityState::Dead
+                    | EntityState::Sitting
+            )
+        {
+            return;
+        }
+
+        let (px, py) = self
+            .game
+            .world
+            .entities
+            .player()
+            .map(|e| e.movement.cell_position())
+            .unwrap_or((0, 0));
+
+        let skill_range = self
+            .game
+            .resolve_cast_skill(skill_id)
+            .map(|(_, range)| range as i32)
+            .unwrap_or(1);
+
+        let dx = (px as i32 - cell.0 as i32).abs();
+        let dy = (py as i32 - cell.1 as i32).abs();
+        let path_completed = self
+            .game
+            .world
+            .entities
+            .player()
+            .is_some_and(|p| !p.movement.is_moving());
+
+        if dx.max(dy) <= skill_range || path_completed {
+            if let Some(player) = self.game.world.entities.player_mut() {
+                player.movement.stop();
+            }
+            if self.skill_on_cooldown(skill_id) {
+                return;
+            }
+            self.channel.send_packet(build_use_skill_packet(
+                skill_id,
+                level,
+                unit_id,
+                self.active_packetver,
+            ));
+            self.game.pending_casts.pending_skill_unit_cast = None;
+        } else {
+            self.try_move_toward(cell.0 as i32, cell.1 as i32, px, py, skill_range);
+        }
+    }
+
     /// Places a ground skill, first collecting the message for the skills that write
     /// one onto the unit.
     pub(crate) fn cast_on_ground(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {

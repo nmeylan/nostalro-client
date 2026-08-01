@@ -1,6 +1,6 @@
 use crate::App;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
-use ragnarok_game::cursor::PendingCompanionSkill;
+use ragnarok_game::cursor::{CompanionSkillTarget, PendingCompanionSkill};
 use ragnarok_game::event::{HomunculusProperty, MercenaryInfo, SkillInfo};
 use ragnarok_game::skill::SkillTargetType;
 
@@ -267,15 +267,23 @@ impl App {
                     is_mercenary,
                     skill_id,
                     level,
-                    is_ground: false,
+                    target: CompanionSkillTarget::Entity,
                 });
             }
-            SkillTargetType::Ground | SkillTargetType::Trap => {
+            SkillTargetType::Ground => {
                 self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                     is_mercenary,
                     skill_id,
                     level,
-                    is_ground: true,
+                    target: CompanionSkillTarget::Ground,
+                });
+            }
+            SkillTargetType::Trap => {
+                self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
+                    is_mercenary,
+                    skill_id,
+                    level,
+                    target: CompanionSkillTarget::SkillUnit,
                 });
             }
             _ => {

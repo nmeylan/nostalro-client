@@ -46,7 +46,8 @@ pub use spec::{AlphaKeyframe, Attach, CurveParams, EffectSpec, SprBodyRecolor, S
 pub use spr_aliases::{SprDef, spr_def};
 pub use spr_burst::spr_burst_params;
 pub use status_buff::{
-    EFST_SKE, StatusKind, StatusReaction, status_reaction, status_reaction_by_efst,
+    EFST_SKE, StatusKind, StatusReaction, StatusSound, devil_blind_effect, persistent_aura,
+    status_reaction, status_reaction_by_efst,
 };
 pub use str_aliases::{str_aliases, str_variant};
 pub use table::{custom_duration_ms, effect_spec, spawn_camera_shake};

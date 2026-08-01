@@ -1,10 +1,12 @@
 use super::lifecycle::SessionChange;
 use crate::App;
+use crate::game_state::TrapUnit;
 use models::enums::EnumWithNumberValue;
 use models::enums::action::ActionType;
 use models::enums::class::JobName;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
+use models::enums::skill_enums::SkillEnum;
 use models::enums::vanish::VanishType;
 use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::SpriteActionType;
@@ -13,9 +15,10 @@ use ragnarok_game::arrow::{ArrowProjectile, arrow_shower_cells, flight_secs_for_
 use ragnarok_game::boss_info::{BossInfoKind, BossMark, boss_info_line};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
-    OPT3_BLADESTOP, StatusKind, UNT_USED_TRAPS, monster_opt3_reaction, opt3_bit_for_icon,
-    opt3_bits, player_opt3_reaction, skill_unit_effect, skill_unit_entry_sound, status_reaction,
-    status_reaction_by_efst, trap_model_name, trap_trigger_effect,
+    OPT3_BLADESTOP, StatusKind, StatusSound, UNT_USED_TRAPS, devil_blind_effect,
+    monster_opt3_reaction, opt3_bit_for_icon, opt3_bits, persistent_aura, player_opt3_reaction,
+    skill_unit_effect, skill_unit_entry_sound, status_reaction, status_reaction_by_efst,
+    trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{ChatBubbleState, Entity, EntityState, EntityType};
 use ragnarok_game::entity_collection::GROUND_SKILL_EXEC_SECS;
@@ -810,7 +813,7 @@ impl App {
                 let was = old_effect_state & bit != 0;
                 let now = effect_state & bit != 0;
                 if was != now {
-                    self.set_status_icon(efst, now, 0, 0);
+                    self.track_player_status(efst, now, 0, 0);
                 }
             }
             let gained_hide =
@@ -992,7 +995,7 @@ impl App {
                 entity.react_to_status(icon, active);
             }
             if is_player {
-                self.set_status_icon(efst, active, val1, remain_ms as u64);
+                self.track_player_status(efst, active, val1, remain_ms as u64);
             }
             self.sync_opt3_bit_with_status(gid, icon, active);
         }
@@ -1014,6 +1017,13 @@ impl App {
             return;
         }
 
+        if reaction.kind == StatusKind::DevilBlind {
+            if is_player {
+                self.handle_devil_blind_status(gid, efst, active, reaction.on_activate_sound);
+            }
+            return;
+        }
+
         let map_key = (gid, efst);
         if let Some(old_key) = self.game.effect_keys.status_buff_keys.remove(&map_key) {
             self.effect_queue.despawn(old_key);
@@ -1031,19 +1041,7 @@ impl App {
             && let Some(sound) = reaction.on_activate_sound
             && (is_player || !sound.local_only)
         {
-            match sound.pos {
-                SfxPos::Ui(depth) => self.sound_queue.ui_at_depth(sound.wave, depth),
-                SfxPos::WorldAtDepth(depth) => {
-                    if let Some(pos) = self.entity_world_pos(gid) {
-                        self.sound_queue.world_at_depth(sound.wave, pos, depth);
-                    }
-                }
-                SfxPos::World => {
-                    if let Some(pos) = self.entity_world_pos(gid) {
-                        self.sound_queue.world(sound.wave, pos);
-                    }
-                }
-            }
+            self.play_status_sound(gid, sound);
         }
 
         let bursts = if active {
@@ -1056,20 +1054,115 @@ impl App {
         }
     }
 
-    /// Load a status-bar icon's texture and add (or clear) it on the local player's HUD.
-    /// `life_ms` of 0 renders no countdown wedge.
-    pub(super) fn set_status_icon(&mut self, efst: i16, active: bool, val1: i32, life_ms: u64) {
-        let Some(info) = status_icon_info(efst) else {
+    fn play_status_sound(&mut self, gid: u32, sound: StatusSound) {
+        match sound.pos {
+            SfxPos::Ui(depth) => self.sound_queue.ui_at_depth(sound.wave, depth),
+            SfxPos::WorldAtDepth(depth) => {
+                if let Some(pos) = self.entity_world_pos(gid) {
+                    self.sound_queue.world_at_depth(sound.wave, pos, depth);
+                }
+            }
+            SfxPos::World => {
+                if let Some(pos) = self.entity_world_pos(gid) {
+                    self.sound_queue.world(sound.wave, pos);
+                }
+            }
+        }
+    }
+
+    fn handle_devil_blind_status(
+        &mut self,
+        gid: u32,
+        efst: i16,
+        active: bool,
+        sound: Option<StatusSound>,
+    ) {
+        let map_key = (gid, efst);
+        if !active {
+            if let Some(key) = self.game.effect_keys.status_buff_keys.remove(&map_key) {
+                self.effect_queue.despawn(key);
+            }
+            return;
+        }
+        if self
+            .game
+            .effect_keys
+            .status_buff_keys
+            .contains_key(&map_key)
+        {
+            return;
+        }
+        let level = self
+            .game
+            .character
+            .skills
+            .get_skill(SkillEnum::SgDevil.id() as u16)
+            .map(|skill| skill.level)
+            .unwrap_or(0);
+        let Some(overlay) = u8::try_from(level).ok().and_then(devil_blind_effect) else {
             return;
         };
+        let key = self.next_entity_effect_key();
+        self.effect_queue.spawn_on_keyed(overlay, gid, key);
+        self.game.effect_keys.status_buff_keys.insert(map_key, key);
+        self.effect_queue.spawn_on(EffectId::Blackdevil, gid);
+        if let Some(sound) = sound {
+            self.play_status_sound(gid, sound);
+        }
+    }
+
+    /// A map change wipes the effect queue, and the server only re-sends the
+    /// ailment bits — every still-running buff visual has to be rebuilt from the
+    /// status list the client keeps for the local player.
+    pub(super) fn refresh_player_status_buffs(&mut self) {
+        let Some(gid) = self.game.world.entities.player_id() else {
+            return;
+        };
+        let now_ms = self.start_time.elapsed().as_millis() as u64;
+        let statuses: Vec<(i16, Option<u64>)> = self
+            .game
+            .character
+            .active_statuses
+            .iter()
+            .map(|s| (s.efst, s.end_ms))
+            .collect();
+        for (efst, end_ms) in statuses {
+            let Some(aura) = persistent_aura(efst) else {
+                continue;
+            };
+            let remain_ms = end_ms
+                .map(|end| end.saturating_sub(now_ms).min(u32::MAX as u64) as u32)
+                .unwrap_or(0);
+            let key = self.next_entity_effect_key();
+            for &id in aura {
+                self.effect_queue
+                    .spawn_on_keyed_for(id, gid, key, remain_ms);
+            }
+            self.game
+                .effect_keys
+                .status_buff_keys
+                .insert((gid, efst), key);
+        }
+    }
+
+    /// Track a status on the local player and preload its bar icon. Statuses the
+    /// icon table does not cover are still tracked: the list is what the buff
+    /// visuals are rebuilt from after a map change, and the bar skips them.
+    /// `life_ms` of 0 renders no countdown wedge.
+    pub(super) fn track_player_status(&mut self, efst: i16, active: bool, val1: i32, life_ms: u64) {
         if !active {
             self.game.character.clear_status(efst);
             return;
         }
-        let path = format!("data/texture/effect/{}", info.icon);
-        let loaded = match (self.renderer.as_mut(), self.grf.as_ref()) {
-            (Some(r), Some(g)) => r.preload_textures(&[path.as_str()], g),
-            _ => false,
+        let loaded = match status_icon_info(efst) {
+            Some(info) => {
+                let path = format!("data/texture/effect/{}", info.icon);
+                match (self.renderer.as_mut(), self.grf.as_ref()) {
+                    (Some(r), Some(g)) => r.preload_textures(&[path.as_str()], g),
+                    _ => false,
+                }
+            }
+            None => false,
         };
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         self.game
@@ -1413,10 +1506,10 @@ impl App {
         // removed shortly after by ZC_SKILL_DISAPPEAR).
         if sprite_type == 0
             && value == UNT_USED_TRAPS as u16
-            && let Some((unit_id, world)) = self.game.world.trap_units.remove(&gid)
+            && let Some(trap) = self.game.world.trap_units.remove(&gid)
         {
-            if let Some(burst) = trap_trigger_effect(unit_id) {
-                self.effect_queue.spawn_at(burst, world);
+            if let Some(burst) = trap_trigger_effect(trap.unit_id) {
+                self.effect_queue.spawn_at(burst, trap.world);
             }
             return;
         }
@@ -1679,11 +1772,16 @@ impl App {
         // `UNT_USED_TRAPS` look change) — not at placement. A trap hidden from us
         // (cast by others) is held aside until a skill-unit update reveals it.
         if trap_model_name(unit_id).is_some() {
+            let trap = TrapUnit {
+                unit_id,
+                world,
+                cell: (x, y),
+            };
             if is_visible {
                 self.game.world.hidden_traps.remove(&aid);
-                self.game.world.trap_units.insert(aid, (unit_id, world));
+                self.game.world.trap_units.insert(aid, trap);
             } else {
-                self.game.world.hidden_traps.insert(aid, (unit_id, world));
+                self.game.world.hidden_traps.insert(aid, trap);
             }
             return;
         }
@@ -1727,7 +1825,7 @@ impl App {
         if message.is_empty() {
             return;
         }
-        let Some(&(_, world)) = self
+        let Some(&TrapUnit { world, .. }) = self
             .game
             .world
             .trap_units

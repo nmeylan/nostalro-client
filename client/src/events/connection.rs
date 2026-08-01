@@ -269,7 +269,7 @@ impl App {
 
         for &(bit, efst) in ragnarok_game::sprite_path::OPTION_STATUS_ICONS {
             if effect_state & bit != 0 {
-                self.set_status_icon(efst, true, 0, 0);
+                self.track_player_status(efst, true, 0, 0);
             }
         }
 
@@ -295,6 +295,7 @@ impl App {
         if let Some((pid, design)) = self.game.player_cart_from_option() {
             self.spawn_cart_visual(pid, design);
         }
+        self.refresh_player_status_buffs();
 
         self.warp_camera_to(x as f32, y as f32);
         self.char_select_window = None;
@@ -499,6 +500,7 @@ impl App {
             self.refresh_detect_aura(gid);
             self.refresh_warp_portal(gid);
         }
+        self.refresh_player_status_buffs();
 
         self.game.character.inventory.clear();
         self.channel

@@ -3,7 +3,7 @@ use crate::ClipData;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::cursor::{
-    CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, SnapTarget,
+    CompanionSkillTarget, CursorType, PendingSkillTarget, RenderEntry, RenderEntryKind, SnapTarget,
 };
 use ragnarok_game::entity::{EntityCategory, EntityType};
 use ragnarok_game::sprite_loader;
@@ -37,7 +37,7 @@ impl App {
             .game
             .pending_casts
             .pending_companion_skill
-            .is_some_and(|pending| !pending.is_ground);
+            .is_some_and(|pending| pending.target == CompanionSkillTarget::Entity);
 
         let aid_potion_armed = self
             .game

@@ -1,3 +1,4 @@
+use models::enums::EnumWithNumberValue;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 
@@ -16,6 +17,9 @@ pub struct StatusSound {
 pub enum StatusKind {
     Visual,
     PushCart,
+    /// Its overlay is picked from the bearer's own skill level, so the client
+    /// resolves the effect instead of the table.
+    DevilBlind,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -171,11 +175,25 @@ pub const EFST_SG_MOON_WARM: i16 = 166;
 pub const EFST_SG_STAR_WARM: i16 = 167;
 
 /// [`status_reaction`] for statuses addressed by their raw id.
+/// The auras a status keeps alive for its whole duration, resolved from either
+/// reaction table. They outlive an effect-queue wipe, so a map change has to
+/// re-launch them from the statuses still running.
+pub fn persistent_aura(efst: i16) -> Option<&'static [EffectId]> {
+    status_reaction_by_efst(efst)
+        .or_else(|| {
+            ClientEffectIcon::try_from_value(efst as usize)
+                .ok()
+                .and_then(status_reaction)
+        })
+        .map(|reaction| reaction.aura)
+        .filter(|aura| !aura.is_empty())
+}
+
 pub fn status_reaction_by_efst(efst: i16) -> Option<StatusReaction> {
     use EffectId as E;
     match efst {
         EFST_MOON => Some(StatusReaction::aura(&[E::Spherewind2])),
-        EFST_DEVIL1 => Some(StatusReaction::sound(
+        EFST_DEVIL1 => Some(StatusReaction::kind(StatusKind::DevilBlind).with_sound(
             "effect\\_blind.wav",
             SfxPos::Ui(-100.0),
             true,
@@ -188,9 +206,44 @@ pub fn status_reaction_by_efst(efst: i16) -> Option<StatusReaction> {
     }
 }
 
+pub const DEVIL_BLIND_MAX_LEVEL: u8 = 10;
+
+/// The blackout overlay for a Demon of the Sun, Moon and Stars of `level`.
+pub fn devil_blind_effect(level: u8) -> Option<EffectId> {
+    use EffectId as E;
+    Some(match level {
+        1 => E::Devil1,
+        2 => E::Devil2,
+        3 => E::Devil3,
+        4 => E::Devil4,
+        5 => E::Devil5,
+        6 => E::Devil6,
+        7 => E::Devil7,
+        8 => E::Devil8,
+        9 => E::Devil9,
+        10 => E::Devil10,
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn devil_blind_effect_covers_every_level() {
+        let ids: Vec<_> = (1..=DEVIL_BLIND_MAX_LEVEL)
+            .map(|level| devil_blind_effect(level).unwrap())
+            .collect();
+        assert_eq!(ids.first(), Some(&EffectId::Devil1));
+        assert_eq!(ids.last(), Some(&EffectId::Devil10));
+        assert!(devil_blind_effect(0).is_none());
+        assert!(devil_blind_effect(DEVIL_BLIND_MAX_LEVEL + 1).is_none());
+        assert_eq!(
+            status_reaction_by_efst(EFST_DEVIL1).unwrap().kind,
+            StatusKind::DevilBlind
+        );
+    }
 
     #[test]
     fn star_gladiator_and_monk_spheres_are_persistent_auras() {
@@ -287,6 +340,26 @@ mod tests {
                 "{efst:?} is one-shot, not an aura"
             );
         }
+    }
+
+    #[test]
+    fn persistent_aura_reaches_both_reaction_tables_and_skips_auraless_statuses() {
+        use ClientEffectIcon as I;
+
+        assert_eq!(
+            persistent_aura(I::Berserk.value() as i16),
+            Some(&[EffectId::Redbody][..])
+        );
+        assert_eq!(
+            persistent_aura(I::Twohandquicken.value() as i16),
+            Some(&[EffectId::Twohandquicken][..])
+        );
+        assert_eq!(
+            persistent_aura(EFST_MOON),
+            Some(&[EffectId::Spherewind2][..])
+        );
+        assert_eq!(persistent_aura(EFST_SKE), None);
+        assert_eq!(persistent_aura(I::Adrenaline.value() as i16), None);
     }
 
     #[test]

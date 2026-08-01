@@ -62,15 +62,15 @@ pub const BLIND: FullscreenOverlayParams = FullscreenOverlayParams {
 };
 
 pub const DEVIL: FullscreenOverlayParams = FullscreenOverlayParams {
-    texture: "fullb.tga",
+    texture: "white02.bmp",
     tint: [30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0],
     blend: BlendKind::Alpha,
-    shape: OverlayShape::WorldVignette,
+    shape: OverlayShape::CircleVignette,
     ramp_per_frame: 1.0 / 255.0,
     max_alpha: 1.0,
     pulse: false,
     slashes: false,
-    distance: 90.0,
+    distance: 18.0,
     duration_ms: PERSISTENT_DURATION_MS,
 };
 
@@ -534,23 +534,25 @@ mod tests {
     }
 
     #[test]
-    fn blind_clear_hole_is_circular_and_shrinks_when_zooming_out() {
-        let mut e = FullscreenOverlayEffect::new([0.0, 0.0, 0.0], BLIND);
-        step_frames(&mut e, 200);
+    fn blind_and_devil_clear_hole_is_circular_and_shrinks_when_zooming_out() {
+        for params in [BLIND, DEVIL] {
+            let mut e = FullscreenOverlayEffect::new([0.0, 0.0, 0.0], params);
+            step_frames(&mut e, 200);
 
-        let near = clear_ring_radius(&e, 100.0);
-        let far = clear_ring_radius(&e, 400.0);
-        assert!(near > 0.0);
-        assert!(
-            far < near * 0.6,
-            "zooming out shrinks the clear circle: {near} -> {far}"
-        );
+            let near = clear_ring_radius(&e, 100.0);
+            let far = clear_ring_radius(&e, 400.0);
+            assert!(near > 0.0);
+            assert!(
+                far < near * 0.6,
+                "zooming out shrinks the clear circle: {near} -> {far}"
+            );
 
-        let verts = screen_mesh(&e, &render_ctx_at(100.0));
-        assert!(
-            verts.iter().any(|(_, c)| c[3] > 0.5),
-            "outer rings darken the screen"
-        );
+            let verts = screen_mesh(&e, &render_ctx_at(100.0));
+            assert!(
+                verts.iter().any(|(_, c)| c[3] > 0.5),
+                "outer rings darken the screen"
+            );
+        }
     }
 
     #[test]

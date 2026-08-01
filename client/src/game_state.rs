@@ -162,6 +162,9 @@ impl EffectKeys {
 pub struct HoverState {
     pub hovered_entity_id: Option<u32>,
     pub hovered_player_id: Option<u32>,
+    /// AID of the deployed trap under the cursor, resolved only while a
+    /// trap-targeting skill is armed.
+    pub hovered_skill_unit_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
     pub hovered_chat_room: Option<u32>,
     pub hovered_vending: Option<u32>,
@@ -243,6 +246,9 @@ pub struct PendingCasts {
     pub pending_skill_id: Option<u16>,
     pub pending_skill_level: Option<i16>,
     pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
+    /// A trap-targeting skill waiting out the walk to its trap: skill, level and
+    /// the trap's unit AID.
+    pub pending_skill_unit_cast: Option<(u16, i16, u32)>,
     pub pending_card_composition_index: Option<u16>,
     /// Skill that opened the shared 0x01ad arrow/converter list, so the reply
     /// can be routed to the right context (the server disambiguates the same way
@@ -336,12 +342,12 @@ pub struct World {
     pub entities: EntityCollection,
     pub floor_items: HashMap<u32, FloorItem>,
     pub arrows: Vec<ArrowProjectile>,
-    /// Deployed, visible traps keyed by unit AID → (trap unit id, world
-    /// position): each shows a ground model and can fire its trigger burst.
-    pub trap_units: HashMap<u32, (u8, [f32; 3])>,
+    /// Deployed, visible traps keyed by unit AID: each shows a ground model and
+    /// can fire its trigger burst.
+    pub trap_units: HashMap<u32, TrapUnit>,
     /// Traps placed hidden to us (cast by others); revealed to `trap_units` when
     /// the server sends a skill-unit update (e.g. an ankle snare springs).
-    pub hidden_traps: HashMap<u32, (u8, [f32; 3])>,
+    pub hidden_traps: HashMap<u32, TrapUnit>,
     pub freeze_shatters: Vec<FreezeShatter>,
     /// Graffiti ground decals keyed by unit AID.
     pub graffiti: HashMap<u32, Graffiti>,
@@ -352,6 +358,13 @@ pub struct World {
     /// server turns the box into a sprung trap immediately afterwards, which
     /// takes it out of `trap_units`.
     pub talkbox_bubbles: HashMap<u32, ([f32; 3], ChatBubbleState)>,
+}
+
+#[derive(Clone, Copy)]
+pub struct TrapUnit {
+    pub unit_id: u8,
+    pub world: [f32; 3],
+    pub cell: (i16, i16),
 }
 
 /// The marker a cast puts on the world while it channels: a square on the ground

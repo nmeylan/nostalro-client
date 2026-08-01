@@ -1040,9 +1040,13 @@ impl App {
                 self.game.pending_casts.pending_skill_id = Some(skill_id);
                 self.game.pending_casts.pending_skill_level = Some(level);
             }
-            SkillTargetType::Ground | SkillTargetType::Trap => {
+            SkillTargetType::Ground => {
                 self.game.pending_casts.pending_skill_target =
                     Some(PendingSkillTarget::Ground { skill_id, level });
+            }
+            SkillTargetType::Trap => {
+                self.game.pending_casts.pending_skill_target =
+                    Some(PendingSkillTarget::SkillUnit { skill_id, level });
             }
             _ => {
                 tracing::debug!(

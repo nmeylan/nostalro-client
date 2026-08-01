@@ -2,7 +2,7 @@ use crate::App;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
-use ragnarok_game::cursor::PendingSkillTarget;
+use ragnarok_game::cursor::{CompanionSkillTarget, PendingSkillTarget};
 use ragnarok_game::entity::{EntityCategory, EntityState, EntityType};
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::hide_allows_skill;
@@ -58,15 +58,21 @@ impl App {
         }
         if let Some(pending) = self.game.pending_casts.pending_companion_skill.take() {
             let reserved = self.input.shift_pressed;
-            if pending.is_ground {
-                if let Some((cx, cy)) = self.hovered_cell() {
-                    self.push_owner_command_to(
-                        pending.is_mercenary,
-                        OwnerCommand::skill_area(pending.skill_id, pending.level as u8, cx, cy),
-                        reserved,
-                    );
+            let target = match pending.target {
+                CompanionSkillTarget::Entity => self.game.hover.hovered_entity_id,
+                CompanionSkillTarget::SkillUnit => self.game.hover.hovered_skill_unit_id,
+                CompanionSkillTarget::Ground => {
+                    if let Some((cx, cy)) = self.hovered_cell() {
+                        self.push_owner_command_to(
+                            pending.is_mercenary,
+                            OwnerCommand::skill_area(pending.skill_id, pending.level as u8, cx, cy),
+                            reserved,
+                        );
+                    }
+                    return;
                 }
-            } else if let Some(target) = self.game.hover.hovered_entity_id {
+            };
+            if let Some(target) = target {
                 self.push_owner_command_to(
                     pending.is_mercenary,
                     OwnerCommand::skill_object(pending.skill_id, pending.level as u8, target),
@@ -154,6 +160,39 @@ impl App {
                                 self.game.combat.attack_target_id = Some(entity_id);
                             }
                         }
+                    }
+                }
+                PendingSkillTarget::SkillUnit { skill_id, level } => {
+                    if let Some(unit_id) = self.game.hover.hovered_skill_unit_id
+                        && let Some(cell) = self.game.world.trap_units.get(&unit_id).map(|t| t.cell)
+                    {
+                        let (px, py) = self
+                            .game
+                            .world
+                            .entities
+                            .player()
+                            .map(|e| e.movement.cell_position())
+                            .unwrap_or((0, 0));
+                        let skill_range = self
+                            .game
+                            .resolve_cast_skill(skill_id)
+                            .map(|(_, range)| range as i32)
+                            .unwrap_or(1);
+                        let dx = (px as i32 - cell.0 as i32).abs();
+                        let dy = (py as i32 - cell.1 as i32).abs();
+                        if dx.max(dy) <= skill_range {
+                            self.channel.send_packet(build_use_skill_packet(
+                                skill_id,
+                                level,
+                                unit_id,
+                                self.active_packetver,
+                            ));
+                        } else {
+                            self.game.pending_casts.pending_skill_unit_cast =
+                                Some((skill_id, level, unit_id));
+                            self.try_move_toward(cell.0 as i32, cell.1 as i32, px, py, skill_range);
+                        }
+                        skill_cast = true;
                     }
                 }
                 PendingSkillTarget::Ground { skill_id, level } => {
@@ -247,6 +286,7 @@ impl App {
         self.stop_attacking();
         self.game.pending_casts.pending_pickup_item_id = None;
         self.game.pending_casts.pending_ground_cast = None;
+        self.game.pending_casts.pending_skill_unit_cast = None;
         // While running, the server auto-moves the character in a straight line and
         // rejects any client-issued move, which snaps the character back. Suppress
         // click-to-move (and the continuous-walk that routes through here) entirely.

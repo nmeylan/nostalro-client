@@ -33,6 +33,7 @@ impl App {
                 self.game.pending_casts.pending_skill_target = None;
                 self.game.pending_casts.pending_skill_id = None;
                 self.game.pending_casts.pending_skill_level = None;
+                self.game.pending_casts.pending_skill_unit_cast = None;
                 self.game.pending_casts.marriage_targeting = false;
                 self.game.combat.attack_target_id = None;
                 self.game.combat.attack_request_sent = false;

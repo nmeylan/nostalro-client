@@ -76,6 +76,7 @@ impl App {
         self.update_cast_marks(delta);
         self.check_pending_skill();
         self.check_pending_ground_skill();
+        self.check_pending_skill_unit_cast();
         self.load_missing_entity_sprites();
         self.update_sprite_animation(delta);
         self.update_gr2_models(elapsed);
@@ -202,13 +203,14 @@ impl App {
             .as_ref()
             .map(|c| c.zoom() / 10.0)
             .unwrap_or(1.0);
-        for (&aid, &(unit_id, world)) in &self.game.world.trap_units {
+        for (&aid, trap) in &self.game.world.trap_units {
             if renderer.has_skill_unit_model(aid) {
                 continue;
             }
-            let Some(name) = ragnarok_game::effect::trap_model_name(unit_id) else {
+            let Some(name) = ragnarok_game::effect::trap_model_name(trap.unit_id) else {
                 continue;
             };
+            let world = trap.world;
             let path = format!("data\\model\\{name}");
             match grf.read_file(&path) {
                 Ok(bytes) => match ragnarok_formats::rsm::RsmFile::parse(&bytes) {

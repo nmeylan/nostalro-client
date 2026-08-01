@@ -2,7 +2,8 @@ use crate::App;
 use crate::game_state::HoverState;
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    PendingSkillTarget, RenderEntry, cursor_type_for_cell, hovered_entity_cursor_type,
+    CompanionSkillTarget, PendingSkillTarget, RenderEntry, cursor_type_for_cell,
+    hovered_entity_cursor_type,
 };
 use ragnarok_game::targeting::{TargetClass, skill_target_class};
 
@@ -55,6 +56,17 @@ impl App {
         None
     }
 
+    /// A deployed trap occupies exactly one cell, so the hovered cell picks it.
+    fn hovered_trap(&self, hovered_cell: Option<(i32, i32)>) -> Option<u32> {
+        let (cx, cy) = hovered_cell?;
+        self.game
+            .world
+            .trap_units
+            .iter()
+            .find(|(_, trap)| trap.cell == (cx as i16, cy as i16))
+            .map(|(&aid, _)| aid)
+    }
+
     fn hovered_chat_room(&self, render_list: &[RenderEntry]) -> Option<u32> {
         let (mx, my) = self.input.mouse_position;
         let (mx, my) = (mx as f32, my as f32);
@@ -104,10 +116,16 @@ impl App {
 
         if !suppressed {
             if let Some(pending) = &self.game.pending_casts.pending_companion_skill {
-                if !pending.is_ground {
-                    hover.hovered_entity_id =
-                        hovered_entity_cursor_type(mouse, entities, render_list, map, None)
-                            .map(|(_, id)| id);
+                match pending.target {
+                    CompanionSkillTarget::Entity => {
+                        hover.hovered_entity_id =
+                            hovered_entity_cursor_type(mouse, entities, render_list, map, None)
+                                .map(|(_, id)| id);
+                    }
+                    CompanionSkillTarget::SkillUnit => {
+                        hover.hovered_skill_unit_id = self.hovered_trap(hovered_cell);
+                    }
+                    CompanionSkillTarget::Ground => {}
                 }
             } else if self.game.companions.capture_targeting {
                 hover.hovered_entity_id = hovered_entity_cursor_type(
@@ -118,6 +136,10 @@ impl App {
                     Some(TargetClass::Offensive),
                 )
                 .map(|(_, id)| id);
+            } else if let Some(PendingSkillTarget::SkillUnit { .. }) =
+                &self.game.pending_casts.pending_skill_target
+            {
+                hover.hovered_skill_unit_id = self.hovered_trap(hovered_cell);
             } else if let Some(PendingSkillTarget::Entity { skill_id, .. }) =
                 &self.game.pending_casts.pending_skill_target
             {
