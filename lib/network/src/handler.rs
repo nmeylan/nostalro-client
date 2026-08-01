@@ -404,7 +404,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry8>() {
         let (x, y, dir) = decode_pos(&p.pos_dir);
-        return vec![GameEvent::EntitySpawned {
+        let mut events = vec![GameEvent::EntitySpawned {
             gid: p.gid,
             aid: p.aid,
             job: p.job as u16,
@@ -430,12 +430,20 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             guild_emblem_version: p.gemblem_ver as i32,
             is_new_entry: false,
         }];
+        push_opt3(
+            &mut events,
+            p.gid,
+            p.effect_state,
+            p.clevel as i32,
+            p.virtue as i32,
+        );
+        return events;
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMoveentry9>() {
         let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
         let direction =
             ragnarok_game::movement::direction_from_positions(x1, y1, x2, y2).unwrap_or(0);
-        return vec![
+        let mut events = vec![
             GameEvent::EntitySpawned {
                 gid: p.gid,
                 aid: p.gid,
@@ -471,6 +479,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 start_time: p.move_start_time,
             },
         ];
+        push_opt3(
+            &mut events,
+            p.gid,
+            p.effect_state as i32,
+            p.clevel as i32,
+            p.virtue as i32,
+        );
+        return events;
     }
 
     macro_rules! standentry_spawn {
@@ -609,7 +625,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                 let (x1, y1, x2, y2) = decode_pos2(&p.move_data);
                 let direction =
                     ragnarok_game::movement::direction_from_positions(x1, y1, x2, y2).unwrap_or(0);
-                return vec![
+                let mut events = vec![
                     GameEvent::EntitySpawned {
                         gid: p.gid,
                         aid: p.gid,
@@ -645,6 +661,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
                         start_time: p.move_start_time,
                     },
                 ];
+                push_opt3(
+                    &mut events,
+                    p.gid,
+                    p.effect_state as i32,
+                    p.clevel as i32,
+                    p.virtue as i32,
+                );
+                return events;
             }
         };
     }
@@ -1140,6 +1164,14 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             body_state: p.body_state,
             health_state: p.health_state,
             effect_state: p.effect_state,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcStateChange>() {
+        return vec![GameEvent::EntityOptionChanged {
+            gid: p.aid,
+            body_state: p.body_state,
+            health_state: p.health_state,
+            effect_state: p.effect_state as i32,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
@@ -5291,6 +5323,34 @@ mod tests {
                 assert_eq!(*effect_state, 0x20);
             }
             other => panic!("expected EntityOptionChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_walking_actor_entering_sight_carries_its_opt3_buffs() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcNotifyMoveentry9::new(packetver);
+        pkt.set_gid(150000);
+        pkt.set_clevel(88);
+        pkt.set_virtue(ragnarok_game::effect::opt3::OPT3_BERSERK);
+        pkt.fill_raw();
+        match dispatch_packet(&pkt, packetver).as_slice() {
+            [
+                GameEvent::EntitySpawned { gid, .. },
+                GameEvent::EntityMoved { .. },
+                GameEvent::EntityOpt3Changed {
+                    gid: opt3_gid,
+                    base_level,
+                    opt3,
+                    ..
+                },
+            ] => {
+                assert_eq!(*gid, 150000);
+                assert_eq!(*opt3_gid, 150000);
+                assert_eq!(*base_level, 88);
+                assert_eq!(*opt3, ragnarok_game::effect::opt3::OPT3_BERSERK);
+            }
+            other => panic!("expected spawn + move + opt3, got {other:?}"),
         }
     }
 

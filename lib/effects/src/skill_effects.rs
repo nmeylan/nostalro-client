@@ -549,6 +549,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::LkHeadcrush => C::cast(&[E::Bash3d3]),
         S::LkJointbeat => C::cast(&[E::Bash3d4]),
         S::LkAurablade => C::cast(&[E::Aurablade, E::Aurablade2]),
+        S::LkBerserk | S::LkFury | S::MsBerserk => C::cast(&[E::Redbody]),
 
         S::MgEnergycoat => C::cast(&[E::Energycoat]),
         S::BsAdrenaline | S::BsAdrenaline2 => C::cast(&[E::Hasteup]),

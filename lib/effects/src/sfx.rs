@@ -103,7 +103,6 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         E::Bash3d => &[at!(Fixed("effect\\세크리파이스.wav"), &[22])],
         E::Chemicalprotection => &[fixed_at0!("apocalips_attack.wav")],
         E::Levelup => &[fixed_at0!("levelup.wav")],
-        E::Joblevelup => &[fixed_at0!("effect\\st_job_level_up.wav")],
         E::Criticalwound => &[at!(Fixed("effect\\wideb.wav"), &[1])],
         E::NpcSlowcast => &[at!(Fixed("effect\\EF_DecAgility.wav"), &[10])],
         E::NpcEarthquake => &[fixed_at0!("effect\\earth_quake.wav")],

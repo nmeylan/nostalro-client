@@ -22,11 +22,11 @@ pub struct SparkleColumnParams {
 pub const FREEZING: SparkleColumnParams = SparkleColumnParams {
     texture: "freezing_circle.bmp",
     color_rgb: [1.00, 1.00, 1.00],
-    alpha_max: 0.80,
+    alpha_max: 0.60,
     sprite_radius: 0.8,
     rise_speed: 6.0,
     count: 16,
-    scatter: 3.5,
+    scatter: 7.5,
 };
 
 pub const WHITELIGHT: SparkleColumnParams = SparkleColumnParams {

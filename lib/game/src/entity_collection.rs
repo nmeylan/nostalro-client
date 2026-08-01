@@ -385,6 +385,24 @@ mod tests {
     }
 
     #[test]
+    fn option_change_under_account_id_cloaks_another_player() {
+        use crate::sprite_path::{HiddenRender, HiddenViewer, OPTION_CLOAK, hidden_render};
+
+        let mut col = EntityCollection::new();
+        col.insert(make_entity(2000100));
+        col.register_account_id(2000101, 2000100);
+
+        let key = col.resolve_key(2000101);
+        col.get_mut(key).unwrap().effect_state = OPTION_CLOAK;
+
+        let e = col.get(2000100).unwrap();
+        assert_eq!(
+            hidden_render(e.effect_state, HiddenViewer::Other),
+            HiddenRender::Skip
+        );
+    }
+
+    #[test]
     fn mob_info_string_is_parsed_for_monsters_only() {
         let mut col = EntityCollection::new();
         let mut monster = make_entity(100);

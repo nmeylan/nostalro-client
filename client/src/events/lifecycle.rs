@@ -88,6 +88,11 @@ impl App {
                 self.game.guild = None;
                 self.game.sprite_caches.guild_head_sprites.clear();
                 self.windows.guild_window.open = false;
+                // The server only re-sends party info when the new character is
+                // actually in a party, so a stale one would survive the switch.
+                self.game.party = None;
+                self.game.friends = ragnarok_game::friends::FriendList::default();
+                self.windows.party_friends_window.open = false;
                 self.windows.world_map_window.close();
                 self.game.session.current_map = None;
                 self.game.session.progress_bar = None;

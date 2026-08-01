@@ -598,6 +598,7 @@ impl App {
         health_state: i16,
         effect_state: i32,
     ) {
+        let gid = self.game.world.entities.resolve_key(gid);
         tracing::debug!(
             "EntityOptionChanged: gid={gid} body=0x{body_state:04x} health=0x{health_state:04x} effect_state=0x{effect_state:08x}"
         );
@@ -945,6 +946,7 @@ impl App {
         remain_ms: u32,
         val1: i32,
     ) {
+        let gid = self.game.world.entities.resolve_key(gid);
         let is_player = self.game.world.entities.player_id() == Some(gid);
         let raw_reaction = status_reaction_by_efst(efst);
         let icon = ClientEffectIcon::try_from_value(efst as usize).ok();
@@ -1326,6 +1328,34 @@ impl App {
         if let Some(key) = self.game.effect_keys.ruwach_aura_keys.remove(&gid) {
             self.effect_queue.despawn(key);
         }
+        // The server never re-sends a buff for an actor that re-enters sight, so a
+        // surviving key would leave the aura unreachable and double it on respawn.
+        let stale: Vec<(u32, i16)> = self
+            .game
+            .effect_keys
+            .status_buff_keys
+            .keys()
+            .copied()
+            .filter(|(id, _)| *id == gid)
+            .collect();
+        for map_key in stale {
+            if let Some(key) = self.game.effect_keys.status_buff_keys.remove(&map_key) {
+                self.effect_queue.despawn(key);
+            }
+        }
+        let stale: Vec<(u32, i32)> = self
+            .game
+            .effect_keys
+            .opt3_keys
+            .keys()
+            .copied()
+            .filter(|(id, _)| *id == gid)
+            .collect();
+        for map_key in stale {
+            if let Some(key) = self.game.effect_keys.opt3_keys.remove(&map_key) {
+                self.effect_queue.despawn(key);
+            }
+        }
     }
 
     fn next_entity_effect_key(&mut self) -> u32 {
@@ -1494,7 +1524,6 @@ impl App {
         };
         match code {
             0 | 7 | 9 => self.sound_queue.ui("levelup.wav"),
-            1 | 8 => self.sound_queue.ui("effect\\st_job_level_up.wav"),
             _ => {}
         }
         self.effect_queue.spawn_on(id, gid);
