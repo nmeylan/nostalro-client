@@ -22,7 +22,7 @@ use ragnarok_game::entity_collection::GROUND_SKILL_EXEC_SECS;
 use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::level_aura;
 use ragnarok_game::movement::direction_from_positions;
-use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
+use ragnarok_game::scheduled_hit::Swing;
 use ragnarok_game::sound::tables::{
     StatusSoundKind, job_hit_sound, skill_hit_sound, status_sound, weapon_hit_sound,
 };
@@ -426,46 +426,43 @@ impl App {
                     ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
                 );
                 let effective_count = match action {
-                    ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => {
-                        count.max(1) as u16
-                    }
+                    ActionType::AttackMultiple
+                    | ActionType::AttackMultipleNomotion
+                    | ActionType::AttackMultipleCritical => count.max(1) as u16,
                     _ => 1,
                 };
                 if let (Some(sc), Some(tp)) = (shooter_cell, target_pos) {
                     self.spawn_arrow_projectile(sc, tp, attack_mt, effective_count);
                 }
-                let total_damage = damage + left_damage;
-                let now = action_start;
-                let delay_time = (attack_mt as f32 / 1000.0).max(0.0);
-                let per_hit_damage = if effective_count > 1 && total_damage > 0 {
-                    total_damage / effective_count as i32
+                // Only a player lands a distinct off-hand blow; a monster's
+                // second damage field is part of the same swing.
+                let left_damage = if self
+                    .game
+                    .world
+                    .entities
+                    .get(gid)
+                    .is_some_and(|e| e.entity_type == EntityType::Player)
+                {
+                    left_damage
                 } else {
-                    total_damage
+                    0
                 };
-
-                let is_critical = matches!(action, ActionType::AttackCritical);
+                let swing = Swing {
+                    damage,
+                    left_damage,
+                    count: effective_count,
+                    is_endure,
+                    is_critical: matches!(
+                        action,
+                        ActionType::AttackCritical | ActionType::AttackMultipleCritical
+                    ),
+                    attacker_gid: gid,
+                    attacked_mt_secs: attacked_mt as f32 / 1000.0,
+                    fire_at: action_start + (attack_mt as f32 / 1000.0).max(0.0),
+                };
                 if let Some(target) = self.game.world.entities.get_mut(target_gid) {
-                    let double_attack_term = 0.2;
-                    for i in 0..effective_count {
-                        let hit_time = now + delay_time + (i as f32 * double_attack_term);
-                        let msg = if is_endure {
-                            DamageMessage::AttackedNoMotion
-                        } else if effective_count > 1 {
-                            DamageMessage::AttackedMultiHit { total_damage }
-                        } else {
-                            DamageMessage::Attacked
-                        };
-                        target.scheduled_hits.push(ScheduledHit {
-                            message: msg,
-                            damage: per_hit_damage,
-                            fire_at: hit_time,
-                            attacker_gid: gid,
-                            skill_id: 0,
-                            is_last_hit: i == effective_count - 1,
-                            is_critical,
-                            hit_index: i,
-                            attacked_mt_secs: attacked_mt as f32 / 1000.0,
-                        });
+                    for hit in swing.schedule() {
+                        target.scheduled_hits.push(hit);
                     }
                 }
             }

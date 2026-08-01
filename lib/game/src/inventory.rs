@@ -923,20 +923,6 @@ mod tests {
     }
 
     #[test]
-    fn wear_location_to_sprite_type_disambiguates_hand_left() {
-        use crate::entity::Entity;
-
-        assert_eq!(
-            Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Weapon)),
-            Some(2),
-        );
-        assert_eq!(
-            Entity::wear_location_to_sprite_type_for(32, Some(ItemType::Armor)),
-            Some(8),
-        );
-    }
-
-    #[test]
     fn cart_inventory_stacks_filters_and_tracks_totals() {
         let mut cart = CartData::new();
         assert!(!cart.is_open());

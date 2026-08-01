@@ -6,7 +6,7 @@ use ragnarok_game::damage_number::{
     DamageNumber, DamageNumberManager, DamageNumberQuad, DamageNumberRenderEntry, DamageNumberType,
     build_damage_number_quads,
 };
-use ragnarok_game::scheduled_hit::ScheduledHit as GameHit;
+use ragnarok_game::scheduled_hit::{DOUBLE_ATTACK_TERM, ScheduledHit as GameHit, Swing};
 
 struct ScheduledHit {
     delay: f32,
@@ -135,8 +135,41 @@ impl State {
                     self.direction,
                 ));
             }
+            10 => {
+                let per_hit = self.damage_value / 3;
+                for i in 0..3u16 {
+                    let mut hit = GameHit::multi_hit(per_hit, self.damage_value, 0, i, i == 2);
+                    hit.is_critical = true;
+                    self.scheduled_hits.push(ScheduledHit {
+                        delay: DOUBLE_ATTACK_TERM * i as f32,
+                        entity_id: 10,
+                        hit,
+                        is_player_target: false,
+                    });
+                }
+            }
+            11 => {
+                let swing = Swing {
+                    damage: self.damage_value,
+                    left_damage: self.damage_value / 3,
+                    count: 2,
+                    is_endure: false,
+                    is_critical: false,
+                    attacker_gid: 0,
+                    attacked_mt_secs: 0.288,
+                    fire_at: 0.0,
+                };
+                for hit in swing.schedule() {
+                    self.scheduled_hits.push(ScheduledHit {
+                        delay: hit.fire_at,
+                        entity_id: 11,
+                        hit,
+                        is_player_target: false,
+                    });
+                }
+            }
             0 => {
-                for s in 1..=9u8 {
+                for s in 1..=11u8 {
                     self.trigger_scenario(s);
                 }
             }
@@ -161,7 +194,7 @@ impl State {
         });
         for (entity_id, hit, is_player_target) in ready {
             self.damage_numbers
-                .emit(entity_id, self.direction, &hit, is_player_target, false);
+                .emit(entity_id, self.direction, &hit, is_player_target, true);
         }
     }
 }

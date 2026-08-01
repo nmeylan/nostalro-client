@@ -212,6 +212,8 @@ fn scenario_to_u8(s: Scenario) -> u8 {
         Scenario::Heal => 7,
         Scenario::Miss => 8,
         Scenario::LuckyDodge => 9,
+        Scenario::CriticalMultiHit => 10,
+        Scenario::DualWield => 11,
         Scenario::All => 0,
     }
 }

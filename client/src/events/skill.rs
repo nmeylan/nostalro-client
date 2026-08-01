@@ -132,10 +132,16 @@ impl App {
         let age = (local_now - now).max(0.0);
 
         let effective_count = match action {
-            ActionType::AttackMultiple | ActionType::AttackMultipleNomotion => count.max(1) as u16,
+            ActionType::AttackMultiple
+            | ActionType::AttackMultipleNomotion
+            | ActionType::AttackMultipleCritical => count.max(1) as u16,
             ActionType::Skill if count > 1 => count as u16,
             _ => 1,
         };
+        let is_critical = matches!(
+            action,
+            ActionType::AttackCritical | ActionType::AttackMultipleCritical
+        );
         tracing::info!(
             "SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
         );
@@ -275,7 +281,7 @@ impl App {
                     attacker_gid: src_gid,
                     skill_id,
                     is_last_hit: i == effective_count - 1,
-                    is_critical: false,
+                    is_critical,
                     hit_index: i,
                     attacked_mt_secs: attacked_mt as f32 / 1000.0,
                 });

@@ -485,6 +485,7 @@ impl App {
             return;
         }
 
+        // A miss belongs to whoever swung, not to whoever dodged.
         let display_entity = if is_miss && hit.attacker_gid != 0 {
             hit.attacker_gid
         } else {
@@ -520,7 +521,13 @@ impl App {
             .get(entity_id)
             .map(|e| e.entity_type == ragnarok_game::entity::EntityType::Player)
             .unwrap_or(false);
-        let is_player_attacker = self.game.world.entities.player_id() == Some(hit.attacker_gid);
+        // Only a player's own swings redden their miss; a monster's stay white.
+        let attacker_is_player = self
+            .game
+            .world
+            .entities
+            .get(hit.attacker_gid)
+            .is_some_and(|e| e.entity_type == ragnarok_game::entity::EntityType::Player);
         if is_miss && self.blocks_incoming_blow(entity_id, hit.attacker_gid) {
             self.effect_queue.spawn_on(EffectId::Guard, entity_id);
             return;
@@ -530,7 +537,7 @@ impl App {
             dir,
             hit,
             is_player_target,
-            is_player_attacker,
+            attacker_is_player,
         );
     }
 

@@ -28,6 +28,8 @@ pub enum Scenario {
     Heal,
     Miss,
     LuckyDodge,
+    CriticalMultiHit,
+    DualWield,
     All,
 }
 
@@ -51,6 +53,8 @@ pub fn map_key_press(key: &Key, state: ElementState) -> Option<ViewerAction> {
             "7" => Some(ViewerAction::TriggerScenario(Scenario::Heal)),
             "8" => Some(ViewerAction::TriggerScenario(Scenario::Miss)),
             "9" => Some(ViewerAction::TriggerScenario(Scenario::LuckyDodge)),
+            "a" | "A" => Some(ViewerAction::TriggerScenario(Scenario::CriticalMultiHit)),
+            "s" | "S" => Some(ViewerAction::TriggerScenario(Scenario::DualWield)),
             "0" => Some(ViewerAction::TriggerScenario(Scenario::All)),
             "r" | "R" => Some(ViewerAction::Restart),
             "=" | "+" => Some(ViewerAction::SpeedUp),
@@ -102,6 +106,8 @@ const LEGEND_ENTRIES: &[(&str, &str)] = &[
     ("7", "Heal"),
     ("8", "Miss (our attack)"),
     ("9", "Lucky Dodge"),
+    ("A", "Critical Multi-Hit"),
+    ("S", "Dual Wield"),
     ("0", "All Scenarios"),
     ("", ""),
     ("Space", "Pause / Resume"),

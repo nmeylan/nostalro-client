@@ -719,8 +719,12 @@ impl Entity {
         } else if wear_location & 2 != 0 {
             Some(2)
         } else if wear_location & 32 != 0 {
+            // An off-hand weapon has no slot of its own: the combined dual-wield
+            // look needs both hands at once, which only the server's LOOK_WEAPON
+            // change carries. Routing it to the weapon slot here would blank the
+            // main hand.
             if item_type == Some(ItemType::Weapon) {
-                Some(2)
+                None
             } else {
                 Some(8)
             }
@@ -1434,6 +1438,41 @@ mod tests {
         assert_eq!(e.hair_color, 3);
         e.apply_sprite_change(8, 2);
         assert_eq!(e.shield, 2);
+    }
+
+    #[test]
+    fn taking_off_an_off_hand_weapon_keeps_the_main_hand_swinging() {
+        use models::enums::EnumWithMaskValueU64;
+        use models::enums::item::EquipmentLocation;
+        let (right, left) = (
+            EquipmentLocation::HandRight.as_flag() as u16,
+            EquipmentLocation::HandLeft.as_flag() as u16,
+        );
+        const WEAPON_SLOT: u8 = 2;
+        const SHIELD_SLOT: u8 = 8;
+
+        assert_eq!(
+            Entity::wear_location_to_sprite_type_for(right, Some(ItemType::Weapon)),
+            Some(WEAPON_SLOT)
+        );
+        assert_eq!(
+            Entity::wear_location_to_sprite_type_for(left, Some(ItemType::Armor)),
+            Some(SHIELD_SLOT)
+        );
+        assert_eq!(
+            Entity::wear_location_to_sprite_type_for(left, Some(ItemType::Weapon)),
+            None
+        );
+
+        let mut e = make_entity();
+        e.weapon = Some(WeaponType::DoubleDd);
+        let armed = e.attack_action_index();
+        e.apply_sprite_change(WEAPON_SLOT, 0);
+        assert_ne!(
+            e.attack_action_index(),
+            armed,
+            "blanking the weapon slot drops the player to the bare-hand swing"
+        );
     }
 
     #[test]
