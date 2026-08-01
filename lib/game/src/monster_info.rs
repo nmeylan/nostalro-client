@@ -2,12 +2,12 @@ use models::enums::EnumWithNumberValue;
 use models::enums::element::Element;
 use models::enums::size::Size;
 
-const LABEL: &str = "^FFFF00";
-const VALUE: &str = "^FF00FF";
+const LABEL: &str = "^243361";
+const VALUE: &str = "^000000";
 
 /// Per-element text colours, indexed like [`MonsterInfo::resistances`].
 const ELEMENT_COLORS: [&str; 9] = [
-    "^3B57FF", "^918033", "^FF3000", "^00FFEA", "^00FF06", "^FFC600", "^CF10D6", "^CACACA",
+    "^3B57FF", "^6E6231", "^D62800", "^007D73", "^008203", "^9C6C00", "^9B0BA1", "^6F6F6F",
     "^5332FE",
 ];
 
@@ -136,23 +136,23 @@ mod tests {
         let lines = info.info_lines();
 
         assert_eq!(lines.len(), 18);
-        assert_eq!(lines[0], "^FFFF00Name^FF00FF: Poring");
-        assert_eq!(lines[1], "^FFFF00Size^FF00FF: Small");
-        assert_eq!(lines[3], "^FFFF00Race^FF00FF: Plant");
-        assert_eq!(lines[7], "^FFFF00Element^FF00FF: ^3B57FFLv1 Water");
-        assert_eq!(lines[8], "^FFFF00Elemental Damage");
+        assert_eq!(lines[0], "^243361Name^000000: Poring");
+        assert_eq!(lines[1], "^243361Size^000000: Small");
+        assert_eq!(lines[3], "^243361Race^000000: Plant");
+        assert_eq!(lines[7], "^243361Element^000000: ^3B57FFLv1 Water");
+        assert_eq!(lines[8], "^243361Elemental Damage");
         assert_eq!(
             &lines[9..],
             [
-                "^3B57FFWater^FF00FF: 100",
-                "^918033Earth^FF00FF: 100",
-                "^FF3000Fire^FF00FF: 100",
-                "^00FFEAWind^FF00FF: 100",
-                "^00FF06Poison^FF00FF: 100",
-                "^FFC600Holy^FF00FF: 100",
-                "^CF10D6Shadow^FF00FF: 100",
-                "^CACACAGhost^FF00FF: 100",
-                "^5332FEUndead^FF00FF: 100",
+                "^3B57FFWater^000000: 100",
+                "^6E6231Earth^000000: 100",
+                "^D62800Fire^000000: 100",
+                "^007D73Wind^000000: 100",
+                "^008203Poison^000000: 100",
+                "^9C6C00Holy^000000: 100",
+                "^9B0BA1Shadow^000000: 100",
+                "^6F6F6FGhost^000000: 100",
+                "^5332FEUndead^000000: 100",
             ]
         );
     }
@@ -164,6 +164,6 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(info.element_level(), 0);
-        assert_eq!(info.info_lines()[7], "^FFFF00Element^FF00FF: ^FF3000Fire");
+        assert_eq!(info.info_lines()[7], "^243361Element^000000: ^D62800Fire");
     }
 }

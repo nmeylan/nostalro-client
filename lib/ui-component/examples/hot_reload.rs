@@ -156,6 +156,7 @@ const ACCOUNT_COMPONENTS: &[&str] = &[
 ];
 const SHOP_COMPONENTS: &[&str] = &["cart", "vending_setup", "my_shop", "vending_buy"];
 const COMPANION_COMPONENTS: &[&str] = &["mercenary", "mercenary_skill", "homun"];
+const MAP_COMPONENTS: &[&str] = &["world_map", "minimap"];
 
 fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
     match name {
@@ -226,6 +227,7 @@ fn grf_texture_paths(example_name: &str) -> Vec<&'static str> {
         "account" => ACCOUNT_COMPONENTS,
         "shop" => SHOP_COMPONENTS,
         "companion" => COMPANION_COMPONENTS,
+        "map" => MAP_COMPONENTS,
         _ => return grf_texture_paths_single(example_name),
     };
     let mut paths: Vec<&'static str> = names
@@ -296,7 +298,7 @@ fn main() {
     let example_name_for_closure = example_name.clone();
     let is_category = matches!(
         example_name.as_str(),
-        "game" | "social" | "account" | "shop" | "companion" | "guild"
+        "game" | "social" | "account" | "shop" | "companion" | "guild" | "map"
     );
     let (win_w, win_h) = if is_category {
         (1600, 1000)

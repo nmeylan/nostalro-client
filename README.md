@@ -7,7 +7,8 @@ It reuses many parts of [rust-ro](https://github.com/nmeylan/rust-ro): packets, 
 **This repository does not and will not provide any game assets**.
 
 # Progress
-https://www.youtube.com/playlist?list=PLItjqXXRF2YA
+- Global: https://www.youtube.com/playlist?list=PLItjqXXRF2YA
+- Per class: https://www.youtube.com/playlist?list=PLItlNRkjsngk
 
 See [TODO](docs/TODO.md) 100% completed and [Features.md](Features.md). 
 
@@ -285,6 +286,7 @@ tools/ui-component-dev.sh guild      # guild
 tools/ui-component-dev.sh social     # guild, party, vending board, emotion, mailbox, trade
 tools/ui-component-dev.sh chat       # chat, chat room create/member/board
 tools/ui-component-dev.sh shop       # cart, vending_setup, my_shop, vending_buy
+tools/ui-component-dev.sh map        # world_map, minimap
 ```
 
 Without hot reload (no `cargo-watch`), build the dylib once and run the host directly. It still loads the windows, it just does not reload on source change:

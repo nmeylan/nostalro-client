@@ -140,10 +140,9 @@ const GAME_COMPONENTS: &[&str] = &[
     "quest_detail",
     "graphic_options",
     "hotkey_config",
-    "world_map",
-    "minimap",
     "monster_info",
 ];
+const MAP_COMPONENTS: &[&str] = &["world_map", "minimap"];
 const SOCIAL_COMPONENTS: &[&str] = &[
     "inventory",
     "guild",
@@ -2064,6 +2063,9 @@ pub unsafe extern "C" fn hot_create(name_ptr: *const u8, name_len: usize) -> *mu
         },
         "shop" => State::Category {
             components: SHOP_COMPONENTS.iter().map(|n| create_single(n)).collect(),
+        },
+        "map" => State::Category {
+            components: MAP_COMPONENTS.iter().map(|n| create_single(n)).collect(),
         },
         "social" => State::Category {
             components: SOCIAL_COMPONENTS.iter().map(|n| create_single(n)).collect(),

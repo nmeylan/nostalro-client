@@ -179,7 +179,7 @@ mod tests {
         });
         assert!(win.is_open());
         assert_eq!(win.lines.len(), 18);
-        assert_eq!(win.lines[0], "^FFFF00Name^FF00FF: Poring");
+        assert_eq!(win.lines[0], "^243361Name^000000: Poring");
         win.close();
         assert!(!win.is_open());
         assert!(win.lines.is_empty());
