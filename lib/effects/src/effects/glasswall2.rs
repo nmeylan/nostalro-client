@@ -15,7 +15,7 @@ const SLOT_DISTANCES: [f32; 3] = [3.6, 3.3, 3.0];
 const SLOT_MAX_HEIGHT: [f32; 3] = [34.0, 37.0, 40.0];
 const SLOT_ROT_START_DEG: [f32; 3] = [40.0, 170.0, 290.0];
 
-const HEIGHT_SCALE: f32 = 0.42;
+const HEIGHT_SCALE: f32 = 0.82;
 const RISE_FRAMES: f32 = 24.0;
 const PEAK_ALPHA: f32 = 150.0 / 255.0;
 const TINT: [f32; 3] = [1.0, 0.42, 0.85];

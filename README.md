@@ -174,7 +174,7 @@ This server is built for packet version `20111102`. Set `packetver` to `20111102
 
 # Development tools
 
-Every tool reads the same code paths as the game, so what a tool shows is what the game renders. All of them take a `--grf` argument that defaults to `data/data.grf`. The hot-reload tools (the `tools/*-dev.sh` scripts) rebuild and reload on source change and need `cargo-watch`; the plain `cargo run` tools do not.
+Every tool reads the same code paths as the game, so what a tool shows is what the game renders. The viewers take a `--grf` argument that defaults to `data/data.grf`; the two GRF audit tools take the archive as their first positional argument instead, since they have no sensible default. The hot-reload tools (the `tools/*-dev.sh` scripts) rebuild and reload on source change and need `cargo-watch`; the plain `cargo run` tools do not.
 
 ## Sprite viewer
 
@@ -313,6 +313,129 @@ cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf data/model/3
 
 # Emperium
 cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf data/model/3dmob/empelium90_0.gr2
+```
+
+## GRF audit: verify and prune
+
+Two command line tools answer the same question from opposite sides: which entries of an archive can the client actually reach? `grf-verify` lists what the client asks for and the archive does not hold. `grf-prune` lists what the archive holds and nothing asks for, and can write a smaller archive without it.
+
+They share one engine, `tools/src/grf_audit`. It starts from the roots, every path the client names on its own, then follows references from file to file until nothing new appears. The roots are the [`ragnarok-resources`](lib/resources/src/lib.rs) registry (every path the code states outright) plus one path per row of every data table the client reads: item resources, job and NPC identity, accessory, skill sounds, effect tables, and the map list.
+
+```mermaid
+flowchart LR
+    registry[resource registry] --> roots
+    tables[data tables] --> roots
+    roots --> rsw[.rsw]
+    roots --> spr[.spr]
+    rsw --> gnd[.gnd]
+    rsw --> gat[.gat]
+    rsw --> rsm[.rsm]
+    rsw --> wav[.wav]
+    rsw --> water[water textures]
+    gnd --> tex[textures]
+    rsm --> tex
+    str[.str] --> tex
+    spr --> act[.act]
+    gr2[.gr2] --> anim[animation .gr2]
+```
+
+Walking the whole graph of a 43895 entry, 1321.3MB archive takes under 3.5 seconds, so both tools are cheap enough to run on every build.
+
+### grf-verify
+
+```bash
+cargo run --release --bin grf-verify -- data/data.grf
+cargo run --release --bin grf-verify -- data/data.grf --limit 5   # paths shown per group, 0 for all
+cargo run --release --bin grf-verify -- data/data.grf --quiet     # counts only
+```
+
+Findings are grouped by who asked for the file, so a table that names files the archive lacks reads as one line rather than thousands:
+
+```
+data/data.grf — 43895 entries, 33049 roots, 30733 reached
+21331 probed paths absent (job/palette/headgear combinations the client tries and does without) — not reported
+
+4093 missing:
+
+  built from effect str alias table — 70
+  built from item resource table — 2767
+  built from job/npc identity table — 1250
+  declared in the resource registry — 2
+  referenced by a map (.rsw) — 2
+```
+
+The tool exits 1 when anything is missing, so it can gate a build.
+
+Most roots are combinations rather than requirements: every job crossed with every palette id, every headgear crossed with both sexes, every item crossed with a drop sprite. The client asks for those and draws fine without them, so their absence is not a defect. Only paths the client genuinely requires are listed; the rest are counted on the second line. A `.spr` requires its `.act`, but an `.act` does not require a `.spr` of the same name, because pet headgear animations ride on the pet's own sprite.
+
+### grf-prune
+
+Report only by default. The input archive is never modified, and `--write` produces a new file.
+
+```bash
+cargo run --release --bin grf-prune -- data/data.grf
+cargo run --release --bin grf-prune -- data/data.grf --write data/light.grf
+cargo run --release --bin grf-prune -- data/data.grf --list texture   # print what would be dropped
+cargo run --release --bin grf-prune -- data/data.grf --keep data/texture/effect/
+```
+
+```
+data/data.grf — 43895 entries, 1321.3MB
+33049 roots, 30733 entries reached
+
+                  keep               drop
+map               1710    506.7MB       0      0.0MB  (every map is a root without --server; pass one to narrow them)
+texture          14041    425.5MB    4253    150.0MB
+model             3380     11.0MB     157      1.4MB
+sprite           16683     84.0MB       0      0.0MB  (not selected)
+palette            994      0.6MB       0      0.0MB  (not selected)
+sound             2040    133.1MB       0      0.0MB  (monster and NPC sounds are chosen by the server, not by any client table we can enumerate)
+imf                 59      0.0MB      19      0.0MB
+unclassified       559      8.9MB       0      0.0MB  (not understood)
+
+total: keep 1169.8MB / drop 151.5MB (11.5% smaller)
+```
+
+The tool declines to judge whatever it cannot enumerate. Each category carries a verdict on whether we trust our root set for it:
+
+| Category | Prunable |
+| --- | --- |
+| `texture`, `model`, `imf` | Always. Dropped by default. |
+| `sprite`, `palette` | Only when the identity lua is in the archive. With the builtin job table as fallback we cannot promise the list is complete. |
+| `sound` | Never. Monster and NPC sounds are chosen by the server and no client table lists them. |
+| `map` | Only with `--server`. Without it every map is a root. |
+| `unclassified` | Never. |
+
+Anything whose extension we do not model lands in `unclassified` and survives, which is why the `.fna` files sitting beside the `.imf` files are kept. Selecting a category with `--prune` does not override its verdict; a category we do not trust stays untouched and prints its reason.
+
+```bash
+# default selection
+cargo run --release --bin grf-prune -- data/data.grf --prune texture,model,imf
+
+# add sprites and palettes, which needs the identity lua in the archive
+cargo run --release --bin grf-prune -- data/data.grf --prune texture,model,imf,sprite,palette
+```
+
+### Narrowing the map list
+
+Maps are 506.7MB of the 1321.3MB archive, and their textures and models are most of the rest, so the map list is the one lever that changes the result by a large amount. `--server` takes either a rathena checkout or a text file with one map name per line:
+
+```bash
+# read db/map_index.txt from a rathena checkout
+cargo run --release --bin grf-prune -- data/data.grf --server ../rathena-nmey --prune map,texture,model,imf
+
+# or list the maps we actually serve
+printf 'prontera\ngeffen\npayon\n' > maps.txt
+cargo run --release --bin grf-prune -- data/data.grf --server maps.txt --prune map,texture,model,imf
+```
+
+rathena ships the full official index, which lists more maps than the archive holds, so it narrows almost nothing: on `data.grf` it frees 3 files. A hand written list is what shrinks an archive. With ten maps listed the same archive goes from 1321.3MB to 325.6MB, because the textures and models only the other maps used stop being reachable too.
+
+To check that a prune removed nothing the client needs, audit the result with the same options. The reached count must not change:
+
+```bash
+cargo run --release --bin grf-prune  -- data/data.grf --server maps.txt --prune map,texture,model,imf --write data/light.grf
+cargo run --release --bin grf-verify -- data/light.grf --server maps.txt --quiet
 ```
 
 # Divergence from original client

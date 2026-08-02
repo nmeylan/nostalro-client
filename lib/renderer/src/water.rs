@@ -65,6 +65,25 @@ fn water_texture_name(water_type: i32, frame: usize) -> String {
     ragnarok_resources::texture::water(water_type, frame)
 }
 
+/// Every texture a map with this water type may sample: its own animation, plus
+/// the set it falls back to when the archive ships no textures for that type.
+pub fn water_texture_candidates(water_type: i32) -> Vec<String> {
+    if water_type < 0 {
+        return Vec::new();
+    }
+    let fallback_type = water_type % WATER_TEXTURE_SETS;
+    (0..WATER_FRAMES)
+        .flat_map(|i| {
+            let own = water_texture_name(water_type, i);
+            if fallback_type == water_type {
+                vec![own]
+            } else {
+                vec![own, water_texture_name(fallback_type, i)]
+            }
+        })
+        .collect()
+}
+
 fn wave_offset_at(elapsed: f32, wave_speed: f32) -> f32 {
     let phase = (elapsed * wave_speed * WATER_TICKS_PER_SECOND).rem_euclid(360.0);
     if phase > 180.0 { phase - 360.0 } else { phase }

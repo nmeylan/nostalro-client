@@ -28,6 +28,14 @@ name = "gr2-viewer"
 path = "src/bin/gr2_viewer.rs"
 
 [[bin]]
+name = "grf-prune"
+path = "src/bin/grf_prune.rs"
+
+[[bin]]
+name = "grf-verify"
+path = "src/bin/grf_verify.rs"
+
+[[bin]]
 name = "dump-rsw-lights"
 path = "src/bin/dump_rsw_lights.rs"
 
@@ -45,6 +53,7 @@ ragnarok-formats = { workspace = true }
 ragnarok-resources = { workspace = true }
 ragnarok-renderer = { workspace = true }
 ragnarok-game = { workspace = true }
+ragnarok-effects = { workspace = true }
 ragnarok-ui = { workspace = true }
 models = { workspace = true }
 wgpu = { workspace = true }

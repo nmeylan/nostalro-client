@@ -3154,6 +3154,7 @@ dependencies = [
  "libloading",
  "models",
  "notify",
+ "ragnarok-effects",
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
