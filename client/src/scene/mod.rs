@@ -196,9 +196,8 @@ impl App {
 
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
-                        if ragnarok_game::sprite_path::is_baby(entity.job) {
-                            body_channels.scale *= ragnarok_game::sprite_path::BABY_BODY_SCALE;
-                        }
+                        body_channels.scale *=
+                            ragnarok_game::sprite_path::baby_body_scale(entity.job);
                         if let Some(rgb) = ailment::ailment_visual(
                             entity.body_state,
                             entity.health_state,

@@ -302,8 +302,10 @@ pub enum SpriteActionType {
 }
 
 impl SpriteActionType {
+    /// Idle and sit hold a pose picked by the head-turn frame instead of
+    /// playing; every other action, the combat stance included, animates.
     pub fn is_animated(self) -> bool {
-        !matches!(self, Self::Idle | Self::Sit | Self::ReadyFight)
+        !matches!(self, Self::Idle | Self::Sit)
     }
 
     pub fn from_index(index: usize) -> Option<Self> {

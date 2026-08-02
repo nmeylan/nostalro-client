@@ -1,3 +1,4 @@
+use models::enums::EnumWithStringValue;
 use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
@@ -417,53 +418,7 @@ impl Character {
 pub fn job_class_name(class_id: u16) -> &'static str {
     use models::enums::EnumWithNumberValue;
     use models::enums::class::JobName;
-    match JobName::try_from_value(class_id as usize) {
-        Ok(job) => match job {
-            JobName::Novice => "Novice",
-            JobName::Swordsman => "Swordsman",
-            JobName::Mage => "Mage",
-            JobName::Archer => "Archer",
-            JobName::Acolyte => "Acolyte",
-            JobName::Merchant => "Merchant",
-            JobName::Thief => "Thief",
-            JobName::Knight => "Knight",
-            JobName::Priest => "Priest",
-            JobName::Wizard => "Wizard",
-            JobName::Blacksmith => "Blacksmith",
-            JobName::Hunter => "Hunter",
-            JobName::Assassin => "Assassin",
-            JobName::Crusader => "Crusader",
-            JobName::Monk => "Monk",
-            JobName::Sage => "Sage",
-            JobName::Rogue => "Rogue",
-            JobName::Alchemist => "Alchemist",
-            JobName::Bard => "Bard",
-            JobName::Dancer => "Dancer",
-            JobName::SuperNovice => "Super Novice",
-            JobName::NoviceHigh => "Novice High",
-            JobName::SwordsmanHigh => "Swordsman High",
-            JobName::MageHigh => "Mage High",
-            JobName::ArcherHigh => "Archer High",
-            JobName::AcolyteHigh => "Acolyte High",
-            JobName::MerchantHigh => "Merchant High",
-            JobName::ThiefHigh => "Thief High",
-            JobName::LordKnight => "Lord Knight",
-            JobName::HighPriest => "High Priest",
-            JobName::HighWizard => "High Wizard",
-            JobName::Whitesmith => "Whitesmith",
-            JobName::Sniper => "Sniper",
-            JobName::AssassinCross => "Assassin Cross",
-            JobName::Paladin => "Paladin",
-            JobName::Champion => "Champion",
-            JobName::Professor => "Professor",
-            JobName::Stalker => "Stalker",
-            JobName::Creator => "Creator",
-            JobName::Clown => "Clown",
-            JobName::Gypsy => "Gypsy",
-            _ => "Adventurer",
-        },
-        Err(_) => "Adventurer",
-    }
+    JobName::try_from_value(class_id as usize).map(|j| j.as_str()).unwrap_or("Adventurer")
 }
 
 #[cfg(test)]

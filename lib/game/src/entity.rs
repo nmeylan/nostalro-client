@@ -279,7 +279,6 @@ pub struct Entity {
     pub cast_total_duration: f32,
     pub animation_duration: Option<f32>,
     pub animation_start_frame: Option<usize>,
-    attack_motion_duration: f32,
     pub attack_motion_factor: f32,
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
@@ -412,7 +411,6 @@ impl Entity {
             cast_total_duration: 0.0,
             animation_duration: None,
             animation_start_frame: None,
-            attack_motion_duration: 0.0,
             attack_motion_factor: 1.0,
             movement,
             animation: SpriteAnimationState::new(direction),
@@ -562,20 +560,17 @@ impl Entity {
             self.state_timer -= dt;
             if self.state_timer <= 0.0 {
                 self.state_timer = 0.0;
+                self.active_skill_id = None;
                 match self.state {
-                    EntityState::Attacking
+                    EntityState::Attacking | EntityState::Hurt | EntityState::Casting
                         if matches!(
                             self.entity_type,
                             EntityType::Player | EntityType::Mercenary
                         ) =>
                     {
                         self.state = EntityState::ReadyFight;
-                        self.state_timer = self.attack_motion_duration;
                     }
-                    _ => {
-                        self.state = EntityState::Standing;
-                        self.active_skill_id = None;
-                    }
+                    _ => self.state = EntityState::Standing,
                 }
             }
             return;
@@ -586,6 +581,8 @@ impl Entity {
         self.state = if self.movement.is_moving() {
             self.head_dir = 0;
             EntityState::Moving
+        } else if self.state == EntityState::ReadyFight {
+            EntityState::ReadyFight
         } else {
             EntityState::Standing
         };
@@ -628,7 +625,6 @@ impl Entity {
         }
         self.state = EntityState::Attacking;
         self.state_timer = duration_secs;
-        self.attack_motion_duration = duration_secs;
         self.attack_motion_factor = motion_factor;
         self.animation_duration = Some(duration_secs);
     }
@@ -1352,7 +1348,7 @@ mod tests {
     }
 
     #[test]
-    fn hurt_cancels_movement_and_recovers_to_standing() {
+    fn hurt_cancels_movement_and_recovers_to_the_combat_stance() {
         let mut e = make_entity();
         let path = vec![
             make_path_node(101, 100, false),
@@ -1373,7 +1369,8 @@ mod tests {
         assert!(e.is_move_locked());
 
         e.update_state(0.3);
-        assert_eq!(e.state, EntityState::Standing);
+        assert_eq!(e.state, EntityState::ReadyFight);
+        assert_eq!(e.action_index(), 4);
         assert!(!e.is_move_locked());
     }
 
@@ -1605,7 +1602,7 @@ mod tests {
     }
 
     #[test]
-    fn casting_counts_down_to_standing() {
+    fn casting_counts_down_to_the_combat_stance() {
         let mut e = make_entity();
         e.enter_casting(1.0, 0);
         assert_eq!(e.state, EntityState::Casting);
@@ -1614,7 +1611,7 @@ mod tests {
         assert_eq!(e.state, EntityState::Casting);
 
         e.update_state(0.6);
-        assert_eq!(e.state, EntityState::Standing);
+        assert_eq!(e.state, EntityState::ReadyFight);
     }
 
     #[test]
@@ -1644,10 +1641,9 @@ mod tests {
         assert_eq!(e.action_index(), 4);
         assert!(!e.is_move_locked());
 
-        e.update_state(0.4);
+        // The stance holds until something else moves the actor out of it.
+        e.update_state(5.0);
         assert_eq!(e.state, EntityState::ReadyFight);
-        e.update_state(0.2);
-        assert_eq!(e.state, EntityState::Standing);
     }
 
     #[test]

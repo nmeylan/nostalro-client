@@ -320,11 +320,21 @@ pub fn unmounted_job(job: u16) -> Option<u16> {
     }
 }
 
-/// Baby classes (4023–4045) reuse their base job's resources, drawn smaller.
-pub const BABY_BODY_SCALE: f32 = 0.8;
-
 pub fn is_baby(job: u16) -> bool {
     (4023..=4045).contains(&job)
+}
+
+/// Baby classes reuse their base job's resources, drawn smaller — first-class
+/// babies (and the Baby Super Novice) smaller than second-class ones. `1.0` for
+/// every other job.
+pub fn baby_body_scale(job: u16) -> f32 {
+    if !is_baby(job) {
+        return 1.0;
+    }
+    match base_job(job) {
+        0..=6 | 23 => 0.75,
+        _ => 0.82,
+    }
 }
 
 /// The adult job a baby class draws as. Identity for non-baby jobs.
@@ -1037,6 +1047,18 @@ mod tests {
         assert_eq!(base_job(4045), 23);
         assert_eq!(visual_job(4030, OPTION_RIDING), 4036);
         assert_eq!(unmounted_job(4036), Some(4030));
+    }
+
+    #[test]
+    fn baby_scale_splits_by_class_tier() {
+        for first in [4023u16, 4024, 4029, 4045] {
+            assert_eq!(baby_body_scale(first), 0.75, "job {first}");
+        }
+        for second in [4030u16, 4036, 4039, 4044] {
+            assert_eq!(baby_body_scale(second), 0.82, "job {second}");
+        }
+        assert_eq!(baby_body_scale(7), 1.0);
+        assert_eq!(baby_body_scale(4008), 1.0);
     }
 
     #[test]
