@@ -7,6 +7,7 @@ use crate::helper::window_chrome::{
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::item::{Item, is_forge_element_item, is_forge_material_item};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -73,9 +74,11 @@ struct ProducibleRow {
     icon: Option<String>,
 }
 
+/// The item is held here, out of the inventory, until the forge request goes
+/// out: the server deletes the slotted materials without telling the client.
 #[derive(Clone)]
 struct MaterialSlot {
-    item_id: u16,
+    item: Item,
     icon: Option<String>,
 }
 
@@ -300,6 +303,12 @@ impl MakeItemWindow {
 
         if show_slots {
             let slots_y = hy + HEADER_H + PAD;
+            let strip = Rect::new(hx, slots_y, 3.0 * SLOT_SIZE + 2.0 * PAD, SLOT_SIZE);
+            if let Some((source_id, inv_index)) = ui.drop_zone(strip)
+                && source_id == INV_WINDOW_ID
+            {
+                self.take_material(character, inv_index as u16);
+            }
             for s in 0..3 {
                 let slot_x = hx + s as f32 * (SLOT_SIZE + PAD);
                 let slot_rect = Rect::new(slot_x, slots_y, SLOT_SIZE, SLOT_SIZE);
@@ -329,17 +338,8 @@ impl MakeItemWindow {
                 if resp.hovered() {
                     ui.any_interactive_hovered = true;
                 }
-                if resp.clicked() && self.slots[s].is_some() {
-                    self.slots[s] = None;
-                }
-                if let Some((source_id, inv_index)) = ui.drop_zone(slot_rect)
-                    && source_id == INV_WINDOW_ID
-                    && let Some(item) = character.inventory.get_item(inv_index as u16)
-                {
-                    self.slots[s] = Some(MaterialSlot {
-                        item_id: item.item_id,
-                        icon: item.icon_path(),
-                    });
+                if resp.clicked() {
+                    self.return_material(character, s);
                 }
                 if let Some(slot) = &self.slots[s]
                     && let Some(icon) = &slot.icon
@@ -366,11 +366,9 @@ impl MakeItemWindow {
         let cancel = ui.button(CANCEL_ID, btns[0], &CANCEL_BTN, "Cancel");
         let make = ui.button(MAKE_ID, btns[1], &MAKE_BTN, "Make");
         if make.clicked() {
-            let materials = [
-                self.slots[0].as_ref().map(|s| s.item_id).unwrap_or(0),
-                self.slots[1].as_ref().map(|s| s.item_id).unwrap_or(0),
-                self.slots[2].as_ref().map(|s| s.item_id).unwrap_or(0),
-            ];
+            let materials = std::array::from_fn(|i| {
+                self.slots[i].as_ref().map(|s| s.item.item_id).unwrap_or(0)
+            });
             events.push(GameEvent::RequestMakingItem {
                 item_id: target.item_id,
                 materials,
@@ -383,7 +381,50 @@ impl MakeItemWindow {
                 item_id: 0,
                 materials: [0; 3],
             });
+            self.restore_materials(character);
             self.close();
+        }
+    }
+
+    /// Star crumbs and elemental stones only, at most one stone, first free
+    /// slot regardless of where the drop landed.
+    fn take_material(&mut self, character: &mut Character, inv_index: u16) {
+        let Some(free) = self.slots.iter().position(|s| s.is_none()) else {
+            return;
+        };
+        let Some(item) = character.inventory.get_item(inv_index) else {
+            return;
+        };
+        if !is_forge_material_item(item.item_id) {
+            return;
+        }
+        if is_forge_element_item(item.item_id)
+            && self
+                .slots
+                .iter()
+                .flatten()
+                .any(|s| is_forge_element_item(s.item.item_id))
+        {
+            return;
+        }
+        let mut taken = item.clone();
+        taken.count = 1;
+        character.inventory.subtract_item_count(inv_index, 1);
+        self.slots[free] = Some(MaterialSlot {
+            icon: taken.icon_path(),
+            item: taken,
+        });
+    }
+
+    fn return_material(&mut self, character: &mut Character, slot: usize) {
+        if let Some(taken) = self.slots[slot].take() {
+            character.inventory.add_item(taken.item);
+        }
+    }
+
+    fn restore_materials(&mut self, character: &mut Character) {
+        for s in 0..3 {
+            self.return_material(character, s);
         }
     }
 }
@@ -426,7 +467,8 @@ impl InGameWindow for MakeItemWindow {
         self.is_open()
     }
 
-    fn on_escape(&mut self, _ctx: &mut BuildCtx) -> Vec<GameEvent> {
+    fn on_escape(&mut self, ctx: &mut BuildCtx) -> Vec<GameEvent> {
+        self.restore_materials(ctx.character);
         self.close();
         vec![GameEvent::RequestMakingItem {
             item_id: 0,
@@ -506,5 +548,52 @@ mod tests {
 
         win.close();
         assert!(!win.is_open());
+    }
+
+    fn stack(index: u16, item_id: u16, count: i16) -> Item {
+        Item {
+            index,
+            item_id,
+            item_type: models::enums::item::ItemType::Etc,
+            count,
+            is_identified: true,
+            is_damaged: false,
+            refining_level: 0,
+            slot: [0; 4],
+            location: 0,
+            wear_state: 0,
+            name: format!("Item {item_id}"),
+            resource_name: None,
+        }
+    }
+
+    #[test]
+    fn forge_slots_take_materials_from_the_inventory_and_give_them_back() {
+        let mut character = Character::new();
+        character.inventory.add_item(stack(1, 1000, 3));
+        character.inventory.add_item(stack(2, 994, 1));
+        character.inventory.add_item(stack(3, 995, 1));
+        character.inventory.add_item(stack(4, 501, 5));
+
+        let mut win = MakeItemWindow::new();
+        win.take_material(&mut character, 4);
+        assert!(win.slots[0].is_none());
+
+        win.take_material(&mut character, 1);
+        win.take_material(&mut character, 2);
+        win.take_material(&mut character, 3);
+        assert_eq!(
+            win.slots
+                .iter()
+                .map(|s| s.as_ref().map(|s| s.item.item_id).unwrap_or(0))
+                .collect::<Vec<_>>(),
+            vec![1000, 994, 0]
+        );
+        assert_eq!(character.inventory.get_item(1).unwrap().count, 2);
+        assert!(character.inventory.get_item(2).is_none());
+
+        win.restore_materials(&mut character);
+        assert_eq!(character.inventory.get_item(1).unwrap().count, 3);
+        assert_eq!(character.inventory.get_item(2).unwrap().count, 1);
     }
 }

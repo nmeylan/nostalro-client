@@ -157,6 +157,7 @@ impl InGameWindow for CartWindow {
         let mut events = Vec::new();
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();
+        let producers = &character.char_names;
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
@@ -300,8 +301,12 @@ impl InGameWindow for CartWindow {
                 );
 
                 if response.hovered() {
-                    let display_name =
-                        format_equipment_display_name(item, slot_count_table, card_name_table);
+                    let display_name = format_equipment_display_name(
+                        item,
+                        slot_count_table,
+                        card_name_table,
+                        producers,
+                    );
                     let tooltip = if item.count > 1 {
                         format!("{display_name} {} ea", item.count)
                     } else {

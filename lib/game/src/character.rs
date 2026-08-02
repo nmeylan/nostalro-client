@@ -1,4 +1,4 @@
-use models::enums::EnumWithStringValue;
+use crate::char_name::CharNameCache;
 use crate::cooldown::CooldownTracker;
 use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
@@ -7,6 +7,7 @@ use crate::mail::MailState;
 use crate::skill::{ItemSkills, SkillList};
 use crate::sprite_path::{dual_wield_type, weapon_view_id_to_type};
 use crate::trade::TradeData;
+use models::enums::EnumWithStringValue;
 use models::enums::item::EquipmentLocation;
 use models::enums::weapon::WeaponType;
 
@@ -79,6 +80,9 @@ pub struct Character {
     pub active_statuses: Vec<ActiveStatus>,
     /// Married partner's name (from ZC_COUPLENAME); empty when unpartnered.
     pub partner_name: String,
+    /// Names of the blacksmiths/alchemists who made the forged and created
+    /// items we hold.
+    pub char_names: CharNameCache,
     /// Right- and left-hand view ids from the last weapon look change. The left
     /// value is either a shield or an off-hand weapon and only the inventory
     /// tells which, so the pair is kept to be re-resolved when the equipment
@@ -152,6 +156,7 @@ impl Character {
             cart_design: None,
             active_statuses: Vec::new(),
             partner_name: String::new(),
+            char_names: CharNameCache::default(),
             hand_look: (0, 0),
         }
     }
@@ -209,6 +214,22 @@ impl Character {
                 icon_loaded,
             });
         }
+    }
+
+    /// Char ids of item makers whose name we still need and may ask for now.
+    pub fn pending_producer_names(&mut self, now_ms: u64) -> Vec<u32> {
+        let mut char_ids: Vec<u32> = self
+            .inventory
+            .all_items()
+            .iter()
+            .chain(self.cart.all_items())
+            .chain(self.storage.all_items())
+            .chain(self.trade.my_items())
+            .chain(self.trade.other_items())
+            .filter_map(|item| item.producer_char_id())
+            .collect();
+        char_ids.retain(|id| self.char_names.should_request(*id, now_ms));
+        char_ids
     }
 
     pub fn clear_status(&mut self, efst: i16) {
@@ -412,13 +433,16 @@ impl Character {
         self.cart_design = None;
         self.active_statuses.clear();
         self.partner_name.clear();
+        self.char_names.clear();
     }
 }
 
 pub fn job_class_name(class_id: u16) -> &'static str {
     use models::enums::EnumWithNumberValue;
     use models::enums::class::JobName;
-    JobName::try_from_value(class_id as usize).map(|j| j.as_str()).unwrap_or("Adventurer")
+    JobName::try_from_value(class_id as usize)
+        .map(|j| j.as_str())
+        .unwrap_or("Adventurer")
 }
 
 #[cfg(test)]

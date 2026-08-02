@@ -7,6 +7,7 @@ pub mod banner;
 pub mod book;
 pub mod boss_info;
 pub mod cast_scope;
+pub mod char_name;
 pub mod character;
 pub mod chat_command;
 pub mod chat_room;

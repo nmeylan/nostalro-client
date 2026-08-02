@@ -111,7 +111,7 @@ impl App {
                     }
                     entity.animation.set_direction(entity.direction);
                     entity.forced_animation = if forced.hold {
-                        Some(forced)
+                        forced.tick_hold(delta).then_some(forced)
                     } else {
                         entity.animation.update(delta, &sprite.body_act, dir);
                         let action_idx = entity.animation.action_index(&sprite.body_act, dir);

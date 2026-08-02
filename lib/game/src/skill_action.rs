@@ -1,5 +1,6 @@
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_effects::merc_skill_base_id;
+use ragnarok_formats::act::SpriteActionType;
 
 /// Who owns a skill, derived purely from its id. Mercenary and homunculus skills
 /// occupy fixed, disjoint id ranges, so the caster is known without any runtime
@@ -34,12 +35,55 @@ pub enum SkillMotionType {
     Stand,
     Walk,
     Skill,
+    /// Freezes on a single frame, see [`skill_pose`].
+    Pose,
+}
+
+/// A stance: one frame of one action group, held still for `hold_secs`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkillPose {
+    pub action: usize,
+    pub frame: usize,
+    pub hold_secs: f32,
+}
+
+const STANCE_HOLD_SECS: f32 = 2.0;
+
+const fn stance(action: SpriteActionType, frame: usize) -> SkillPose {
+    SkillPose {
+        action: action as usize,
+        frame,
+        hold_secs: STANCE_HOLD_SECS,
+    }
+}
+
+/// The taekwon kick stances, which pose the body instead of animating it.
+pub fn skill_pose(skill_id: u16) -> Option<SkillPose> {
+    let id = merc_skill_base_id(skill_id);
+    use SpriteActionType::{Pickup, Skill};
+
+    if id == SkillEnum::TkReadystorm.id() as u16 {
+        Some(stance(Skill, 0))
+    } else if id == SkillEnum::TkReadydown.id() as u16 {
+        Some(stance(Skill, 2))
+    } else if id == SkillEnum::TkReadyturn.id() as u16 {
+        Some(stance(Skill, 3))
+    } else if id == SkillEnum::TkReadycounter.id() as u16 {
+        Some(stance(Skill, 4))
+    } else if id == SkillEnum::TkDodge.id() as u16 {
+        Some(stance(Pickup, 1))
+    } else {
+        None
+    }
 }
 
 pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
     use SkillMotionType::*;
 
     let id = merc_skill_base_id(skill_id);
+    if skill_pose(id).is_some() {
+        return Pose;
+    }
     if id == SkillEnum::SmBash.id() as u16
         || id == SkillEnum::SmMagnum.id() as u16
         || id == SkillEnum::McMammonite.id() as u16
@@ -161,12 +205,6 @@ pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
         || id == SkillEnum::WsMeltdown.id() as u16
         || id == SkillEnum::WsCartboost.id() as u16
         || id == SkillEnum::ChSoulcollect.id() as u16
-        // Taekwon stances are instant toggles with no cast motion.
-        || id == SkillEnum::TkReadystorm.id() as u16
-        || id == SkillEnum::TkReadydown.id() as u16
-        || id == SkillEnum::TkReadyturn.id() as u16
-        || id == SkillEnum::TkReadycounter.id() as u16
-        || id == SkillEnum::TkDodge.id() as u16
     {
         return Stand;
     }
@@ -275,25 +313,26 @@ mod tests {
     }
 
     #[test]
-    fn taekwon_stances_and_running_do_not_play_a_cast_motion() {
-        for s in [
-            SkillEnum::TkReadystorm,
-            SkillEnum::TkReadydown,
-            SkillEnum::TkReadyturn,
-            SkillEnum::TkReadycounter,
-            SkillEnum::TkDodge,
+    fn taekwon_stances_hold_a_pose_and_running_walks() {
+        for (s, action, frame) in [
+            (SkillEnum::TkReadystorm, 12, 0),
+            (SkillEnum::TkReadydown, 12, 2),
+            (SkillEnum::TkReadyturn, 12, 3),
+            (SkillEnum::TkReadycounter, 12, 4),
+            (SkillEnum::TkDodge, 3, 1),
         ] {
-            assert_eq!(
-                skill_motion_type(s.id() as u16),
-                SkillMotionType::Stand,
-                "{s:?} should not animate a skill cast"
-            );
+            let id = s.id() as u16;
+            assert_eq!(skill_motion_type(id), SkillMotionType::Pose, "{s:?}");
+            let pose = skill_pose(id).expect("{s:?} poses");
+            assert_eq!((pose.action, pose.frame), (action, frame), "{s:?}");
+            assert_eq!(pose.hold_secs, 2.0, "{s:?}");
         }
         // Running plays the walk motion, not an idle stand or a cast.
         assert_eq!(
             skill_motion_type(SkillEnum::TkRun.id() as u16),
             SkillMotionType::Walk
         );
+        assert!(skill_pose(SkillEnum::TkRun.id() as u16).is_none());
     }
 
     #[test]

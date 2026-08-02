@@ -294,8 +294,11 @@ pub fn load_weapon_trail_sprite(
     }
     if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
         use models::enums::EnumWithNumberValue;
-        let fallback_path =
-            crate::sprite_path::weapon_trail_sprite_path(base_job.value() as u16, sex, weapon_type)?;
+        let fallback_path = crate::sprite_path::weapon_trail_sprite_path(
+            base_job.value() as u16,
+            sex,
+            weapon_type,
+        )?;
         return load_sprite_data(
             grf,
             &format!("{fallback_path}.spr"),
@@ -447,7 +450,11 @@ pub fn load_player_sprite_data(
 }
 
 pub fn load_cursor_sprite(grf: &GrfArchive) -> Option<SpriteData> {
-    load_sprite_data(grf, ragnarok_resources::sprite::CURSORS_SPR, ragnarok_resources::sprite::CURSORS_ACT)
+    load_sprite_data(
+        grf,
+        ragnarok_resources::sprite::CURSORS_SPR,
+        ragnarok_resources::sprite::CURSORS_ACT,
+    )
 }
 
 /// Mercenaries are player-style composites: a mercenary body plus a regular
@@ -489,7 +496,11 @@ pub fn load_mercenary_sprite_data(
 }
 
 pub fn load_shadow_sprite(grf: &GrfArchive) -> Option<SpriteData> {
-    load_sprite_data(grf, ragnarok_resources::sprite::SHADOW_SPR, ragnarok_resources::sprite::SHADOW_ACT)
+    load_sprite_data(
+        grf,
+        ragnarok_resources::sprite::SHADOW_SPR,
+        ragnarok_resources::sprite::SHADOW_ACT,
+    )
 }
 
 pub fn load_emotion_sprite(grf: &GrfArchive) -> Option<SpriteData> {

@@ -198,6 +198,7 @@ impl InGameWindow for StorageWindow {
         let mut events = Vec::new();
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();
+        let producers = &character.char_names;
 
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
@@ -325,7 +326,8 @@ impl InGameWindow for StorageWindow {
                 });
             }
 
-            let name = format_equipment_display_name(item, slot_count_table, card_name_table);
+            let name =
+                format_equipment_display_name(item, slot_count_table, card_name_table, producers);
             let name_color = if !item.is_identified { GREY } else { tc };
             ui.text(
                 list_x + ICON + 6.0,

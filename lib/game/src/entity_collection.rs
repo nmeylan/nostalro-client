@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
-use crate::entity::{EmotionState, Entity, EntityState, EntityType};
+use crate::entity::{EmotionState, Entity, EntityState, EntityType, ForcedAnimation};
 use crate::mob_info::MobInfo;
 use crate::movement::direction_from_positions;
+use crate::skill_action::skill_pose;
 use models::enums::skill_enums::SkillEnum;
 
 /// How long a caster stays in its skill motion for a ground-placed skill.
 pub const GROUND_SKILL_EXEC_SECS: f32 = 0.6;
+const NO_DAMAGE_SKILL_EXEC_SECS: f32 = 0.6;
 
 pub struct EntityCollection {
     entities: HashMap<u32, Entity>,
@@ -246,7 +248,16 @@ impl EntityCollection {
                     entity.set_facing(dir);
                 }
             }
-            entity.enter_skill_exec(0.6, skill_id, 1);
+            let pose = skill_pose(skill_id);
+            let duration = pose.map_or(NO_DAMAGE_SKILL_EXEC_SECS, |p| p.hold_secs);
+            entity.enter_skill_exec(duration, skill_id, 1);
+            if let Some(pose) = pose {
+                entity.forced_animation = Some(ForcedAnimation::held_for(
+                    pose.action,
+                    pose.frame,
+                    pose.hold_secs * 1000.0,
+                ));
+            }
         }
     }
 
@@ -670,5 +681,27 @@ mod tests {
         col.insert(runner);
         col.apply_skill_no_damage(run_id, 1, 0);
         assert_eq!(col.get(1).unwrap().state, EntityState::Standing);
+    }
+
+    #[test]
+    fn prepare_kick_freezes_the_caster_on_its_stance_frame() {
+        let mut col = EntityCollection::new();
+        col.insert(make_entity(1));
+        col.apply_skill_no_damage(SkillEnum::TkReadyturn.id() as u16, 1, 0);
+
+        let e = col.get(1).unwrap();
+        assert_eq!(e.state, EntityState::SkillExec);
+        assert_eq!(e.action_index(), 12);
+        assert_eq!(e.skill_exec_start_frame(), 3);
+        let mut forced = e.forced_animation.expect("stance poses the body");
+        assert!(forced.hold);
+        assert_eq!((forced.action, forced.start_frame), (12, 3));
+        assert!(forced.tick_hold(1.0), "held for two seconds");
+        assert!(!forced.tick_hold(1.5));
+
+        // A skill without a stance leaves the body animating.
+        col.insert(make_entity(2));
+        col.apply_skill_no_damage(SkillEnum::AlHeal.id() as u16, 2, 0);
+        assert!(col.get(2).unwrap().forced_animation.is_none());
     }
 }

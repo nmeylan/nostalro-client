@@ -538,11 +538,13 @@ impl InGameWindow for HotkeyBarWindow {
                         HotkeySlotContent::Item { inventory_index } => {
                             let slot_count_table = data.item_slot_count.as_ref();
                             let card_name_table = data.card_name.as_ref();
+                            let producers = &character.char_names;
                             character.inventory.get_item(inventory_index).map(|item| {
                                 format_equipment_display_name(
                                     item,
                                     slot_count_table,
                                     card_name_table,
+                                    producers,
                                 )
                             })
                         }

@@ -227,6 +227,7 @@ impl App {
                     item,
                     self.game.data_table.item_slot_count.as_ref(),
                     self.game.data_table.card_name.as_ref(),
+                    &self.game.character.char_names,
                 )
             })
             .unwrap_or(name);
@@ -247,6 +248,7 @@ impl App {
                 item,
                 self.game.data_table.item_slot_count.as_ref(),
                 self.game.data_table.card_name.as_ref(),
+                &self.game.character.char_names,
             )
         }) else {
             return;
@@ -347,11 +349,17 @@ impl App {
         }
         let slot_count_table = self.game.data_table.item_slot_count.as_ref();
         let card_name_table = self.game.data_table.card_name.as_ref();
+        let producers = &self.game.character.char_names;
         let eligible: Vec<EligibleItem> = equip_indices
             .iter()
             .filter_map(|&idx| {
                 let item = self.game.character.inventory.get_item(idx)?;
-                let name = format_equipment_display_name(item, slot_count_table, card_name_table);
+                let name = format_equipment_display_name(
+                    item,
+                    slot_count_table,
+                    card_name_table,
+                    producers,
+                );
                 Some(EligibleItem {
                     inventory_index: idx,
                     display_name: name,

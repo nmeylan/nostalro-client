@@ -232,6 +232,7 @@ impl InGameWindow for EquipmentWindow {
         let inventory = &character.inventory;
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();
+        let producers = &character.char_names;
         self.character_center = None;
         self.paperdoll_insert_index = None;
         self.cart_slot_center = None;
@@ -477,8 +478,12 @@ impl InGameWindow for EquipmentWindow {
                     });
                 }
 
-                let display_name =
-                    format_equipment_display_name(item, slot_count_table, card_name_table);
+                let display_name = format_equipment_display_name(
+                    item,
+                    slot_count_table,
+                    card_name_table,
+                    producers,
+                );
                 if show_text {
                     let mut lines = draw::word_wrap(
                         &display_name,

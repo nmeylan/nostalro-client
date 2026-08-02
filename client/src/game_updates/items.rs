@@ -12,4 +12,14 @@ impl App {
             }
         }
     }
+
+    pub(crate) fn request_producer_names(&mut self, now_ms: u64) {
+        for char_id in self.game.character.pending_producer_names(now_ms) {
+            self.channel
+                .send_packet(ragnarok_network::build_solve_char_name_packet(
+                    char_id,
+                    self.active_packetver,
+                ));
+        }
+    }
 }

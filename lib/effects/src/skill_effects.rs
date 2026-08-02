@@ -600,6 +600,9 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::AmBerserkpitcher => C::cast(&[E::Throwitem5]),
         S::ItmTomahawk => C::cast(&[E::Shieldboomerang2]),
 
+        S::TkReadystorm | S::TkReadydown | S::TkReadyturn | S::TkReadycounter | S::TkDodge => {
+            C::cast(&[E::TaeReady])
+        }
         S::TkStormkick => C::cast(&[E::Stormkick]),
         S::TkCounter => C::cast(&[E::Hitline5]),
         S::TkJumpkick => C::cast(&[E::Jumpkick]),
@@ -1336,6 +1339,19 @@ mod tests {
         // rides the OPTION_SIGHT / OPTION_RUWACH state instead.
         assert!(caster_skill_effects(SkillEnum::MgSight).cast.is_empty());
         assert!(caster_skill_effects(SkillEnum::AlRuwach).cast.is_empty());
+    }
+
+    #[test]
+    fn prepare_kick_stances_flash_the_caster_blue() {
+        for s in [
+            SkillEnum::TkReadystorm,
+            SkillEnum::TkReadydown,
+            SkillEnum::TkReadyturn,
+            SkillEnum::TkReadycounter,
+            SkillEnum::TkDodge,
+        ] {
+            assert_eq!(caster_skill_effects(s).cast, &[EffectId::TaeReady], "{s:?}");
+        }
     }
 
     #[test]

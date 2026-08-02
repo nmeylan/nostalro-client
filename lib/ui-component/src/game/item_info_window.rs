@@ -2,6 +2,7 @@ use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
 use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
+use ragnarok_game::char_name::CharNameCache;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
@@ -120,7 +121,13 @@ impl ItemInfoWindow {
         }
     }
 
-    pub fn show(&mut self, item: &Item, data: &DataTable, is_book: bool) {
+    pub fn show(
+        &mut self,
+        item: &Item,
+        data: &DataTable,
+        producers: &CharNameCache,
+        is_book: bool,
+    ) {
         if let Some(current) = &self.item
             && current.item_id == item.item_id
         {
@@ -135,11 +142,14 @@ impl ItemInfoWindow {
             .map(|lines| lines.to_vec())
             .unwrap_or_default();
 
-        let slot_count = data
-            .item_slot_count
-            .as_ref()
-            .map(|table| table.get_slot_count(item.item_id))
-            .unwrap_or(0);
+        let slot_count = if item.producer_char_id().is_some() {
+            0
+        } else {
+            data.item_slot_count
+                .as_ref()
+                .map(|table| table.get_slot_count(item.item_id))
+                .unwrap_or(0)
+        };
 
         let collection_path = item
             .resource_name
@@ -147,7 +157,7 @@ impl ItemInfoWindow {
             .map(|name| ragnarok_resources::ui::collection::named(name));
 
         let mut card_icon_paths: [Option<String>; 4] = [None, None, None, None];
-        if item.is_equipment() {
+        if item.is_equipment() && item.producer_char_id().is_none() {
             for i in 0..4usize {
                 let card_id = item.slot[i];
                 if card_id != 0 && card_id != SLOT_EMPTY {
@@ -165,6 +175,7 @@ impl ItemInfoWindow {
                 item,
                 data.item_slot_count.as_ref(),
                 data.card_name.as_ref(),
+                producers,
             ),
             collection_path,
             is_damaged: item.is_damaged,
@@ -878,7 +889,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         assert!(win.is_open());
         win.close();
         assert!(!win.is_open());
@@ -889,9 +900,9 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         assert!(win.is_open());
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         assert!(!win.is_open());
     }
 
@@ -901,7 +912,7 @@ mod tests {
         let data = make_data_table();
         let mut item = make_item(1201, 4, [0; 4]);
         item.is_damaged = true;
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         assert!(win.item.as_ref().unwrap().is_damaged);
     }
 
@@ -910,7 +921,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(1201, 4, [4001, SLOT_EMPTY, 0, 0]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         let info = win.item.as_ref().unwrap();
         assert!(info.is_equipment);
         assert_eq!(info.slot[0], 4001);
@@ -923,7 +934,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         assert_eq!(
             win.item.as_ref().unwrap().collection_path.as_deref(),
             Some("data/texture/유저인터페이스/collection/test_resource.bmp"),
@@ -935,7 +946,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(501, 0, [0; 4]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         let paths = win.pending_texture_paths();
         assert_eq!(paths.len(), 1);
         assert!(paths[0].contains("collection/test_resource.bmp"));
@@ -946,7 +957,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(1201, 4, [0; 4]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         let info = win.item.as_ref().unwrap();
         assert!(info.is_equipment);
         assert_eq!(info.slot_count, 0);
@@ -969,7 +980,7 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let item = make_item(1201, 4, [4025, 0, 0, 0]);
-        win.show(&item, &data, false);
+        win.show(&item, &data, &CharNameCache::default(), false);
         win.show_card(4025, &data);
         assert!(win.is_open());
         assert!(win.card_info.is_some());
@@ -1004,12 +1015,12 @@ mod tests {
         let mut win = ItemInfoWindow::new();
         let data = make_data_table();
         let card = make_item(4001, 6, [0; 4]);
-        win.show(&card, &data, false);
+        win.show(&card, &data, &CharNameCache::default(), false);
         assert!(win.item.as_ref().unwrap().is_card);
         assert!(!win.item.as_ref().unwrap().is_equipment);
 
         let weapon = make_item(1201, 4, [0; 4]);
-        win.show(&weapon, &data, false);
+        win.show(&weapon, &data, &CharNameCache::default(), false);
         assert!(!win.item.as_ref().unwrap().is_card);
         assert!(win.item.as_ref().unwrap().is_equipment);
     }

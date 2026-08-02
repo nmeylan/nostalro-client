@@ -3,6 +3,7 @@ use super::inventory_window::INV_WINDOW_ID;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{draw_container, draw_titlebar, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
+use ragnarok_game::char_name::CharNameCache;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::GameEvent;
@@ -123,6 +124,7 @@ impl TradeWindow {
         top_y: f32,
         row_base: u32,
         data: &DataTable,
+        producers: &CharNameCache,
         grf: bool,
         tc: [f32; 4],
         locked: bool,
@@ -172,7 +174,8 @@ impl TradeWindow {
                     texture: TextureRef::Named(icon_path),
                 });
             }
-            let name = format_equipment_display_name(item, slot_count_table, card_name_table);
+            let name =
+                format_equipment_display_name(item, slot_count_table, card_name_table, producers);
             let short: String = name.chars().take(NAME_MAX_CHARS).collect();
             let name_color = if item.is_identified { tc } else { GREY };
             ui.text(
@@ -325,6 +328,7 @@ impl InGameWindow for TradeWindow {
 
         // --- Item columns ---
         let items_top = body_y + HEADER_H;
+        let producers = &character.char_names;
         let my_items: Vec<Item> = character.trade.my_items().to_vec();
         let other_items: Vec<Item> = character.trade.other_items().to_vec();
         self.draw_item_column(
@@ -334,6 +338,7 @@ impl InGameWindow for TradeWindow {
             items_top,
             MY_ROW_BASE,
             data,
+            producers,
             grf,
             tc,
             my_locked,
@@ -345,6 +350,7 @@ impl InGameWindow for TradeWindow {
             items_top,
             OTHER_ROW_BASE,
             data,
+            producers,
             grf,
             tc,
             other_locked,

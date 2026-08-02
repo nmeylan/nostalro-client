@@ -820,7 +820,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
 
     if let Some(p) = any.downcast_ref::<PacketZcAckReqnameBygid>() {
         let name: String = p.cname.iter().take_while(|c| **c != '\0').collect();
-        return vec![GameEvent::EntityNameReceived { gid: p.gid, name }];
+        return vec![
+            GameEvent::CharNameReceived {
+                char_id: p.gid,
+                name: name.clone(),
+            },
+            GameEvent::EntityNameReceived { gid: p.gid, name },
+        ];
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcAckReqnameall>() {
@@ -4481,7 +4487,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_ack_reqname_bygid_returns_entity_name_received() {
+    fn dispatch_ack_reqname_bygid_returns_char_and_entity_name() {
         let packetver = 20120307;
         let mut pkt = PacketZcAckReqnameBygid::new(packetver);
         pkt.set_gid(77);
@@ -4492,14 +4498,18 @@ mod tests {
         pkt.set_cname(name);
         pkt.fill_raw();
         let result = dispatch_packet(&pkt, packetver);
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.len(), 2);
         match &result[0] {
-            GameEvent::EntityNameReceived { gid, name } => {
-                assert_eq!(*gid, 77);
+            GameEvent::CharNameReceived { char_id, name } => {
+                assert_eq!(*char_id, 77);
                 assert_eq!(name, "Lidia");
             }
-            other => panic!("expected EntityNameReceived, got {other:?}"),
+            other => panic!("expected CharNameReceived, got {other:?}"),
         }
+        assert!(matches!(
+            &result[1],
+            GameEvent::EntityNameReceived { gid: 77, .. }
+        ));
     }
 
     #[test]

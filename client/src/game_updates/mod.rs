@@ -69,6 +69,7 @@ impl App {
         self.process_scheduled_hits();
         self.process_caster_replays();
         self.update_floor_items(elapsed);
+        self.request_producer_names(now_ms);
         self.update_arrows(delta);
         self.check_pending_pickup();
         self.check_pending_attack(delta);

@@ -132,6 +132,24 @@ impl ForcedAnimation {
         }
     }
 
+    /// A held frame that releases itself once `duration_ms` has elapsed.
+    pub fn held_for(action: usize, frame: usize, duration_ms: f32) -> Self {
+        Self {
+            duration_ms,
+            ..Self::held(action, frame)
+        }
+    }
+
+    /// Counts a held frame down, reporting whether it still has time left.
+    /// A hold set up with no duration never expires on its own.
+    pub fn tick_hold(&mut self, dt: f32) -> bool {
+        if self.duration_ms <= 0.0 {
+            return true;
+        }
+        self.duration_ms -= dt * 1000.0;
+        self.duration_ms > 0.0
+    }
+
     pub fn started(&self) -> bool {
         self.started
     }
@@ -686,6 +704,7 @@ impl Entity {
     pub fn enter_dead(&mut self) {
         self.state = EntityState::Dead;
         self.state_timer = 0.0;
+        self.forced_animation = None;
         self.movement.stop();
         self.pending_death = false;
         self.target_gid = None;
@@ -884,10 +903,11 @@ impl Entity {
     }
 
     pub fn skill_exec_start_frame(&self) -> usize {
-        use crate::skill_action::{SkillMotionType, skill_motion_type};
+        use crate::skill_action::{SkillMotionType, skill_motion_type, skill_pose};
         match self.active_skill_id {
             Some(id) => match skill_motion_type(id) {
                 SkillMotionType::Skill | SkillMotionType::Sing | SkillMotionType::Dance => 1,
+                SkillMotionType::Pose => skill_pose(id).map_or(0, |p| p.frame),
                 _ => 0,
             },
             None => 1,
@@ -895,12 +915,13 @@ impl Entity {
     }
 
     fn skill_exec_action_index(&self) -> usize {
-        use crate::skill_action::{SkillMotionType, skill_motion_type};
+        use crate::skill_action::{SkillMotionType, skill_motion_type, skill_pose};
         let skill_id = match self.active_skill_id {
             Some(id) => id,
             None => return 12,
         };
         match skill_motion_type(skill_id) {
+            SkillMotionType::Pose => skill_pose(skill_id).map_or(0, |p| p.action),
             SkillMotionType::Attack => self.attack_action_for_weapon(),
             SkillMotionType::Throw => 5,
             SkillMotionType::Attack2 => 10,

@@ -7,6 +7,7 @@ use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
 use models::enums::item::ItemType;
 use ragnarok_ai::config::CompanionAiConfig;
+use ragnarok_game::char_name::CharNameCache;
 use ragnarok_game::character::Character;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::data_table::DataTable;
@@ -1088,7 +1089,7 @@ fn create_single(name: &str) -> State {
                 resource_name: None,
             };
             let mut win = ItemInfoWindow::new();
-            win.show(&bow, &data, false);
+            win.show(&bow, &data, &CharNameCache::default(), false);
             State::ItemInfo {
                 win,
                 character: Character::new(),
@@ -2281,7 +2282,7 @@ fn grf_init_single(
                         Some(ItemResourceTable::from_entries(entries, HashMap::new()));
                 }
                 win.close();
-                win.show(item, data, false);
+                win.show(item, data, &CharNameCache::default(), false);
             }
             win.has_grf_textures = true;
             win.set_texture_sizes(size_fn);

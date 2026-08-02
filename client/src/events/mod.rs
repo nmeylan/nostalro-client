@@ -264,6 +264,9 @@ impl App {
                         .entities
                         .apply_entity_direction_changed(gid, head_dir, dir);
                 }
+                GameEvent::CharNameReceived { char_id, name } => {
+                    self.game.character.char_names.insert(char_id, name);
+                }
                 GameEvent::EntityNameReceived { gid, name } => {
                     self.game
                         .world
@@ -2114,20 +2117,27 @@ impl App {
                     self.windows.npc_shop.close();
                 }
                 GameEvent::ShowItemInfo { index } => {
+                    let producers = &self.game.character.char_names;
                     if let Some(item) = self.game.character.inventory.get_item(index) {
                         let is_book = self.item_is_book(item.item_id);
-                        self.windows
-                            .item_info_window
-                            .show(item, &self.game.data_table, is_book);
+                        self.windows.item_info_window.show(
+                            item,
+                            &self.game.data_table,
+                            producers,
+                            is_book,
+                        );
                         let tex_paths = self.windows.item_info_window.pending_texture_paths();
                         self.preload_item_icons(tex_paths);
                     }
                 }
                 GameEvent::ShowItemInfoDirect { item } => {
                     let is_book = self.item_is_book(item.item_id);
-                    self.windows
-                        .item_info_window
-                        .show(&item, &self.game.data_table, is_book);
+                    self.windows.item_info_window.show(
+                        &item,
+                        &self.game.data_table,
+                        &self.game.character.char_names,
+                        is_book,
+                    );
                     let tex_paths = self.windows.item_info_window.pending_texture_paths();
                     self.preload_item_icons(tex_paths);
                 }

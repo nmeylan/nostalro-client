@@ -1,11 +1,31 @@
+use crate::char_name::CharNameCache;
 use crate::data_table::card_name_table::CardNameTable;
 use crate::data_table::item_slot_count_table::ItemSlotCountTable;
 use crate::item::Item;
+
+const STAR_CRUMB_PREFIX: [&str; 4] = [
+    "",
+    "Very Strong ",
+    "Very Very Strong ",
+    "Very Very Very Strong ",
+];
+
+fn element_postfix(element: u16) -> &'static str {
+    match element {
+        0 => "'s ",
+        1 => "'s Ice ",
+        2 => "'s Earth ",
+        3 => "'s Fire ",
+        4 => "'s Wind ",
+        _ => "",
+    }
+}
 
 pub fn format_equipment_display_name(
     item: &Item,
     slot_count_table: Option<&ItemSlotCountTable>,
     card_table: Option<&CardNameTable>,
+    producers: &CharNameCache,
 ) -> String {
     if !item.is_identified {
         return item.name.clone();
@@ -19,6 +39,14 @@ pub fn format_equipment_display_name(
 
     if item.refining_level > 0 {
         result.push_str(&format!("+{} ", item.refining_level));
+    }
+
+    if let Some(char_id) = item.producer_char_id() {
+        result.push_str(STAR_CRUMB_PREFIX[item.star_crumb_count() as usize]);
+        result.push_str(producers.get(char_id).unwrap_or_default());
+        result.push_str(element_postfix(item.slot[1] & 0xff));
+        result.push_str(&item.name);
+        return result;
     }
 
     let (prefix, postfix) = build_card_affixes(&item.slot, card_table);
@@ -86,8 +114,15 @@ fn build_card_affixes(slots: &[u16; 4], card_table: Option<&CardNameTable>) -> (
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::item::{CARD0_CREATE, CARD0_FORGE};
     use models::enums::item::ItemType;
     use std::collections::{HashMap, HashSet};
+
+    fn producers() -> CharNameCache {
+        let mut cache = CharNameCache::default();
+        cache.insert(0x0004_0002, "Bob".to_string());
+        cache
+    }
 
     fn make_item(name: &str, refining: u8, slots: [u16; 4]) -> Item {
         Item {
@@ -126,13 +161,19 @@ mod tests {
     #[test]
     fn plain_item_name() {
         let item = make_item("Sword", 0, [0; 4]);
-        assert_eq!(format_equipment_display_name(&item, None, None), "Sword");
+        assert_eq!(
+            format_equipment_display_name(&item, None, None, &producers()),
+            "Sword"
+        );
     }
 
     #[test]
     fn refining_only() {
         let item = make_item("Sword", 5, [0; 4]);
-        assert_eq!(format_equipment_display_name(&item, None, None), "+5 Sword");
+        assert_eq!(
+            format_equipment_display_name(&item, None, None, &producers()),
+            "+5 Sword"
+        );
     }
 
     #[test]
@@ -140,7 +181,7 @@ mod tests {
         let item = make_item("Sword", 0, [0; 4]);
         let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), None),
+            format_equipment_display_name(&item, Some(&slot_table), None, &producers()),
             "Sword [3]"
         );
     }
@@ -150,7 +191,7 @@ mod tests {
         let item = make_item("Sword", 7, [0; 4]);
         let slot_table = make_slot_table(1101, 2);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), None),
+            format_equipment_display_name(&item, Some(&slot_table), None, &producers()),
             "+7 Sword [2]"
         );
     }
@@ -161,7 +202,7 @@ mod tests {
         let item = make_item("Katana", 5, [4001, 0, 0, 0]);
         let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "+5 Bloody Katana [3]"
         );
     }
@@ -172,7 +213,7 @@ mod tests {
         let item = make_item("Katana", 0, [4002, 0, 0, 0]);
         let slot_table = make_slot_table(1101, 2);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "Katana of Starlight [2]"
         );
     }
@@ -183,7 +224,7 @@ mod tests {
         let item = make_item("Katana", 7, [4001, 4001, 0, 0]);
         let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "+7 Double Bloody Katana [3]"
         );
     }
@@ -194,7 +235,7 @@ mod tests {
         let item = make_item("Katana", 7, [4001, 4001, 4002, 0]);
         let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "+7 Double Bloody Katana of Starlight [3]"
         );
     }
@@ -205,7 +246,7 @@ mod tests {
         let item = make_item("Katana", 0, [9999, 4001, 0, 0]);
         let slot_table = make_slot_table(1101, 2);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "Bloody Katana [2]"
         );
     }
@@ -216,7 +257,7 @@ mod tests {
         let item = make_item("Katana", 0, [4001, 4001, 4001, 4001]);
         let slot_table = make_slot_table(1101, 4);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "Quadruple Bloody Katana [4]"
         );
     }
@@ -228,8 +269,38 @@ mod tests {
         let table = make_card_table(&[(4001, "Bloody")], &[]);
         let slot_table = make_slot_table(1101, 3);
         assert_eq!(
-            format_equipment_display_name(&item, Some(&slot_table), Some(&table)),
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
             "Unknown Weapon"
+        );
+    }
+
+    #[test]
+    fn forged_weapon_names_its_smith_star_crumbs_and_element() {
+        let table = make_card_table(&[(4001, "Bloody")], &[]);
+        let slot_table = make_slot_table(1101, 3);
+        let item = make_item("Katana", 7, [CARD0_FORGE, (10 << 8) | 3, 2, 4]);
+        assert_eq!(
+            format_equipment_display_name(&item, Some(&slot_table), Some(&table), &producers()),
+            "+7 Very Very Strong Bob's Fire Katana"
+        );
+    }
+
+    #[test]
+    fn forged_weapon_without_extras_keeps_bare_possessive() {
+        let slot_table = make_slot_table(1101, 3);
+        let item = make_item("Katana", 0, [CARD0_FORGE, 0, 2, 4]);
+        assert_eq!(
+            format_equipment_display_name(&item, Some(&slot_table), None, &producers()),
+            "Bob's Katana"
+        );
+    }
+
+    #[test]
+    fn created_item_names_its_maker() {
+        let item = make_item("White Potion", 0, [CARD0_CREATE, 0, 2, 4]);
+        assert_eq!(
+            format_equipment_display_name(&item, None, None, &producers()),
+            "Bob's White Potion"
         );
     }
 }

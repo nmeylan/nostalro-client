@@ -190,6 +190,7 @@ impl InventoryData {
         location: u16,
         result: u8,
         data_table: &crate::data_table::DataTable,
+        producers: &crate::char_name::CharNameCache,
     ) -> Option<(String, u16, Option<String>)> {
         if result != 0 {
             return None;
@@ -225,6 +226,7 @@ impl InventoryData {
                     item,
                     data_table.item_slot_count.as_ref(),
                     data_table.card_name.as_ref(),
+                    producers,
                 )
             })
             .unwrap_or(name);
@@ -1077,6 +1079,7 @@ mod tests {
                 item,
                 data_table.item_slot_count.as_ref(),
                 data_table.card_name.as_ref(),
+                &crate::char_name::CharNameCache::default(),
             ),
             "Knife [4]"
         );

@@ -209,6 +209,11 @@ pub enum GameEvent {
         gid: u32,
         name: String,
     },
+    /// Reply to a name lookup by char id; the char need not be on the map.
+    CharNameReceived {
+        char_id: u32,
+        name: String,
+    },
     EntityNamesReceived {
         gid: u32,
         name: String,

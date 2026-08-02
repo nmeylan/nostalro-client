@@ -197,6 +197,7 @@ impl InGameWindow for InventoryWindow {
 
         let slot_count_table = data.item_slot_count.as_ref();
         let card_name_table = data.card_name.as_ref();
+        let producers = &character.char_names;
         let mut events = Vec::new();
 
         let scrollbar_w = SCROLLBAR_W;
@@ -353,8 +354,12 @@ impl InGameWindow for InventoryWindow {
                 ui.text(count_x, count_y, &count_str, [0.0, 0.0, 0.0, 1.0]);
 
                 if response.hovered() {
-                    let display_name =
-                        format_equipment_display_name(item, slot_count_table, card_name_table);
+                    let display_name = format_equipment_display_name(
+                        item,
+                        slot_count_table,
+                        card_name_table,
+                        producers,
+                    );
                     let tooltip_text = if item.count > 1 {
                         format!("{display_name} {} ea", item.count)
                     } else {
