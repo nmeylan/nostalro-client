@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::damage_number::DamageNumberQuad;
@@ -15,7 +15,7 @@ use ragnarok_renderer::{
 use ragnarok_tools::rendering_viewer::controls::{self, Background, Scenario, ViewerAction};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 use std::path::PathBuf;
@@ -171,7 +171,15 @@ struct App {
     dylib_path: PathBuf,
     last_dylib_mtime: SystemTime,
     reload_counter: u64,
+
+    /// Earliest instant the next frame may render. The event loop sleeps
+    /// (`ControlFlow::WaitUntil`) until this point instead of spinning.
+    next_frame: Instant,
 }
+
+/// The preferred `Mailbox` present mode never blocks to throttle us, so the
+/// redraw cadence has to be paced here.
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 // Fixed screen positions for each scenario entity_id (1-9)
 const GRID_COLS: usize = 5;
@@ -246,6 +254,7 @@ impl App {
             dylib_path,
             last_dylib_mtime,
             reload_counter: 0,
+            next_frame: Instant::now(),
         }
     }
 
@@ -615,15 +624,20 @@ impl ApplicationHandler for App {
                     self.handle_action(action);
                 }
             }
-            WindowEvent::RedrawRequested => {
-                self.render_frame();
-
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
+            WindowEvent::RedrawRequested => self.render_frame(),
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 

@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::grf::GrfArchive;
@@ -19,7 +19,7 @@ use ragnarok_tools::sprite_viewer::controls::{self, Background, ViewerAction};
 use ragnarok_tools::sprite_viewer::shader_watcher::ShaderWatcher;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -98,7 +98,15 @@ struct App {
     accessory_table: AccessoryTable,
     is_composite: bool,
     ctrl_pressed: bool,
+
+    /// Earliest instant the next frame may render. The event loop sleeps
+    /// (`ControlFlow::WaitUntil`) until this point instead of spinning.
+    next_frame: Instant,
 }
+
+/// The preferred `Mailbox` present mode never blocks to throttle us, so the
+/// redraw cadence has to be paced here.
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 impl App {
     fn new(grf_path: Option<String>) -> Self {
@@ -131,6 +139,7 @@ impl App {
             accessory_table: AccessoryTable::empty(),
             is_composite: false,
             ctrl_pressed: false,
+            next_frame: Instant::now(),
         }
     }
 
@@ -1066,13 +1075,20 @@ impl ApplicationHandler for App {
                 }
 
                 self.render_frame();
-
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 

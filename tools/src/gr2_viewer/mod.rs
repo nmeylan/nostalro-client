@@ -6,7 +6,7 @@
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::grf::GrfArchive;
@@ -17,7 +17,7 @@ use ragnarok_renderer::{
 };
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -290,7 +290,15 @@ struct App {
     last_mouse: (f32, f32),
     orbiting: bool,
     last_frame: Instant,
+
+    /// Earliest instant the next frame may render. The event loop sleeps
+    /// (`ControlFlow::WaitUntil`) until this point instead of spinning.
+    next_frame: Instant,
 }
+
+/// The preferred `Mailbox` present mode never blocks to throttle us, so the
+/// redraw cadence has to be paced here.
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 impl App {
     fn update_title(&self) {
@@ -436,14 +444,20 @@ impl ApplicationHandler for App {
                     self.last_mouse = self.mouse_pos;
                 }
             }
-            WindowEvent::RedrawRequested => {
-                self.render_frame();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
+            WindowEvent::RedrawRequested => self.render_frame(),
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        if now >= self.next_frame {
+            self.next_frame = now + FRAME_INTERVAL;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 }
 
@@ -572,6 +586,7 @@ pub fn run(args: Args) {
         last_mouse: (0.0, 0.0),
         orbiting: false,
         last_frame: Instant::now(),
+        next_frame: Instant::now(),
     };
     event_loop.run_app(&mut app).unwrap();
 }

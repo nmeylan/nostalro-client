@@ -244,7 +244,8 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::HtPower
         | S::HtPhantasmic
         | S::AmSpheremine
-        | S::HwMagicpower => &[E::Bash],
+        | S::HwMagicpower
+        | S::SmBash => &[E::Bash],
 
         S::MgNapalmbeat
         | S::MgSoulstrike
