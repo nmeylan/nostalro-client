@@ -445,7 +445,14 @@ pub fn make_effect(
             effects::mapzone::GLOW4,
         )),
 
-        EffectId::Yufitel2 => Box::new(effects::yufitel2::Yufitel2Effect::new(anchor.point())),
+        EffectId::Yufitelhit => Box::new(effects::yufitel_hit::YufitelHitEffect::new(
+            anchor.point(),
+            effects::yufitel_hit::YUFITEL_HIT,
+        )),
+        EffectId::Yufitel2 => Box::new(effects::yufitel_hit::YufitelHitEffect::new(
+            anchor.point(),
+            effects::yufitel_hit::YUFITEL2,
+        )),
         EffectId::TextureFalling => Box::new(effects::texture_falling::FallingTrailEffect::new(
             anchor.point(),
             effects::texture_falling::TEXTURE_FALLING,

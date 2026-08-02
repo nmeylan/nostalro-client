@@ -39,7 +39,6 @@ pub fn str_aliases(id: EffectId) -> &'static [&'static str] {
         EffectId::Lord => &["Lord"],
         EffectId::Benedictio => &["Benedictio"],
         EffectId::Meteorstorm => &["meteor1", "meteor2", "meteor3", "meteor4"],
-        EffectId::Yufitelhit => &["ufidel_pang"],
         EffectId::Quagmire => &["Quagmire"],
         EffectId::Firepillar => &["FirePillar"],
         EffectId::Firepillarbomb => &["FirePillarBomb"],

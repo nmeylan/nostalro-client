@@ -18,7 +18,7 @@ use super::effects::{
     sma, sonicblowhit, soul_breaker, soul_strike, soullink, spearbmr, spherewind, spraypond,
     squarebody, status_up, stin, storm_kick, stormgust, summon_slave, super_angel, teihit,
     teleportation, texture_falling, throw_item, thunderstorm2, tripleattack, turnundead, twilight,
-    volcano, warp, waterball, waterball2, wind, yufitel2, yupitel,
+    volcano, warp, waterball, waterball2, wind, yufitel_hit, yupitel,
 };
 use super::spec::{EffectSpec, SprBodyRecolor};
 use super::spr_aliases::spr_def;
@@ -233,7 +233,7 @@ pub fn effect_spec(id: EffectId) -> Option<EffectSpec> {
         EffectId::Cone => EffectSpec::Custom,
         EffectId::Flowercast => EffectSpec::Custom,
 
-        EffectId::Yufitel2 => EffectSpec::Custom,
+        EffectId::Yufitelhit | EffectId::Yufitel2 => EffectSpec::Custom,
         EffectId::TextureFalling => EffectSpec::Custom,
 
         EffectId::Twohandquicken | EffectId::Spearquicken | EffectId::Lkconcentration => {
@@ -620,7 +620,7 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Bottom | EffectId::Bottom2 => bottom_box::TOTAL_DURATION_MS,
         EffectId::Cone => cone::TOTAL_DURATION_MS,
         EffectId::Flowercast => flowercast::TOTAL_DURATION_MS,
-        EffectId::Yufitel2 => yufitel2::TOTAL_DURATION_MS,
+        EffectId::Yufitelhit | EffectId::Yufitel2 => yufitel_hit::TOTAL_DURATION_MS,
         EffectId::TextureFalling => {
             texture_falling::total_duration_ms(&texture_falling::TEXTURE_FALLING)
         }

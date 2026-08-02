@@ -707,6 +707,13 @@ impl EffectHolder {
         self.shake.offset().to_array()
     }
 
+    /// Drop everything anchored to `entity_id`. Called when the entity dies, so
+    /// hit markers and buffs do not keep playing on the corpse.
+    pub fn remove_entity_effects(&mut self, entity_id: u32) {
+        self.effects
+            .retain(|e| e.attach != Attach::Entity(entity_id));
+    }
+
     pub fn reposition_by_key(&mut self, key: u32, world_pos: [f32; 3]) -> bool {
         let mut moved = false;
         for e in self.effects.iter_mut().filter(|e| e.key == Some(key)) {

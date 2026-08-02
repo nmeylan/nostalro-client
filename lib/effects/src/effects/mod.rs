@@ -177,5 +177,5 @@ pub mod waterball2;
 pub mod waterfall;
 pub mod wind;
 pub mod wink;
-pub mod yufitel2;
+pub mod yufitel_hit;
 pub mod yupitel;

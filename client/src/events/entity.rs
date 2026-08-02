@@ -298,6 +298,7 @@ impl App {
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.request_pending_death();
                 }
+                self.effect_holder.remove_entity_effects(gid);
                 self.despawn_level_aura(gid);
                 self.despawn_boss_aura(gid);
                 self.despawn_pk_rank_aura(gid);
@@ -1444,6 +1445,7 @@ impl App {
     }
 
     pub(crate) fn despawn_entity_effects(&mut self, gid: u32) {
+        self.effect_holder.remove_entity_effects(gid);
         self.despawn_level_aura(gid);
         self.despawn_boss_aura(gid);
         self.despawn_pk_rank_aura(gid);
