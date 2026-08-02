@@ -800,7 +800,7 @@ pub fn build_clip_quad(
         [-half_w, half_h],
     ];
 
-    let angle = -(clip.angle as f32).to_radians();
+    let angle = (clip.angle as f32).to_radians();
     let cos_a = angle.cos();
     let sin_a = angle.sin();
 
@@ -2068,6 +2068,69 @@ mod tests {
         assert!((verts[2].position[0] - 112.0).abs() < 0.01);
         assert!((verts[2].position[1] - 112.0).abs() < 0.01);
         assert!((verts[0].position[2] - 0.5).abs() < 0.001);
+    }
+
+    /// Screen space is y-down, so a positive clip angle turns clockwise, and a
+    /// mirrored clip is the same quad with its texture columns swapped — the
+    /// corner that carries `u = 0` moves to the other side of the rotated quad.
+    #[test]
+    fn rotated_clip_turns_clockwise_and_mirrors_across_the_rotated_axis() {
+        let make = |angle: i32, mirror: u32| SpriteFrame {
+            x: 0,
+            y: 0,
+            sprite_index: 0,
+            mirror,
+            color: [255, 255, 255, 255],
+            zoom_x: 1.0,
+            zoom_y: 1.0,
+            angle,
+            sprite_type: 0,
+            width: None,
+            height: None,
+        };
+        let textures = dummy_textures();
+        let anchor = [100.0, 100.0];
+        let corner = |verts: &[SpriteVertex], u: f32, v: f32| -> [f32; 2] {
+            let c = verts
+                .iter()
+                .find(|c| c.tex_coord == [u, v])
+                .expect("corner present");
+            [c.position[0], c.position[1]]
+        };
+
+        let (flat, _, _) =
+            build_clip_quad(&make(0, 0), &textures, anchor, 0.0, [0.0, 0.0]).unwrap();
+        assert_eq!(corner(&flat, 0.0, 0.0), [88.0, 88.0]);
+
+        // +90° puts the texture's top-left corner where its bottom-left was.
+        let (spun, _, _) =
+            build_clip_quad(&make(90, 0), &textures, anchor, 0.0, [0.0, 0.0]).unwrap();
+        let tl = corner(&spun, 0.0, 0.0);
+        assert!(
+            (tl[0] - 112.0).abs() < 0.01 && (tl[1] - 88.0).abs() < 0.01,
+            "{tl:?}"
+        );
+
+        // Mirroring swaps which rotated corner carries u = 0, and leaves the
+        // quad's four positions untouched.
+        let (mirrored, _, _) =
+            build_clip_quad(&make(90, 1), &textures, anchor, 0.0, [0.0, 0.0]).unwrap();
+        assert_eq!(corner(&mirrored, 0.0, 0.0), corner(&spun, 1.0, 0.0));
+        assert_eq!(corner(&mirrored, 1.0, 0.0), corner(&spun, 0.0, 0.0));
+        let mut spun_pos: Vec<[f32; 2]> = spun
+            .iter()
+            .map(|v| [v.position[0], v.position[1]])
+            .collect();
+        let mut mirror_pos: Vec<[f32; 2]> = mirrored
+            .iter()
+            .map(|v| [v.position[0], v.position[1]])
+            .collect();
+        for p in spun_pos.iter_mut().chain(mirror_pos.iter_mut()) {
+            *p = [p[0].round(), p[1].round()];
+        }
+        spun_pos.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        mirror_pos.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(spun_pos, mirror_pos);
     }
 
     #[test]
