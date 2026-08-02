@@ -11,7 +11,7 @@ use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::map_coordinates::MapCoordinates;
 use ragnarok_game::damage_number::{
-    DamageNumber, DamageNumberManager, DamageNumberRenderEntry, build_damage_number_quads,
+    DamageNumber, DamageNumberManager, build_damage_number_entries, build_damage_number_quads,
 };
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::effect::spec::EffectAnchor;
@@ -29,7 +29,9 @@ use ragnarok_renderer::effect::{
     EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
 use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
-use ragnarok_renderer::sprite_projection::{cell_world_pos, project_entity_screen};
+use ragnarok_renderer::sprite_projection::{
+    cell_world_pos, project_cell_offset, project_entity_screen,
+};
 use ragnarok_renderer::{BackgroundMode, FrameInputs, Renderer, UiDrawCall, block_on};
 use std::collections::HashMap;
 use std::path::Path;
@@ -1019,7 +1021,7 @@ impl App {
         // previewed actor, then age the manager. Direction is unused (no drift).
         for (entity_id, req) in self.effect_holder.drain_number_requests() {
             self.damage_numbers.add(DamageNumber::effect_number(
-                entity_id, req.value, req.color, 0,
+                entity_id, req.value, req.color, 0.0,
             ));
         }
         self.damage_numbers.update(sim_dt);
@@ -1126,17 +1128,17 @@ impl App {
             ));
         }
 
-        // Floating numbers: project the previewed actor's head and lay the
-        // recoloured numbers over it (same path as the in-game scene render).
+        // Floating numbers: each one is its own object at the actor origin plus
+        // a world offset, projected the same way the in-game scene does it.
         let mut number_inline_textures: Vec<&wgpu::BindGroup> = Vec::new();
-        if let (Some(entity), Some(map), Some(num_tex), Some(num_act)) = (
+        if let (Some(_entity), Some(map), Some(num_tex), Some(num_act)) = (
             &self.entity_sprite,
             &self.map_data,
             &self.damage_number_textures,
             &self.damage_number_act,
         ) && !self.damage_numbers.numbers.is_empty()
             && let Some(coords) = map.coordinates.as_ref()
-            && let Some((screen_anchor, depth, camera_dir, sprite_scale, _)) = project_entity_screen(
+            && let Some((_anchor, _depth, _camera_dir, _sprite_scale, _)) = project_entity_screen(
                 self.character_cell,
                 map.gat.as_ref(),
                 coords,
@@ -1145,30 +1147,24 @@ impl App {
                 screen_h,
             )
         {
-            let head_dir = self.animation.direction() as u8;
-            let head_offset = entity.compute_head_offset(
-                &self.animation,
-                Some(camera_dir),
-                head_dir,
-                screen_anchor,
-                depth,
-                sprite_scale,
+            let character_cell = self.character_cell;
+            let entries = build_damage_number_entries(
+                &mut self.damage_numbers.numbers,
+                |entity_id, offset| {
+                    if entity_id != VIEWER_ACTOR_ID {
+                        return None;
+                    }
+                    project_cell_offset(
+                        character_cell,
+                        offset,
+                        map.gat.as_ref(),
+                        coords,
+                        &renderer.camera,
+                        screen_w,
+                        screen_h,
+                    )
+                },
             );
-            let entries: Vec<DamageNumberRenderEntry> = self
-                .damage_numbers
-                .numbers
-                .iter()
-                .filter(|d| d.entity_id == VIEWER_ACTOR_ID)
-                .filter_map(|dmg| {
-                    Some(DamageNumberRenderEntry {
-                        entity_id: dmg.entity_id,
-                        screen_x: screen_anchor[0],
-                        screen_y: screen_anchor[1] - head_offset,
-                        scale: sprite_scale,
-                        data: dmg.render_data()?,
-                    })
-                })
-                .collect();
             let quads = build_damage_number_quads(
                 &entries,
                 num_act,

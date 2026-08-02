@@ -18,6 +18,29 @@ pub enum DamageNumberType {
 
 const DIGIT_SPACING: f32 = 8.0;
 const FRAME_MS: f32 = 24.0; // ms per animation tick
+/// World units above the actor origin a number spawns at. Everything here is in
+/// world units, never screen pixels: one sprite pixel is only `map_zoom / 75`
+/// world units, so mixing the two shrinks the whole motion by 7.5x at zoom 10.
+const LIFT: f32 = 12.0;
+/// A running total spawns this much higher again.
+const TOTAL_EXTRA_LIFT: f32 = 15.0;
+/// Lucky is animated by the generic arm, which lifts further and never moves.
+const LUCKY_LIFT: f32 = 20.0;
+/// The arc adds a constant 8 and a fixed feedback term of 4/3 on top of `LIFT`.
+const ARC_BIAS: f32 = 8.0;
+const ARC_FEEDBACK: f32 = 4.0 / 3.0;
+/// Rise per frame for the types that climb linearly instead of arcing.
+const MISS_RISE: f32 = 0.54;
+const TOTAL_RISE: f32 = 0.1;
+const RECOVERY_RISE: f32 = 0.18;
+/// World units per frame of sideways travel, before the `f/3 + 3` ramp.
+const LATERAL_NORMAL: f32 = 0.8;
+const LATERAL_CRITICAL: f32 = 0.5;
+/// The critical plate is its own object with its own curves.
+const CRIT_PLATE_ZOOM_START: f32 = 3.0;
+const CRIT_PLATE_ZOOM_DECAY: f32 = 0.144;
+const CRIT_PLATE_ZOOM_MIN: f32 = 1.0;
+const CRIT_PLATE_FADE_PER_FRAME: f32 = 3.45;
 /// A total holds full opacity this long before it starts to fade.
 const TOTAL_HOLD_FRAMES: f32 = 90.0;
 /// Every blow of a multi-hit animates as the running total: zoom units per frame².
@@ -40,11 +63,8 @@ const LUCKY_WORD_FROM_FRAME: f32 = 2.0 * LUCKY_FRAMES_PER_MOTION;
 const TOTAL_CRIT_ZOOM_START: f32 = 0.5;
 const TOTAL_CRIT_ZOOM_ACCEL: f32 = 0.06;
 const TOTAL_CRIT_ZOOM_MAX: f32 = 2.0;
-/// Screen units a critical backdrop sits above its digits, before entity scale.
+/// World units a multi-hit total's backdrop sits above its digits.
 const TOTAL_CRIT_LIFT: f32 = 15.0;
-const CRIT_LIFT: f32 = 6.0;
-/// The single-hit critical backdrop tracks its digits' zoom at this fraction.
-const CRIT_ZOOM_RATIO: f32 = 0.6;
 
 impl DamageNumberType {
     pub fn color(&self) -> [f32; 3] {
@@ -96,12 +116,29 @@ impl DamageNumberType {
     }
 }
 
+/// Sign pair for the world XZ drift, from the actor's facing in degrees.
+///
+/// The thresholds do not wrap, so a facing sitting exactly on a full turn falls
+/// through to the last bucket instead of folding back to the first. That is why
+/// a spin stops at 360 rather than resetting to 0, and why the caller passes an
+/// accumulated angle instead of an eight-way direction: a spinning target throws
+/// its numbers to alternating sides only if the angle keeps its own history.
+fn lateral_quadrant(facing_degrees: f32) -> (f32, f32) {
+    let degrees = facing_degrees as i32;
+    match degrees {
+        0..90 => (-1.0, 1.0),
+        90..180 => (-1.0, -1.0),
+        180..270 => (1.0, -1.0),
+        _ => (1.0, 1.0),
+    }
+}
+
 pub struct DamageNumber {
     pub entity_id: u32,
     pub value: i32,
     pub number_type: DamageNumberType,
     pub elapsed: f32,
-    pub direction: u8,
+    pub facing_degrees: f32,
     pub last_screen_pos: Option<(f32, f32, f32)>,
     /// RGB override; falls back to `number_type.color()`.
     pub color_override: Option<[f32; 3]>,
@@ -111,23 +148,33 @@ pub struct DamageNumber {
 }
 
 impl DamageNumber {
-    pub fn new(entity_id: u32, value: i32, number_type: DamageNumberType, direction: u8) -> Self {
+    pub fn new(
+        entity_id: u32,
+        value: i32,
+        number_type: DamageNumberType,
+        facing_degrees: f32,
+    ) -> Self {
         Self {
             entity_id,
             value,
             number_type,
             elapsed: 0.0,
-            direction,
+            facing_degrees,
             last_screen_pos: None,
             color_override: None,
             has_critical: false,
         }
     }
 
-    pub fn effect_number(entity_id: u32, value: i32, color: [f32; 3], direction: u8) -> Self {
+    pub fn effect_number(entity_id: u32, value: i32, color: [f32; 3], facing_degrees: f32) -> Self {
         Self {
             color_override: Some(color),
-            ..Self::new(entity_id, value, DamageNumberType::EffectNumber, direction)
+            ..Self::new(
+                entity_id,
+                value,
+                DamageNumberType::EffectNumber,
+                facing_degrees,
+            )
         }
     }
 
@@ -139,33 +186,47 @@ impl DamageNumber {
         self.elapsed * 1000.0 / FRAME_MS
     }
 
-    pub fn y_offset(&self) -> f32 {
+    /// World units the number sits above the actor origin this frame.
+    fn rise(&self) -> f32 {
         let f = self.frame();
         match self.number_type {
-            t if t.is_combo() || t.is_total() => f * 0.1,
-            DamageNumberType::Miss => f * 0.54,
-            DamageNumberType::Lucky => 0.0,
-            DamageNumberType::Heal | DamageNumberType::EffectNumber => {
-                let perc = self.elapsed / self.number_type.duration();
-                if perc < 0.4 {
-                    0.0
-                } else {
-                    (perc - 0.4) * 300.0
-                }
-            }
-            _ => -8.0 + f * (2.0 - f / 30.0),
+            t if t.is_combo() || t.is_total() => LIFT + TOTAL_EXTRA_LIFT + f * TOTAL_RISE,
+            DamageNumberType::Miss => LIFT + f * MISS_RISE,
+            DamageNumberType::Lucky => LUCKY_LIFT,
+            DamageNumberType::Heal | DamageNumberType::EffectNumber => LIFT + f * RECOVERY_RISE,
+            // Arcs up and falls back through its own start before it expires.
+            _ => LIFT - ARC_BIAS - ARC_FEEDBACK + f * (2.0 - f / 30.0),
         }
     }
 
-    pub fn x_offset(&self) -> f32 {
-        let f = self.frame();
+    /// Sideways travel in world XZ. Only the arcing types drift; everything else
+    /// stays pinned over the actor.
+    fn lateral(&self) -> (f32, f32) {
         let magnitude = match self.number_type {
-            DamageNumberType::Critical => 0.5,
-            DamageNumberType::Normal | DamageNumberType::Enemy => 0.8,
-            _ => return 0.0,
+            DamageNumberType::Critical => LATERAL_CRITICAL,
+            DamageNumberType::Normal | DamageNumberType::Enemy => LATERAL_NORMAL,
+            _ => return (0.0, 0.0),
         };
-        let dir_x: f32 = if self.direction % 8 < 4 { -1.0 } else { 1.0 };
-        dir_x * magnitude * (f / 3.0 + 3.0)
+        let (sx, sz) = lateral_quadrant(self.facing_degrees);
+        let travel = magnitude * (self.frame() / 3.0 + 3.0);
+        (sx * travel, sz * travel)
+    }
+
+    /// Offset from the actor origin in world units, to be added to its world
+    /// position before projecting. World Y is negative-up.
+    pub fn world_offset(&self) -> [f32; 3] {
+        let (dx, dz) = self.lateral();
+        [dx, -self.rise(), dz]
+    }
+
+    /// The critical plate for a multi-hit total rides its own world position.
+    pub fn backdrop_world_offset(&self) -> Option<[f32; 3]> {
+        let b = self.critical_backdrop()?;
+        if b.extra_lift == 0.0 {
+            return None;
+        }
+        let [dx, dy, dz] = self.world_offset();
+        Some([dx, dy - b.extra_lift, dz])
     }
 
     pub fn zoom(&self) -> f32 {
@@ -177,10 +238,7 @@ impl DamageNumber {
             DamageNumberType::Critical => (5.0 - f * 0.24).max(1.3),
             DamageNumberType::Miss => 1.0,
             DamageNumberType::Lucky => 1.0,
-            DamageNumberType::Heal | DamageNumberType::EffectNumber => {
-                let perc = self.elapsed / self.number_type.duration();
-                ((1.0 - perc * 2.0) * 3.0).max(0.8)
-            }
+            DamageNumberType::Heal | DamageNumberType::EffectNumber => (5.0 - f * 0.24).max(1.0),
             _ => (5.0 - f * 0.24).max(1.2),
         }
     }
@@ -193,28 +251,30 @@ impl DamageNumber {
             }
             DamageNumberType::Miss => 250.0 - f * 3.0,
             DamageNumberType::Lucky => 255.0,
-            DamageNumberType::Normal
-            | DamageNumberType::Critical
-            | DamageNumberType::Enemy => 250.0 - f * DAMAGE_FADE_PER_FRAME,
+            DamageNumberType::Normal | DamageNumberType::Critical | DamageNumberType::Enemy => {
+                250.0 - f * DAMAGE_FADE_PER_FRAME
+            }
             _ => 250.0 - f * RECOVERY_FADE_PER_FRAME,
         };
         (alpha_255 / 255.0).clamp(0.0, 1.0)
     }
 
     fn critical_backdrop(&self) -> Option<CriticalBackdrop> {
+        let f = self.frame();
         if self.number_type == DamageNumberType::Critical {
             return Some(CriticalBackdrop {
-                zoom: CRIT_ZOOM_RATIO * self.zoom(),
-                lift: CRIT_LIFT,
+                zoom: (CRIT_PLATE_ZOOM_START - f * CRIT_PLATE_ZOOM_DECAY).max(CRIT_PLATE_ZOOM_MIN),
+                alpha: ((255.0 - f * CRIT_PLATE_FADE_PER_FRAME) / 255.0).clamp(0.0, 1.0),
+                extra_lift: 0.0,
             });
         }
         if !self.has_critical {
             return None;
         }
-        let f = self.frame();
         Some(CriticalBackdrop {
             zoom: (TOTAL_CRIT_ZOOM_START + TOTAL_CRIT_ZOOM_ACCEL * f * f).min(TOTAL_CRIT_ZOOM_MAX),
-            lift: TOTAL_CRIT_LIFT,
+            alpha: self.alpha(),
+            extra_lift: TOTAL_CRIT_LIFT,
         })
     }
 
@@ -257,8 +317,6 @@ impl DamageNumber {
             digit_x_offsets,
             color: [cr, cg, cb, alpha],
             zoom: self.zoom(),
-            y_offset: self.y_offset(),
-            x_offset: self.x_offset(),
             uses_msg_sprite: self.number_type.uses_msg_sprite(),
             msg_frames,
             critical_backdrop: self.critical_backdrop(),
@@ -266,11 +324,13 @@ impl DamageNumber {
     }
 }
 
-/// The `msg.spr` critical plate drawn behind a number, sized and lifted
+/// The `msg.spr` critical plate drawn behind a number, sized and faded
 /// independently of the digits it backs.
 pub struct CriticalBackdrop {
     pub zoom: f32,
-    pub lift: f32,
+    pub alpha: f32,
+    /// World units above the digits. Non-zero means it needs its own projection.
+    pub extra_lift: f32,
 }
 
 pub struct DamageNumberRenderData {
@@ -278,8 +338,6 @@ pub struct DamageNumberRenderData {
     pub digit_x_offsets: Vec<f32>,
     pub color: [f32; 4],
     pub zoom: f32,
-    pub y_offset: f32,
-    pub x_offset: f32,
     pub uses_msg_sprite: bool,
     pub msg_frames: Vec<usize>,
     pub critical_backdrop: Option<CriticalBackdrop>,
@@ -287,13 +345,81 @@ pub struct DamageNumberRenderData {
 
 pub struct DamageNumberRenderEntry {
     pub entity_id: u32,
+    /// Projection of the actor origin plus `DamageNumber::world_offset`.
     pub screen_x: f32,
     pub screen_y: f32,
     pub scale: f32,
+    /// Projection of `backdrop_world_offset`, when the plate rides higher than
+    /// the digits and so needs its own.
+    pub backdrop_screen: Option<(f32, f32, f32)>,
     pub data: DamageNumberRenderData,
 }
 
 pub use ragnarok_formats::damage_number::{DamageNumberQuad, TextureSource};
+
+/// Every retail map ships a GND zoom of 10.0.
+pub const STANDARD_MAP_ZOOM: f32 = 10.0;
+
+/// Pixels per world unit implied by a sprite scale, since `sprite_scale` is
+/// `pixels_per_world_unit * map_zoom / 75`.
+pub fn pixels_per_world_unit(sprite_scale: f32, map_zoom: f32) -> f32 {
+    sprite_scale * 75.0 / map_zoom
+}
+
+/// Screen position for a world offset, for callers holding a sprite scale but no
+/// camera. It drops the offset straight onto the screen axes, so the sideways
+/// drift will not swing with camera yaw the way the projected path does. The
+/// game projects properly; this is for the 2D viewers.
+pub fn flat_screen_offset(
+    anchor: (f32, f32),
+    world_offset: [f32; 3],
+    pixels_per_world_unit: f32,
+) -> (f32, f32) {
+    (
+        anchor.0 + world_offset[0] * pixels_per_world_unit,
+        anchor.1 + world_offset[1] * pixels_per_world_unit,
+    )
+}
+
+/// Turn live numbers into render entries.
+///
+/// `project` maps an entity and a world offset onto a screen position and sprite
+/// scale, returning `None` when the entity cannot be placed. It is a callback
+/// because projecting needs the camera, which lives in the renderer crate and is
+/// not something this crate can reach.
+pub fn build_damage_number_entries<F>(
+    numbers: &mut [DamageNumber],
+    mut project: F,
+) -> Vec<DamageNumberRenderEntry>
+where
+    F: FnMut(u32, [f32; 3]) -> Option<(f32, f32, f32)>,
+{
+    numbers
+        .iter_mut()
+        .filter_map(|dmg| {
+            // A number outlives the entity that spawned it, so it falls back to
+            // wherever it was last drawn.
+            let placed = match project(dmg.entity_id, dmg.world_offset()) {
+                Some(pos) => {
+                    dmg.last_screen_pos = Some(pos);
+                    pos
+                }
+                None => dmg.last_screen_pos?,
+            };
+            let backdrop_screen = dmg
+                .backdrop_world_offset()
+                .and_then(|offset| project(dmg.entity_id, offset));
+            Some(DamageNumberRenderEntry {
+                entity_id: dmg.entity_id,
+                screen_x: placed.0,
+                screen_y: placed.1,
+                scale: placed.2,
+                backdrop_screen,
+                data: dmg.render_data()?,
+            })
+        })
+        .collect()
+}
 
 pub fn build_damage_number_quads(
     entries: &[DamageNumberRenderEntry],
@@ -306,8 +432,8 @@ pub fn build_damage_number_quads(
     for entry in entries {
         let dmg = &entry.data;
         let s = entry.scale;
-        let base_x = entry.screen_x + dmg.x_offset * s;
-        let base_y = entry.screen_y - 10.0 * s - dmg.y_offset * s;
+        let base_x = entry.screen_x;
+        let base_y = entry.screen_y;
         let [cr, cg, cb, alpha] = dmg.color;
         let zoom = dmg.zoom * s;
 
@@ -345,17 +471,18 @@ pub fn build_damage_number_quads(
             && MSG_FRAME_CRITBG < msg_sz.len()
         {
             let (tw, th) = msg_sz[MSG_FRAME_CRITBG];
-            let crit_zoom = backdrop.zoom * s;
+            let (plate_x, plate_y, plate_s) = entry.backdrop_screen.unwrap_or((base_x, base_y, s));
+            let crit_zoom = backdrop.zoom * plate_s;
             let sw = tw as f32 * crit_zoom;
             let sh = th as f32 * crit_zoom;
-            let x = base_x - sw / 2.0;
-            let y = base_y - sh / 2.0 - backdrop.lift * s;
+            let x = plate_x - sw / 2.0;
+            let y = plate_y - sh / 2.0;
             quads.push(DamageNumberQuad {
                 x,
                 y,
                 w: sw,
                 h: sh,
-                color: [0.66, 0.66, 0.66, alpha],
+                color: [0.66, 0.66, 0.66, backdrop.alpha],
                 source: TextureSource::Message,
                 tex_idx: MSG_FRAME_CRITBG,
             });
@@ -444,7 +571,7 @@ impl DamageNumberManager {
     pub fn emit(
         &mut self,
         entity_id: u32,
-        direction: u8,
+        facing_degrees: f32,
         hit: &ScheduledHit,
         is_player_target: bool,
         attacker_is_player: bool,
@@ -462,7 +589,8 @@ impl DamageNumberManager {
         };
         if total_zero {
             if hit.hit_index == 0 {
-                let mut miss = DamageNumber::new(entity_id, 0, DamageNumberType::Miss, direction);
+                let mut miss =
+                    DamageNumber::new(entity_id, 0, DamageNumberType::Miss, facing_degrees);
                 if attacker_is_player {
                     miss.color_override = Some(PLAYER_RED);
                 }
@@ -483,7 +611,7 @@ impl DamageNumberManager {
                 entity_id,
                 hit.damage.abs(),
                 blow_type,
-                direction,
+                facing_degrees,
             ));
             // Riding above them, the running total in the combo colour. The
             // left-hand hit of a dual wield breaks the even split, so the last
@@ -503,7 +631,8 @@ impl DamageNumberManager {
             } else {
                 DamageNumberType::MultiHit
             };
-            let mut number = DamageNumber::new(entity_id, running_total, combo_type, direction);
+            let mut number =
+                DamageNumber::new(entity_id, running_total, combo_type, facing_degrees);
             number.has_critical = hit.is_critical;
             self.add(number);
         } else {
@@ -518,7 +647,7 @@ impl DamageNumberManager {
                 entity_id,
                 hit.damage.abs(),
                 number_type,
-                direction,
+                facing_degrees,
             ));
         }
     }
@@ -543,32 +672,32 @@ mod tests {
 
     #[test]
     fn digits_decomposition() {
-        let d = DamageNumber::new(1, 12345, DamageNumberType::Normal, 0);
+        let d = DamageNumber::new(1, 12345, DamageNumberType::Normal, 0.0);
         assert_eq!(d.digits(), vec![5, 4, 3, 2, 1]);
     }
 
     #[test]
     fn digits_zero() {
-        let d = DamageNumber::new(1, 0, DamageNumberType::Miss, 0);
+        let d = DamageNumber::new(1, 0, DamageNumberType::Miss, 0.0);
         assert_eq!(d.digits(), vec![0]);
     }
 
     #[test]
     fn digits_clamped_to_999999() {
-        let d = DamageNumber::new(1, 1_500_000, DamageNumberType::Normal, 0);
+        let d = DamageNumber::new(1, 1_500_000, DamageNumberType::Normal, 0.0);
         assert_eq!(d.digits(), vec![9, 9, 9, 9, 9, 9]);
     }
 
     #[test]
     fn digit_x_offsets_symmetric_for_3_digits() {
-        let d = DamageNumber::new(1, 123, DamageNumberType::Normal, 0);
+        let d = DamageNumber::new(1, 123, DamageNumberType::Normal, 0.0);
         let offsets: Vec<f32> = (0..3).map(|i| d.digit_x_offset(i, 3)).collect();
         assert_eq!(offsets, vec![8.0, 0.0, -8.0]);
     }
 
     #[test]
     fn normal_starts_large_shrinks() {
-        let mut d = DamageNumber::new(1, 100, DamageNumberType::Normal, 0);
+        let mut d = DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0);
         let z0 = d.zoom();
         d.elapsed = 0.5;
         let z1 = d.zoom();
@@ -578,7 +707,7 @@ mod tests {
 
     #[test]
     fn total_starts_small_grows() {
-        let mut d = DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0);
+        let mut d = DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0.0);
         let z0 = d.zoom();
         d.elapsed = 0.5;
         let z1 = d.zoom();
@@ -588,7 +717,7 @@ mod tests {
 
     #[test]
     fn a_critical_reads_white_and_is_marked_by_its_plate_alone() {
-        let crit = DamageNumber::new(1, 100, DamageNumberType::Critical, 0);
+        let crit = DamageNumber::new(1, 100, DamageNumberType::Critical, 0.0);
         assert_eq!(crit.number_type.color(), [1.0, 1.0, 1.0]);
         let plate = crit.render_data().unwrap().critical_backdrop;
         assert!(plate.is_some());
@@ -606,9 +735,9 @@ mod tests {
             DamageNumberType::Normal.color()
         );
 
-        let mut plain = DamageNumber::new(1, 120, DamageNumberType::Normal, 0);
-        let mut by_skill = DamageNumber::new(1, 120, DamageNumberType::Combo, 0);
-        let mut by_weapon = DamageNumber::new(1, 120, DamageNumberType::MultiHit, 0);
+        let mut plain = DamageNumber::new(1, 120, DamageNumberType::Normal, 0.0);
+        let mut by_skill = DamageNumber::new(1, 120, DamageNumberType::Combo, 0.0);
+        let mut by_weapon = DamageNumber::new(1, 120, DamageNumberType::MultiHit, 0.0);
         assert_eq!(by_weapon.zoom(), TOTAL_ZOOM_START);
 
         for n in [&mut plain, &mut by_skill, &mut by_weapon] {
@@ -619,8 +748,9 @@ mod tests {
         assert_eq!(by_weapon.zoom(), by_skill.zoom());
         assert!(by_weapon.zoom() > TOTAL_ZOOM_START);
         assert!(plain.zoom() < 5.0);
-        assert_eq!(by_weapon.y_offset(), by_skill.y_offset());
-        assert!(by_weapon.y_offset() > 0.0);
+        assert_eq!(by_weapon.world_offset(), by_skill.world_offset());
+        // World Y is negative-up, so a climbing number has a falling Y.
+        assert!(by_weapon.world_offset()[1] < 0.0);
     }
 
     #[test]
@@ -638,14 +768,14 @@ mod tests {
         let hit = ScheduledHit::single(100, 17, false);
 
         let mut player = DamageNumberManager::new();
-        player.emit(1, 0, &hit, true, false);
+        player.emit(1, 0.0, &hit, true, false);
         assert_eq!(
             player.numbers.last().unwrap().number_type,
             DamageNumberType::Enemy
         );
 
         let mut monster = DamageNumberManager::new();
-        monster.emit(1, 0, &hit, false, false);
+        monster.emit(1, 0.0, &hit, false, false);
         let on_monster = monster.numbers.last().unwrap();
         assert_eq!(on_monster.number_type, DamageNumberType::Normal);
         assert_eq!(
@@ -656,7 +786,7 @@ mod tests {
 
         let weapon_hit = ScheduledHit::single(100, 0, false);
         let mut plain = DamageNumberManager::new();
-        plain.emit(1, 0, &weapon_hit, false, false);
+        plain.emit(1, 0.0, &weapon_hit, false, false);
         let blow = plain.numbers.last().unwrap();
         assert_eq!(blow.number_type, DamageNumberType::Normal);
         assert_eq!(blow.number_type.color(), [1.0, 1.0, 1.0]);
@@ -667,14 +797,14 @@ mod tests {
         let mut mgr = DamageNumberManager::new();
         mgr.emit(
             1,
-            0,
+            0.0,
             &ScheduledHit::multi_hit(0, 0, 10, 0, false),
             false,
             false,
         );
         mgr.emit(
             1,
-            0,
+            0.0,
             &ScheduledHit::multi_hit(0, 0, 10, 1, true),
             false,
             false,
@@ -688,14 +818,14 @@ mod tests {
         let miss = ScheduledHit::single(0, 0, false);
 
         let mut by_player = DamageNumberManager::new();
-        by_player.emit(1, 0, &miss, false, true);
+        by_player.emit(1, 0.0, &miss, false, true);
         assert_eq!(
             by_player.numbers[0].render_data().unwrap().color[..3],
             PLAYER_RED
         );
 
         let mut by_monster = DamageNumberManager::new();
-        by_monster.emit(1, 0, &miss, true, false);
+        by_monster.emit(1, 0.0, &miss, true, false);
         assert_eq!(
             by_monster.numbers[0].render_data().unwrap().color[..3],
             [1.0, 1.0, 1.0]
@@ -705,11 +835,11 @@ mod tests {
     #[test]
     fn combo_replaces_previous_combo_on_same_entity() {
         let mut mgr = DamageNumberManager::new();
-        mgr.add(DamageNumber::new(1, 50, DamageNumberType::Combo, 0));
+        mgr.add(DamageNumber::new(1, 50, DamageNumberType::Combo, 0.0));
         assert_eq!(mgr.numbers.len(), 1);
 
         // New combo replaces old one
-        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Combo, 0));
+        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Combo, 0.0));
         assert_eq!(mgr.numbers.len(), 1);
         assert_eq!(mgr.numbers[0].value, 100);
     }
@@ -717,11 +847,11 @@ mod tests {
     #[test]
     fn manager_removes_combo_on_total() {
         let mut mgr = DamageNumberManager::new();
-        mgr.add(DamageNumber::new(1, 50, DamageNumberType::Combo, 0));
-        mgr.add(DamageNumber::new(2, 50, DamageNumberType::Combo, 0));
+        mgr.add(DamageNumber::new(1, 50, DamageNumberType::Combo, 0.0));
+        mgr.add(DamageNumber::new(2, 50, DamageNumberType::Combo, 0.0));
         assert_eq!(mgr.numbers.len(), 2);
 
-        mgr.add(DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0));
+        mgr.add(DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0.0));
         assert_eq!(mgr.numbers.len(), 2);
         assert!(mgr.numbers.iter().any(|n| n.entity_id == 2));
         assert!(
@@ -734,8 +864,8 @@ mod tests {
     #[test]
     fn clear_drops_all_numbers() {
         let mut mgr = DamageNumberManager::new();
-        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0));
-        mgr.add(DamageNumber::new(2, 50, DamageNumberType::Combo, 0));
+        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0));
+        mgr.add(DamageNumber::new(2, 50, DamageNumberType::Combo, 0.0));
         mgr.clear();
         assert!(mgr.numbers.is_empty());
     }
@@ -743,17 +873,84 @@ mod tests {
     #[test]
     fn expired_numbers_removed_on_update() {
         let mut mgr = DamageNumberManager::new();
-        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0));
+        mgr.add(DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0));
         mgr.update(3.0);
         assert!(mgr.numbers.is_empty());
     }
 
     #[test]
-    fn x_offset_direction_based() {
-        let d_left = DamageNumber::new(1, 100, DamageNumberType::Normal, 1);
-        let d_right = DamageNumber::new(1, 100, DamageNumberType::Normal, 5);
-        assert!(d_left.x_offset() < 0.0);
-        assert!(d_right.x_offset() > 0.0);
+    fn facing_decides_which_side_the_number_drifts_to() {
+        // Half the facings throw left and half right. Leaving the angle
+        // unwrapped collapses all eight onto one side.
+        let x_of = |dir: u8| {
+            DamageNumber::new(
+                1,
+                100,
+                DamageNumberType::Normal,
+                crate::entity::facing_degrees_for(dir),
+            )
+            .world_offset()[0]
+        };
+        for dir in 0..4 {
+            assert!(x_of(dir) > 0.0, "dir {dir} should drift right");
+        }
+        for dir in 4..8 {
+            assert!(x_of(dir) < 0.0, "dir {dir} should drift left");
+        }
+    }
+
+    #[test]
+    fn a_spinning_target_throws_its_numbers_to_alternating_sides() {
+        // A multi-hit skill turns its target a quarter turn per blow, and the
+        // buckets are a quarter turn wide, so each blow drifts to the next one.
+        let mut facing = crate::entity::facing_degrees_for(3);
+        let mut xs = Vec::new();
+        for _ in 0..4 {
+            facing += 90.0;
+            if facing > 360.0 {
+                facing -= 360.0;
+            }
+            xs.push(DamageNumber::new(1, 100, DamageNumberType::Normal, facing).world_offset()[0]);
+        }
+        assert!(xs[0] < 0.0 && xs[1] < 0.0, "{xs:?}");
+        assert!(xs[2] > 0.0 && xs[3] > 0.0, "{xs:?}");
+    }
+
+    #[test]
+    fn offsets_are_world_units_not_sprite_pixels() {
+        // Spawn sits LIFT above the actor origin, less the arc's own bias. A
+        // sprite-pixel reading of these numbers would be 7.5x too small.
+        let d = DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0);
+        assert_eq!(d.world_offset()[1], -(LIFT - ARC_BIAS - ARC_FEEDBACK));
+
+        // The arc peaks near frame 30 and falls back through its start by 60.
+        let mut peak = DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0);
+        peak.elapsed = 30.0 * FRAME_MS / 1000.0;
+        let mut back = DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0);
+        back.elapsed = 60.0 * FRAME_MS / 1000.0;
+        assert!(peak.world_offset()[1] < -30.0);
+        assert!((back.world_offset()[1] - d.world_offset()[1]).abs() < 1e-3);
+
+        // A running total spawns higher again and only climbs.
+        let total = DamageNumber::new(1, 100, DamageNumberType::MultiHitTotal, 0.0);
+        assert_eq!(total.world_offset()[1], -(LIFT + TOTAL_EXTRA_LIFT));
+    }
+
+    #[test]
+    fn a_recovery_number_climbs_and_shrinks_on_its_own_curve() {
+        let mut heal = DamageNumber::new(1, 42, DamageNumberType::Heal, 0.0);
+        assert_eq!(heal.world_offset()[1], -LIFT);
+        assert_eq!(heal.zoom(), 5.0);
+
+        heal.elapsed = 10.0 * FRAME_MS / 1000.0;
+        assert_eq!(heal.world_offset()[1], -(LIFT + 10.0 * RECOVERY_RISE));
+        // Shares the digit decay but floors lower than a damage number does.
+        assert_eq!(heal.zoom(), 5.0 - 10.0 * 0.24);
+        let mut settled = DamageNumber::new(1, 42, DamageNumberType::Heal, 0.0);
+        settled.elapsed = 30.0 * FRAME_MS / 1000.0;
+        assert_eq!(settled.zoom(), 1.0);
+        // It never drifts sideways.
+        assert_eq!(heal.world_offset()[0], 0.0);
     }
 
     #[test]
@@ -761,16 +958,16 @@ mod tests {
         let mut mgr = DamageNumberManager::new();
         mgr.combat_hidden = true;
 
-        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false, false);
+        mgr.emit(1, 0.0, &ScheduledHit::single(100, 0, false), false, false);
         assert!(mgr.numbers.is_empty());
 
-        mgr.emit(1, 0, &ScheduledHit::single(0, 0, false), false, false);
+        mgr.emit(1, 0.0, &ScheduledHit::single(0, 0, false), false, false);
         assert_eq!(
             mgr.numbers.last().unwrap().number_type,
             DamageNumberType::Miss
         );
 
-        mgr.add(DamageNumber::new(1, 42, DamageNumberType::Heal, 0));
+        mgr.add(DamageNumber::new(1, 42, DamageNumberType::Heal, 0.0));
         assert!(
             mgr.numbers
                 .iter()
@@ -779,7 +976,7 @@ mod tests {
 
         mgr.combat_hidden = false;
         let before = mgr.numbers.len();
-        mgr.emit(1, 0, &ScheduledHit::single(100, 0, false), false, false);
+        mgr.emit(1, 0.0, &ScheduledHit::single(100, 0, false), false, false);
         assert_eq!(mgr.numbers.len(), before + 1);
     }
 
@@ -789,7 +986,7 @@ mod tests {
         for (index, last) in [(0u16, false), (1, false), (2, true)] {
             mgr.emit(
                 1,
-                0,
+                0.0,
                 &ScheduledHit::multi_hit(30, 90, 17, index, last),
                 false,
                 false,
@@ -823,8 +1020,8 @@ mod tests {
 
     #[test]
     fn damage_fades_out_faster_and_earlier_than_a_total() {
-        let mut damage = DamageNumber::new(1, 100, DamageNumberType::Normal, 0);
-        let mut total = DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0);
+        let mut damage = DamageNumber::new(1, 100, DamageNumberType::Normal, 0.0);
+        let mut total = DamageNumber::new(1, 100, DamageNumberType::ComboFinal, 0.0);
 
         // Frame 60: damage is most of the way out, the total has not begun to fade.
         damage.elapsed = 60.0 * FRAME_MS / 1000.0;
@@ -845,10 +1042,10 @@ mod tests {
         let mut mgr = DamageNumberManager::new();
         let mut crit = ScheduledHit::multi_hit(50, 100, 0, 1, true);
         crit.is_critical = true;
-        mgr.emit(1, 0, &crit, false, false);
+        mgr.emit(1, 0.0, &crit, false, false);
         mgr.emit(
             2,
-            0,
+            0.0,
             &ScheduledHit::multi_hit(50, 100, 0, 1, true),
             false,
             false,
@@ -868,9 +1065,12 @@ mod tests {
         // The plate grows on its own, slower curve and stays under the digits.
         let backdrop = with_crit.render_data().unwrap().critical_backdrop.unwrap();
         assert_eq!(backdrop.zoom, TOTAL_CRIT_ZOOM_START);
-        assert_eq!(backdrop.lift, TOTAL_CRIT_LIFT);
+        assert_eq!(backdrop.extra_lift, TOTAL_CRIT_LIFT);
+        // Riding higher than the digits, it needs its own projected position.
+        let plate = with_crit.backdrop_world_offset().unwrap();
+        assert_eq!(plate[1], with_crit.world_offset()[1] - TOTAL_CRIT_LIFT);
 
-        let mut grown = DamageNumber::new(1, 100, DamageNumberType::MultiHitTotal, 0);
+        let mut grown = DamageNumber::new(1, 100, DamageNumberType::MultiHitTotal, 0.0);
         grown.has_critical = true;
         grown.elapsed = 20.0 * FRAME_MS / 1000.0;
         let grown_zoom = grown.render_data().unwrap().critical_backdrop.unwrap().zoom;
@@ -880,8 +1080,8 @@ mod tests {
 
     #[test]
     fn lucky_animates_in_place_at_full_opacity() {
-        let mut lucky = DamageNumber::new(1, 0, DamageNumberType::Lucky, 0);
-        assert_eq!(lucky.y_offset(), 0.0);
+        let mut lucky = DamageNumber::new(1, 0, DamageNumberType::Lucky, 0.0);
+        assert_eq!(lucky.world_offset(), [0.0, -LUCKY_LIFT, 0.0]);
         assert_eq!(lucky.zoom(), 1.0);
         // The word only joins the backdrop once the action reaches its motion 2.
         assert_eq!(
@@ -893,7 +1093,8 @@ mod tests {
         let data = lucky.render_data().unwrap();
         assert_eq!(data.msg_frames, vec![MSG_FRAME_LUCKYBG, MSG_FRAME_LUCKY]);
         assert_eq!(data.color[3], 1.0);
-        assert_eq!(data.y_offset, 0.0);
+        // It never moves off its spawn point.
+        assert_eq!(lucky.world_offset(), [0.0, -LUCKY_LIFT, 0.0]);
         assert!(!lucky.is_expired());
 
         lucky.elapsed = 113.0 * FRAME_MS / 1000.0;
@@ -901,8 +1102,9 @@ mod tests {
     }
 
     #[test]
-    fn combo_has_no_x_offset() {
-        let d = DamageNumber::new(1, 100, DamageNumberType::Combo, 3);
-        assert_eq!(d.x_offset(), 0.0);
+    fn combo_has_no_lateral_drift() {
+        let d = DamageNumber::new(1, 100, DamageNumberType::Combo, 3.0);
+        assert_eq!(d.world_offset()[0], 0.0);
+        assert_eq!(d.world_offset()[2], 0.0);
     }
 }

@@ -126,7 +126,7 @@ impl EntityCollection {
     pub fn apply_entity_direction_changed(&mut self, gid: u32, head_dir: u8, dir: u8) {
         if let Some(entity) = self.entities.get_mut(&gid) {
             entity.head_dir = head_dir;
-            entity.direction = dir;
+            entity.set_facing(dir);
         }
     }
 
@@ -197,7 +197,7 @@ impl EntityCollection {
             if let Some(tp) = target_pos {
                 let sp = entity.movement.cell_position();
                 if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
-                    entity.direction = dir;
+                    entity.set_facing(dir);
                 }
             }
             let duration = delay_ms as f32 / 1000.0;
@@ -222,7 +222,7 @@ impl EntityCollection {
             if let Some((tx, ty)) = face_pos {
                 let (sx, sy) = entity.movement.cell_position();
                 if let Some(dir) = direction_from_positions(sx, sy, tx, ty) {
-                    entity.direction = dir;
+                    entity.set_facing(dir);
                 }
             }
             entity.enter_casting(duration_secs, skill_id);
@@ -243,7 +243,7 @@ impl EntityCollection {
             if let Some(dst) = target_pos {
                 let src = entity.movement.cell_position();
                 if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
-                    entity.direction = dir;
+                    entity.set_facing(dir);
                 }
             }
             entity.enter_skill_exec(0.6, skill_id, 1);
@@ -265,7 +265,7 @@ impl EntityCollection {
         if let Some(entity) = self.entities.get_mut(&src_gid) {
             let sp = entity.movement.cell_position();
             if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
-                entity.direction = dir;
+                entity.set_facing(dir);
             }
             entity.enter_skill_exec(GROUND_SKILL_EXEC_SECS, skill_id, 1);
         }
@@ -623,7 +623,7 @@ mod tests {
             0,
             150,
         );
-        caster.direction = 0;
+        caster.set_facing(0);
         col.insert(caster);
         col.insert(Entity::new(
             2,

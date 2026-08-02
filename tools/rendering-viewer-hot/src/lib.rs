@@ -6,6 +6,7 @@ use ragnarok_game::damage_number::{
     DamageNumber, DamageNumberManager, DamageNumberQuad, DamageNumberRenderEntry, DamageNumberType,
     build_damage_number_quads,
 };
+use ragnarok_game::entity::facing_degrees_for;
 use ragnarok_game::scheduled_hit::{DOUBLE_ATTACK_TERM, ScheduledHit as GameHit, Swing};
 
 struct ScheduledHit {
@@ -52,7 +53,7 @@ impl State {
             1 => {
                 self.damage_numbers.emit(
                     1,
-                    self.direction,
+                    facing_degrees_for(self.direction),
                     &GameHit::single(self.damage_value, 0, false),
                     false,
                     false,
@@ -61,7 +62,7 @@ impl State {
             2 => {
                 self.damage_numbers.emit(
                     2,
-                    self.direction,
+                    facing_degrees_for(self.direction),
                     &GameHit::single(self.damage_value, 1, false),
                     false,
                     false,
@@ -70,7 +71,7 @@ impl State {
             3 => {
                 self.damage_numbers.emit(
                     3,
-                    self.direction,
+                    facing_degrees_for(self.direction),
                     &GameHit::single(self.damage_value, 0, true),
                     false,
                     false,
@@ -79,7 +80,7 @@ impl State {
             4 => {
                 self.damage_numbers.emit(
                     4,
-                    self.direction,
+                    facing_degrees_for(self.direction),
                     &GameHit::single(self.damage_value, 0, false),
                     true,
                     false,
@@ -110,18 +111,19 @@ impl State {
                 }
             }
             7 => {
-                self.damage_numbers.emit(
+                // A recovery number is not a hit: `emit` drops anything with a
+                // negative damage, so it never reaches the manager that way.
+                self.damage_numbers.add(DamageNumber::new(
                     7,
-                    self.direction,
-                    &GameHit::single(-(self.damage_value), 0, false),
-                    false,
-                    false,
-                );
+                    self.damage_value,
+                    DamageNumberType::Heal,
+                    facing_degrees_for(self.direction),
+                ));
             }
             8 => {
                 self.damage_numbers.emit(
                     8,
-                    self.direction,
+                    facing_degrees_for(self.direction),
                     &GameHit::single(0, 0, false),
                     false,
                     true,
@@ -132,7 +134,7 @@ impl State {
                     9,
                     0,
                     DamageNumberType::Lucky,
-                    self.direction,
+                    facing_degrees_for(self.direction),
                 ));
             }
             10 => {
@@ -193,8 +195,13 @@ impl State {
             }
         });
         for (entity_id, hit, is_player_target) in ready {
-            self.damage_numbers
-                .emit(entity_id, self.direction, &hit, is_player_target, true);
+            self.damage_numbers.emit(
+                entity_id,
+                facing_degrees_for(self.direction),
+                &hit,
+                is_player_target,
+                true,
+            );
         }
     }
 }
@@ -287,13 +294,23 @@ pub unsafe extern "C" fn hot_build(state_ptr: *mut (), out_quads: *mut Vec<Damag
         .numbers
         .iter()
         .filter_map(|dmg| {
-            let (sx, sy) = entity_screen_pos(dmg.entity_id);
+            use ragnarok_game::damage_number::{
+                STANDARD_MAP_ZOOM, flat_screen_offset, pixels_per_world_unit,
+            };
+            let anchor = entity_screen_pos(dmg.entity_id);
+            let ppu = pixels_per_world_unit(1.0, STANDARD_MAP_ZOOM);
+            let (screen_x, screen_y) = flat_screen_offset(anchor, dmg.world_offset(), ppu);
+            let backdrop_screen = dmg.backdrop_world_offset().map(|o| {
+                let (bx, by) = flat_screen_offset(anchor, o, ppu);
+                (bx, by, 1.0)
+            });
             let data = dmg.render_data()?;
             Some(DamageNumberRenderEntry {
                 entity_id: dmg.entity_id,
-                screen_x: sx,
-                screen_y: sy,
+                screen_x,
+                screen_y,
                 scale: 1.0,
+                backdrop_screen,
                 data,
             })
         })

@@ -69,7 +69,7 @@ impl App {
     fn turn_body(&mut self, step: u8) {
         let pv = self.active_packetver;
         if let Some(entity) = self.game.world.entities.player_mut() {
-            entity.direction = (entity.direction + step) % 8;
+            entity.set_facing((entity.direction + step) % 8);
             entity.head_dir = 0;
             let (head_dir, dir) = (entity.head_dir, entity.direction);
             self.channel

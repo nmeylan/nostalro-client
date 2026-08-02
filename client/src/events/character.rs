@@ -15,7 +15,7 @@ impl App {
         self.game
             .combat
             .damage_numbers
-            .add(DamageNumber::effect_number(gid, amount, color, 0));
+            .add(DamageNumber::effect_number(gid, amount, color, 0.0));
     }
 
     pub(super) fn handle_parameter_changed(&mut self, var_id: u16, value: i32) {

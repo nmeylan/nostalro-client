@@ -180,7 +180,7 @@ impl App {
             if let Some(dst) = target_pos {
                 let src = entity.movement.cell_position();
                 if let Some(dir) = direction_from_positions(src.0, src.1, dst.0, dst.1) {
-                    entity.direction = dir;
+                    entity.set_facing(dir);
                 }
             }
             let duration = ((attack_mt as f32 / 1000.0) - age).max(0.3);
@@ -755,7 +755,7 @@ impl App {
                 target_gid,
                 level as i32,
                 DamageNumberType::Heal,
-                0,
+                0.0,
             ));
         }
         // WE_FEMALE ("I Look up to You") restores partner SP: a light-blue rising
@@ -768,7 +768,7 @@ impl App {
                     target_gid,
                     level as i32,
                     [85.0 / 255.0, 177.0 / 255.0, 255.0 / 255.0],
-                    0,
+                    0.0,
                 ));
         }
         self.spawn_wedding_balloon(skill, src_gid, target_gid);

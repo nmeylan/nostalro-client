@@ -410,7 +410,7 @@ impl App {
                     if let Some(tp) = target_pos {
                         let sp = entity.movement.cell_position();
                         if let Some(dir) = direction_from_positions(sp.0, sp.1, tp.0, tp.1) {
-                            entity.direction = dir;
+                            entity.set_facing(dir);
                         }
                     }
                     let duration =
@@ -475,8 +475,8 @@ impl App {
                     .world
                     .entities
                     .get(target_gid)
-                    .map(|e| e.direction)
-                    .unwrap_or(0);
+                    .map(|e| e.facing_degrees)
+                    .unwrap_or(0.0);
                 self.game.combat.damage_numbers.add(DamageNumber::new(
                     target_gid,
                     0,

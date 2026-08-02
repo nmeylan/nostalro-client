@@ -178,7 +178,7 @@ impl App {
                 .combat
                 .damage_numbers
                 .add(DamageNumber::effect_number(
-                    entity_id, req.value, req.color, 0,
+                    entity_id, req.value, req.color, 0.0,
                 ));
         }
 

@@ -249,6 +249,29 @@ pub fn cell_world_pos(
     [wx, wy, wz]
 }
 
+/// Screen position and sprite scale for a point offset from a cell's origin, in
+/// world units. Objects that sit near an actor without being part of its sprite,
+/// such as floating numbers, have their own world position and project from it.
+pub fn project_cell_offset(
+    cell: (f32, f32),
+    offset: [f32; 3],
+    gat: Option<&GatFile>,
+    coords: &MapCoordinates,
+    camera: &Camera,
+    screen_w: f32,
+    screen_h: f32,
+) -> Option<(f32, f32, f32)> {
+    let base = cell_world_pos(cell, gat, coords);
+    let world = [
+        base[0] + offset[0],
+        base[1] + offset[1],
+        base[2] + offset[2],
+    ];
+    let ([sx, sy], _, _, sprite_scale, _) =
+        project_world_screen(world, coords, camera, screen_w, screen_h)?;
+    Some((sx, sy, sprite_scale))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

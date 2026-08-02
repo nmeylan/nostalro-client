@@ -920,37 +920,35 @@ impl App {
 
         {
             use ragnarok_game::damage_number::{
-                DamageNumberRenderEntry, build_damage_number_quads,
+                build_damage_number_entries, build_damage_number_quads,
             };
-            let entries: Vec<DamageNumberRenderEntry> = self
-                .game
-                .combat
-                .damage_numbers
-                .numbers
-                .iter_mut()
-                .filter_map(|dmg| {
-                    let (screen_x, screen_y, scale) =
-                        if let Some(entry) = render_list.iter().find(|e| e.id == dmg.entity_id) {
-                            let pos = (
-                                entry.screen_anchor[0],
-                                entry.screen_anchor[1] - entry.head_offset,
-                                entry.sprite_scale,
-                            );
-                            dmg.last_screen_pos = Some(pos);
-                            pos
-                        } else {
-                            dmg.last_screen_pos?
-                        };
-                    let data = dmg.render_data()?;
-                    Some(DamageNumberRenderEntry {
-                        entity_id: dmg.entity_id,
-                        screen_x,
-                        screen_y,
-                        scale,
-                        data,
-                    })
-                })
-                .collect();
+            use ragnarok_renderer::sprite_projection::project_cell_offset;
+            // Borrow the fields separately: the numbers need &mut for their
+            // cached fallback position while the projection reads the world.
+            let camera = self.renderer.as_ref().map(|r| {
+                let w = r.device.surface_config.width as f32 / r.dpi_scale;
+                let h = r.device.surface_config.height as f32 / r.dpi_scale;
+                (&r.camera, w, h)
+            });
+            let coords = self.game.session.map_coords.as_ref();
+            let gat = self.game.session.gat.as_ref();
+            let entities = &self.game.world.entities;
+            let entries = build_damage_number_entries(
+                &mut self.game.combat.damage_numbers.numbers,
+                |entity_id, offset| {
+                    let (camera, screen_w, screen_h) = camera?;
+                    let (cx, cy) = entities.get(entity_id)?.movement.position();
+                    project_cell_offset(
+                        (cx as f32, cy as f32),
+                        offset,
+                        gat,
+                        coords?,
+                        camera,
+                        screen_w,
+                        screen_h,
+                    )
+                },
+            );
             if let (Some(num_tex), Some(num_act)) = (
                 &self.game.assets.damage_number_textures,
                 &self.game.assets.damage_number_act,

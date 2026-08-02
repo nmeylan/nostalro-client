@@ -219,7 +219,7 @@ mod tests {
 
         let mut numbers = crate::damage_number::DamageNumberManager::new();
         for hit in &dual {
-            numbers.emit(2, 0, hit, false, true);
+            numbers.emit(2, 0.0, hit, false, true);
         }
         assert_eq!(numbers.numbers.last().unwrap().value, 130);
     }

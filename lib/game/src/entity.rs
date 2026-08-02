@@ -162,6 +162,24 @@ pub fn mercenary_weapon(job: u16) -> Option<WeaponType> {
     }
 }
 
+/// Degrees per step of the eight-way facing, and the offset the server's
+/// direction sits at.
+const DEGREES_PER_DIRECTION: f32 = 45.0;
+const FACING_ORIGIN_DEGREES: f32 = 180.0;
+const QUARTER_TURN_DEGREES: f32 = 90.0;
+const FULL_TURN_DEGREES: f32 = 360.0;
+
+/// Facing in degrees for an eight-way direction, normalised to `[0, 360)`.
+///
+/// The original reaches the same value two ways: straight from the direction
+/// byte, which leaves it unwrapped, or from the angle between two positions,
+/// which normalises. Anything that has moved or turned to face a target holds
+/// the normalised form, and leaving it unwrapped puts every facing in the same
+/// half of the drift buckets.
+pub fn facing_degrees_for(direction: u8) -> f32 {
+    (direction as f32 * DEGREES_PER_DIRECTION + FACING_ORIGIN_DEGREES) % FULL_TURN_DEGREES
+}
+
 pub const DEATH_FADE_DURATION: f32 = 6.12; // 255 × 24 ms
 pub const VANISH_FADE_DURATION: f32 = 0.51; // 510 ms
 
@@ -248,6 +266,12 @@ pub struct Entity {
     pub max_hp: Option<u32>,
     pub mob_info: Option<MobInfo>,
     pub direction: u8,
+    /// Facing in degrees. A quarter-turn spin accumulates here rather than in
+    /// `direction`, because the value is read by consumers whose thresholds do
+    /// not wrap: past 360 means something different from the same angle modulo
+    /// 360, and `direction` alone cannot express it. Write it through
+    /// `set_facing` / `spin_quarter_turn`, never on its own.
+    pub facing_degrees: f32,
     pub head_dir: u8,
     pub speed: u16,
     pub state: EntityState,
@@ -380,6 +404,7 @@ impl Entity {
             max_hp: None,
             mob_info: None,
             direction,
+            facing_degrees: facing_degrees_for(direction),
             head_dir: 0,
             speed,
             state: EntityState::Standing,
@@ -487,6 +512,24 @@ impl Entity {
             direction,
             150,
         )
+    }
+
+    /// Face an eight-way direction, resetting any accumulated spin.
+    pub fn set_facing(&mut self, direction: u8) {
+        self.direction = direction;
+        self.facing_degrees = facing_degrees_for(direction);
+    }
+
+    /// Turn a quarter clockwise, as a multi-hit skill does to its target on
+    /// every blow. The angle wraps only once it passes a full turn, so a facing
+    /// that lands exactly on 360 keeps that value rather than folding to zero.
+    pub fn spin_quarter_turn(&mut self) {
+        self.facing_degrees += QUARTER_TURN_DEGREES;
+        if self.facing_degrees > FULL_TURN_DEGREES {
+            self.facing_degrees -= FULL_TURN_DEGREES;
+        }
+        let steps = (QUARTER_TURN_DEGREES / DEGREES_PER_DIRECTION) as u8;
+        self.direction = (self.direction + steps) % 8;
     }
 
     pub fn update_state(&mut self, dt: f32) {

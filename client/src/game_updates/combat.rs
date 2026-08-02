@@ -15,9 +15,6 @@ use ragnarok_network::{
 };
 use ragnarok_ui_component::game::skill_talkbox_dialog::SkillTalkboxDialog;
 
-const DIRECTION_COUNT: u8 = 8;
-const QUARTER_TURN_DIRECTIONS: u8 = DIRECTION_COUNT / 4;
-
 const EFST_KYRIE: i16 = 19;
 const EFST_PARRYING: i16 = 104;
 
@@ -449,13 +446,13 @@ impl App {
                         if !is_sonic_or_chain && let Some(ap) = attacker_pos {
                             let tp = entity.movement.cell_position();
                             if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
-                                entity.direction = dir;
+                                entity.set_facing(dir);
                             }
                         }
                         entity.enter_hurt(hit.attacked_mt_secs);
 
                         if is_sonic_or_chain {
-                            entity.direction = ((entity.direction as i32 + 2) % 8) as u8;
+                            entity.spin_quarter_turn();
                         }
                     }
                 }
@@ -518,7 +515,7 @@ impl App {
         if markers.spins_target
             && let Some(entity) = self.game.world.entities.get_mut(entity_id)
         {
-            entity.direction = (entity.direction + QUARTER_TURN_DIRECTIONS) % DIRECTION_COUNT;
+            entity.spin_quarter_turn();
         }
         for effect in markers.iter() {
             match (is_trail_effect(effect), attacker_pos, target_pos) {
@@ -557,28 +554,15 @@ impl App {
             entity_id
         };
 
-        let target_pos = self
+        // The number hangs off the actor that took the hit, and drifts by that
+        // actor's own facing, not by where the blow came from.
+        let dir = self
             .game
             .world
             .entities
             .get(entity_id)
-            .map(|e| e.movement.cell_position());
-        let attacker_pos = self
-            .game
-            .world
-            .entities
-            .get(hit.attacker_gid)
-            .map(|e| e.movement.cell_position());
-        let dir = match (attacker_pos, target_pos) {
-            (Some(ap), Some(tp)) => direction_from_positions(ap.0, ap.1, tp.0, tp.1).unwrap_or(0),
-            _ => self
-                .game
-                .world
-                .entities
-                .get(entity_id)
-                .map(|e| e.direction)
-                .unwrap_or(0),
-        };
+            .map(|e| e.facing_degrees)
+            .unwrap_or(0.0);
         let is_player_target = self
             .game
             .world

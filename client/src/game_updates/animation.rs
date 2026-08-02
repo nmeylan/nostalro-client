@@ -44,7 +44,7 @@ impl App {
         for entity in self.game.world.entities.iter_mut() {
             entity.update_state(delta);
             if let Some(move_dir) = entity.movement.movement_direction() {
-                entity.direction = move_dir;
+                entity.set_facing(move_dir);
             }
         }
     }
