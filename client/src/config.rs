@@ -45,6 +45,7 @@ pub struct CustomConfig {
     pub boss_aura: bool,
     pub sound: CustomSoundConfig,
     pub window: CustomWindowConfig,
+    pub skill: CustomSkillConfig,
 }
 
 impl Default for CustomConfig {
@@ -53,8 +54,26 @@ impl Default for CustomConfig {
             boss_aura: false,
             sound: CustomSoundConfig::default(),
             window: CustomWindowConfig::default(),
+            skill: CustomSkillConfig::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomSkillConfig {
+    pub al_teleport: CustomAlTeleportConfig,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomAlTeleportConfig {
+    /// Give the skill a level picker in the skill tree. The original game casts
+    /// it at the learned level, with no way to pick a lower one.
+    pub separate_lvl: bool,
+    /// Answer the server's one-entry warp list without showing it, so a level 1
+    /// cast warps straight away.
+    pub skip_lvl1_menu: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -387,6 +406,7 @@ mod tests {
         assert_eq!(config.login_servers[0].port, 6900);
         assert_eq!(config.screen_width, 1024);
         assert!(config.custom.window.exclude_close_via_esc.is_empty());
+        assert!(!config.custom.skill.al_teleport.separate_lvl);
 
         let json = r#"{"custom": {"window": {"exclude_close_via_esc": ["Stats", "Inventory"]}}}"#;
         let config: Config = serde_json::from_str(json).unwrap();
@@ -394,6 +414,13 @@ mod tests {
             config.custom.window.exclude_close_via_esc,
             vec!["Stats".to_string(), "Inventory".to_string()]
         );
+        assert!(!config.custom.skill.al_teleport.separate_lvl);
+
+        let json = r#"{"custom": {"skill": {"al_teleport": {"separate_lvl": true}}}}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(config.custom.skill.al_teleport.separate_lvl);
+        assert!(!config.custom.skill.al_teleport.skip_lvl1_menu);
+        assert!(!config.custom.boss_aura);
     }
 
     #[test]

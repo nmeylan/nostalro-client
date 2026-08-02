@@ -27,6 +27,7 @@ use ragnarok_game::data_table::item_description_table::ItemDescriptionTable;
 use ragnarok_game::data_table::item_name_table::ItemNameTable;
 use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 use ragnarok_game::data_table::item_slot_count_table::ItemSlotCountTable;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::data_table::name_table::NameTable;
 use ragnarok_game::data_table::skill_description_table::SkillDescriptionTable;
 use ragnarok_game::data_table::skill_name_table::SkillNameTable;
@@ -775,7 +776,11 @@ impl ApplicationHandler for App {
                     self.game.data_table.skill_description =
                         Some(SkillDescriptionTable::load(&grf));
                     self.game.data_table.skill_tree = Some(SkillTreeTable::load(&grf));
-                    self.game.data_table.skill_use_level = Some(SkillUseLevelTable::load(&grf));
+                    let mut skill_use_level = SkillUseLevelTable::load(&grf);
+                    if self.config.custom.skill.al_teleport.separate_lvl {
+                        skill_use_level.force_level_select(SkillEnum::AlTeleport);
+                    }
+                    self.game.data_table.skill_use_level = Some(skill_use_level);
                     self.game.data_table.quest_display = Some(
                         ragnarok_game::data_table::quest_display_table::QuestDisplayTable::load(
                             &grf,

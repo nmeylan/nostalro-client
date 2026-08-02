@@ -18,6 +18,16 @@ use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDe
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
+fn logical_window_size(size: PhysicalSize<u32>, scale_factor: f32) -> (u32, u32) {
+    if scale_factor <= 0.0 {
+        return (size.width, size.height);
+    }
+    (
+        (size.width as f32 / scale_factor).round() as u32,
+        (size.height as f32 / scale_factor).round() as u32,
+    )
+}
+
 impl App {
     pub(crate) fn capture_window_state(&mut self) {
         let positions = self.ui_state_cache.extract_window_positions();
@@ -39,6 +49,24 @@ impl App {
         self.config.window_state = window_state;
         self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
         self.config.battle_mode = self.game.character.hotkeys.battle_mode();
+        self.capture_window_size();
+    }
+
+    fn capture_window_size(&mut self) {
+        if self.config.fullscreen {
+            return;
+        }
+        let Some(window) = &self.window else {
+            return;
+        };
+        let size = window.inner_size();
+        // `with_inner_size` takes a LogicalSize, so the OS scale factor is what the
+        // saved value has to round-trip through, not `dpi_scale`.
+        let (width, height) = logical_window_size(size, window.scale_factor() as f32);
+        if width > 0 && height > 0 {
+            self.config.screen_width = width;
+            self.config.screen_height = height;
+        }
     }
 
     pub(crate) fn handle_close_requested(&mut self, event_loop: &ActiveEventLoop) {
@@ -612,5 +640,31 @@ impl App {
         self.input.alt_pressed = modifiers.state().alt_key();
         self.input.shift_pressed = modifiers.state().shift_key();
         self.input.ctrl_pressed = modifiers.state().control_key();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn resized_window_size_survives_a_config_round_trip() {
+        let mut config = Config::default();
+        let (width, height) = logical_window_size(PhysicalSize::new(2560, 1440), 2.0);
+        config.screen_width = width;
+        config.screen_height = height;
+
+        let parsed: Config =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        assert_eq!((parsed.screen_width, parsed.screen_height), (1280, 720));
+    }
+
+    #[test]
+    fn unknown_scale_factor_keeps_the_physical_size() {
+        assert_eq!(
+            logical_window_size(PhysicalSize::new(1024, 768), 0.0),
+            (1024, 768)
+        );
     }
 }

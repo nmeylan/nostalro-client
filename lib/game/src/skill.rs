@@ -38,6 +38,20 @@ pub fn skill_needs_talkbox(skill_id: u16) -> bool {
 
 pub const TALKBOX_MESSAGE_MAX_LEN: usize = 79;
 
+/// The destination to answer a Teleport warp list with, when the list is the
+/// single `Random` entry a level 1 cast produces. A level 2 cast adds the save
+/// point, and any longer list has a real choice in it, so both return `None`.
+pub fn teleport_lvl1_destination<'a>(skill_id: u16, destinations: &'a [String]) -> Option<&'a str> {
+    if skill_id != SkillEnum::AlTeleport.id() as u16 {
+        return None;
+    }
+    let [only] = destinations else {
+        return None;
+    };
+    let name = only.strip_suffix(".gat").unwrap_or(only);
+    name.eq_ignore_ascii_case("random").then_some(only.as_str())
+}
+
 pub struct SkillData {
     pub id: u16,
     pub name: String,
@@ -250,6 +264,28 @@ impl SkillList {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_lone_random_entry_on_teleport_is_answered_automatically() {
+        let teleport = SkillEnum::AlTeleport.id() as u16;
+        let random = || vec!["Random.gat".to_string()];
+
+        assert_eq!(
+            teleport_lvl1_destination(teleport, &random()),
+            Some("Random.gat")
+        );
+        assert_eq!(
+            teleport_lvl1_destination(
+                teleport,
+                &["Random.gat".to_string(), "prontera.gat".to_string()]
+            ),
+            None
+        );
+        assert_eq!(
+            teleport_lvl1_destination(SkillEnum::AlWarp.id() as u16, &random()),
+            None
+        );
+    }
 
     fn make_skill(id: u16, name: &str, level: i16) -> SkillData {
         SkillData {

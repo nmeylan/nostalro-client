@@ -34,6 +34,7 @@ use ragnarok_game::entity::{EntityType, ForcedAnimation};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::gm::MANNER_POINT_STEP;
 use ragnarok_game::show_digit::ShowDigitClock;
+use ragnarok_game::skill::teleport_lvl1_destination;
 use ragnarok_network::*;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
@@ -419,7 +420,26 @@ impl App {
                     skill_id,
                     destinations,
                 } => {
-                    self.windows.warp_list_window.open(skill_id, destinations);
+                    let auto_destination = self
+                        .config
+                        .custom
+                        .skill
+                        .al_teleport
+                        .skip_lvl1_menu
+                        .then(|| {
+                            teleport_lvl1_destination(skill_id, &destinations).map(str::to_string)
+                        })
+                        .flatten();
+                    match auto_destination {
+                        Some(map_name) => {
+                            self.channel.send_packet(build_select_warppoint_packet(
+                                skill_id,
+                                &map_name,
+                                self.active_packetver,
+                            ));
+                        }
+                        None => self.windows.warp_list_window.open(skill_id, destinations),
+                    }
                 }
                 GameEvent::NpcInputNumber { npc_id } => {
                     self.windows.npc_dialog.dialog.wait_for_number_input(npc_id);
