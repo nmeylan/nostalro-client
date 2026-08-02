@@ -44,13 +44,13 @@ const MAX_ROWS: usize = 6;
 const DEFAULT_COLS: usize = 7;
 const DEFAULT_ROWS: usize = 2;
 
-pub const TAB_USABLE_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_01.bmp";
-pub const TAB_EQUIP_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_02.bmp";
-pub const TAB_ETC_TEX: &str = "data/texture/유저인터페이스/basic_interface/tab_itm_03.bmp";
-const MINI_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
-const MINI_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+pub const TAB_USABLE_TEX: &str = ragnarok_resources::ui::basic::TAB_ITM_01;
+pub const TAB_EQUIP_TEX: &str = ragnarok_resources::ui::basic::TAB_ITM_02;
+pub const TAB_ETC_TEX: &str = ragnarok_resources::ui::basic::TAB_ITM_03;
+const MINI_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_MINI_OFF;
+const MINI_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_MINI_ON;
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 pub struct InventoryWindow {
     pub has_grf_textures: bool,

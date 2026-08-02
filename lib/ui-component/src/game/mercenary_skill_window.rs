@@ -16,18 +16,18 @@ pub const MERCENARY_SKILL_WINDOW_ID: WidgetId = WidgetId(3100);
 const CLOSE_BTN_ID: WidgetId = WidgetId(3101);
 const USE_BTN_ID: WidgetId = WidgetId(3102);
 const FOOTER_CLOSE_BTN_ID: WidgetId = WidgetId(3103);
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const USE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_use.bmp",
-    hover: "data/texture/유저인터페이스/btn_use_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_use_b.bmp",
+    normal: ragnarok_resources::ui::BTN_USE,
+    hover: ragnarok_resources::ui::BTN_USE_A,
+    pressed: ragnarok_resources::ui::BTN_USE_B,
 };
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_close.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_close_a.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_close_b.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_CLOSE,
+    hover: ragnarok_resources::ui::basic::BTN_CLOSE_A,
+    pressed: ragnarok_resources::ui::basic::BTN_CLOSE_B,
 };
 const SKILL_ROW_BASE_ID: u32 = 3110;
 

@@ -5,8 +5,8 @@ use ragnarok_ui::draw::DrawCall;
 
 pub use crate::helper::head_board::board_rect;
 
-pub const CHAT_OPEN_TEX: &str = "data/texture/유저인터페이스/chat_open.bmp";
-pub const CHAT_CLOSE_TEX: &str = "data/texture/유저인터페이스/chat_close.bmp";
+pub const CHAT_OPEN_TEX: &str = ragnarok_resources::ui::CHAT_OPEN;
+pub const CHAT_CLOSE_TEX: &str = ragnarok_resources::ui::CHAT_CLOSE;
 
 /// Textures needed to render the board with GRF art (frame + open/close icon).
 pub fn grf_texture_paths() -> Vec<&'static str> {

@@ -13,12 +13,12 @@ const CLOSE_BTN_ID: WidgetId = WidgetId(3601);
 const VIEW_BTN_ID: WidgetId = WidgetId(3602);
 const ROW_INPUT_BASE: u32 = 3610;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 const VIEW_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_view.bmp",
-    hover: "data/texture/유저인터페이스/btn_view_b.bmp",
-    pressed: "data/texture/유저인터페이스/btn_view_a.bmp",
+    normal: ragnarok_resources::ui::BTN_VIEW,
+    hover: ragnarok_resources::ui::BTN_VIEW_B,
+    pressed: ragnarok_resources::ui::BTN_VIEW_A,
 };
 
 pub const SLOT_COUNT: usize = 10;

@@ -13,34 +13,24 @@ const READ_RETURN_BTN_ID: WidgetId = WidgetId(3953);
 const READ_REPLY_BTN_ID: WidgetId = WidgetId(3954);
 const READ_DELETE_BTN_ID: WidgetId = WidgetId(3955);
 
-const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/maillist3_bg.bmp";
+const BG_TEX: &str = ragnarok_resources::ui::basic::MAILLIST3_BG;
 
 macro_rules! btn {
-    ($name:literal) => {
+    ($normal:expr, $active:expr) => {
         ButtonTextures {
-            normal: concat!(
-                "data/texture/유저인터페이스/basic_interface/",
-                $name,
-                ".bmp"
-            ),
-            hover: concat!(
-                "data/texture/유저인터페이스/basic_interface/",
-                $name,
-                "_a.bmp"
-            ),
-            pressed: concat!(
-                "data/texture/유저인터페이스/basic_interface/",
-                $name,
-                "_a.bmp"
-            ),
+            normal: $normal,
+            hover: $active,
+            pressed: $active,
         }
     };
 }
 
-const CLOSE_BTN: ButtonTextures = btn!("close2");
-const RETURN_BTN: ButtonTextures = btn!("return");
-const REPLY_BTN: ButtonTextures = btn!("remail");
-const DELETE_BTN: ButtonTextures = btn!("del");
+use ragnarok_resources::ui::basic as basic_tex;
+
+const CLOSE_BTN: ButtonTextures = btn!(basic_tex::BTN_CLOSE2, basic_tex::BTN_CLOSE2_A);
+const RETURN_BTN: ButtonTextures = btn!(basic_tex::BTN_RETURN, basic_tex::BTN_RETURN_A);
+const REPLY_BTN: ButtonTextures = btn!(basic_tex::BTN_REMAIL, basic_tex::BTN_REMAIL_A);
+const DELETE_BTN: ButtonTextures = btn!(basic_tex::BTN_DEL, basic_tex::BTN_DEL_A);
 
 const WIN_W: f32 = 300.0;
 const WIN_H: f32 = 400.0;
@@ -225,9 +215,7 @@ impl InGameWindow for ReadMailWindow {
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
-                    texture: TextureRef::Named(format!(
-                        "data/texture/유저인터페이스/item/{res}.bmp"
-                    )),
+                    texture: TextureRef::Named(ragnarok_resources::ui::item::icon(res)),
                 });
             }
             if mail_item.amount > 1 {

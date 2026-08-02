@@ -45,7 +45,7 @@ impl Item {
     pub fn icon_path(&self) -> Option<String> {
         self.resource_name
             .as_ref()
-            .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
+            .map(|name| ragnarok_resources::ui::item::icon(name))
     }
 
     pub fn is_equipment(&self) -> bool {

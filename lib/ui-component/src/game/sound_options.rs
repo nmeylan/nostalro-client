@@ -16,8 +16,8 @@ const CLOSE_BTN_ID: WidgetId = WidgetId(2805);
 const UNFOCUSED_ID: WidgetId = WidgetId(2806);
 const STEREO_ID: WidgetId = WidgetId(2807);
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const WIN_W: f32 = 260.0;
 const WIN_H: f32 = 180.0;

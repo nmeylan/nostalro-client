@@ -34,10 +34,10 @@ const MINI_BTN_SIZE: f32 = 11.0;
 const GRID_COLS: usize = 5;
 const GRID_ROWS: usize = 4;
 
-const MINI_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
-const MINI_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const MINI_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_MINI_OFF;
+const MINI_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_MINI_ON;
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 enum PendingCartMove {
     FromBody { index: u16 },

@@ -11,7 +11,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, aim_backward};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const SPEAR_SPRITE: &str = "data/sprite/이팩트/창";
+pub const SPEAR_SPRITE: &str = ragnarok_resources::sprite::effect::SPEAR;
 pub const SPRITES: &[&str] = &[SPEAR_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

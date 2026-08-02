@@ -50,7 +50,7 @@ const FIRE_FRAMES: &[&str] = &[
     "불화살5.tga",
     "불화살6.tga",
 ];
-const PARTICLE4_SPRITE: &str = "data/sprite/이팩트/particle4";
+const PARTICLE4_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE4;
 
 pub const ICE_TEXTURES: &[&str] = &["icearrow.tga", "ring_blue.tga"];
 pub const FIRE_TEXTURES: &[&str] = &[

@@ -143,15 +143,15 @@ fn effective_channel(
     }
 }
 
-const DIALOG_BG: &str = "data/texture/유저인터페이스/basic_interface/dialog_bg.bmp";
-const SCROLL_UP: &str = "data/texture/유저인터페이스/basic_interface/dialscr_up.bmp";
-const SCROLL_DOWN: &str = "data/texture/유저인터페이스/basic_interface/dialscr_down.bmp";
+const DIALOG_BG: &str = ragnarok_resources::ui::basic::DIALOG_BG;
+const SCROLL_UP: &str = ragnarok_resources::ui::basic::DIALSCR_UP;
+const SCROLL_DOWN: &str = ragnarok_resources::ui::basic::DIALSCR_DOWN;
 const LIST_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/dialog_btn0.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/dialog_btn1.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/dialog_btn2.bmp",
+    normal: ragnarok_resources::ui::basic::DIALOG_BTN0,
+    hover: ragnarok_resources::ui::basic::DIALOG_BTN1,
+    pressed: ragnarok_resources::ui::basic::DIALOG_BTN2,
 };
-const BUBBLE_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
+const BUBBLE_TEX: &str = ragnarok_resources::ui::basic::SYS_BASE_OFF;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChatChannel {

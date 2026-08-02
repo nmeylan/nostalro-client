@@ -9,13 +9,13 @@ pub struct AccessoryTable {
 }
 
 const ACCESSORY_ID_PATHS: &[&str] = &[
-    "data/lua files/datainfo/accessoryid.lua",
-    "data/lua files/datainfo/accessoryid.lub",
+    ragnarok_resources::lua::ACCESSORY_ID_LUA,
+    ragnarok_resources::lua::ACCESSORY_ID_LUB,
 ];
 
 const ACCNAME_PATHS: &[&str] = &[
-    "data/lua files/datainfo/accname.lua",
-    "data/lua files/datainfo/accname.lub",
+    ragnarok_resources::lua::ACCESSORY_NAME_LUA,
+    ragnarok_resources::lua::ACCESSORY_NAME_LUB,
 ];
 
 impl AccessoryTable {

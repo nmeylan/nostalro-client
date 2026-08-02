@@ -23,19 +23,19 @@ const PRICE_BASE_ID: u32 = 2320;
 const ROW_DRAG_BASE_ID: u32 = 2340;
 
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 const RESET_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/seekparty/btn_clear_a.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/seekparty/btn_clear_b.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/seekparty/btn_clear_c.bmp",
+    normal: ragnarok_resources::ui::basic::seekparty::BTN_CLEAR_A,
+    hover: ragnarok_resources::ui::basic::seekparty::BTN_CLEAR_B,
+    pressed: ragnarok_resources::ui::basic::seekparty::BTN_CLEAR_C,
 };
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;

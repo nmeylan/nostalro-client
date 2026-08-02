@@ -5,7 +5,7 @@ use ragnarok_ui::draw::DrawCall;
 
 pub use crate::helper::head_board::board_rect;
 
-pub const VENDING_ICON_TEX: &str = "data/texture/유저인터페이스/shop.bmp";
+pub const VENDING_ICON_TEX: &str = ragnarok_resources::ui::SHOP;
 
 /// Textures needed to render the board with GRF art (frame + bag icon).
 pub fn grf_texture_paths() -> Vec<&'static str> {

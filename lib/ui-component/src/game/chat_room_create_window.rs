@@ -26,19 +26,19 @@ const TYPE_OPTION_BASE: u32 = 1730;
 const LIMIT_OPTIONS: [i16; 5] = [20, 12, 8, 4, 2];
 const TYPE_OPTIONS: [&str; 1] = ["Chat Room"];
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const RADIO_ON_TEX: &str = "data/texture/유저인터페이스/radiobtn_on.bmp";
-const RADIO_OFF_TEX: &str = "data/texture/유저인터페이스/radiobtn_off.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const RADIO_ON_TEX: &str = ragnarok_resources::ui::RADIOBTN_ON;
+const RADIO_OFF_TEX: &str = ragnarok_resources::ui::RADIOBTN_OFF;
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 const WIN_W: f32 = 330.0;

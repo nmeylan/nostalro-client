@@ -27,47 +27,47 @@ const PADDING_TOP: f32 = 12.0;
 const PADDING_BOTTOM: f32 = 12.0;
 const MENU_H: f32 = PADDING_TOP + 4.0 * FALLBACK_BTN_H + 3.0 * BTN_SPACING + PADDING_BOTTOM;
 
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/basic_interface/titlebar_fix.bmp";
+const WIN_TEXTURE: &str = ragnarok_resources::ui::basic::TITLEBAR_FIX;
 
 const RESUME_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_02a.bmp",
-    hover: "data/texture/유저인터페이스/esc_02b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_02c.bmp",
+    normal: ragnarok_resources::ui::ESC_02A,
+    hover: ragnarok_resources::ui::ESC_02B,
+    pressed: ragnarok_resources::ui::ESC_02C,
 };
 const CHARSELECT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_01a.bmp",
-    hover: "data/texture/유저인터페이스/esc_01b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_01c.bmp",
+    normal: ragnarok_resources::ui::ESC_01A,
+    hover: ragnarok_resources::ui::ESC_01B,
+    pressed: ragnarok_resources::ui::ESC_01C,
 };
 const QUIT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_03a.bmp",
-    hover: "data/texture/유저인터페이스/esc_03b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_03c.bmp",
+    normal: ragnarok_resources::ui::ESC_03A,
+    hover: ragnarok_resources::ui::ESC_03B,
+    pressed: ragnarok_resources::ui::ESC_03C,
 };
 const RESTART_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_04a.bmp",
-    hover: "data/texture/유저인터페이스/esc_04b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_04c.bmp",
+    normal: ragnarok_resources::ui::ESC_04A,
+    hover: ragnarok_resources::ui::ESC_04B,
+    pressed: ragnarok_resources::ui::ESC_04C,
 };
 const RESURRECT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_05a.bmp",
-    hover: "data/texture/유저인터페이스/esc_05b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_05c.bmp",
+    normal: ragnarok_resources::ui::ESC_05A,
+    hover: ragnarok_resources::ui::ESC_05B,
+    pressed: ragnarok_resources::ui::ESC_05C,
 };
 const GRAPHICS_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_06a.bmp",
-    hover: "data/texture/유저인터페이스/esc_06b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_06c.bmp",
+    normal: ragnarok_resources::ui::ESC_06A,
+    hover: ragnarok_resources::ui::ESC_06B,
+    pressed: ragnarok_resources::ui::ESC_06C,
 };
 const SOUND_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_07a.bmp",
-    hover: "data/texture/유저인터페이스/esc_07b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_07c.bmp",
+    normal: ragnarok_resources::ui::ESC_07A,
+    hover: ragnarok_resources::ui::ESC_07B,
+    pressed: ragnarok_resources::ui::ESC_07C,
 };
 const SHORTCUT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/esc_08a.bmp",
-    hover: "data/texture/유저인터페이스/esc_08b.bmp",
-    pressed: "data/texture/유저인터페이스/esc_08c.bmp",
+    normal: ragnarok_resources::ui::ESC_08A,
+    hover: ragnarok_resources::ui::ESC_08B,
+    pressed: ragnarok_resources::ui::ESC_08C,
 };
 const DUMMY_BTN: ButtonTextures = ButtonTextures {
     normal: "",

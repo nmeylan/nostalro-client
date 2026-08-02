@@ -127,8 +127,8 @@ impl App {
         if let Some(grf) = &self.grf {
             let data = ragnarok_game::sprite_loader::load_sprite_data(
                 grf,
-                "data/sprite/slotmachine.spr",
-                "data/sprite/slotmachine.act",
+                ragnarok_resources::sprite::SLOTMACHINE_SPR,
+                ragnarok_resources::sprite::SLOTMACHINE_ACT,
             );
             if let Some(data) = data
                 && let Some(textures) = self.upload_sprite(&data)

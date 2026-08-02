@@ -55,11 +55,11 @@ const RING_SPAWN_FRAME: f32 = 65.0;
 /// dimmer than the last.
 const WING_BIRTH_FRAMES: [f32; 7] = [0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 18.0];
 
-const SPR_ANGEL: &str = "data/sprite/이팩트/천사";
-const SPR_ANGEL_WINGS: &str = "data/sprite/이팩트/천사날개";
-const SPR_FEATHER: &str = "data/sprite/이팩트/천사날개깃털";
-const SPR_HANBOK_BODY: &str = "data/sprite/이팩트/한복천사(본체)";
-const SPR_HANBOK_WINGS: &str = "data/sprite/이팩트/한복천사(날개)";
+const SPR_ANGEL: &str = ragnarok_resources::sprite::effect::ANGEL;
+const SPR_ANGEL_WINGS: &str = ragnarok_resources::sprite::effect::ANGEL_WINGS;
+const SPR_FEATHER: &str = ragnarok_resources::sprite::effect::ANGEL_FEATHER;
+const SPR_HANBOK_BODY: &str = ragnarok_resources::sprite::effect::HANBOK_ANGEL_BODY;
+const SPR_HANBOK_WINGS: &str = ragnarok_resources::sprite::effect::HANBOK_ANGEL_WINGS;
 
 pub const SPRITES: &[&str] = &[
     SPR_ANGEL,

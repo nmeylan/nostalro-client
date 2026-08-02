@@ -3029,6 +3029,7 @@ dependencies = [
  "ragnarok-network",
  "ragnarok-profiling",
  "ragnarok-renderer",
+ "ragnarok-resources",
  "ragnarok-ui",
  "ragnarok-ui-component",
  "serde",
@@ -3045,6 +3046,7 @@ version = "0.1.0"
 dependencies = [
  "models",
  "ragnarok-profiling",
+ "ragnarok-resources",
  "tracing",
 ]
 
@@ -3056,6 +3058,7 @@ dependencies = [
  "encoding_rs",
  "flate2",
  "models",
+ "ragnarok-resources",
  "tracing",
 ]
 
@@ -3070,6 +3073,7 @@ dependencies = [
  "ragnarok-effects",
  "ragnarok-formats",
  "ragnarok-profiling",
+ "ragnarok-resources",
  "serde",
  "tracing",
 ]
@@ -3086,6 +3090,7 @@ dependencies = [
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
+ "ragnarok-resources",
  "rfd",
  "tracing",
  "tracing-subscriber",
@@ -3127,10 +3132,15 @@ dependencies = [
  "ragnarok-effects",
  "ragnarok-formats",
  "ragnarok-profiling",
+ "ragnarok-resources",
  "tracing",
  "wgpu 28.0.0",
  "winit",
 ]
+
+[[package]]
+name = "ragnarok-resources"
+version = "0.1.0"
 
 [[package]]
 name = "ragnarok-tools"
@@ -3147,6 +3157,7 @@ dependencies = [
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
+ "ragnarok-resources",
  "ragnarok-ui",
  "tracing",
  "tracing-subscriber",
@@ -3160,6 +3171,7 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "ragnarok-renderer",
+ "ragnarok-resources",
  "winit",
 ]
 
@@ -3174,6 +3186,7 @@ dependencies = [
  "ragnarok-formats",
  "ragnarok-game",
  "ragnarok-renderer",
+ "ragnarok-resources",
  "ragnarok-ui",
  "tracing",
  "tracing-subscriber",
@@ -3188,6 +3201,7 @@ dependencies = [
  "models",
  "ragnarok-ai",
  "ragnarok-game",
+ "ragnarok-resources",
  "ragnarok-ui",
  "ragnarok-ui-component",
 ]

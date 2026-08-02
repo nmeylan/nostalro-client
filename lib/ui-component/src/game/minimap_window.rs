@@ -8,11 +8,11 @@ pub const MINIMAP_WINDOW_ID: WidgetId = WidgetId(1600);
 const ZOOM_IN_BTN_ID: WidgetId = WidgetId(1601);
 const ZOOM_OUT_BTN_ID: WidgetId = WidgetId(1602);
 
-const MAP_ARROW_TEX: &str = "data/texture/유저인터페이스/map/map_arrow.bmp";
-const MAP_PLUS_OFF: &str = "data/texture/유저인터페이스/map/map_plus0.bmp";
-const MAP_PLUS_ON: &str = "data/texture/유저인터페이스/map/map_plus1.bmp";
-const MAP_MINUS_OFF: &str = "data/texture/유저인터페이스/map/map_minus0.bmp";
-const MAP_MINUS_ON: &str = "data/texture/유저인터페이스/map/map_minus1.bmp";
+const MAP_ARROW_TEX: &str = ragnarok_resources::ui::minimap::MAP_ARROW;
+const MAP_PLUS_OFF: &str = ragnarok_resources::ui::minimap::MAP_PLUS0;
+const MAP_PLUS_ON: &str = ragnarok_resources::ui::minimap::MAP_PLUS1;
+const MAP_MINUS_OFF: &str = ragnarok_resources::ui::minimap::MAP_MINUS0;
+const MAP_MINUS_ON: &str = ragnarok_resources::ui::minimap::MAP_MINUS1;
 
 const BTN_ZOOM_IN: ButtonTextures = ButtonTextures {
     normal: MAP_PLUS_OFF,

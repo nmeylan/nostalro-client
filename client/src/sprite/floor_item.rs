@@ -71,7 +71,7 @@ impl App {
         if let Some(res_name) = &resource_name
             && let Some(grf) = &self.grf
         {
-            let base = format!("data/sprite/아이템/{res_name}");
+            let base = ragnarok_resources::sprite::item::of(res_name);
             let spr_path = format!("{base}.spr");
             let act_path = format!("{base}.act");
             if let Some(data) = sprite_loader::load_sprite_data(grf, &spr_path, &act_path)

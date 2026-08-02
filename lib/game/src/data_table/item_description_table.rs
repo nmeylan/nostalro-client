@@ -8,8 +8,8 @@ pub struct ItemDescriptionTable {
     unidentified: HashMap<u16, Vec<String>>,
 }
 
-const IDENTIFIED_PATH: &str = "data/idnum2itemdesctable.txt";
-const UNIDENTIFIED_PATH: &str = "data/num2itemdesctable.txt";
+const IDENTIFIED_PATH: &str = ragnarok_resources::table::IDENTIFIED_ITEM_DESC;
+const UNIDENTIFIED_PATH: &str = ragnarok_resources::table::UNIDENTIFIED_ITEM_DESC;
 
 impl ItemDescriptionTable {
     pub fn from_entries(

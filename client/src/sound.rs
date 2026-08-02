@@ -42,7 +42,10 @@ impl App {
     pub(crate) fn play_bgm_track(&mut self, track: &str) {
         let disk_path = format!("{}/{}", self.config.bgm_path, track);
         let grf = self.grf.as_ref();
-        let grf_names = [format!("bgm\\{track}"), format!("data/wav/bgm/{track}")];
+        let grf_names = [
+            format!("bgm\\{track}"),
+            ragnarok_resources::sound::bgm(track),
+        ];
         self.sound.play_bgm(track, || {
             if let Ok(bytes) = std::fs::read(&disk_path) {
                 return Some(bytes);
@@ -129,13 +132,13 @@ impl App {
         });
         if let Some(grf) = self.grf.as_ref() {
             for r in resolved {
-                let path = format!("data/wav/{}", r.name);
+                let path = ragnarok_resources::sound::sfx(&r.name);
                 let disk_rel = r.name.replace('\\', "/");
                 self.sound.play_sfx(&path, r.gain, r.pan, || {
                     grf.read_file(&path)
                         .ok()
                         .or_else(|| std::fs::read(format!("wav/{disk_rel}")).ok())
-                        .or_else(|| std::fs::read(format!("data/wav/{disk_rel}")).ok())
+                        .or_else(|| std::fs::read(ragnarok_resources::sound::sfx(&disk_rel)).ok())
                 });
             }
         }

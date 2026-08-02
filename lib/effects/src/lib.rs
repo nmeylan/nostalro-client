@@ -53,15 +53,15 @@ pub use status_buff::{
 pub use str_aliases::{str_aliases, str_variant};
 pub use table::{custom_duration_ms, effect_spec, spawn_camera_shake};
 
-pub const ARROW_SPRITE: &str = "data/sprite/몬스터/skel_archer_arrow";
+pub const ARROW_SPRITE: &str = ragnarok_resources::sprite::monster::SKEL_ARCHER_ARROW;
 
 pub const SPRITES: &[&str] = &[ARROW_SPRITE];
 
 pub fn effect_texture_path(name: &str) -> String {
     if name.contains('/') {
-        format!("data/texture/{name}")
+        ragnarok_resources::texture::named(name)
     } else {
-        format!("data/texture/effect/{name}")
+        ragnarok_resources::texture::effect::named(name)
     }
 }
 

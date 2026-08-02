@@ -37,35 +37,25 @@ fn set_input(input: &mut TextInput, text: String) {
     input.text = text;
 }
 
-const BG_INBOX_TEX: &str = "data/texture/유저인터페이스/basic_interface/maillist1_bg.bmp";
-const BG_COMPOSE_TEX: &str = "data/texture/유저인터페이스/basic_interface/maillist2_bg.bmp";
-const ENVELOPE_TEX: &str = "data/texture/유저인터페이스/basic_interface/envelop.bmp";
+const BG_INBOX_TEX: &str = ragnarok_resources::ui::basic::MAILLIST1_BG;
+const BG_COMPOSE_TEX: &str = ragnarok_resources::ui::basic::MAILLIST2_BG;
+const ENVELOPE_TEX: &str = ragnarok_resources::ui::basic::ENVELOP;
 
 macro_rules! btn {
-    ($name:literal) => {
+    ($normal:expr, $active:expr) => {
         ButtonTextures {
-            normal: concat!(
-                "data/texture/유저인터페이스/basic_interface/",
-                $name,
-                ".bmp"
-            ),
-            hover: concat!(
-                "data/texture/유저인터페이스/basic_interface/",
-                $name,
-                "_a.bmp"
-            ),
-            pressed: concat!(
-                "data/texture/유저인터페이스/basic_interface/",
-                $name,
-                "_a.bmp"
-            ),
+            normal: $normal,
+            hover: $active,
+            pressed: $active,
         }
     };
 }
 
-const CLOSE_BTN: ButtonTextures = btn!("close2");
-const SEND_BTN: ButtonTextures = btn!("send");
-const CANCEL_BTN: ButtonTextures = btn!("cancel2");
+use ragnarok_resources::ui::basic as basic_tex;
+
+const CLOSE_BTN: ButtonTextures = btn!(basic_tex::BTN_CLOSE2, basic_tex::BTN_CLOSE2_A);
+const SEND_BTN: ButtonTextures = btn!(basic_tex::BTN_SEND, basic_tex::BTN_SEND_A);
+const CANCEL_BTN: ButtonTextures = btn!(basic_tex::BTN_CANCEL2, basic_tex::BTN_CANCEL2_A);
 
 const WIN_W: f32 = 300.0;
 const WIN_H: f32 = 400.0;
@@ -489,7 +479,7 @@ impl MailboxWindow {
                     slot_rect.y,
                     24.0,
                     24.0,
-                    &format!("data/texture/유저인터페이스/item/{res}.bmp"),
+                    &ragnarok_resources::ui::item::icon(res),
                 );
             }
             if attach.amount > 1 {

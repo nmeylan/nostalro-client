@@ -3,7 +3,7 @@ use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const TEXTURES: &[&str] = &[spike_burst::SPIKE_TEXTURE];
-pub const PARTICLE_SPRITE: &str = "data/sprite/이팩트/particle1";
+pub const PARTICLE_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
 pub const SPRITES: &[&str] = &[PARTICLE_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

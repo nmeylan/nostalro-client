@@ -7,6 +7,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
+ragnarok-resources = { workspace = true }
 models = { workspace = true }
 ragnarok-ai = { workspace = true }
 ragnarok-ui-component = { workspace = true }

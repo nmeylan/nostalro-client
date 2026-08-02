@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table::{self, QuestDisplay};
 
-const PATH: &str = "data/questid2display.txt";
-const ITEM_TEX_DIR: &str = "data/texture/유저인터페이스/item";
+const PATH: &str = ragnarok_resources::table::QUEST_DISPLAY;
 const DEFAULT_ICON: &str = "sg_feel";
 const DEFAULT_IMAGE: &str = "que_noimage";
 
@@ -61,7 +60,7 @@ impl QuestDisplayTable {
             .map(|q| q.icon_name.to_ascii_lowercase())
             .filter(|n| !n.is_empty() && !n.starts_with("ico"))
             .unwrap_or_else(|| DEFAULT_ICON.to_string());
-        format!("{ITEM_TEX_DIR}/{name}.bmp")
+        ragnarok_resources::ui::item::icon(&name)
     }
 
     pub fn image_texture(&self, id: u32) -> String {
@@ -71,6 +70,6 @@ impl QuestDisplayTable {
             .map(|q| q.image_name.to_ascii_lowercase())
             .filter(|n| !n.is_empty())
             .unwrap_or_else(|| DEFAULT_IMAGE.to_string());
-        format!("{ITEM_TEX_DIR}/{name}.bmp")
+        ragnarok_resources::ui::item::icon(&name)
     }
 }

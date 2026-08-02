@@ -9,12 +9,12 @@ pub struct NameTable {
 }
 
 const IDENTITY_PATHS: &[&str] = &[
-    "data/luafiles514/lua files/datainfo/jobidentity.lub",
-    "data/luafiles514/lua files/datainfo/npcidentity.lub",
-    "data/lua files/datainfo/jobidentity.lub",
-    "data/lua files/datainfo/npcidentity.lub",
-    "data/lua files/datainfo/jobidentity.lua",
-    "data/lua files/datainfo/npcidentity.lua",
+    ragnarok_resources::lua::JOB_IDENTITY_514_LUB,
+    ragnarok_resources::lua::NPC_IDENTITY_514_LUB,
+    ragnarok_resources::lua::JOB_IDENTITY_LUB,
+    ragnarok_resources::lua::NPC_IDENTITY_LUB,
+    ragnarok_resources::lua::JOB_IDENTITY_LUA,
+    ragnarok_resources::lua::NPC_IDENTITY_LUA,
 ];
 
 impl NameTable {

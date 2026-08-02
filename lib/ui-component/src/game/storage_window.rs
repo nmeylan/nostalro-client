@@ -28,9 +28,9 @@ const TAB_BASE_ID: u32 = 3810; // 3810..3816, 7 tabs
 const ROW_BASE_ID: u32 = 3820;
 
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_close.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_close_a.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_close_b.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_CLOSE,
+    hover: ragnarok_resources::ui::basic::BTN_CLOSE_A,
+    pressed: ragnarok_resources::ui::basic::BTN_CLOSE_B,
 };
 const TAB_DEFS: [(InventoryTab, &str, &str); 3] = [
     (InventoryTab::Usable, TAB_USABLE_TEX, "Use"),

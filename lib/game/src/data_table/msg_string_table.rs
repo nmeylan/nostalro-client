@@ -1,7 +1,7 @@
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table::decode_euc_kr;
 
-const MSG_STRING_PATH: &str = "data/msgstringtable.txt";
+const MSG_STRING_PATH: &str = ragnarok_resources::table::MSG_STRING;
 
 const MSI_CANNOT_PARTYCALL: u16 = 1221;
 const MSI_NO_PARTYMEM_ON_THISMAP: u16 = 1222;

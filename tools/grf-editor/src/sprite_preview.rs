@@ -16,7 +16,7 @@ use ragnarok_renderer::{
 
 const CANVAS: u32 = 384;
 const BYTES_PER_PIXEL: u32 = 4;
-const STR_EFFECT_PREFIX: &str = "data/texture/effect/";
+const STR_EFFECT_PREFIX: &str = ragnarok_resources::dir::STR_EFFECT;
 const GR2_ACTION_NAMES: [&str; 5] = ["Stand", "Move", "Attack", "Dead", "Damage"];
 
 enum Content {

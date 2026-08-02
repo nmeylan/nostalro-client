@@ -18,7 +18,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const SPRITE: &str = "data/sprite/이팩트/waterball";
+pub const SPRITE: &str = ragnarok_resources::sprite::effect::WATERBALL;
 pub const SPRITES: &[&str] = &[SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

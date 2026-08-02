@@ -228,7 +228,7 @@ impl Gr2Action {
 /// missing file: not every bone type ships every action.
 pub fn animation_file_path(bone_type: u32, action: Gr2Action) -> Option<String> {
     let suffix = action.file_suffix()?;
-    Some(format!("data/model/3dmob_bone/{bone_type}_{suffix}.gr2"))
+    Some(ragnarok_resources::model::mob_animation(bone_type, suffix))
 }
 
 pub fn is_gr2_name(name: &str) -> bool {
@@ -237,7 +237,7 @@ pub fn is_gr2_name(name: &str) -> bool {
 
 /// GRF path of a name-table `.gr2` entry.
 pub fn gr2_model_path(name: &str) -> String {
-    format!("data/model/3dmob/{}", name.to_ascii_lowercase())
+    ragnarok_resources::model::mob(&name.to_ascii_lowercase())
 }
 
 /// Bone type from a model filename's trailing digit (`..._{N}.gr2`).

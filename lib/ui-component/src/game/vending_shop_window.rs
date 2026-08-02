@@ -29,14 +29,14 @@ const STAGED_BASE_ID: u32 = 2430;
 const NUM_DIALOG_BASE: u32 = 2440;
 
 const BUY_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_buy.bmp",
-    hover: "data/texture/유저인터페이스/btn_buy_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_buy_b.bmp",
+    normal: ragnarok_resources::ui::BTN_BUY,
+    hover: ragnarok_resources::ui::BTN_BUY_A,
+    pressed: ragnarok_resources::ui::BTN_BUY_B,
 };
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 const WIN_W: f32 = 280.0;

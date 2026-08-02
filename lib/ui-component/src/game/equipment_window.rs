@@ -11,8 +11,8 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
-const ITEM_INVERT_TEX: &str = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
-const BTN_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/btn_off.bmp";
+const ITEM_INVERT_TEX: &str = ragnarok_resources::ui::basic::ITEM_INVERT;
+const BTN_OFF_TEX: &str = ragnarok_resources::ui::basic::BTN_OFF;
 
 pub const EQ_WINDOW_ID: WidgetId = WidgetId(900);
 const EQ_CLOSE_BTN_ID: WidgetId = WidgetId(901);
@@ -33,11 +33,11 @@ const SLOT_ROWS: usize = 5;
 const TEXT_MAX_W: f32 = SIDE_COL_W - ICON_SIZE - 4.0 - 3.0;
 const REMOVE_OPTION_BTN_SIZE: f32 = 36.0;
 
-const EQUIP_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/equipwin_bg.bmp";
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const MINI_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
-const MINI_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
+const EQUIP_BG_TEX: &str = ragnarok_resources::ui::basic::EQUIPWIN_BG;
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const MINI_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_MINI_OFF;
+const MINI_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_MINI_ON;
 
 struct EquipSlot {
     label: &'static str,

@@ -105,7 +105,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         }
         if app.grf_path.is_none() {
             warn!("No grf specified try loading at data/data.grf");
-            app.grf_path = Some(String::from("data/data.grf"));
+            app.grf_path = Some(String::from(ragnarok_resources::grf::DEFAULT_ARCHIVE));
         }
         event_loop.run_app(&mut app).unwrap();
     }

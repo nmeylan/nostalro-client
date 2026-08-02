@@ -62,10 +62,7 @@ pub struct WaterRenderer {
 }
 
 fn water_texture_name(water_type: i32, frame: usize) -> String {
-    format!(
-        "data/texture/\u{C6CC}\u{D130}/water{}{:02}.jpg",
-        water_type, frame
-    )
+    ragnarok_resources::texture::water(water_type, frame)
 }
 
 fn wave_offset_at(elapsed: f32, wave_speed: f32) -> f32 {

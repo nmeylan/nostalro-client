@@ -63,146 +63,158 @@ impl SprDef {
 
 pub fn spr_def(id: EffectId) -> Option<SprDef> {
     Some(match id {
-        EffectId::Torch => SprDef::new("data/sprite/이팩트/torch_01").with_anim_speed(1.0),
-        EffectId::Aqua => SprDef::new("data/sprite/이팩트/성수뜨기")
+        EffectId::Torch => {
+            SprDef::new(ragnarok_resources::sprite::effect::TORCH_01).with_anim_speed(1.0)
+        }
+        EffectId::Aqua => SprDef::new(ragnarok_resources::sprite::effect::AQUA_BENEDICTA)
             .with_anim_speed(2.0)
             .one_shot()
             .with_pos_y(-20.0),
-        EffectId::Vallentine => SprDef::new("data/sprite/이팩트/vallentine")
+        EffectId::Vallentine => SprDef::new(ragnarok_resources::sprite::effect::VALLENTINE)
             .with_anim_speed(2.0)
             .one_shot(),
-        EffectId::Vallentine2 => SprDef::new("data/sprite/이팩트/vallentine")
+        EffectId::Vallentine2 => SprDef::new(ragnarok_resources::sprite::effect::VALLENTINE)
             .with_anim_speed(2.0)
             .one_shot()
             .with_action(1),
-        EffectId::Itemfast => SprDef::new("data/sprite/이팩트/fast")
+        EffectId::Itemfast => SprDef::new(ragnarok_resources::sprite::effect::FAST)
             .with_anim_speed(4.0)
             .one_shot(),
-        EffectId::Blessing => SprDef::new("data/sprite/이팩트/축복").one_shot(),
-        EffectId::Demonstration => SprDef::new("data/sprite/이팩트/데몬스트레이션")
+        EffectId::Blessing => SprDef::new(ragnarok_resources::sprite::effect::BLESSING).one_shot(),
+        EffectId::Demonstration => SprDef::new(ragnarok_resources::sprite::effect::DEMONSTRATION)
             .with_size(1.2)
             .with_pos_y(-1.0),
-        EffectId::NpcStop => SprDef::new("data/sprite/이팩트/스톱").with_pos_y(-5.0),
-        EffectId::NpcStop2 => SprDef::new("data/sprite/이팩트/cconfine")
+        EffectId::NpcStop => SprDef::new(ragnarok_resources::sprite::effect::STOP).with_pos_y(-5.0),
+        EffectId::NpcStop2 => SprDef::new(ragnarok_resources::sprite::effect::CCONFINE)
             .with_anim_speed(12.0)
             .one_shot()
             .with_tint([1.0, 1.0, 1.0, 100.0 / 255.0]),
-        EffectId::Hamicastle => SprDef::new("data/sprite/이팩트/캐슬링")
+        EffectId::Hamicastle => SprDef::new(ragnarok_resources::sprite::effect::CASTLING)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::ItemThunder => SprDef::new("data/sprite/이팩트/item_thunder")
+        EffectId::ItemThunder => SprDef::new(ragnarok_resources::sprite::effect::ITEM_THUNDER)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::ItemCloud => SprDef::new("data/sprite/이팩트/item_cloud")
+        EffectId::ItemCloud => SprDef::new(ragnarok_resources::sprite::effect::ITEM_CLOUD)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::ItemCurse => SprDef::new("data/sprite/이팩트/item_curse")
+        EffectId::ItemCurse => SprDef::new(ragnarok_resources::sprite::effect::ITEM_CURSE)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::ItemZzz => SprDef::new("data/sprite/이팩트/item_zzz")
+        EffectId::ItemZzz => SprDef::new(ragnarok_resources::sprite::effect::ITEM_ZZZ)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::ItemRain => SprDef::new("data/sprite/이팩트/item_rain")
+        EffectId::ItemRain => SprDef::new(ragnarok_resources::sprite::effect::ITEM_RAIN)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::Hamiblood => SprDef::new("data/sprite/이팩트/블러드러스트")
+        EffectId::Hamiblood => SprDef::new(ragnarok_resources::sprite::effect::BLOODLUST)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::Kirikage => SprDef::new("data/sprite/이팩트/그림자베기")
+        EffectId::Kirikage => SprDef::new(ragnarok_resources::sprite::effect::KIRIKAGE)
             .one_shot()
             .no_depth(),
-        EffectId::Tatami => SprDef::new("data/sprite/이팩트/다다미 뒤집기")
+        EffectId::Tatami => SprDef::new(ragnarok_resources::sprite::effect::TATAMI_FLIP)
             .with_anim_speed(6.0)
             .one_shot()
             .with_pos_y(-6.0)
             .with_clip_offset(45, 0),
-        EffectId::Kasumikiri => SprDef::new("data/sprite/이팩트/안개베기")
+        EffectId::Kasumikiri => SprDef::new(ragnarok_resources::sprite::effect::KASUMIKIRI)
             .one_shot()
             .no_depth(),
-        EffectId::Issen => SprDef::new("data/sprite/이팩트/일섬")
+        EffectId::Issen => SprDef::new(ragnarok_resources::sprite::effect::ISSEN)
             .with_anim_speed(2.0)
             .one_shot()
             .with_pos_y(-6.0)
             .no_depth(),
-        EffectId::Kaen => SprDef::new("data/sprite/이팩트/화염진")
+        EffectId::Kaen => SprDef::new(ragnarok_resources::sprite::effect::KAEN)
             .with_anim_speed(5.0)
             .with_pos_y(-1.0),
-        EffectId::Desperado => SprDef::new("data/sprite/이팩트/데스페라도")
+        EffectId::Desperado => SprDef::new(ragnarok_resources::sprite::effect::DESPERADO)
             .one_shot()
             .no_depth(),
-        EffectId::LightningS => SprDef::new("data/sprite/아이템/라이트닝스피어")
+        EffectId::LightningS => SprDef::new(ragnarok_resources::sprite::item::LIGHTNING_SPEAR)
             .with_anim_speed(2.0)
             .with_pos_y(-1.0),
-        EffectId::BlindS => SprDef::new("data/sprite/아이템/블라인드스피어")
+        EffectId::BlindS => SprDef::new(ragnarok_resources::sprite::item::BLIND_SPEAR)
             .with_anim_speed(2.0)
             .with_pos_y(-1.0),
-        EffectId::PoisonS => SprDef::new("data/sprite/아이템/포이즌스피어")
+        EffectId::PoisonS => SprDef::new(ragnarok_resources::sprite::item::POISON_SPEAR)
             .with_anim_speed(2.0)
             .with_pos_y(-1.0),
-        EffectId::FreezingS => SprDef::new("data/sprite/아이템/프리징스피어")
+        EffectId::FreezingS => SprDef::new(ragnarok_resources::sprite::item::FREEZING_SPEAR)
             .with_anim_speed(2.0)
             .with_pos_y(-1.0),
-        EffectId::FlareS => SprDef::new("data/sprite/아이템/플레어스피어")
+        EffectId::FlareS => SprDef::new(ragnarok_resources::sprite::item::FLARE_SPEAR)
             .with_anim_speed(2.0)
             .with_pos_y(-1.0),
-        EffectId::Rapidshower => SprDef::new("data/sprite/이팩트/래피드샤워")
+        EffectId::Rapidshower => SprDef::new(ragnarok_resources::sprite::effect::RAPID_SHOWER)
             .one_shot()
             .no_depth(),
-        EffectId::Magicalbullet => SprDef::new("data/sprite/이팩트/매지컬불릿")
+        EffectId::Magicalbullet => SprDef::new(ragnarok_resources::sprite::effect::MAGICAL_BULLET)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::Spreadattack => SprDef::new("data/sprite/이팩트/스프레드")
+        EffectId::Spreadattack => SprDef::new(ragnarok_resources::sprite::effect::SPREAD_ATTACK)
             .one_shot()
             .no_depth(),
-        EffectId::Tracking => SprDef::new("data/sprite/이팩트/트래킹")
+        EffectId::Tracking => SprDef::new(ragnarok_resources::sprite::effect::TRACKING)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::Tripleaction => SprDef::new("data/sprite/이팩트/트리플액션")
+        EffectId::Tripleaction => SprDef::new(ragnarok_resources::sprite::effect::TRIPLE_ACTION)
             .with_anim_speed(2.0)
             .one_shot()
             .no_depth(),
-        EffectId::NpcEarthquake => SprDef::new("data/sprite/이팩트/어스퀘이크")
+        EffectId::NpcEarthquake => SprDef::new(ragnarok_resources::sprite::effect::EARTHQUAKE)
             .one_shot()
             .no_depth(),
-        EffectId::PokLove => SprDef::new("data/sprite/이팩트/폭죽_러브").one_shot(),
-        EffectId::PokBirth => SprDef::new("data/sprite/이팩트/폭죽_생일").one_shot(),
-        EffectId::PokChristmas => SprDef::new("data/sprite/이팩트/폭죽_크리스마스").one_shot(),
-        EffectId::PokWhite => SprDef::new("data/sprite/이팩트/폭죽_화이트데이").one_shot(),
-        EffectId::PokValen => SprDef::new("data/sprite/이팩트/폭죽_발렌타인").one_shot(),
-        EffectId::Poisonhit => SprDef::new("data/sprite/이팩트/poisonhit")
+        EffectId::PokLove => {
+            SprDef::new(ragnarok_resources::sprite::effect::FIREWORK_LOVE).one_shot()
+        }
+        EffectId::PokBirth => {
+            SprDef::new(ragnarok_resources::sprite::effect::FIREWORK_BIRTHDAY).one_shot()
+        }
+        EffectId::PokChristmas => {
+            SprDef::new(ragnarok_resources::sprite::effect::FIREWORK_CHRISTMAS).one_shot()
+        }
+        EffectId::PokWhite => {
+            SprDef::new(ragnarok_resources::sprite::effect::FIREWORK_WHITE_DAY).one_shot()
+        }
+        EffectId::PokValen => {
+            SprDef::new(ragnarok_resources::sprite::effect::FIREWORK_VALENTINE).one_shot()
+        }
+        EffectId::Poisonhit => SprDef::new(ragnarok_resources::sprite::effect::POISONHIT)
             .with_size(1.5)
             .with_anim_speed(2.0)
             .one_shot(),
-        EffectId::Darkbreath => SprDef::new("data/sprite/이팩트/darkbreath")
+        EffectId::Darkbreath => SprDef::new(ragnarok_resources::sprite::effect::DARKBREATH)
             .with_size(0.8)
             .with_anim_speed(1.0)
             .with_pos_y(-20.0)
             .with_tint([1.0, 0.0, 0.0, 1.0]),
-        EffectId::M01 => SprDef::new("data/sprite/이팩트/m_ef01")
+        EffectId::M01 => SprDef::new(ragnarok_resources::sprite::effect::M_EF01)
             .with_anim_speed(3.0)
             .one_shot()
             .with_tint([1.0, 1.0, 1.0, 220.0 / 255.0])
             .no_depth(),
-        EffectId::M03 => SprDef::new("data/sprite/이팩트/m_ef03")
+        EffectId::M03 => SprDef::new(ragnarok_resources::sprite::effect::M_EF03)
             .one_shot()
             .no_depth(),
-        EffectId::M04 => SprDef::new("data/sprite/이팩트/m_ef04").no_depth(),
-        EffectId::M05 => SprDef::new("data/sprite/이팩트/m_ef05")
+        EffectId::M04 => SprDef::new(ragnarok_resources::sprite::effect::M_EF04).no_depth(),
+        EffectId::M05 => SprDef::new(ragnarok_resources::sprite::effect::M_EF05)
             .one_shot()
             .no_depth(),
-        EffectId::M06 => SprDef::new("data/sprite/이팩트/m_ef06")
+        EffectId::M06 => SprDef::new(ragnarok_resources::sprite::effect::M_EF06)
             .one_shot()
             .no_depth(),
-        EffectId::M07 => SprDef::new("data/sprite/이팩트/m_ef07")
+        EffectId::M07 => SprDef::new(ragnarok_resources::sprite::effect::M_EF07)
             .one_shot()
             .no_depth(),
         _ => return None,

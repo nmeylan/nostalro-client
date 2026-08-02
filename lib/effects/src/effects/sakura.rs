@@ -4,8 +4,8 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 const FRAMES_PER_SECOND: f32 = 60.0;
 pub const TOTAL_DURATION_MS: u32 = 99990;
 
-const SAKURA_SPRITE: &str = "data/sprite/이팩트/sakura01";
-const MAPLE_SPRITE: &str = "data/sprite/이팩트/단풍";
+const SAKURA_SPRITE: &str = ragnarok_resources::sprite::effect::SAKURA01;
+const MAPLE_SPRITE: &str = ragnarok_resources::sprite::effect::MAPLE_LEAF;
 pub const SPRITES: &[&str] = &[SAKURA_SPRITE, MAPLE_SPRITE];
 
 const SPREAD: f32 = 150.0;

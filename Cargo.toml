@@ -2,6 +2,7 @@
 members = [
     "client",
     "lib/formats",
+    "lib/resources",
     "lib/renderer",
     "lib/game",
     "lib/ai",
@@ -55,6 +56,7 @@ packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "0fb6f287" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }
+ragnarok-resources = { path = "lib/resources" }
 ragnarok-renderer = { path = "lib/renderer" }
 ragnarok-game = { path = "lib/game" }
 ragnarok-ai = { path = "lib/ai" }

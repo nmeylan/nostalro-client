@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
 
-const SKILL_NAME_PATH: &str = "data/skillnametable.txt";
+const SKILL_NAME_PATH: &str = ragnarok_resources::table::SKILL_NAME;
 
 pub struct SkillNameTable {
     entries: HashMap<String, String>,

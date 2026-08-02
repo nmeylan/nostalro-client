@@ -589,7 +589,9 @@ impl ApplicationHandler for App {
             match GrfArchive::open(Path::new(grf_path)) {
                 Ok(grf) => {
                     self.load_damage_sprites(&grf);
-                    if let Ok(act_data) = grf.read_file("data/sprite/이팩트/숫자.act") {
+                    if let Ok(act_data) =
+                        grf.read_file(ragnarok_resources::sprite::effect::NUMBER_ACT)
+                    {
                         self.num_act_data = Some(act_data);
                     }
                     self.hot_init_sprites();

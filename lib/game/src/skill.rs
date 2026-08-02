@@ -65,10 +65,7 @@ pub struct SkillData {
 
 impl SkillData {
     pub fn icon_path(&self) -> String {
-        format!(
-            "data/texture/유저인터페이스/item/{}.bmp",
-            self.name.to_lowercase()
-        )
+        ragnarok_resources::ui::item::icon(&self.name.to_lowercase())
     }
 
     pub fn use_level(&self) -> i16 {
@@ -227,10 +224,7 @@ impl SkillList {
     }
 
     pub fn apply_skill_added(&mut self, skill: crate::event::SkillInfo) -> String {
-        let icon_path = format!(
-            "data/texture/유저인터페이스/item/{}.bmp",
-            skill.name.to_lowercase()
-        );
+        let icon_path = ragnarok_resources::ui::item::icon(&skill.name.to_lowercase());
         self.add_skill(SkillData {
             id: skill.id,
             selected_level: skill.level,

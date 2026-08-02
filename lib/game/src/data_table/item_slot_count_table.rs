@@ -7,7 +7,7 @@ pub struct ItemSlotCountTable {
     entries: HashMap<u16, u8>,
 }
 
-const SLOT_COUNT_PATH: &str = "data/itemslotcounttable.txt";
+const SLOT_COUNT_PATH: &str = ragnarok_resources::table::ITEM_SLOT_COUNT;
 
 impl ItemSlotCountTable {
     pub fn from_entries(entries: HashMap<u16, u8>) -> Self {

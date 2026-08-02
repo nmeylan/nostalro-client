@@ -14,18 +14,18 @@ const CLOSE_BTN_ID: WidgetId = WidgetId(3001);
 const DISMISS_BTN_ID: WidgetId = WidgetId(3002);
 const SKILL_BTN_ID: WidgetId = WidgetId(3003);
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const FIRED_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_fired.bmp",
-    hover: "data/texture/유저인터페이스/btn_fired_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_fired_b.bmp",
+    normal: ragnarok_resources::ui::BTN_FIRED,
+    hover: ragnarok_resources::ui::BTN_FIRED_A,
+    pressed: ragnarok_resources::ui::BTN_FIRED_B,
 };
 const SKILL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_skill.bmp",
-    hover: "data/texture/유저인터페이스/btn_skill_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_skill_b.bmp",
+    normal: ragnarok_resources::ui::BTN_SKILL,
+    hover: ragnarok_resources::ui::BTN_SKILL_A,
+    pressed: ragnarok_resources::ui::BTN_SKILL_B,
 };
 
 const WIN_W: f32 = 236.0;

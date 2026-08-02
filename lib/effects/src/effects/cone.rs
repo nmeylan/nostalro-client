@@ -1,7 +1,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const PARTICLE1_SPRITE: &str = "data/sprite/이팩트/particle1";
+pub const PARTICLE1_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
 pub const SPRITES: &[&str] = &[PARTICLE1_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

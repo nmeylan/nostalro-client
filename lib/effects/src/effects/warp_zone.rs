@@ -28,7 +28,7 @@ pub const BASE_TEXTURE: &str = "alpha_down.tga";
 pub const INNER_TEXTURE: &str = "ring_blue.tga";
 pub const TEXTURES: &[&str] = &[BASE_TEXTURE, INNER_TEXTURE];
 
-pub const SPARKLE_SPRITE: &str = "data/sprite/이팩트/particle1";
+pub const SPARKLE_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
 pub const SPRITES: &[&str] = &[SPARKLE_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

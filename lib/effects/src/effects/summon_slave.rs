@@ -28,7 +28,7 @@ const SPIKE_DURATION_FRAMES: f32 = 40.0;
 /// Plays a single one-shot animated smoke poof at the master
 /// (a smoke poof sprite), **not** the
 /// chimney-smoke particle puffs of the unrelated `EF_SMOKE`.
-const SMOKE_SPRITE: &str = "data/sprite/이팩트/smoke";
+const SMOKE_SPRITE: &str = ragnarok_resources::sprite::effect::SMOKE;
 /// Preloaded so the sprite is cached before frame 35 (otherwise the first
 /// emitted SpriteParticle is silently skipped).
 pub const SPRITES: &[&str] = &[SMOKE_SPRITE];

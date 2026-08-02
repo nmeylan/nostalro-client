@@ -12,8 +12,8 @@ pub const CART_SELECT_WINDOW_ID: WidgetId = WidgetId(1850);
 const CART_SELECT_CLOSE_BTN_ID: WidgetId = WidgetId(1851);
 const CART_SELECT_ROW_BASE_ID: u32 = 1855;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const TITLE_H: f32 = 17.0;
 const ROW_H: f32 = 44.0;

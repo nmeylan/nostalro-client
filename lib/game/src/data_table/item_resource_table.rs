@@ -8,8 +8,8 @@ pub struct ItemResourceTable {
     unidentified_entries: HashMap<u16, String>,
 }
 
-const IDENTIFIED_PATH: &str = "data/idnum2itemresnametable.txt";
-const UNIDENTIFIED_PATH: &str = "data/num2itemresnametable.txt";
+const IDENTIFIED_PATH: &str = ragnarok_resources::table::IDENTIFIED_ITEM_RESOURCE;
+const UNIDENTIFIED_PATH: &str = ragnarok_resources::table::UNIDENTIFIED_ITEM_RESOURCE;
 
 impl ItemResourceTable {
     pub fn from_entries(
@@ -66,12 +66,12 @@ impl ItemResourceTable {
 
     pub fn item_icon_path(&self, item_id: u16) -> Option<String> {
         self.get_resource_name(item_id)
-            .map(|name| format!("data/texture/유저인터페이스/item/{name}.bmp"))
+            .map(|name| ragnarok_resources::ui::item::icon(name))
     }
 
     pub fn item_sprite_path(&self, item_id: u16, is_identified: bool) -> Option<String> {
         self.get_resource_name_for(item_id, is_identified)
-            .map(|name| format!("data/sprite/아이템/{name}"))
+            .map(|name| ragnarok_resources::sprite::item::of(name))
     }
 }
 

@@ -5,7 +5,7 @@ pub const RING_BLUE: &str = "ring_blue.tga";
 pub const LENS2: &str = "lens2.tga";
 pub const TEXTURES: &[&str] = &[RING_BLUE, LENS2];
 
-pub const PARTICLE1_SPRITE: &str = "data/sprite/이팩트/particle1";
+pub const PARTICLE1_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
 pub const SPRITES: &[&str] = &[PARTICLE1_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

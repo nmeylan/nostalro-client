@@ -27,24 +27,24 @@ const LIST_SCROLL: ScrollbarIds = ScrollbarIds {
 pub const QUEST_DETAIL_WINDOW_ID: WidgetId = WidgetId(3750);
 const DETAIL_CLOSE_BTN_ID: WidgetId = WidgetId(3751);
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 const TAB_QUE_TEX: [&str; 3] = [
-    "data/texture/유저인터페이스/basic_interface/tab_que_01.bmp",
-    "data/texture/유저인터페이스/basic_interface/tab_que_02.bmp",
-    "data/texture/유저인터페이스/basic_interface/tab_que_03.bmp",
+    ragnarok_resources::ui::basic::TAB_QUE_01,
+    ragnarok_resources::ui::basic::TAB_QUE_02,
+    ragnarok_resources::ui::basic::TAB_QUE_03,
 ];
-const DETAIL_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/quest_window.bmp";
+const DETAIL_BG_TEX: &str = ragnarok_resources::ui::basic::QUEST_WINDOW;
 
 const VIEW_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_view.bmp",
-    hover: "data/texture/유저인터페이스/btn_view_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_view_b.bmp",
+    normal: ragnarok_resources::ui::BTN_VIEW,
+    hover: ragnarok_resources::ui::BTN_VIEW_A,
+    pressed: ragnarok_resources::ui::BTN_VIEW_B,
 };
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_close.bmp",
-    hover: "data/texture/유저인터페이스/btn_close_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_close_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CLOSE,
+    hover: ragnarok_resources::ui::BTN_CLOSE_A,
+    pressed: ragnarok_resources::ui::BTN_CLOSE_B,
 };
 
 const WIN_W: f32 = 280.0;

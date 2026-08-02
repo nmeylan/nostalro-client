@@ -18,13 +18,13 @@ const RENAME_BTN_ID: WidgetId = WidgetId(4003);
 const COMMAND_DROPDOWN_ID: WidgetId = WidgetId(4004);
 const COMMAND_OPTION_BASE: u32 = 4010;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const RENAME_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_rewrite.bmp",
-    hover: "data/texture/유저인터페이스/btn_rewrite_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_rewrite_b.bmp",
+    normal: ragnarok_resources::ui::BTN_REWRITE,
+    hover: ragnarok_resources::ui::BTN_REWRITE_A,
+    pressed: ragnarok_resources::ui::BTN_REWRITE_B,
 };
 
 const WIN_W: f32 = 280.0;

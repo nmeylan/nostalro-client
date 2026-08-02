@@ -1,14 +1,14 @@
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 
-const SYSBOX_LU: &str = "data/texture/유저인터페이스/sysbox_lu.bmp";
-const SYSBOX_MU: &str = "data/texture/유저인터페이스/sysbox_mu.bmp";
-const SYSBOX_RU: &str = "data/texture/유저인터페이스/sysbox_ru.bmp";
-const SYSBOX_LM: &str = "data/texture/유저인터페이스/sysbox_lm.bmp";
-const SYSBOX_MM: &str = "data/texture/유저인터페이스/sysbox_bg.bmp";
-const SYSBOX_RM: &str = "data/texture/유저인터페이스/sysbox_rm.bmp";
-const SYSBOX_LD: &str = "data/texture/유저인터페이스/sysbox_ld.bmp";
-const SYSBOX_MD: &str = "data/texture/유저인터페이스/sysbox_md.bmp";
-const SYSBOX_RD: &str = "data/texture/유저인터페이스/sysbox_rd.bmp";
+const SYSBOX_LU: &str = ragnarok_resources::ui::SYSBOX_LU;
+const SYSBOX_MU: &str = ragnarok_resources::ui::SYSBOX_MU;
+const SYSBOX_RU: &str = ragnarok_resources::ui::SYSBOX_RU;
+const SYSBOX_LM: &str = ragnarok_resources::ui::SYSBOX_LM;
+const SYSBOX_MM: &str = ragnarok_resources::ui::SYSBOX_BG;
+const SYSBOX_RM: &str = ragnarok_resources::ui::SYSBOX_RM;
+const SYSBOX_LD: &str = ragnarok_resources::ui::SYSBOX_LD;
+const SYSBOX_MD: &str = ragnarok_resources::ui::SYSBOX_MD;
+const SYSBOX_RD: &str = ragnarok_resources::ui::SYSBOX_RD;
 
 const SYSBOX_TEXTURES: [&str; 9] = [
     SYSBOX_LU, SYSBOX_MU, SYSBOX_RU, SYSBOX_LM, SYSBOX_MM, SYSBOX_RM, SYSBOX_LD, SYSBOX_MD,

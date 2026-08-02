@@ -1,7 +1,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, aim_backward};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const FIREBALL_SPRITE: &str = "data/sprite/이팩트/fireball";
+pub const FIREBALL_SPRITE: &str = ragnarok_resources::sprite::effect::FIREBALL;
 pub const SPRITES: &[&str] = &[FIREBALL_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

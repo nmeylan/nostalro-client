@@ -11,7 +11,8 @@ fn main() {
     let list = std::env::args()
         .nth(1)
         .expect("usage: check_wavs <name-list>");
-    let grf = GrfArchive::open(Path::new("data/data.grf")).expect("open data/data.grf");
+    let grf = GrfArchive::open(Path::new(ragnarok_resources::grf::DEFAULT_ARCHIVE))
+        .expect("open data/data.grf");
     // Extract mode: `check_wavs --extract <out-dir>` reads GRF-internal wav paths
     // (one per line) from stdin-less arg — pass them via a file as arg 3 — and
     // dumps each to <out-dir> so the candidate can be played and ear-verified.
@@ -58,7 +59,7 @@ fn main() {
         return;
     }
     for name in names.lines().map(str::trim).filter(|l| !l.is_empty()) {
-        let full = format!("data/wav/{name}");
+        let full = ragnarok_resources::sound::sfx(name);
         if !grf.file_exists(&full) {
             println!("{name}");
         }

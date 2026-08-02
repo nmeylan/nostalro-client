@@ -60,7 +60,7 @@ impl GroundRenderer {
         surface_format: wgpu::TextureFormat,
     ) -> Self {
         for tex_name in &gnd.textures {
-            let path = format!("data/texture/{tex_name}");
+            let path = ragnarok_resources::texture::named(tex_name);
             texture_cache.get_or_load(&path, grf, device, queue, false);
         }
 
@@ -384,10 +384,7 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
 
 fn texture_name_for_surface(gnd: &GndFile, surface: &GndSurface) -> String {
     if surface.texture_id >= 0 && (surface.texture_id as usize) < gnd.textures.len() {
-        format!(
-            "data/texture/{}",
-            &gnd.textures[surface.texture_id as usize]
-        )
+        ragnarok_resources::texture::named(&gnd.textures[surface.texture_id as usize])
     } else {
         String::new()
     }

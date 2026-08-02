@@ -794,11 +794,11 @@ impl ApplicationHandler for App {
                     );
                     self.game.data_table.map_name =
                         Some(ragnarok_game::data_table::map_name_table::MapNameTable::load(&grf));
-                    if let Ok(bytes) = grf.read_file("data/pettalktable.xml") {
+                    if let Ok(bytes) = grf.read_file(ragnarok_resources::table::PET_TALK) {
                         self.game.data_table.pet_talk =
                             Some(ragnarok_formats::pettalk::PetTalkTable::parse(&bytes));
                     }
-                    if let Ok(bytes) = grf.read_file("data/mp3nametable.txt") {
+                    if let Ok(bytes) = grf.read_file(ragnarok_resources::table::MP3_NAME) {
                         let text = String::from_utf8_lossy(&bytes);
                         self.bgm_table =
                             ragnarok_game::sound::bgm_table::parse_mp3_name_table(&text);

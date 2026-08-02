@@ -20,7 +20,7 @@ impl App {
             .item_resource
             .as_ref()
             .and_then(|t| t.get_resource_name_for(item_id, is_identified))
-            .map(|res| format!("data/texture/유저인터페이스/item/{res}.bmp"));
+            .map(|res| ragnarok_resources::ui::item::icon(res));
         (name, icon)
     }
 

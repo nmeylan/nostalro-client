@@ -1,7 +1,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-const SPRITE: &str = "data/sprite/이팩트/굴뚝연기";
+const SPRITE: &str = ragnarok_resources::sprite::effect::CHIMNEY_SMOKE;
 pub const SPRITES: &[&str] = &[SPRITE];
 const FRAMES_PER_SECOND: f32 = 60.0;
 

@@ -1,7 +1,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const SPRITE: &str = "data/sprite/이팩트/sakura01";
+pub const SPRITE: &str = ragnarok_resources::sprite::effect::SAKURA01;
 pub const TEXTURES: &[&str] = &[];
 
 pub const STR_OVERLAY: &str = "firehit";

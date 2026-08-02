@@ -7,8 +7,8 @@ const ANIM_SPEED: f32 = 2.0;
 pub const TOTAL_DURATION_MS: u32 = 40000;
 const TOTAL_DURATION_S: f32 = TOTAL_DURATION_MS as f32 / 1000.0;
 
-const GHOST_SPRITE: &str = "data/sprite/이팩트/유령";
-const BAT_SPRITE: &str = "data/sprite/이팩트/박쥐";
+const GHOST_SPRITE: &str = ragnarok_resources::sprite::effect::GHOST;
+const BAT_SPRITE: &str = ragnarok_resources::sprite::effect::BAT;
 pub const SPRITES: &[&str] = &[GHOST_SPRITE, BAT_SPRITE];
 
 const WORLD_SCALE: f32 = 0.35;

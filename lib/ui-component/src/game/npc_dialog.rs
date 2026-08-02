@@ -42,42 +42,42 @@ const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
 const NEXT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_next.bmp",
-    hover: "data/texture/유저인터페이스/btn_next_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_next_b.bmp",
+    normal: ragnarok_resources::ui::BTN_NEXT,
+    hover: ragnarok_resources::ui::BTN_NEXT_A,
+    pressed: ragnarok_resources::ui::BTN_NEXT_B,
 };
 
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_close.bmp",
-    hover: "data/texture/유저인터페이스/btn_close_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_close_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CLOSE,
+    hover: ragnarok_resources::ui::BTN_CLOSE_A,
+    pressed: ragnarok_resources::ui::BTN_CLOSE_B,
 };
 
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 const BUY_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_buy.bmp",
-    hover: "data/texture/유저인터페이스/btn_buy_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_buy_b.bmp",
+    normal: ragnarok_resources::ui::BTN_BUY,
+    hover: ragnarok_resources::ui::BTN_BUY_A,
+    pressed: ragnarok_resources::ui::BTN_BUY_B,
 };
 
 const SELL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_sell.bmp",
-    hover: "data/texture/유저인터페이스/btn_sell_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_sell_b.bmp",
+    normal: ragnarok_resources::ui::BTN_SELL,
+    hover: ragnarok_resources::ui::BTN_SELL_A,
+    pressed: ragnarok_resources::ui::BTN_SELL_B,
 };
 
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/win_msgbox.bmp";
+const WIN_TEXTURE: &str = ragnarok_resources::ui::WIN_MSGBOX;
 const BTN_BOTTOM: f32 = 4.0;
 const BTN_FIRST_RIGHT: f32 = 5.0;
 const BTN_SPACING: f32 = 3.0;

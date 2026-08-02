@@ -1986,10 +1986,7 @@ pub struct SkillInfo {
 
 impl SkillInfo {
     pub fn icon_path(&self) -> String {
-        format!(
-            "data/texture/유저인터페이스/item/{}.bmp",
-            self.name.to_lowercase()
-        )
+        ragnarok_resources::ui::item::icon(&self.name.to_lowercase())
     }
 }
 

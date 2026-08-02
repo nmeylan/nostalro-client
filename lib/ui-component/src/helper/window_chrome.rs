@@ -38,18 +38,18 @@ pub fn draw_sys_button(
     }
 }
 
-pub const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
-pub const ITEMWIN_MID_TEX: &str = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
-pub const FOOTER_TEX: &str = "data/texture/유저인터페이스/basic_interface/btnbar_mid2.bmp";
-pub const SYS_BASE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
-pub const SYS_BASE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
+pub const TITLEBAR_TEX: &str = ragnarok_resources::ui::basic::TITLEBAR_MID;
+pub const ITEMWIN_MID_TEX: &str = ragnarok_resources::ui::basic::ITEMWIN_MID;
+pub const FOOTER_TEX: &str = ragnarok_resources::ui::basic::BTNBAR_MID2;
+pub const SYS_BASE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_BASE_OFF;
+pub const SYS_BASE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_BASE_ON;
 
-pub const GZE_RED_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzered_left.bmp";
-pub const GZE_RED_MID: &str = "data/texture/유저인터페이스/basic_interface/gzered_mid.bmp";
-pub const GZE_RED_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzered_right.bmp";
-pub const GZE_BLUE_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_left.bmp";
-pub const GZE_BLUE_MID: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_mid.bmp";
-pub const GZE_BLUE_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_right.bmp";
+pub const GZE_RED_LEFT: &str = ragnarok_resources::ui::basic::GZERED_LEFT;
+pub const GZE_RED_MID: &str = ragnarok_resources::ui::basic::GZERED_MID;
+pub const GZE_RED_RIGHT: &str = ragnarok_resources::ui::basic::GZERED_RIGHT;
+pub const GZE_BLUE_LEFT: &str = ragnarok_resources::ui::basic::GZEBLUE_LEFT;
+pub const GZE_BLUE_MID: &str = ragnarok_resources::ui::basic::GZEBLUE_MID;
+pub const GZE_BLUE_RIGHT: &str = ragnarok_resources::ui::basic::GZEBLUE_RIGHT;
 
 pub fn gauge_texture_paths() -> Vec<&'static str> {
     vec![

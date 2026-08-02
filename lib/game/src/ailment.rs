@@ -33,10 +33,10 @@ impl AilmentOverlay {
 
     pub fn sprite(self) -> (&'static str, usize) {
         match self {
-            AilmentOverlay::Stun => ("data/sprite/이팩트/status-stun", 0),
-            AilmentOverlay::Sleep => ("data/sprite/이팩트/status-sleep", 0),
-            AilmentOverlay::Curse => ("data/sprite/이팩트/status-curse", 0),
-            AilmentOverlay::Freeze => ("data/sprite/이팩트/얼음땡", 0),
+            AilmentOverlay::Stun => (ragnarok_resources::sprite::effect::STATUS_STUN, 0),
+            AilmentOverlay::Sleep => (ragnarok_resources::sprite::effect::STATUS_SLEEP, 0),
+            AilmentOverlay::Curse => (ragnarok_resources::sprite::effect::STATUS_CURSE, 0),
+            AilmentOverlay::Freeze => (ragnarok_resources::sprite::effect::ICE_BLOCK, 0),
         }
     }
 

@@ -447,7 +447,7 @@ pub fn load_player_sprite_data(
 }
 
 pub fn load_cursor_sprite(grf: &GrfArchive) -> Option<SpriteData> {
-    load_sprite_data(grf, "data/sprite/cursors.spr", "data/sprite/cursors.act")
+    load_sprite_data(grf, ragnarok_resources::sprite::CURSORS_SPR, ragnarok_resources::sprite::CURSORS_ACT)
 }
 
 /// Mercenaries are player-style composites: a mercenary body plus a regular
@@ -489,14 +489,14 @@ pub fn load_mercenary_sprite_data(
 }
 
 pub fn load_shadow_sprite(grf: &GrfArchive) -> Option<SpriteData> {
-    load_sprite_data(grf, "data/sprite/shadow.spr", "data/sprite/shadow.act")
+    load_sprite_data(grf, ragnarok_resources::sprite::SHADOW_SPR, ragnarok_resources::sprite::SHADOW_ACT)
 }
 
 pub fn load_emotion_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,
-        "data/sprite/이팩트/emotion.spr",
-        "data/sprite/이팩트/emotion.act",
+        ragnarok_resources::sprite::effect::EMOTION_SPR,
+        ragnarok_resources::sprite::effect::EMOTION_ACT,
     )
 }
 
@@ -511,32 +511,32 @@ pub fn load_status_overlay_sprite(
 pub fn load_damage_number_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,
-        "data/sprite/이팩트/숫자.spr",
-        "data/sprite/이팩트/숫자.act",
+        ragnarok_resources::sprite::effect::NUMBER_SPR,
+        ragnarok_resources::sprite::effect::NUMBER_ACT,
     )
 }
 
 pub fn load_rank_font_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,
-        "data/sprite/이팩트/rankfont.spr",
-        "data/sprite/이팩트/rankfont.act",
+        ragnarok_resources::sprite::effect::RANKFONT_SPR,
+        ragnarok_resources::sprite::effect::RANKFONT_ACT,
     )
 }
 
 pub fn load_time_font_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,
-        "data/sprite/이팩트/timefont.spr",
-        "data/sprite/이팩트/timefont.act",
+        ragnarok_resources::sprite::effect::TIMEFONT_SPR,
+        ragnarok_resources::sprite::effect::TIMEFONT_ACT,
     )
 }
 
 pub fn load_damage_miss_msg_sprite(grf: &GrfArchive) -> Option<SpriteData> {
     load_sprite_data(
         grf,
-        "data/sprite/이팩트/msg.spr",
-        "data/sprite/이팩트/msg.act",
+        ragnarok_resources::sprite::effect::MSG_SPR,
+        ragnarok_resources::sprite::effect::MSG_ACT,
     )
 }
 

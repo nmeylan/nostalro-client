@@ -17,9 +17,9 @@ const SCROLL_DOWN_ID: WidgetId = WidgetId(2603);
 const SCROLL_THUMB_ID: WidgetId = WidgetId(2604);
 
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 const WIN_W: f32 = 300.0;

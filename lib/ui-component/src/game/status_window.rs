@@ -17,14 +17,14 @@ const UP_INT_ID: WidgetId = WidgetId(1513);
 const UP_DEX_ID: WidgetId = WidgetId(1514);
 const UP_LUK_ID: WidgetId = WidgetId(1515);
 
-const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/statwin0_bg.bmp";
-const TITLEBAR_TEX: &str = "data/texture/유저인터페이스/basic_interface/titlebar_mid.bmp";
-const SYS_CLOSE_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const SYS_CLOSE_ON: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const SYS_MINI_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
-const SYS_MINI_ON: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
-const ARW_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/arw_right.bmp";
-const ARW_RIGHT_ON: &str = "data/texture/유저인터페이스/basic_interface/arw_right_on.bmp";
+const BG_TEX: &str = ragnarok_resources::ui::basic::STATWIN0_BG;
+const TITLEBAR_TEX: &str = ragnarok_resources::ui::basic::TITLEBAR_MID;
+const SYS_CLOSE_OFF: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const SYS_CLOSE_ON: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const SYS_MINI_OFF: &str = ragnarok_resources::ui::basic::SYS_MINI_OFF;
+const SYS_MINI_ON: &str = ragnarok_resources::ui::basic::SYS_MINI_ON;
+const ARW_RIGHT: &str = ragnarok_resources::ui::basic::ARW_RIGHT;
+const ARW_RIGHT_ON: &str = ragnarok_resources::ui::basic::ARW_RIGHT_ON;
 
 const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 17.0;

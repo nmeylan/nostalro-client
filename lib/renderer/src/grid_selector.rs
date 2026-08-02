@@ -51,7 +51,7 @@ impl GridSelectorRenderer {
         texture_cache: &mut TextureCache,
         grf: &GrfArchive,
     ) -> Self {
-        let texture_name = "data/texture/grid.tga".to_string();
+        let texture_name = ragnarok_resources::texture::GRID.to_string();
         if texture_cache
             .get_or_load(&texture_name, grf, device, queue, false)
             .is_none()

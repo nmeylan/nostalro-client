@@ -20,28 +20,28 @@ const SKILL_BTN_ID: WidgetId = WidgetId(2907);
 const REST_BTN_ID: WidgetId = WidgetId(2908);
 const AI_BTN_ID: WidgetId = WidgetId(2909);
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const RENAME_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_rewrite.bmp",
-    hover: "data/texture/유저인터페이스/btn_rewrite_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_rewrite_b.bmp",
+    normal: ragnarok_resources::ui::BTN_REWRITE,
+    hover: ragnarok_resources::ui::BTN_REWRITE_A,
+    pressed: ragnarok_resources::ui::BTN_REWRITE_B,
 };
 const DEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_del.bmp",
-    hover: "data/texture/유저인터페이스/btn_del_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_del_b.bmp",
+    normal: ragnarok_resources::ui::BTN_DEL,
+    hover: ragnarok_resources::ui::BTN_DEL_A,
+    pressed: ragnarok_resources::ui::BTN_DEL_B,
 };
 const SKILL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_skill.bmp",
-    hover: "data/texture/유저인터페이스/btn_skill_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_skill_b.bmp",
+    normal: ragnarok_resources::ui::BTN_SKILL,
+    hover: ragnarok_resources::ui::BTN_SKILL_A,
+    pressed: ragnarok_resources::ui::BTN_SKILL_B,
 };
 const FEED_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_feed.bmp",
-    hover: "data/texture/유저인터페이스/btn_feed_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_feed_b.bmp",
+    normal: ragnarok_resources::ui::BTN_FEED,
+    hover: ragnarok_resources::ui::BTN_FEED_A,
+    pressed: ragnarok_resources::ui::BTN_FEED_B,
 };
 
 const WIN_W: f32 = 288.0;

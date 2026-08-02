@@ -35,14 +35,14 @@ const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 pub struct EligibleItem {

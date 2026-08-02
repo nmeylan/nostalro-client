@@ -14,7 +14,7 @@ use super::energy_drain::hash01;
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const DUST_SPRITE: &str = "data/sprite/이팩트/particle3";
+pub const DUST_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE3;
 pub const SPRITES: &[&str] = &[DUST_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

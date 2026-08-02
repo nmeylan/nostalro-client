@@ -177,12 +177,7 @@ impl App {
     pub(super) fn handle_guild_skills(&mut self, point: i16, skills: Vec<GuildSkill>) {
         let icon_paths = skills
             .iter()
-            .map(|s| {
-                format!(
-                    "data/texture/유저인터페이스/item/{}.bmp",
-                    s.name.to_lowercase()
-                )
-            })
+            .map(|s| ragnarok_resources::ui::item::icon(&s.name.to_lowercase()))
             .collect();
         let guild = self.guild_mut();
         guild.skill_point = point;

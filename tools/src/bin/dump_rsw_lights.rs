@@ -6,7 +6,7 @@ use std::path::Path;
 fn main() {
     let grf_path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "data/data.grf".into());
+        .unwrap_or_else(|| ragnarok_resources::grf::DEFAULT_ARCHIVE.into());
     let maps: Vec<String> = std::env::args().skip(2).collect();
     let grf = GrfArchive::open(Path::new(&grf_path)).expect("open grf");
 
@@ -17,7 +17,7 @@ fn main() {
     };
 
     for map in &map_names {
-        let rsw_path = format!("data/{}.rsw", map);
+        let rsw_path = ragnarok_resources::map::rsw(map);
         let rsw_bytes = match grf.read_file(&rsw_path) {
             Ok(b) => b,
             Err(e) => {
@@ -32,7 +32,7 @@ fn main() {
                 continue;
             }
         };
-        let gnd_path = format!("data/{}", rsw.gnd_file);
+        let gnd_path = ragnarok_resources::map::file(&rsw.gnd_file);
         let gnd_bytes = match grf.read_file(&gnd_path) {
             Ok(b) => b,
             Err(e) => {

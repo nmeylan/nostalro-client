@@ -3,7 +3,7 @@
 
 use image::RgbaImage;
 
-pub const ALPHABET_TEXTURE: &str = "data/texture/effect/alpabet.bmp";
+pub const ALPHABET_TEXTURE: &str = ragnarok_resources::texture::effect::ALPHABET;
 
 /// Side of the composed decal, in pixels.
 pub const CANVAS: u32 = 384;

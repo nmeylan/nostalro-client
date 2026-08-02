@@ -24,25 +24,19 @@ const NAV_LEADER_ID: WidgetId = WidgetId(2016);
 const NAV_ADD_ID: WidgetId = WidgetId(2017);
 const ROW_BASE_ID: u32 = 2030;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const GRP_ONLINE_TEX: &str = "data/texture/유저인터페이스/basic_interface/grp_online.bmp";
-const GRP_LEADER_TEX: &str = "data/texture/유저인터페이스/basic_interface/grp_leader.bmp";
-const RADIO_ON_TEX: &str = "data/texture/유저인터페이스/radiobtn_on.bmp";
-const RADIO_OFF_TEX: &str = "data/texture/유저인터페이스/radiobtn_off.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const GRP_ONLINE_TEX: &str = ragnarok_resources::ui::basic::GRP_ONLINE;
+const GRP_LEADER_TEX: &str = ragnarok_resources::ui::basic::GRP_LEADER;
+const RADIO_ON_TEX: &str = ragnarok_resources::ui::RADIOBTN_ON;
+const RADIO_OFF_TEX: &str = ragnarok_resources::ui::RADIOBTN_OFF;
 
-const MESBTN_CHAT: ButtonTextures =
-    nav_tex_const("data/texture/유저인터페이스/basic_interface/mesbtn_02.bmp");
-const MESBTN_SETUP: ButtonTextures =
-    nav_tex_const("data/texture/유저인터페이스/basic_interface/mesbtn_04.bmp");
-const MESBTN_REMOVE: ButtonTextures =
-    nav_tex_const("data/texture/유저인터페이스/basic_interface/mesbtn_05.bmp");
-const MESBTN_CREATE: ButtonTextures =
-    nav_tex_const("data/texture/유저인터페이스/basic_interface/mesbtn_08.bmp");
-const MESBTN_LEAVE: ButtonTextures =
-    nav_tex_const("data/texture/유저인터페이스/basic_interface/mesbtn_09.bmp");
-const MESBTN_INVITE: ButtonTextures =
-    nav_tex_const("data/texture/유저인터페이스/basic_interface/mesbtn_010.bmp");
+const MESBTN_CHAT: ButtonTextures = nav_tex_const(ragnarok_resources::ui::basic::MESBTN_02);
+const MESBTN_SETUP: ButtonTextures = nav_tex_const(ragnarok_resources::ui::basic::MESBTN_04);
+const MESBTN_REMOVE: ButtonTextures = nav_tex_const(ragnarok_resources::ui::basic::MESBTN_05);
+const MESBTN_CREATE: ButtonTextures = nav_tex_const(ragnarok_resources::ui::basic::MESBTN_08);
+const MESBTN_LEAVE: ButtonTextures = nav_tex_const(ragnarok_resources::ui::basic::MESBTN_09);
+const MESBTN_INVITE: ButtonTextures = nav_tex_const(ragnarok_resources::ui::basic::MESBTN_010);
 
 const fn nav_tex_const(base: &'static str) -> ButtonTextures {
     ButtonTextures {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ragnarok_formats::grf::GrfArchive;
 
-const MAP_POSITION_PATH: &str = "data/mappostable.txt";
+const MAP_POSITION_PATH: &str = ragnarok_resources::table::MAP_POSITION;
 
 /// The map's rect on the world map image, in that image's pixel space.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

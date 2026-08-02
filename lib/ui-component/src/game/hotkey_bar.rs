@@ -20,10 +20,10 @@ const SLOT_BASE_ID: u32 = 1310;
 const CLOSE_BTN_ID: WidgetId = WidgetId(1350);
 const RESIZE_ID: WidgetId = WidgetId(1351);
 
-const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/shortitem_bg.bmp";
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const CAT_PAW_TEX: &str = "data/texture/유저인터페이스/item/고양이발머리핀.bmp";
+const BG_TEX: &str = ragnarok_resources::ui::basic::SHORTITEM_BG;
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const CAT_PAW_TEX: &str = ragnarok_resources::ui::item::CAT_PAW_HAIRPIN;
 
 const ICON_SIZE: f32 = 24.0;
 const SLOT_PAD_X: f32 = 16.0;
@@ -596,10 +596,7 @@ impl InGameWindow for HotkeyBarWindow {
 }
 
 fn companion_skill_icon_path(skill: &SkillInfo) -> String {
-    format!(
-        "data/texture/유저인터페이스/item/{}.bmp",
-        skill.name.to_lowercase()
-    )
+    ragnarok_resources::ui::item::icon(&skill.name.to_lowercase())
 }
 
 #[cfg(test)]

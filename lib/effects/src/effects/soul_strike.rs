@@ -1,8 +1,8 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const SOUL_STRIKE_SPRITE: &str = "data/sprite/이팩트/particle1";
-pub const SOUL_STRIKE2_SPRITE: &str = "data/sprite/이팩트/particle5";
+pub const SOUL_STRIKE_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
+pub const SOUL_STRIKE2_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE5;
 pub const SPRITES: &[&str] = &[SOUL_STRIKE_SPRITE, SOUL_STRIKE2_SPRITE];
 
 const FPS: f32 = 60.0;

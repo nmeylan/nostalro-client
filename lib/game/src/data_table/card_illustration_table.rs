@@ -8,7 +8,7 @@ pub struct CardIllustrationTable {
     entries: HashMap<u16, String>,
 }
 
-const TABLE_PATH: &str = "data/num2cardillustnametable.txt";
+const TABLE_PATH: &str = ragnarok_resources::table::CARD_ILLUSTRATION_NAME;
 
 impl CardIllustrationTable {
     pub fn from_entries(entries: HashMap<u16, String>) -> Self {
@@ -42,7 +42,7 @@ impl CardIllustrationTable {
 
     pub fn illustration_path(&self, card_id: u16) -> Option<String> {
         self.get(card_id)
-            .map(|name| format!("data/texture/유저인터페이스/cardbmp/{name}.bmp"))
+            .map(|name| ragnarok_resources::ui::cardbmp::named(name))
     }
 }
 

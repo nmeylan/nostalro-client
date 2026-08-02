@@ -2,29 +2,29 @@ use ragnarok_formats::grf::GrfArchive;
 use std::path::Path;
 
 fn main() {
-    let grf_path = Path::new("data/data.grf");
+    let grf_path = Path::new(ragnarok_resources::grf::DEFAULT_ARCHIVE);
     let grf = GrfArchive::open(grf_path).expect("Failed to open GRF");
 
     let names = [
         (
             "Knight peco (13)",
-            "data/sprite/인간족/몸통/남/페코페코_기사_남",
+            ragnarok_resources::sprite::player::PECO_KNIGHT_MALE,
         ),
         (
             "Crusader peco (21)",
-            "data/sprite/인간족/몸통/남/신페코크루세이더_남",
+            ragnarok_resources::sprite::player::GRAND_PECO_CRUSADER_MALE,
         ),
         (
             "Crusader peco F (21)",
-            "data/sprite/인간족/몸통/여/신페코크루세이더_여",
+            ragnarok_resources::sprite::player::GRAND_PECO_CRUSADER_FEMALE,
         ),
         (
             "Lord Knight peco (4014)",
-            "data/sprite/인간족/몸통/남/로드페코_남",
+            ragnarok_resources::sprite::player::LORD_PECO_MALE,
         ),
         (
             "Paladin peco (4022)",
-            "data/sprite/인간족/몸통/남/페코팔라딘_남",
+            ragnarok_resources::sprite::player::PECO_PALADIN_MALE,
         ),
     ];
 

@@ -5,5 +5,6 @@ edition = "2024"
 
 [dependencies]
 ragnarok-renderer = { workspace = true }
+ragnarok-resources = { workspace = true }
 winit = { workspace = true }
 arboard = { version = "3", features = ["wayland-data-control"] }

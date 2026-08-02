@@ -4,7 +4,7 @@ use std::path::Path;
 fn main() {
     let grf_path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "data/data.grf".into());
+        .unwrap_or_else(|| ragnarok_resources::grf::DEFAULT_ARCHIVE.into());
     let patterns: Vec<String> = std::env::args().skip(2).collect();
     let grf = GrfArchive::open(Path::new(&grf_path)).expect("open grf");
 

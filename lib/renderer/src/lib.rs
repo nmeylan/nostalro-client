@@ -991,8 +991,8 @@ impl Renderer {
     pub fn try_load_grf_font(&mut self, grf: &GrfArchive) {
         let extra_chars = font_atlas::euc_kr_charset();
         let font_paths = [
-            "data/Font/NanumBarunGothicBold.ttf",
-            "data/Font/NanumBarunGothic.ttf",
+            ragnarok_resources::font::NANUM_BARUN_GOTHIC_BOLD,
+            ragnarok_resources::font::NANUM_BARUN_GOTHIC,
         ];
         for path in &font_paths {
             if let Ok(data) = grf.read_file(path) {

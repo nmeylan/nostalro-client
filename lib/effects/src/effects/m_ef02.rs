@@ -8,7 +8,7 @@ const ANIM_SPEED: f32 = 4.0;
 const MOTION_COUNT: usize = 8;
 pub const TOTAL_DURATION_MS: u32 = 1667;
 
-pub const SPRITE: &str = "data/sprite/이팩트/m_ef02";
+pub const SPRITE: &str = ragnarok_resources::sprite::effect::M_EF02;
 pub const SPRITES: &[&str] = &[SPRITE];
 
 pub struct MEf02Effect {

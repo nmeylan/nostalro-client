@@ -5,7 +5,7 @@ use ragnarok_network::build_marry_request_packet;
 
 /// GRF base path for an NPC cutin illustration.
 pub(crate) fn cutin_texture_path(image: &str) -> String {
-    format!("data/texture/유저인터페이스/illust/{image}.bmp")
+    ragnarok_resources::ui::illust::named(image)
 }
 
 impl App {

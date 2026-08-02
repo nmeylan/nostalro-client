@@ -13,8 +13,8 @@ pub const EMOTION_WINDOW_ID: WidgetId = WidgetId(3500);
 const CLOSE_BTN_ID: WidgetId = WidgetId(3501);
 const CELL_BASE_ID: u32 = 3510;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const COLS: usize = 6;
 const CELL: f32 = 32.0;

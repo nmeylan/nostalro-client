@@ -4,7 +4,7 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 pub const CYLINDER_TEXTURE: &str = "alpha_down.tga";
 pub const TEXTURES: &[&str] = &[CYLINDER_TEXTURE];
 
-pub const PARTICLE_SPRITE: &str = "data/sprite/이팩트/particle2";
+pub const PARTICLE_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE2;
 pub const SPRITES: &[&str] = &[PARTICLE_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

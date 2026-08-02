@@ -161,7 +161,7 @@ impl MapBrowser {
         let mut all_names: Vec<String> = paths
             .into_iter()
             .filter_map(|p| {
-                let stripped = p.strip_prefix("data/").unwrap_or(&p);
+                let stripped = p.strip_prefix(ragnarok_resources::dir::DATA).unwrap_or(&p);
                 stripped.strip_suffix(".rsw").map(|n| n.to_string())
             })
             .collect();

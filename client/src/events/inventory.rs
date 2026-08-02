@@ -16,7 +16,7 @@ impl App {
     pub(crate) fn item_is_book(&self, item_id: u16) -> bool {
         self.grf
             .as_ref()
-            .map(|g| g.file_exists(&format!("data/book/{item_id}.txt")))
+            .map(|g| g.file_exists(&ragnarok_resources::table::book(item_id)))
             .unwrap_or(false)
     }
 

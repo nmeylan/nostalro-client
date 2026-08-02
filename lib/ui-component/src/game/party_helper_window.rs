@@ -16,12 +16,12 @@ const OK_BTN_ID: WidgetId = WidgetId(3310);
 const CANCEL_BTN_ID: WidgetId = WidgetId(3311);
 const RADIO_BASE_ID: u32 = 3320;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const RADIO_ON_TEX: &str = "data/texture/유저인터페이스/radiobtn_on.bmp";
-const RADIO_OFF_TEX: &str = "data/texture/유저인터페이스/radiobtn_off.bmp";
-const BTN_OK_TEX: &str = "data/texture/유저인터페이스/btn_ok.bmp";
-const BTN_CANCEL_TEX: &str = "data/texture/유저인터페이스/btn_cancel.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const RADIO_ON_TEX: &str = ragnarok_resources::ui::RADIOBTN_ON;
+const RADIO_OFF_TEX: &str = ragnarok_resources::ui::RADIOBTN_OFF;
+const BTN_OK_TEX: &str = ragnarok_resources::ui::BTN_OK;
+const BTN_CANCEL_TEX: &str = ragnarok_resources::ui::BTN_CANCEL;
 
 const OK_TEX: ButtonTextures = ButtonTextures {
     normal: BTN_OK_TEX,

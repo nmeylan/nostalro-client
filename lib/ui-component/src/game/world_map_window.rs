@@ -12,10 +12,10 @@ pub const WORLD_MAP_WINDOW_ID: WidgetId = WidgetId(5800);
 const CLOSE_BTN_ID: WidgetId = WidgetId(5801);
 const MAP_AREA_ID: WidgetId = WidgetId(5802);
 
-pub const WORLD_MAP_TEX: &str = "data/texture/유저인터페이스/worldmap.bmp";
-const PLAYER_ARROW_TEX: &str = "data/texture/유저인터페이스/map/map_arrow.bmp";
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+pub const WORLD_MAP_TEX: &str = ragnarok_resources::ui::WORLDMAP;
+const PLAYER_ARROW_TEX: &str = ragnarok_resources::ui::minimap::MAP_ARROW;
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 /// Fallback until the texture is measured; the real image is 1280x1024.
 const IMAGE_W: f32 = 1280.0;
@@ -120,7 +120,7 @@ impl WorldMapWindow {
     }
 
     pub fn minimap_texture_path(map: &str) -> String {
-        format!("data/texture/유저인터페이스/map/{map}.bmp")
+        ragnarok_resources::ui::minimap::of(map)
     }
 
     fn request(&mut self, path: String, events: &mut Vec<GameEvent>) {

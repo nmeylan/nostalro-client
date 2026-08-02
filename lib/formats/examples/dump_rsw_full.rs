@@ -5,12 +5,12 @@ use std::path::Path;
 fn main() {
     let grf_path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "data/data.grf".into());
+        .unwrap_or_else(|| ragnarok_resources::grf::DEFAULT_ARCHIVE.into());
     let maps: Vec<String> = std::env::args().skip(2).collect();
     let grf = GrfArchive::open(Path::new(&grf_path)).expect("open grf");
 
     for map in &maps {
-        let path = format!("data/{}.rsw", map);
+        let path = ragnarok_resources::map::rsw(map);
         let bytes = match grf.read_file(&path) {
             Ok(b) => b,
             Err(e) => {

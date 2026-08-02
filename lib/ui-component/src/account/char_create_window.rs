@@ -97,22 +97,22 @@ const COLOR_R_ID: WidgetId = WidgetId(4507);
 const SKIN_TOGGLE_ID: WidgetId = WidgetId(4508);
 const STAT_ARROW_BASE: u32 = 4520;
 
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_make.bmp";
-const WIN2_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_make2.bmp";
-const NAME_EDIT_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/name-edit.bmp";
-const ARROW_L_TEXTURE: &str = "data/texture/유저인터페이스/scroll1left.bmp";
-const ARROW_R_TEXTURE: &str = "data/texture/유저인터페이스/scroll1right.bmp";
-const ARROW_UP_TEXTURE: &str = "data/texture/유저인터페이스/scroll0up.bmp";
+const WIN_TEXTURE: &str = ragnarok_resources::ui::login::WIN_MAKE;
+const WIN2_TEXTURE: &str = ragnarok_resources::ui::login::WIN_MAKE2;
+const NAME_EDIT_TEXTURE: &str = ragnarok_resources::ui::login::NAME_EDIT;
+const ARROW_L_TEXTURE: &str = ragnarok_resources::ui::SCROLL1LEFT;
+const ARROW_R_TEXTURE: &str = ragnarok_resources::ui::SCROLL1RIGHT;
+const ARROW_UP_TEXTURE: &str = ragnarok_resources::ui::SCROLL0UP;
 
 const MAKE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_make.bmp",
-    hover: "data/texture/유저인터페이스/btn_make_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_make_b.bmp",
+    normal: ragnarok_resources::ui::BTN_MAKE,
+    hover: ragnarok_resources::ui::BTN_MAKE_A,
+    pressed: ragnarok_resources::ui::BTN_MAKE_B,
 };
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 const ARROW_L_BTN: ButtonTextures = ButtonTextures {
     normal: ARROW_L_TEXTURE,
@@ -132,34 +132,34 @@ const ARROW_UP_BTN: ButtonTextures = ButtonTextures {
 
 const STAT_ARROWS: [ButtonTextures; 6] = [
     ButtonTextures {
-        normal: "data/texture/유저인터페이스/login_interface/arw-str0.bmp",
-        hover: "data/texture/유저인터페이스/login_interface/arw-str0.bmp",
-        pressed: "data/texture/유저인터페이스/login_interface/arw-str1.bmp",
+        normal: ragnarok_resources::ui::login::ARW_STR0,
+        hover: ragnarok_resources::ui::login::ARW_STR0,
+        pressed: ragnarok_resources::ui::login::ARW_STR1,
     },
     ButtonTextures {
-        normal: "data/texture/유저인터페이스/login_interface/arw-agi0.bmp",
-        hover: "data/texture/유저인터페이스/login_interface/arw-agi0.bmp",
-        pressed: "data/texture/유저인터페이스/login_interface/arw-agi1.bmp",
+        normal: ragnarok_resources::ui::login::ARW_AGI0,
+        hover: ragnarok_resources::ui::login::ARW_AGI0,
+        pressed: ragnarok_resources::ui::login::ARW_AGI1,
     },
     ButtonTextures {
-        normal: "data/texture/유저인터페이스/login_interface/arw-vit0.bmp",
-        hover: "data/texture/유저인터페이스/login_interface/arw-vit0.bmp",
-        pressed: "data/texture/유저인터페이스/login_interface/arw-vit1.bmp",
+        normal: ragnarok_resources::ui::login::ARW_VIT0,
+        hover: ragnarok_resources::ui::login::ARW_VIT0,
+        pressed: ragnarok_resources::ui::login::ARW_VIT1,
     },
     ButtonTextures {
-        normal: "data/texture/유저인터페이스/login_interface/arw-int0.bmp",
-        hover: "data/texture/유저인터페이스/login_interface/arw-int0.bmp",
-        pressed: "data/texture/유저인터페이스/login_interface/arw-int1.bmp",
+        normal: ragnarok_resources::ui::login::ARW_INT0,
+        hover: ragnarok_resources::ui::login::ARW_INT0,
+        pressed: ragnarok_resources::ui::login::ARW_INT1,
     },
     ButtonTextures {
-        normal: "data/texture/유저인터페이스/login_interface/arw-dex0.bmp",
-        hover: "data/texture/유저인터페이스/login_interface/arw-dex0.bmp",
-        pressed: "data/texture/유저인터페이스/login_interface/arw-dex1.bmp",
+        normal: ragnarok_resources::ui::login::ARW_DEX0,
+        hover: ragnarok_resources::ui::login::ARW_DEX0,
+        pressed: ragnarok_resources::ui::login::ARW_DEX1,
     },
     ButtonTextures {
-        normal: "data/texture/유저인터페이스/login_interface/arw-luk0.bmp",
-        hover: "data/texture/유저인터페이스/login_interface/arw-luk0.bmp",
-        pressed: "data/texture/유저인터페이스/login_interface/arw-luk1.bmp",
+        normal: ragnarok_resources::ui::login::ARW_LUK0,
+        hover: ragnarok_resources::ui::login::ARW_LUK0,
+        pressed: ragnarok_resources::ui::login::ARW_LUK1,
     },
 ];
 

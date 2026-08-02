@@ -191,13 +191,13 @@ fn grf_texture_paths_single(name: &str) -> Vec<&'static str> {
         "card_insert" => vec![],
         "minimap" => {
             let mut paths = MinimapWindow::grf_texture_paths();
-            paths.push("data/texture/유저인터페이스/map/prontera.bmp");
+            paths.push(ragnarok_resources::ui::minimap::PRONTERA);
             paths
         }
         "world_map" => {
             let mut paths = WorldMapWindow::grf_texture_paths();
             paths.push(WORLD_MAP_TEX);
-            paths.push("data/texture/유저인터페이스/map/prontera.bmp");
+            paths.push(ragnarok_resources::ui::minimap::PRONTERA);
             paths
         }
         "mercenary" => MercenaryWindow::grf_texture_paths(),

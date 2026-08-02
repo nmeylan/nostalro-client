@@ -1,7 +1,7 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{BodyTint, Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const DRAIN_SPRITE: &str = "data/sprite/이팩트/particle1";
+pub const DRAIN_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
 pub const SPRITES: &[&str] = &[DRAIN_SPRITE];
 
 const FPS: f32 = 60.0;

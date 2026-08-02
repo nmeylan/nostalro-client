@@ -2165,7 +2165,7 @@ impl App {
                 }
                 GameEvent::ReadBook { item_id } => {
                     if let Some(grf) = self.grf.as_ref()
-                        && let Ok(data) = grf.read_file(&format!("data/book/{item_id}.txt"))
+                        && let Ok(data) = grf.read_file(&ragnarok_resources::table::book(item_id))
                     {
                         let content = ragnarok_game::book::BookContent::parse(&data);
                         self.windows.book_window.show(content);

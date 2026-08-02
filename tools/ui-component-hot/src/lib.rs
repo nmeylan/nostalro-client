@@ -1222,9 +1222,7 @@ fn create_single(name: &str) -> State {
             win.map_height = 400;
             win.player_position = Some((156.0, 191.0));
             win.player_direction = 4;
-            win.set_map_texture(Some(
-                "data/texture/유저인터페이스/map/prontera.bmp".to_string(),
-            ));
+            win.set_map_texture(Some(ragnarok_resources::ui::minimap::PRONTERA.to_string()));
             win.entity_markers = vec![
                 MinimapMarker {
                     x: 150.0,
@@ -3597,7 +3595,7 @@ fn resolve_stock_icons(
         .map(|(item, name)| {
             let icon = table
                 .get_resource_name_for(item.item_id, item.is_identified)
-                .map(|res| format!("data/texture/유저인터페이스/item/{res}.bmp"));
+                .map(|res| ragnarok_resources::ui::item::icon(res));
             (item.clone(), name.clone(), icon)
         })
         .collect()

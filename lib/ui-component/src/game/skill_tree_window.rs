@@ -34,28 +34,28 @@ const PAD_X: f32 = 6.0;
 const FALLBACK_BTN_W: f32 = 42.0;
 const FALLBACK_BTN_H: f32 = 20.0;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const ARW_LEFT_TEX: &str = "data/texture/유저인터페이스/basic_interface/arw_left.bmp";
-const ARW_RIGHT_TEX: &str = "data/texture/유저인터페이스/basic_interface/arw_right.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const ARW_LEFT_TEX: &str = ragnarok_resources::ui::basic::ARW_LEFT;
+const ARW_RIGHT_TEX: &str = ragnarok_resources::ui::basic::ARW_RIGHT;
 const ARW_SIZE: f32 = 11.0;
 
 const LEVELUP_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/skill_up_a.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/skill_up_b.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/skill_up_c.bmp",
+    normal: ragnarok_resources::ui::basic::SKILL_UP_A,
+    hover: ragnarok_resources::ui::basic::SKILL_UP_B,
+    pressed: ragnarok_resources::ui::basic::SKILL_UP_C,
 };
 
 const USE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_close.bmp",
-    hover: "data/texture/유저인터페이스/btn_close_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_close_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CLOSE,
+    hover: ragnarok_resources::ui::BTN_CLOSE_A,
+    pressed: ragnarok_resources::ui::BTN_CLOSE_B,
 };
 
 pub struct SkillTreeWindow {

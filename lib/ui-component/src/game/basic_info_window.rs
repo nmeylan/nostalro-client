@@ -18,60 +18,60 @@ const BTN_SKILL_ID: WidgetId = WidgetId(1415);
 const BTN_PARTY_ID: WidgetId = WidgetId(1416);
 const BTN_CHAT_ID: WidgetId = WidgetId(1417);
 
-const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/basewin_bg.bmp";
-const BG_MINI_TEX: &str = "data/texture/유저인터페이스/basic_interface/basewin_mini.bmp";
+const BG_TEX: &str = ragnarok_resources::ui::basic::BASEWIN_BG;
+const BG_MINI_TEX: &str = ragnarok_resources::ui::basic::BASEWIN_MINI;
 
-const BAR_RED_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzered_left.bmp";
-const BAR_RED_MID: &str = "data/texture/유저인터페이스/basic_interface/gzered_mid.bmp";
-const BAR_RED_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzered_right.bmp";
-const BAR_BLUE_LEFT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_left.bmp";
-const BAR_BLUE_MID: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_mid.bmp";
-const BAR_BLUE_RIGHT: &str = "data/texture/유저인터페이스/basic_interface/gzeblue_right.bmp";
+const BAR_RED_LEFT: &str = ragnarok_resources::ui::basic::GZERED_LEFT;
+const BAR_RED_MID: &str = ragnarok_resources::ui::basic::GZERED_MID;
+const BAR_RED_RIGHT: &str = ragnarok_resources::ui::basic::GZERED_RIGHT;
+const BAR_BLUE_LEFT: &str = ragnarok_resources::ui::basic::GZEBLUE_LEFT;
+const BAR_BLUE_MID: &str = ragnarok_resources::ui::basic::GZEBLUE_MID;
+const BAR_BLUE_RIGHT: &str = ragnarok_resources::ui::basic::GZEBLUE_RIGHT;
 
-const SYS_BASE_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_base_off.bmp";
-const SYS_BASE_ON: &str = "data/texture/유저인터페이스/basic_interface/sys_base_on.bmp";
-const SYS_MINI_OFF: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_off.bmp";
-const SYS_MINI_ON: &str = "data/texture/유저인터페이스/basic_interface/sys_mini_on.bmp";
+const SYS_BASE_OFF: &str = ragnarok_resources::ui::basic::SYS_BASE_OFF;
+const SYS_BASE_ON: &str = ragnarok_resources::ui::basic::SYS_BASE_ON;
+const SYS_MINI_OFF: &str = ragnarok_resources::ui::basic::SYS_MINI_OFF;
+const SYS_MINI_ON: &str = ragnarok_resources::ui::basic::SYS_MINI_ON;
 
 const BTN_OPTION: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_option_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_option_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_option_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_OPTION_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_OPTION_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_OPTION_ON,
 };
 const BTN_STATUS: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_status_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_status_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_status_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_STATUS_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_STATUS_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_STATUS_ON,
 };
 const BTN_EQUIP: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_equip_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_equip_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_equip_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_EQUIP_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_EQUIP_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_EQUIP_ON,
 };
 const BTN_ITEM: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_items_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_items_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_items_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_ITEMS_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_ITEMS_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_ITEMS_ON,
 };
 const BTN_MAP: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_map_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_map_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_map_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_MAP_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_MAP_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_MAP_ON,
 };
 const BTN_SKILL: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_skill_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_skill_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_skill_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_SKILL_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_SKILL_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_SKILL_ON,
 };
 const BTN_PARTY: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_friend_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_friend_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_friend_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_FRIEND_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_FRIEND_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_FRIEND_ON,
 };
 const BTN_CHAT: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_dialog_off.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_dialog_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_dialog_on.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_DIALOG_OFF,
+    hover: ragnarok_resources::ui::basic::BTN_DIALOG_ON,
+    pressed: ragnarok_resources::ui::basic::BTN_DIALOG_ON,
 };
 
 const WIN_W: f32 = 280.0;

@@ -4,8 +4,8 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::spr::{RgbaImageData, SprFile};
 
 pub const EMOTION_ICON_PREFIX: &str = "@emo/";
-const EMOTION_SPR_PATH: &str = "data/sprite/이팩트/emotion.spr";
-const EMOTION_ACT_PATH: &str = "data/sprite/이팩트/emotion.act";
+const EMOTION_SPR_PATH: &str = ragnarok_resources::sprite::effect::EMOTION_SPR;
+const EMOTION_ACT_PATH: &str = ragnarok_resources::sprite::effect::EMOTION_ACT;
 
 pub(super) fn load_emotion_icons(
     grf: &GrfArchive,

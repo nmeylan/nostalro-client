@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table::decode_euc_kr;
 
-const MAP_NAME_PATH: &str = "data/mapnametable.txt";
+const MAP_NAME_PATH: &str = ragnarok_resources::table::MAP_NAME;
 
 /// Display name per map, for the map-name labels.
 #[derive(Default)]

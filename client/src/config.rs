@@ -202,9 +202,9 @@ pub struct Config {
 
 fn default_account_backgrounds() -> Vec<String> {
     vec![
-        "data/texture/유저인터페이스/rag_title.bmp".to_string(),
-        "data/texture/유저인터페이스/rag_title2.bmp".to_string(),
-        "data/texture/유저인터페이스/rag_title3.bmp".to_string(),
+        ragnarok_resources::ui::RAG_TITLE.to_string(),
+        ragnarok_resources::ui::RAG_TITLE2.to_string(),
+        ragnarok_resources::ui::RAG_TITLE3.to_string(),
     ]
 }
 
@@ -232,7 +232,7 @@ impl Default for Config {
             emblem_path: "emblem".to_string(),
             free_camera: false,
             dpi_scale: 125.0,
-            grf_paths: vec!["data/data.grf".to_string()],
+            grf_paths: vec![ragnarok_resources::grf::DEFAULT_ARCHIVE.to_string()],
             data_dir: None,
             enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,

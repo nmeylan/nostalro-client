@@ -34,39 +34,39 @@ const ROW_WIDGET_BASE: u32 = 3230;
 const ENUM_OPTION_BASE: u32 = 5100;
 
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 const ADD_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_add.bmp",
-    hover: "data/texture/유저인터페이스/btn_add_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_add_b.bmp",
+    normal: ragnarok_resources::ui::BTN_ADD,
+    hover: ragnarok_resources::ui::BTN_ADD_A,
+    pressed: ragnarok_resources::ui::BTN_ADD_B,
 };
 const DEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_del.bmp",
-    hover: "data/texture/유저인터페이스/btn_del_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_del_b.bmp",
+    normal: ragnarok_resources::ui::BTN_DEL,
+    hover: ragnarok_resources::ui::BTN_DEL_A,
+    pressed: ragnarok_resources::ui::BTN_DEL_B,
 };
 const PREV_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/arw_left.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/arw_left.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/arw_left.bmp",
+    normal: ragnarok_resources::ui::basic::ARW_LEFT,
+    hover: ragnarok_resources::ui::basic::ARW_LEFT,
+    pressed: ragnarok_resources::ui::basic::ARW_LEFT,
 };
 const NEXT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/arw_right.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/arw_right_on.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/arw_right_on.bmp",
+    normal: ragnarok_resources::ui::basic::ARW_RIGHT,
+    hover: ragnarok_resources::ui::basic::ARW_RIGHT_ON,
+    pressed: ragnarok_resources::ui::basic::ARW_RIGHT_ON,
 };
 const PLUS_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/map/map_plus0.bmp",
-    hover: "data/texture/유저인터페이스/map/map_plus1.bmp",
-    pressed: "data/texture/유저인터페이스/map/map_plus1.bmp",
+    normal: ragnarok_resources::ui::minimap::MAP_PLUS0,
+    hover: ragnarok_resources::ui::minimap::MAP_PLUS1,
+    pressed: ragnarok_resources::ui::minimap::MAP_PLUS1,
 };
 const MINUS_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/map/map_minus0.bmp",
-    hover: "data/texture/유저인터페이스/map/map_minus1.bmp",
-    pressed: "data/texture/유저인터페이스/map/map_minus1.bmp",
+    normal: ragnarok_resources::ui::minimap::MAP_MINUS0,
+    hover: ragnarok_resources::ui::minimap::MAP_MINUS1,
+    pressed: ragnarok_resources::ui::minimap::MAP_MINUS1,
 };
 
 const BASIC_OPTS: &[(i32, &str)] = &[
@@ -235,8 +235,8 @@ fn tactic_cols() -> Vec<FieldSpec<Tactic>> {
     ]
 }
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const WIN_W: f32 = 384.0;
 const WIN_H: f32 = 340.0;

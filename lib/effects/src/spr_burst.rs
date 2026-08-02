@@ -23,7 +23,7 @@ const FIREFLY_ALPHA_KEYFRAMES: &[AlphaKeyframe] = &[
 pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> {
     match id {
         EffectId::Smoke => Some((
-            "data/sprite/이팩트/굴뚝연기",
+            ragnarok_resources::sprite::effect::CHIMNEY_SMOKE,
             SprBurstParams {
                 particle_lifetime_ms: 833.0,
                 size: 1.5,
@@ -44,7 +44,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Pattack | EffectId::Enchantpoison | EffectId::EnchantpoisonFlow => Some((
-            "data/sprite/이팩트/particle3",
+            ragnarok_resources::sprite::effect::PARTICLE3,
             SprBurstParams {
                 particle_lifetime_ms: 666.0,
                 size: 0.65,
@@ -65,7 +65,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Detoxication => Some((
-            "data/sprite/이팩트/particle2",
+            ragnarok_resources::sprite::effect::PARTICLE2,
             SprBurstParams {
                 particle_lifetime_ms: 666.0,
                 size: 0.6,
@@ -86,7 +86,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Snow => Some((
-            "data/sprite/이팩트/ef_snow",
+            ragnarok_resources::sprite::effect::EF_SNOW,
             SprBurstParams {
                 particle_lifetime_ms: 5333.0,
                 size: 0.7,
@@ -107,7 +107,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Firefly => Some((
-            "data/sprite/이팩트/particle1",
+            ragnarok_resources::sprite::effect::PARTICLE1,
             SprBurstParams {
                 particle_lifetime_ms: 2333.0,
                 size: 0.65,
@@ -133,7 +133,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Steal => Some((
-            "data/sprite/이팩트/particle7",
+            ragnarok_resources::sprite::effect::PARTICLE7,
             SprBurstParams {
                 particle_lifetime_ms: 500.0,
                 size: 1.5,
@@ -154,7 +154,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Slowpoison => Some((
-            "data/sprite/이팩트/particle3",
+            ragnarok_resources::sprite::effect::PARTICLE3,
             SprBurstParams {
                 particle_lifetime_ms: 666.0,
                 size: 0.65,
@@ -175,7 +175,7 @@ pub fn spr_burst_params(id: EffectId) -> Option<(&'static str, SprBurstParams)> 
             },
         )),
         EffectId::Edp => Some((
-            "data/sprite/이팩트/particle3",
+            ragnarok_resources::sprite::effect::PARTICLE3,
             SprBurstParams {
                 particle_lifetime_ms: 666.0,
                 size: 0.3,

@@ -22,25 +22,25 @@ const MY_ROW_BASE: u32 = 4110;
 const OTHER_ROW_BASE: u32 = 4120;
 const NUM_DIALOG_BASE: u32 = 4130;
 
-const BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/exchange_bg2.bmp";
-const BOX_TEX: &str = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
+const BG_TEX: &str = ragnarok_resources::ui::basic::EXCHANGE_BG2;
+const BOX_TEX: &str = ragnarok_resources::ui::basic::ITEMWIN_MID;
 
 const LOCK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 const TRADE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_exchange.bmp",
-    hover: "data/texture/유저인터페이스/btn_exchange_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_exchange_b.bmp",
+    normal: ragnarok_resources::ui::BTN_EXCHANGE,
+    hover: ragnarok_resources::ui::BTN_EXCHANGE_A,
+    pressed: ragnarok_resources::ui::BTN_EXCHANGE_B,
 };
-const TRADE_BTN_DIS: &str = "data/texture/유저인터페이스/btn_exchange_dis.bmp";
-const LOCK_BTN_DIS: &str = "data/texture/유저인터페이스/btn_ok_dis.bmp";
+const TRADE_BTN_DIS: &str = ragnarok_resources::ui::BTN_EXCHANGE_DIS;
+const LOCK_BTN_DIS: &str = ragnarok_resources::ui::BTN_OK_DIS;
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 const WIN_W: f32 = 500.0;

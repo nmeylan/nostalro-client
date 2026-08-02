@@ -1,6 +1,6 @@
 use ragnarok_tools::rsw_viewer;
 
-const DEFAULT_GRF_PATH: &str = "data/data.grf";
+const DEFAULT_GRF_PATH: &str = ragnarok_resources::grf::DEFAULT_ARCHIVE;
 
 fn main() {
     let args = parse_args();

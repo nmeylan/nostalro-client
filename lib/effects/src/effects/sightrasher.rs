@@ -1,8 +1,8 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
-pub const SIGHT_SPRITE: &str = "data/sprite/이팩트/sight";
-pub const SHADOW_SPRITE: &str = "data/sprite/shadow";
+pub const SIGHT_SPRITE: &str = ragnarok_resources::sprite::effect::SIGHT;
+pub const SHADOW_SPRITE: &str = ragnarok_resources::sprite::SHADOW;
 pub const SPRITES: &[&str] = &[SIGHT_SPRITE, SHADOW_SPRITE];
 pub const TEXTURES: &[&str] = &["ring_yellow.tga"];
 

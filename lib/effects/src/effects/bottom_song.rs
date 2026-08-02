@@ -34,9 +34,9 @@ const RICHMAN_GOLD: [f32; 3] = [200.0 / 255.0, 200.0 / 255.0, 100.0 / 255.0];
 
 /// Intoabyss item sprites: no `gemstone.bmp` exists; a random pick over 715/716/717.
 pub const GEMSTONE_SPRITES: &[&str] = &[
-    "data/sprite/아이템/옐로우젬스톤",
-    "data/sprite/아이템/레드젬스톤",
-    "data/sprite/아이템/블루젬스톤",
+    ragnarok_resources::sprite::item::YELLOW_GEMSTONE,
+    ragnarok_resources::sprite::item::RED_GEMSTONE,
+    ragnarok_resources::sprite::item::BLUE_GEMSTONE,
 ];
 pub const SPRITES: &[&str] = GEMSTONE_SPRITES;
 const GEMSTONE_SIZE: f32 = 1.0;

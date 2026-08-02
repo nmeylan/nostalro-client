@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
 
-const SKILL_TREE_PATH: &str = "data/skilltreeview.txt";
+const SKILL_TREE_PATH: &str = ragnarok_resources::table::SKILL_TREE;
 
 #[derive(Debug, Clone)]
 pub struct SkillTreeEntry {

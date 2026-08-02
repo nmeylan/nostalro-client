@@ -108,14 +108,14 @@ impl SpriteBrowser {
     pub fn new_with_tabs(all_sprites: Vec<String>, accessory_table: &AccessoryTable) -> Self {
         let mut npc_sprites: Vec<String> = all_sprites
             .iter()
-            .filter(|s| s.starts_with("data/sprite/npc/"))
+            .filter(|s| s.starts_with(ragnarok_resources::dir::SPRITE_NPC))
             .cloned()
             .collect();
         npc_sprites.sort();
 
         let mut monster_sprites: Vec<String> = all_sprites
             .iter()
-            .filter(|s| s.starts_with("data/sprite/몬스터/"))
+            .filter(|s| s.starts_with(ragnarok_resources::dir::SPRITE_MONSTER))
             .cloned()
             .collect();
         monster_sprites.sort();
@@ -124,11 +124,11 @@ impl SpriteBrowser {
         let char_job_ids: Vec<u16> = JOB_LIST.iter().map(|(id, _)| *id).collect();
 
         let excluded_prefixes = [
-            "data/sprite/npc/",
-            "data/sprite/몬스터/",
-            "data/sprite/인간족/",
-            "data/sprite/악세사리/",
-            "data/sprite/방패/",
+            ragnarok_resources::dir::SPRITE_NPC,
+            ragnarok_resources::dir::SPRITE_MONSTER,
+            ragnarok_resources::dir::SPRITE_PLAYER,
+            ragnarok_resources::dir::SPRITE_ACCESSORY,
+            ragnarok_resources::dir::SPRITE_SHIELD,
         ];
         let mut other_sprites: Vec<String> = all_sprites
             .iter()

@@ -69,26 +69,26 @@ pub fn entity_type_from_job(job: u16) -> EntityType {
 }
 
 pub fn npc_sprite_path(name: &str) -> String {
-    format!("data/sprite/npc/{name}")
+    ragnarok_resources::sprite::npc::of(name)
 }
 
 pub fn monster_sprite_path(name: &str) -> String {
-    format!("data/sprite/몬스터/{name}")
+    ragnarok_resources::sprite::monster::of(name)
 }
 
 pub fn homunculus_sprite_path(name: &str) -> String {
-    format!("data/sprite/homun/{name}")
+    ragnarok_resources::sprite::homun::of(name)
 }
 
 /// Mercenary bodies live with the human sprites; the name table already carries
 /// the sex/type sub-path (backslashes are normalized to `/` by the GRF reader).
 pub fn mercenary_sprite_path(name: &str) -> String {
-    format!("data/sprite/인간족/몸통/{name}")
+    ragnarok_resources::sprite::player::mercenary_body(name)
 }
 
 pub fn mercenary_imf_path(name: &str) -> Option<String> {
     let base = name.rsplit(['/', '\\']).next()?;
-    Some(format!("data/imf/{base}.imf"))
+    Some(ragnarok_resources::imf::of(base))
 }
 
 /// The mercenary weapon sprite sits under `용병`, named `<body>_<weapon>` where
@@ -97,7 +97,10 @@ pub fn mercenary_imf_path(name: &str) -> Option<String> {
 pub fn mercenary_weapon_sprite_path(name: &str) -> Option<String> {
     let base = name.rsplit(['/', '\\']).next()?;
     let weapon_char = base.chars().next()?;
-    Some(format!("data/sprite/인간족/용병/{base}_{weapon_char}"))
+    Some(ragnarok_resources::sprite::player::mercenary_weapon(
+        base,
+        weapon_char,
+    ))
 }
 
 /// Trigger actors that are never drawn. The identity table maps all four to a
@@ -155,7 +158,7 @@ pub const JT_SUMMER: u16 = 27;
 pub const OPTION_ORCISH: i32 = 0x800;
 
 /// Reverse Orcish (Sage): the head layer is drawn with the orc-face sprite.
-pub const ORCFACE_SPRITE_PATH: &str = "data/sprite/이팩트/orcface";
+pub const ORCFACE_SPRITE_PATH: &str = ragnarok_resources::sprite::effect::ORCFACE;
 
 pub fn is_orcish(effect_state: i32) -> bool {
     (effect_state & OPTION_ORCISH) != 0
@@ -195,8 +198,8 @@ pub fn has_falcon(effect_state: i32) -> bool {
 
 pub fn falcon_sprite_path(job: u16) -> &'static str {
     match job {
-        4012 => "data/sprite/이팩트/매2",
-        _ => "data/sprite/이팩트/매",
+        4012 => ragnarok_resources::sprite::effect::FALCON2,
+        _ => ragnarok_resources::sprite::effect::FALCON,
     }
 }
 pub const OPTION_CART_MASK: i32 = 0x08 | 0x80 | 0x100 | 0x200 | 0x400;
@@ -300,12 +303,7 @@ pub fn cart_design_from_option(effect_state: i32) -> Option<u8> {
 }
 
 pub fn cart_sprite_path(design: u8) -> String {
-    const BASE: &str = "data/sprite/이팩트";
-    match design {
-        0 => format!("{BASE}/슈노손수레"),
-        1 => format!("{BASE}/손수레"),
-        n => format!("{BASE}/손수레{}", n - 1),
-    }
+    ragnarok_resources::sprite::effect::cart(design)
 }
 
 pub fn unmounted_job(job: u16) -> Option<u16> {
@@ -413,23 +411,23 @@ fn sex_kr(sex: u8) -> &'static str {
 pub fn body_sprite_path(job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
-    format!("data/sprite/인간족/몸통/{sex_str}/{job}_{sex_str}")
+    ragnarok_resources::sprite::player::body(job, sex_str)
 }
 
 pub fn gm_body_sprite_path(sex: u8) -> String {
     let sex_str = sex_kr(sex);
-    format!("data/sprite/인간족/몸통/{sex_str}/운영자_{sex_str}")
+    ragnarok_resources::sprite::player::gm_body(sex_str)
 }
 
 pub fn gm_weapon_sprite_path(sex: u8) -> String {
     let sex_str = sex_kr(sex);
-    format!("data/sprite/인간족/운영자/운영자_{sex_str}_검")
+    ragnarok_resources::sprite::player::gm_weapon(sex_str)
 }
 
 pub fn imf_path(job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
-    format!("data/imf/{job}_{sex_str}.imf")
+    ragnarok_resources::imf::for_job(job, sex_str)
 }
 
 /// The job whose IMF a class borrows when it ships none of its own: transcendent
@@ -446,18 +444,18 @@ pub fn imf_fallback_job(job_class: u16) -> Option<u16> {
 
 pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
     let sex_str = sex_kr(sex);
-    format!("data/sprite/인간족/머리통/{sex_str}/{head_id}_{sex_str}")
+    ragnarok_resources::sprite::player::head(head_id, sex_str)
 }
 
 pub fn head_palette_path(head_id: u16, sex: u8, palette_id: u16) -> String {
     let sex_str = sex_kr(sex);
-    format!("data/palette/머리/머리{head_id}_{sex_str}_{palette_id}.pal")
+    ragnarok_resources::palette::head(head_id, sex_str, palette_id)
 }
 
 pub fn body_palette_path(job_class: u16, sex: u8, palette_id: u16) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
-    format!("data/palette/몸/{job}_{sex_str}_{palette_id}.pal")
+    ragnarok_resources::palette::body(job, sex_str, palette_id)
 }
 
 fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
@@ -575,7 +573,7 @@ pub fn dual_wield_type(right: WeaponType, left: WeaponType) -> Option<WeaponType
 
 pub fn headgear_sprite_path(suffix: &str, sex: u8) -> String {
     let sex_str = sex_kr(sex);
-    format!("data/sprite/악세사리/{sex_str}/{sex_str}{suffix}")
+    ragnarok_resources::sprite::accessory::of(sex_str, suffix)
 }
 
 fn shield_name_kr(view_id: u16) -> Option<&'static str> {
@@ -610,13 +608,13 @@ pub fn shield_sprite_path(view_id: u16, job_class: u16, sex: u8) -> Option<Strin
     let shield = shield_name_kr(resolved)?;
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
-    Some(format!("data/sprite/방패/{job}/{job}_{sex_str}_{shield}"))
+    Some(ragnarok_resources::sprite::shield::of(job, sex_str, shield))
 }
 
 pub fn shield_sprite_path_numeric(view_id: u16, job_class: u16, sex: u8) -> String {
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
-    format!("data/sprite/방패/{job}/{job}_{sex_str}_{view_id}")
+    ragnarok_resources::sprite::shield::of(job, sex_str, view_id)
 }
 
 pub fn transcendent_to_base_class(job_class: u16) -> Option<JobName> {
@@ -643,7 +641,7 @@ pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> S
     let job = job_name_kr(job_class);
     let sex_str = sex_kr(sex);
     let suffix = weapon_suffix(weapon_type);
-    format!("data/sprite/인간족/{job}/{job}_{sex_str}{suffix}")
+    ragnarok_resources::sprite::player::weapon(job, sex_str, suffix)
 }
 
 pub fn weapon_has_trail(weapon_type: WeaponType) -> bool {

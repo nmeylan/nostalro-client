@@ -8,8 +8,8 @@ pub struct CardNameTable {
     postfix_ids: HashSet<u16>,
 }
 
-const PREFIX_PATH: &str = "data/cardprefixnametable.txt";
-const POSTFIX_PATH: &str = "data/cardpostfixnametable.txt";
+const PREFIX_PATH: &str = ragnarok_resources::table::CARD_PREFIX_NAME;
+const POSTFIX_PATH: &str = ragnarok_resources::table::CARD_POSTFIX_NAME;
 
 impl CardNameTable {
     pub fn load(grf: &GrfArchive) -> Self {

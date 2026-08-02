@@ -63,7 +63,7 @@ impl DataDirIndex {
 fn data_dir_key(name: &str) -> String {
     let normalized = name.to_lowercase().replace('\\', "/");
     normalized
-        .strip_prefix("data/")
+        .strip_prefix(ragnarok_resources::dir::DATA)
         .unwrap_or(&normalized)
         .to_string()
 }

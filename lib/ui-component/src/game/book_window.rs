@@ -13,18 +13,18 @@ const PREV_BTN_ID: WidgetId = WidgetId(2501);
 const NEXT_BTN_ID: WidgetId = WidgetId(2502);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2503);
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const PREV_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_back.bmp",
-    hover: "data/texture/유저인터페이스/btn_back_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_back_b.bmp",
+    normal: ragnarok_resources::ui::BTN_BACK,
+    hover: ragnarok_resources::ui::BTN_BACK_A,
+    pressed: ragnarok_resources::ui::BTN_BACK_B,
 };
 const NEXT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_next.bmp",
-    hover: "data/texture/유저인터페이스/btn_next_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_next_b.bmp",
+    normal: ragnarok_resources::ui::BTN_NEXT,
+    hover: ragnarok_resources::ui::BTN_NEXT_A,
+    pressed: ragnarok_resources::ui::BTN_NEXT_B,
 };
 
 const WIN_W: f32 = 555.0;

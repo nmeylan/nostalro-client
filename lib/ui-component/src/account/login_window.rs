@@ -36,8 +36,8 @@ const CONNECT_BTN_RIGHT: f32 = 50.0;
 const EXIT_BTN_RIGHT: f32 = 5.0;
 const BTN_BOTTOM: f32 = 4.0;
 
-const INPUT_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/name-edit.bmp";
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_login.bmp";
+const INPUT_TEXTURE: &str = ragnarok_resources::ui::login::NAME_EDIT;
+const WIN_TEXTURE: &str = ragnarok_resources::ui::login::WIN_LOGIN;
 
 pub const LOGIN_WINDOW_ID: WidgetId = WidgetId(10);
 const TITLE_BAR_H: f32 = 25.0;
@@ -52,20 +52,20 @@ const FALLBACK_KEEP_W: f32 = 34.0;
 const FALLBACK_KEEP_H: f32 = 10.0;
 
 const KEEP_CHECKBOX: CheckboxTextures = CheckboxTextures {
-    off: "data/texture/유저인터페이스/login_interface/chk_saveoff.bmp",
-    on: "data/texture/유저인터페이스/login_interface/chk_saveon.bmp",
+    off: ragnarok_resources::ui::login::CHK_SAVEOFF,
+    on: ragnarok_resources::ui::login::CHK_SAVEON,
 };
 
 const CONNECT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/login_interface/btn_connect.bmp",
-    hover: "data/texture/유저인터페이스/login_interface/btn_connect_a.bmp",
-    pressed: "data/texture/유저인터페이스/login_interface/btn_connect_b.bmp",
+    normal: ragnarok_resources::ui::login::BTN_CONNECT,
+    hover: ragnarok_resources::ui::login::BTN_CONNECT_A,
+    pressed: ragnarok_resources::ui::login::BTN_CONNECT_B,
 };
 
 const EXIT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/login_interface/btn_exit.bmp",
-    hover: "data/texture/유저인터페이스/login_interface/btn_exit_a.bmp",
-    pressed: "data/texture/유저인터페이스/login_interface/btn_exit_b.bmp",
+    normal: ragnarok_resources::ui::login::BTN_EXIT,
+    hover: ragnarok_resources::ui::login::BTN_EXIT_A,
+    pressed: ragnarok_resources::ui::login::BTN_EXIT_B,
 };
 
 impl Default for LoginWindow {

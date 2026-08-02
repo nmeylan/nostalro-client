@@ -6,8 +6,8 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 pub const DISC_TEXTURE: &str = "alpha_down.tga";
 pub const TEXTURES: &[&str] = &[DISC_TEXTURE];
 
-pub const BLESSING_SPRITE: &str = "data/sprite/이팩트/축복";
-pub const TWINKLE_SPRITE: &str = "data/sprite/이팩트/particle6";
+pub const BLESSING_SPRITE: &str = ragnarok_resources::sprite::effect::BLESSING;
+pub const TWINKLE_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE6;
 pub const SPRITES: &[&str] = &[BLESSING_SPRITE, TWINKLE_SPRITE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

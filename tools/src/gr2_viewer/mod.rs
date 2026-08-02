@@ -60,7 +60,7 @@ fn resolve_model_path(model: &str) -> String {
     if lower.contains('/') || lower.contains('\\') {
         lower
     } else {
-        format!("data/model/3dmob/{lower}")
+        ragnarok_resources::model::mob(&lower)
     }
 }
 

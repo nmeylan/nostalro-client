@@ -93,7 +93,7 @@ fn try_load(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> Result<StrEffectEntry, String> {
-    let str_path = format!("data/texture/effect/{name}.str");
+    let str_path = ragnarok_resources::texture::effect::str_file(name);
     let str_bytes = grf
         .read_file(&str_path)
         .map_err(|e| format!("{str_path}: {e}"))?;

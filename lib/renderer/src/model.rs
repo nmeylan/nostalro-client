@@ -735,7 +735,7 @@ fn compile_animated_node(
         }
 
         let tex_name = resolve_texture_name(rsm, node, face.texture_index);
-        let tex_path = format!("data/texture/{tex_name}");
+        let tex_path = ragnarok_resources::texture::named(&tex_name);
 
         let v0 = vec3_from_arr(&node.vertices[v0_idx]);
         let v1 = vec3_from_arr(&node.vertices[v1_idx]);
@@ -1104,7 +1104,7 @@ fn compile_node(
         }
 
         let tex_name = resolve_texture_name(rsm, node, face.texture_index);
-        let tex_path = format!("data/texture/{tex_name}");
+        let tex_path = ragnarok_resources::texture::named(&tex_name);
 
         let v0 = world_verts[v0_idx];
         let v1 = world_verts[v1_idx];
@@ -1175,12 +1175,12 @@ fn preload_rsm_textures(
     queue: &wgpu::Queue,
 ) {
     for tex_name in &rsm.textures {
-        let path = format!("data/texture/{tex_name}");
+        let path = ragnarok_resources::texture::named(&tex_name);
         texture_cache.get_or_load(&path, grf, device, queue, false);
     }
     for node in &rsm.nodes {
         for tex_name in &node.texture_names {
-            let path = format!("data/texture/{tex_name}");
+            let path = ragnarok_resources::texture::named(&tex_name);
             texture_cache.get_or_load(&path, grf, device, queue, false);
         }
     }

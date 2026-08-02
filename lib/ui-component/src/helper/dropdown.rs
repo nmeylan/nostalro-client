@@ -5,9 +5,9 @@ use ragnarok_ui::rect::Rect;
 pub const OPTION_H: f32 = 16.0;
 
 const CARET: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/txtbox_btn_a.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/txtbox_btn_b.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/txtbox_btn_c.bmp",
+    normal: ragnarok_resources::ui::basic::TXTBOX_BTN_A,
+    hover: ragnarok_resources::ui::basic::TXTBOX_BTN_B,
+    pressed: ragnarok_resources::ui::basic::TXTBOX_BTN_C,
 };
 
 const BG: [f32; 4] = [1.0, 1.0, 1.0, 1.0];

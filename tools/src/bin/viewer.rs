@@ -1,6 +1,6 @@
 use ragnarok_tools::viewer;
 
-const DEFAULT_GRF_PATH: &str = "data/data.grf";
+const DEFAULT_GRF_PATH: &str = ragnarok_resources::grf::DEFAULT_ARCHIVE;
 const DEFAULT_MAP: &str = "prontera";
 
 fn main() {

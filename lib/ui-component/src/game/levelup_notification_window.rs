@@ -7,8 +7,8 @@ pub const LEVELUP_NOTIFY_WINDOW_ID: WidgetId = WidgetId(2710);
 const BASE_BTN_ID: WidgetId = WidgetId(2711);
 const JOB_BTN_ID: WidgetId = WidgetId(2712);
 
-const LV_UP_OFF: &str = "data/texture/유저인터페이스/basic_interface/lv_up_off.bmp";
-const LV_UP_ON: &str = "data/texture/유저인터페이스/basic_interface/lv_up_on.bmp";
+const LV_UP_OFF: &str = ragnarok_resources::ui::basic::LV_UP_OFF;
+const LV_UP_ON: &str = ragnarok_resources::ui::basic::LV_UP_ON;
 
 const MARGIN: f32 = 0.0;
 const BOTTOM_MARGIN: f32 = 8.0;

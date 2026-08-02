@@ -50,34 +50,34 @@ const SKILL_DOWN_BASE: u32 = 5520;
 const MEMBER_POS_DROPDOWN_BASE: u32 = 5600;
 const MEMBER_POS_OPTION_BASE: u32 = 5700;
 
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
-const GRP_ONLINE_TEX: &str = "data/texture/유저인터페이스/basic_interface/grp_online.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
+const GRP_ONLINE_TEX: &str = ragnarok_resources::ui::basic::GRP_ONLINE;
 
 const EDIT_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_edit.bmp",
-    hover: "data/texture/유저인터페이스/btn_edit_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_edit_b.bmp",
+    normal: ragnarok_resources::ui::BTN_EDIT,
+    hover: ragnarok_resources::ui::BTN_EDIT_A,
+    pressed: ragnarok_resources::ui::BTN_EDIT_B,
 };
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 const APPLY_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_apply.bmp",
-    hover: "data/texture/유저인터페이스/btn_apply_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_apply_b.bmp",
+    normal: ragnarok_resources::ui::BTN_APPLY,
+    hover: ragnarok_resources::ui::BTN_APPLY_A,
+    pressed: ragnarok_resources::ui::BTN_APPLY_B,
 };
 const RESET_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_reset.bmp",
-    hover: "data/texture/유저인터페이스/btn_reset_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_reset_b.bmp",
+    normal: ragnarok_resources::ui::BTN_RESET,
+    hover: ragnarok_resources::ui::BTN_RESET_A,
+    pressed: ragnarok_resources::ui::BTN_RESET_B,
 };
 const SKILL_UP_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/skill_up_a.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/skill_up_b.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/skill_up_c.bmp",
+    normal: ragnarok_resources::ui::basic::SKILL_UP_A,
+    hover: ragnarok_resources::ui::basic::SKILL_UP_B,
+    pressed: ragnarok_resources::ui::basic::SKILL_UP_C,
 };
 
 const WIN_W: f32 = 500.0;
@@ -1146,10 +1146,7 @@ impl GuildWindow {
                 .unwrap_or(0);
             let shown_level = s.level + pending;
 
-            let icon_path = format!(
-                "data/texture/유저인터페이스/item/{}.bmp",
-                s.name.to_lowercase()
-            );
+            let icon_path = ragnarok_resources::ui::item::icon(&s.name.to_lowercase());
             let dim = shown_level <= 0;
             let alpha = if dim { 0.5 } else { 1.0 };
             let (v, i) = draw::quad_vertices(x + 15.0, row_y, 24.0, 24.0, [alpha; 4]);

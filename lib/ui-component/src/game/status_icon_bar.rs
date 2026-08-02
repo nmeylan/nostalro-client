@@ -70,7 +70,7 @@ impl InGameWindow for StatusIconBarWindow {
             let rect = Rect::new(x, y, ICON, ICON);
 
             if status.icon_loaded {
-                let path = format!("data/texture/effect/{}", info.icon);
+                let path = ragnarok_resources::texture::effect::named(&info.icon);
                 let (v, idx) = draw::quad_vertices(x, y, ICON, ICON, [1.0, 1.0, 1.0, 1.0]);
                 ui.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),

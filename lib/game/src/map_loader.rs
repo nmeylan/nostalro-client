@@ -21,7 +21,7 @@ pub struct MapData {
 }
 
 pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
-    let rsw_path = format!("data/{map_name}.rsw");
+    let rsw_path = ragnarok_resources::map::rsw(map_name);
     let rsw_data = match grf.read_file(&rsw_path) {
         Ok(d) => d,
         Err(e) => {
@@ -37,7 +37,7 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
         }
     };
 
-    let gnd_path = format!("data/{map_name}.gnd");
+    let gnd_path = ragnarok_resources::map::gnd(map_name);
     let gnd_data = match grf.read_file(&gnd_path) {
         Ok(d) => d,
         Err(e) => {
@@ -65,7 +65,7 @@ pub fn load_map_data(grf: &GrfArchive, map_name: &str) -> Option<MapData> {
     let mut gat_file = None;
     let mut coordinates = None;
 
-    let gat_path = format!("data/{map_name}.gat");
+    let gat_path = ragnarok_resources::map::gat(map_name);
     if let Ok(gat_data) = grf.read_file(&gat_path)
         && let Ok(gat) = GatFile::parse(&gat_data)
     {

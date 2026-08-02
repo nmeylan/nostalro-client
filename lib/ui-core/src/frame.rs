@@ -93,7 +93,7 @@ impl Response {
     }
 }
 
-pub const RESIZE_HANDLE_TEX: &str = "data/texture/유저인터페이스/btn_resize.bmp";
+pub const RESIZE_HANDLE_TEX: &str = ragnarok_resources::ui::BTN_RESIZE;
 
 const DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX);
 pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);

@@ -38,9 +38,9 @@ const MOTION_COUNT: usize = 6;
 const TOTAL_DURATION_S: f32 = 1667.0 / 1000.0;
 
 /// Wink emote (`misc\wink.spr`).
-pub const WINK: &str = "data/sprite/이팩트/wink";
+pub const WINK: &str = ragnarok_resources::sprite::effect::WINK;
 /// Voice emote (`misc\fvoice.spr`), same handler as Wink.
-pub const FVOICE: &str = "data/sprite/이팩트/fvoice";
+pub const FVOICE: &str = ragnarok_resources::sprite::effect::FVOICE;
 
 pub const SPRITES: &[&str] = &[WINK, FVOICE];
 

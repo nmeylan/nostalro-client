@@ -1157,7 +1157,7 @@ impl App {
         }
         let loaded = match status_icon_info(efst) {
             Some(info) => {
-                let path = format!("data/texture/effect/{}", info.icon);
+                let path = ragnarok_resources::texture::effect::named(&info.icon);
                 match (self.renderer.as_mut(), self.grf.as_ref()) {
                     (Some(r), Some(g)) => r.preload_textures(&[path.as_str()], g),
                     _ => false,

@@ -45,17 +45,16 @@ const FALLBACK_WIN_H: f32 = 120.0;
 
 const TITLE_H_ILLUS: f32 = 17.0;
 
-const COLLECTION_BG_TEX: &str = "data/texture/유저인터페이스/basic_interface/collection_bg.bmp";
-const EMPTY_SLOT_TEX: &str = "data/texture/유저인터페이스/empty_card_slot.bmp";
-const DISABLED_SLOT_TEX: &str =
-    "data/texture/유저인터페이스/basic_interface/coparison_disable_card_slot.bmp";
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const COLLECTION_BG_TEX: &str = ragnarok_resources::ui::basic::COLLECTION_BG;
+const EMPTY_SLOT_TEX: &str = ragnarok_resources::ui::EMPTY_CARD_SLOT;
+const DISABLED_SLOT_TEX: &str = ragnarok_resources::ui::basic::COPARISON_DISABLE_CARD_SLOT;
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const VIEW_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_view.bmp",
-    hover: "data/texture/유저인터페이스/btn_view_b.bmp",
-    pressed: "data/texture/유저인터페이스/btn_view_a.bmp",
+    normal: ragnarok_resources::ui::BTN_VIEW,
+    hover: ragnarok_resources::ui::BTN_VIEW_B,
+    pressed: ragnarok_resources::ui::BTN_VIEW_A,
 };
 const VIEW_BTN_W: f32 = 42.0;
 const VIEW_BTN_H: f32 = 20.0;
@@ -145,7 +144,7 @@ impl ItemInfoWindow {
         let collection_path = item
             .resource_name
             .as_ref()
-            .map(|name| format!("data/texture/유저인터페이스/collection/{name}.bmp"));
+            .map(|name| ragnarok_resources::ui::collection::named(name));
 
         let mut card_icon_paths: [Option<String>; 4] = [None, None, None, None];
         if item.is_equipment() {
@@ -215,7 +214,7 @@ impl ItemInfoWindow {
 
         let collection_path = resource_name
             .as_ref()
-            .map(|n| format!("data/texture/유저인터페이스/collection/{n}.bmp"));
+            .map(|n| ragnarok_resources::ui::collection::named(n));
 
         let description_lines = data
             .item_description

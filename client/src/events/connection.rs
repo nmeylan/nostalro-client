@@ -361,7 +361,7 @@ impl App {
             renderer.preload_textures(&vending_board::grf_texture_paths(), grf);
 
             if let Some(current_map) = &self.game.session.current_map {
-                let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", current_map);
+                let minimap_path = ragnarok_resources::ui::minimap::of(current_map);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
                     self.windows
                         .minimap_window
@@ -468,7 +468,7 @@ impl App {
             self.game.sprite_caches.failed_sprite_loads.clear();
 
             if let (Some(grf), Some(renderer)) = (&self.grf, &mut self.renderer) {
-                let minimap_path = format!("data/texture/유저인터페이스/map/{}.bmp", map_name);
+                let minimap_path = ragnarok_resources::ui::minimap::of(&map_name);
                 if renderer.preload_textures(&[minimap_path.as_str()], grf) {
                     self.windows
                         .minimap_window

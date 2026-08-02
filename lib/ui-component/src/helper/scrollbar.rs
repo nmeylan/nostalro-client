@@ -5,8 +5,8 @@ use ragnarok_ui::rect::Rect;
 pub const SCROLLBAR_W: f32 = 14.0;
 pub const SCROLL_BTN_H: f32 = 14.0;
 
-const SCROLL_UP_TEX: &str = "data/texture/유저인터페이스/scroll0up.bmp";
-const SCROLL_DOWN_TEX: &str = "data/texture/유저인터페이스/scroll0down.bmp";
+const SCROLL_UP_TEX: &str = ragnarok_resources::ui::SCROLL0UP;
+const SCROLL_DOWN_TEX: &str = ragnarok_resources::ui::SCROLL0DOWN;
 
 pub struct ScrollbarIds {
     pub up: WidgetId,

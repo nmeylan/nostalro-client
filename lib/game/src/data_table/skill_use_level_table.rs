@@ -4,7 +4,7 @@ use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
 
-const PATH: &str = "data/leveluseskillspamount.txt";
+const PATH: &str = ragnarok_resources::table::SKILL_SP_AMOUNT;
 
 pub struct SkillUseLevelTable {
     sp_per_level: HashMap<String, Vec<i16>>,

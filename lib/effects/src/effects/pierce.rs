@@ -4,7 +4,7 @@ use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 pub const RING_TEXTURE: &str = "ring_yellow.tga";
-pub const PARTICLE_SPRITE: &str = "data/sprite/\u{c774}\u{d31d}\u{d2b8}/particle1";
+pub const PARTICLE_SPRITE: &str = ragnarok_resources::sprite::effect::PARTICLE1;
 pub const TEXTURES: &[&str] = &[RING_TEXTURE];
 
 const FRAMES_PER_SECOND: f32 = 60.0;

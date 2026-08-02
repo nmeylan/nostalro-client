@@ -24,18 +24,18 @@ const FALLBACK_TITLE_BAR_H: f32 = 30.0;
 const OK_ID: WidgetId = WidgetId(100);
 const CANCEL_ID: WidgetId = WidgetId(101);
 
-const WIN_TEXTURE: &str = "data/texture/유저인터페이스/login_interface/win_service.bmp";
+const WIN_TEXTURE: &str = ragnarok_resources::ui::login::WIN_SERVICE;
 
 const OK_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_ok.bmp",
-    hover: "data/texture/유저인터페이스/btn_ok_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_ok_b.bmp",
+    normal: ragnarok_resources::ui::BTN_OK,
+    hover: ragnarok_resources::ui::BTN_OK_A,
+    pressed: ragnarok_resources::ui::BTN_OK_B,
 };
 
 const CANCEL_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_cancel.bmp",
-    hover: "data/texture/유저인터페이스/btn_cancel_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_cancel_b.bmp",
+    normal: ragnarok_resources::ui::BTN_CANCEL,
+    hover: ragnarok_resources::ui::BTN_CANCEL_A,
+    pressed: ragnarok_resources::ui::BTN_CANCEL_B,
 };
 
 const SELECTED_COLOR: [f32; 4] = [0.804, 0.878, 1.0, 1.0];

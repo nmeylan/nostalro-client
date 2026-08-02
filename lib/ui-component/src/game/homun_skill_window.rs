@@ -16,23 +16,23 @@ pub const HOMUN_SKILL_WINDOW_ID: WidgetId = WidgetId(2910);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2911);
 const USE_BTN_ID: WidgetId = WidgetId(2912);
 const FOOTER_CLOSE_BTN_ID: WidgetId = WidgetId(2913);
-const CLOSE_OFF_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_off.bmp";
-const CLOSE_ON_TEX: &str = "data/texture/유저인터페이스/basic_interface/sys_close_on.bmp";
+const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
+const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 
 const USE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/btn_use.bmp",
-    hover: "data/texture/유저인터페이스/btn_use_a.bmp",
-    pressed: "data/texture/유저인터페이스/btn_use_b.bmp",
+    normal: ragnarok_resources::ui::BTN_USE,
+    hover: ragnarok_resources::ui::BTN_USE_A,
+    pressed: ragnarok_resources::ui::BTN_USE_B,
 };
 const LEVELUP_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/skill_up_a.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/skill_up_b.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/skill_up_c.bmp",
+    normal: ragnarok_resources::ui::basic::SKILL_UP_A,
+    hover: ragnarok_resources::ui::basic::SKILL_UP_B,
+    pressed: ragnarok_resources::ui::basic::SKILL_UP_C,
 };
 const CLOSE_BTN: ButtonTextures = ButtonTextures {
-    normal: "data/texture/유저인터페이스/basic_interface/btn_close.bmp",
-    hover: "data/texture/유저인터페이스/basic_interface/btn_close_a.bmp",
-    pressed: "data/texture/유저인터페이스/basic_interface/btn_close_b.bmp",
+    normal: ragnarok_resources::ui::basic::BTN_CLOSE,
+    hover: ragnarok_resources::ui::basic::BTN_CLOSE_A,
+    pressed: ragnarok_resources::ui::basic::BTN_CLOSE_B,
 };
 const SKILL_ROW_BASE_ID: u32 = 2920;
 const SKILL_LEVELUP_BASE_ID: u32 = 2930;
