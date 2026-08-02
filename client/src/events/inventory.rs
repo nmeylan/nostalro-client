@@ -36,6 +36,27 @@ impl App {
             .inventory
             .apply_equipment_items(items, &self.game.data_table);
         self.preload_item_icons(icon_paths);
+        self.refresh_player_hand_look();
+    }
+
+    /// The server sends the weapon look before the equipment list, so an off-hand
+    /// weapon can only be told apart from a shield once the list has landed.
+    fn refresh_player_hand_look(&mut self) {
+        let Some(player_id) = self.game.world.entities.player_id() else {
+            return;
+        };
+        let (weapon, shield) = self.game.character.resolve_hand_look();
+        let changed = match self.game.world.entities.get_mut(player_id) {
+            Some(entity) if entity.weapon != weapon || entity.shield != shield => {
+                entity.weapon = weapon;
+                entity.shield = shield;
+                true
+            }
+            _ => false,
+        };
+        if changed {
+            self.reload_player_sprite(player_id);
+        }
     }
 
     pub(super) fn handle_cart_normal_items(&mut self, items: Vec<NormalItemData>) {

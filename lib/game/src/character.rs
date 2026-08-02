@@ -4,7 +4,10 @@ use crate::hotkey::HotkeyBar;
 use crate::inventory::{CartData, InventoryData, StorageData};
 use crate::mail::MailState;
 use crate::skill::SkillList;
+use crate::sprite_path::{dual_wield_type, weapon_view_id_to_type};
 use crate::trade::TradeData;
+use models::enums::item::EquipmentLocation;
+use models::enums::weapon::WeaponType;
 
 /// Times are local-clock milliseconds; `end_ms` is `None` for permanent statuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,6 +77,11 @@ pub struct Character {
     pub active_statuses: Vec<ActiveStatus>,
     /// Married partner's name (from ZC_COUPLENAME); empty when unpartnered.
     pub partner_name: String,
+    /// Right- and left-hand view ids from the last weapon look change. The left
+    /// value is either a shield or an off-hand weapon and only the inventory
+    /// tells which, so the pair is kept to be re-resolved when the equipment
+    /// list lands after the look change.
+    pub hand_look: (u16, u16),
 }
 
 impl Default for Character {
@@ -141,7 +149,28 @@ impl Character {
             cart_design: None,
             active_statuses: Vec::new(),
             partner_name: String::new(),
+            hand_look: (0, 0),
         }
+    }
+
+    /// Weapon type and shield view the two hands add up to, off-hand weapons
+    /// folded into the combined dual-wield type.
+    pub fn resolve_hand_look(&self) -> (Option<WeaponType>, u16) {
+        let (right, left) = self.hand_look;
+        let right_type = weapon_view_id_to_type(right);
+        let left_is_weapon = self
+            .inventory
+            .equipped_in_slot(EquipmentLocation::HandLeft)
+            .is_some_and(|item| item.is_weapon());
+        if !left_is_weapon {
+            return (right_type, left);
+        }
+        let weapon = match (right_type, weapon_view_id_to_type(left)) {
+            (Some(r), Some(l)) => dual_wield_type(r, l).or(Some(r)),
+            (None, Some(l)) => Some(l),
+            _ => right_type,
+        };
+        (weapon, 0)
     }
 
     /// Sentinel the server sends for infinite-duration statuses: any tick `<= 0` is
@@ -437,6 +466,72 @@ pub fn job_class_name(class_id: u16) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::inventory::EquipmentItemData;
+
+    #[test]
+    fn dual_wield_look_survives_an_emptied_inventory() {
+        let data = crate::data_table::DataTable::default();
+        let mut char = Character::new();
+        let daggers = vec![
+            EquipmentItemData {
+                index: 1,
+                item_id: 1201,
+                item_type: 5,
+                is_identified: true,
+                location: 2,
+                wear_state: 2,
+                is_damaged: false,
+                refining_level: 0,
+                slot: [0; 4],
+            },
+            EquipmentItemData {
+                index: 2,
+                item_id: 1202,
+                item_type: 5,
+                is_identified: true,
+                location: 32,
+                wear_state: 32,
+                is_damaged: false,
+                refining_level: 0,
+                slot: [0; 4],
+            },
+        ];
+        char.inventory.apply_equipment_items(daggers.clone(), &data);
+        char.hand_look = (1201, 1202);
+        assert_eq!(
+            char.resolve_hand_look(),
+            (Some(WeaponType::DoubleDd), 0),
+            "both daggers known"
+        );
+
+        char.inventory.clear();
+        assert_eq!(char.resolve_hand_look(), (Some(WeaponType::Dagger), 1202));
+
+        char.inventory.apply_equipment_items(daggers, &data);
+        assert_eq!(char.resolve_hand_look(), (Some(WeaponType::DoubleDd), 0));
+    }
+
+    #[test]
+    fn shield_look_is_kept_when_the_off_hand_is_not_a_weapon() {
+        let data = crate::data_table::DataTable::default();
+        let mut char = Character::new();
+        char.inventory.apply_equipment_items(
+            vec![EquipmentItemData {
+                index: 1,
+                item_id: 2104,
+                item_type: 4,
+                is_identified: true,
+                location: 32,
+                wear_state: 32,
+                is_damaged: false,
+                refining_level: 0,
+                slot: [0; 4],
+            }],
+            &data,
+        );
+        char.hand_look = (1101, 2);
+        assert_eq!(char.resolve_hand_look(), (Some(WeaponType::Sword1H), 2));
+    }
 
     #[test]
     fn parameter_changed_updates_stats_and_returns_speed() {

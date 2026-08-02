@@ -1514,34 +1514,26 @@ impl App {
             return;
         }
 
-        let left_hand_is_weapon = self.game.world.entities.is_player(gid)
-            && self
-                .game
-                .character
-                .inventory
-                .equipped_in_slot(models::enums::item::EquipmentLocation::HandLeft)
-                .is_some_and(|item| item.is_weapon());
+        let own_hand_look = if sprite_type == 2 && self.game.world.entities.is_player(gid) {
+            self.game.character.hand_look = (value, value2);
+            Some(self.game.character.resolve_hand_look())
+        } else {
+            None
+        };
         let mut job_change: Option<u16> = None;
         if let Some(entity) = self.game.world.entities.get_mut(gid) {
             if sprite_type == 0 && entity.job != value && entity.job != 0 {
                 job_change = Some(value);
             }
             if sprite_type == 2 {
-                let right_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value);
-                if left_hand_is_weapon {
-                    let left_type = ragnarok_game::sprite_path::weapon_view_id_to_type(value2);
-                    entity.weapon = match (right_type, left_type) {
-                        (Some(r), Some(l)) => {
-                            ragnarok_game::sprite_path::dual_wield_type(r, l).or(Some(r))
-                        }
-                        (None, Some(l)) => Some(l),
-                        _ => right_type,
-                    };
-                    entity.shield = 0;
-                } else {
-                    entity.weapon = right_type;
-                    entity.shield = value2;
-                }
+                let (weapon, shield) = own_hand_look.unwrap_or_else(|| {
+                    (
+                        ragnarok_game::sprite_path::weapon_view_id_to_type(value),
+                        value2,
+                    )
+                });
+                entity.weapon = weapon;
+                entity.shield = shield;
             } else {
                 entity.apply_sprite_change(sprite_type, value);
             }

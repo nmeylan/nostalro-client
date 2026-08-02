@@ -14,6 +14,11 @@ pub const AVG_ATTACKED_SPEED_SECS: f32 = 0.288;
 
 const PICKUP_MOTION_FALLBACK_SECS: f32 = 0.5;
 
+/// One swing of a multi-hit skill, replayed per hit. Longer than the 200 ms hit
+/// spacing so consecutive hits run into each other instead of leaving the sprite
+/// parked on the last frame.
+const ATTACK_REPLAY_SECS: f32 = 0.3;
+
 /// Attack-motion time (ms) that plays the swing at its native ACT frame delay.
 /// Slower attacks scale up to a cap of 2×, matching the original client.
 const AVG_ATTACK_MT_MS: f32 = 432.0;
@@ -590,10 +595,31 @@ impl Entity {
             return;
         }
         self.state = EntityState::SkillExec;
-        self.state_timer = 0.2;
+        self.state_timer = ATTACK_REPLAY_SECS;
         self.active_skill_id = Some(skill_id);
-        self.animation_duration = Some(0.3);
-        self.animation_start_frame = Some(4);
+        self.animation_duration = Some(ATTACK_REPLAY_SECS);
+    }
+
+    /// A transient one-shot (hurt, death, skill, pickup) holds its last frame
+    /// once it has played through — unless a fresh motion is already queued, as
+    /// a multi-hit skill queues one per hit. `pose_action` is the action group
+    /// the state resolves to, which is what `anim_action` was started from.
+    pub fn holds_last_frame(
+        &self,
+        pose_action: usize,
+        anim_action: usize,
+        anim_finished: bool,
+    ) -> bool {
+        self.animation_duration.is_none()
+            && matches!(
+                self.state,
+                EntityState::Dead
+                    | EntityState::Hurt
+                    | EntityState::SkillExec
+                    | EntityState::Pickup
+            )
+            && anim_action == pose_action
+            && anim_finished
     }
 
     pub fn enter_casting(&mut self, duration_secs: f32, skill_id: u16) {
@@ -1613,6 +1639,44 @@ mod tests {
         e.update_state(0.016);
         assert_eq!(e.state, EntityState::Moving);
         assert_eq!(e.action_index(), 1);
+    }
+
+    #[test]
+    fn a_multi_hit_replay_restarts_the_swing_parked_on_its_last_frame() {
+        use models::enums::skill_enums::SkillEnum;
+        let sonic_blow = SkillEnum::AsSonicblow.id() as u16;
+        let mut e = make_entity();
+
+        e.enter_skill_exec(0.5, sonic_blow, 8);
+        let swing = e.action_index();
+        assert_eq!(e.animation_duration.take(), Some(0.5));
+        assert!(!e.holds_last_frame(swing, swing, false), "still swinging");
+        assert!(
+            e.holds_last_frame(swing, swing, true),
+            "played through, parked"
+        );
+
+        e.enter_attack_replay(sonic_blow);
+        assert!(
+            !e.holds_last_frame(swing, swing, true),
+            "the next hit must replay the swing"
+        );
+        assert_eq!(e.animation_duration, Some(ATTACK_REPLAY_SECS));
+        assert_eq!(
+            e.state_timer, ATTACK_REPLAY_SECS,
+            "the state must outlast the motion it plays"
+        );
+
+        let filler_attack1 = make_body_act(5, &[5]);
+        let mut bare = make_entity();
+        bare.enter_skill_exec(0.5, SkillEnum::SmBash.id() as u16, 1);
+        bare.animation_duration.take();
+        let pose = bare.resolved_action_index(&filler_attack1);
+        assert_eq!((bare.action_index(), pose), (5, 10));
+        assert!(
+            bare.holds_last_frame(pose, pose, true),
+            "a redirected group parks too, it does not restart"
+        );
     }
 
     #[test]

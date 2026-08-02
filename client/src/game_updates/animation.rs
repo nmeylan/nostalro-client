@@ -66,15 +66,12 @@ impl App {
         };
         for entity in self.game.world.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
-                if matches!(
-                    entity.state,
-                    EntityState::Dead
-                        | EntityState::Hurt
-                        | EntityState::SkillExec
-                        | EntityState::Pickup
-                ) && entity.animation.action() == entity.action_index()
-                    && entity.animation.is_finished()
-                {
+                let pose_action = entity.resolved_action_index(&sprite.body_act);
+                if entity.holds_last_frame(
+                    pose_action,
+                    entity.animation.action(),
+                    entity.animation.is_finished(),
+                ) {
                     continue;
                 }
                 if entity.forced_animation.is_none()
@@ -135,7 +132,7 @@ impl App {
                     continue;
                 }
 
-                let action = entity.resolved_action_index(&sprite.body_act);
+                let action = pose_action;
                 let is_transient = matches!(
                     entity.state,
                     EntityState::Hurt

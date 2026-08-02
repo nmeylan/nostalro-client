@@ -266,6 +266,7 @@ impl App {
         }
         self.game.world.entities.set_player_id(account_id);
         self.game.world.entities.insert(entity);
+        self.game.character.hand_look = (weapon, shield_id);
 
         for &(bit, efst) in ragnarok_game::sprite_path::OPTION_STATUS_ICONS {
             if effect_state & bit != 0 {

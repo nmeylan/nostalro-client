@@ -3,7 +3,6 @@ use crate::scheduled_hit::{DamageMessage, ScheduledHit};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DamageNumberType {
     Normal,
-    Skill,
     Critical,
     Enemy,
     Combo,
@@ -29,9 +28,9 @@ const TOTAL_FADE_PER_FRAME: f32 = 8.0;
 const DAMAGE_FADE_PER_FRAME: f32 = 3.4;
 const RECOVERY_FADE_PER_FRAME: f32 = 2.0;
 const PLAYER_RED: [f32; 3] = [1.0, 0.0, 0.0];
-/// Skill damage, criticals and running multi-hit totals share one colour; a
-/// plain weapon blow stays white and anything landing on a player goes red.
-const SKILL_YELLOW: [f32; 3] = [0.9, 0.9, 0.15];
+/// Running multi-hit totals only. Every other blow, skill or critical, stays
+/// white; anything landing on a player goes red.
+const COMBO_YELLOW: [f32; 3] = [0.9, 0.9, 0.15];
 /// Lucky plays `msg.act` action 3 once: 28 motions held 4 frames each. The word
 /// itself only joins the backdrop from motion 2 on.
 const LUCKY_MOTIONS: f32 = 28.0;
@@ -52,8 +51,7 @@ impl DamageNumberType {
         match self {
             Self::Enemy => PLAYER_RED,
             Self::Heal => [0.0, 1.0, 0.0],
-            Self::Skill | Self::Critical => SKILL_YELLOW,
-            t if t.is_combo() || t.is_total() => SKILL_YELLOW,
+            t if t.is_combo() || t.is_total() => COMBO_YELLOW,
             _ => [1.0, 1.0, 1.0],
         }
     }
@@ -74,7 +72,6 @@ impl DamageNumberType {
         matches!(
             self,
             Self::Normal
-                | Self::Skill
                 | Self::Critical
                 | Self::Enemy
                 | Self::Combo
@@ -87,7 +84,7 @@ impl DamageNumberType {
     /// Animation frames the number stays alive for.
     fn life_frames(&self) -> f32 {
         match self {
-            Self::Normal | Self::Skill | Self::Critical | Self::Enemy => 70.0,
+            Self::Normal | Self::Critical | Self::Enemy => 70.0,
             Self::Miss => 80.0,
             Self::Lucky => LUCKY_MOTIONS * LUCKY_FRAMES_PER_MOTION,
             _ => 120.0,
@@ -164,7 +161,7 @@ impl DamageNumber {
         let f = self.frame();
         let magnitude = match self.number_type {
             DamageNumberType::Critical => 0.5,
-            DamageNumberType::Normal | DamageNumberType::Skill | DamageNumberType::Enemy => 0.8,
+            DamageNumberType::Normal | DamageNumberType::Enemy => 0.8,
             _ => return 0.0,
         };
         let dir_x: f32 = if self.direction % 8 < 4 { -1.0 } else { 1.0 };
@@ -197,7 +194,6 @@ impl DamageNumber {
             DamageNumberType::Miss => 250.0 - f * 3.0,
             DamageNumberType::Lucky => 255.0,
             DamageNumberType::Normal
-            | DamageNumberType::Skill
             | DamageNumberType::Critical
             | DamageNumberType::Enemy => 250.0 - f * DAMAGE_FADE_PER_FRAME,
             _ => 250.0 - f * RECOVERY_FADE_PER_FRAME,
@@ -515,8 +511,6 @@ impl DamageNumberManager {
                 DamageNumberType::Critical
             } else if is_player_target {
                 DamageNumberType::Enemy
-            } else if is_skill {
-                DamageNumberType::Skill
             } else {
                 DamageNumberType::Normal
             };
@@ -593,13 +587,16 @@ mod tests {
     }
 
     #[test]
-    fn critical_color_is_yellow() {
-        assert_eq!(DamageNumberType::Critical.color(), SKILL_YELLOW);
+    fn a_critical_reads_white_and_is_marked_by_its_plate_alone() {
+        let crit = DamageNumber::new(1, 100, DamageNumberType::Critical, 0);
+        assert_eq!(crit.number_type.color(), [1.0, 1.0, 1.0]);
+        let plate = crit.render_data().unwrap().critical_backdrop;
+        assert!(plate.is_some());
     }
 
     #[test]
     fn a_double_attack_reads_like_a_skill_combo_not_like_plain_damage() {
-        assert_eq!(DamageNumberType::MultiHit.color(), SKILL_YELLOW);
+        assert_eq!(DamageNumberType::MultiHit.color(), COMBO_YELLOW);
         assert_eq!(
             DamageNumberType::MultiHitTotal.color(),
             DamageNumberType::ComboFinal.color()
@@ -637,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn skill_hit_on_player_is_red_but_on_monster_is_skill() {
+    fn a_single_skill_hit_is_white_on_a_monster_and_red_on_a_player() {
         let hit = ScheduledHit::single(100, 17, false);
 
         let mut player = DamageNumberManager::new();
@@ -650,8 +647,12 @@ mod tests {
         let mut monster = DamageNumberManager::new();
         monster.emit(1, 0, &hit, false, false);
         let on_monster = monster.numbers.last().unwrap();
-        assert_eq!(on_monster.number_type, DamageNumberType::Skill);
-        assert_eq!(on_monster.number_type.color(), SKILL_YELLOW);
+        assert_eq!(on_monster.number_type, DamageNumberType::Normal);
+        assert_eq!(
+            on_monster.number_type.color(),
+            [1.0, 1.0, 1.0],
+            "only criticals and multi-hit totals are yellow"
+        );
 
         let weapon_hit = ScheduledHit::single(100, 0, false);
         let mut plain = DamageNumberManager::new();
@@ -817,7 +818,7 @@ mod tests {
         assert_eq!(totals.len(), 1);
         assert_eq!(totals[0].number_type, DamageNumberType::ComboFinal);
         assert_eq!(totals[0].value, 90);
-        assert_eq!(totals[0].number_type.color(), SKILL_YELLOW);
+        assert_eq!(totals[0].number_type.color(), COMBO_YELLOW);
     }
 
     #[test]
