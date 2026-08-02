@@ -149,8 +149,15 @@ pub fn hover_cursor(
     active_skill: Option<TargetClass>,
     player_id: Option<u32>,
 ) -> Option<CursorType> {
-    if target.state == EntityState::Dead || target.is_fading() {
+    if target.is_fading() {
         return None;
+    }
+    if target.state == EntityState::Dead {
+        // Resurrection is cast on a corpse, so a supportive skill keeps a dead
+        // player pickable — with the plain cursor, not the lock one.
+        return (active_skill == Some(TargetClass::Supportive)
+            && target.entity_type == EntityType::Player)
+            .then_some(CursorType::Default);
     }
     let category = target.category();
     if matches!(category, EntityCategory::Skill | EntityCategory::Invisible)
@@ -194,7 +201,7 @@ pub fn skill_target_allowed(
     player_id: Option<u32>,
 ) -> bool {
     if target.state == EntityState::Dead {
-        return false;
+        return class == TargetClass::Supportive && target.entity_type == EntityType::Player;
     }
     match class {
         TargetClass::Ground | TargetClass::SkillUnit => false,
@@ -285,6 +292,29 @@ mod tests {
             assert!(!skill_target_allowed(class, &target, &pvp, me));
             assert_eq!(hover_cursor(&target, &pvp, Some(class), me), None);
         }
+    }
+
+    #[test]
+    fn only_supportive_skills_reach_a_corpse() {
+        let me = Some(1u32);
+        let town = MapProperties::from_kind(MapKind::Normal);
+        let mut corpse = entity(20, EntityType::Player, 0);
+        corpse.state = EntityState::Dead;
+        let mut dead_mob = entity(30, EntityType::Monster, 1002);
+        dead_mob.state = EntityState::Dead;
+
+        let support = skill_target_class(SkillTargetType::Friend);
+        assert!(skill_target_allowed(support, &corpse, &town, me));
+        assert_eq!(
+            hover_cursor(&corpse, &town, Some(support), me),
+            Some(CursorType::Default)
+        );
+        assert!(!skill_target_allowed(support, &dead_mob, &town, me));
+
+        let offensive = skill_target_class(SkillTargetType::Target);
+        assert!(!skill_target_allowed(offensive, &corpse, &town, me));
+        assert_eq!(hover_cursor(&corpse, &town, Some(offensive), me), None);
+        assert_eq!(hover_cursor(&corpse, &town, None, me), None);
     }
 
     #[test]

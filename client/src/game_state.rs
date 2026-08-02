@@ -553,7 +553,33 @@ impl GameState {
         {
             return Some((s.skill_target_type, s.attack_range));
         }
-        None
+        self.character
+            .item_skills
+            .get(skill_id)
+            .map(|s| (s.skill_target_type, s.attack_range))
+    }
+
+    /// A castable skill's internal name (`ALL_RESURRECTION`), searched in the
+    /// same order as [`Self::resolve_cast_skill`]. The display-name table keys on
+    /// this.
+    pub fn resolve_cast_skill_name(&self, skill_id: u16) -> Option<&str> {
+        if let Some(s) = self.character.skills.get_skill(skill_id) {
+            return Some(&s.name);
+        }
+        if let Some(m) = &self.companions.mercenary
+            && let Some(s) = m.skills.iter().find(|s| s.id == skill_id)
+        {
+            return Some(&s.name);
+        }
+        if let Some(h) = &self.companions.homunculus
+            && let Some(s) = h.skills.iter().find(|s| s.id == skill_id)
+        {
+            return Some(&s.name);
+        }
+        self.character
+            .item_skills
+            .get(skill_id)
+            .map(|s| s.name.as_str())
     }
 
     /// Reads the player's cart design out of the `OPTION_CART` bits carried in
@@ -777,6 +803,53 @@ mod skill_resolve_tests {
             Some((SkillTargetType::Target, 9))
         );
         assert_eq!(game.resolve_cast_skill(9999), None);
+    }
+
+    #[test]
+    fn item_granted_skill_arms_its_own_target_class_and_range() {
+        use models::enums::skill_enums::SkillEnum;
+        use ragnarok_game::skill::ItemSkill;
+        use ragnarok_game::targeting::{TargetClass, skill_target_class};
+
+        let mut game = GameState::new();
+        let resurrection = SkillEnum::AllResurrection.id() as u16;
+        let firewall = SkillEnum::MgFirewall.id() as u16;
+        assert_eq!(game.resolve_cast_skill(resurrection), None);
+
+        game.character.item_skills.insert(
+            resurrection,
+            ItemSkill {
+                name: "ALL_RESURRECTION".to_string(),
+                level: 1,
+                sp_cost: 60,
+                attack_range: 9,
+                skill_target_type: SkillTargetType::Friend,
+            },
+        );
+        game.character.item_skills.insert(
+            firewall,
+            ItemSkill {
+                name: "MG_FIREWALL".to_string(),
+                level: 1,
+                sp_cost: 40,
+                attack_range: 9,
+                skill_target_type: SkillTargetType::Ground,
+            },
+        );
+
+        let (target_type, range) = game.resolve_cast_skill(resurrection).unwrap();
+        assert_eq!(skill_target_class(target_type), TargetClass::Supportive);
+        assert_eq!(range, 9);
+        assert_eq!(
+            game.resolve_cast_skill_name(resurrection),
+            Some("ALL_RESURRECTION")
+        );
+        let (target_type, _) = game.resolve_cast_skill(firewall).unwrap();
+        assert_eq!(skill_target_class(target_type), TargetClass::Ground);
+
+        game.character.clear();
+        assert_eq!(game.resolve_cast_skill(resurrection), None);
+        assert_eq!(game.resolve_cast_skill_name(resurrection), None);
     }
 }
 

@@ -2,6 +2,7 @@ use crate::App;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::{RefineItemRow, VendorItem};
+use ragnarok_game::skill::{ItemSkill, SkillTargetType};
 use ragnarok_ui_component::game::item_list_selection_window::{ListContext, ListRow};
 
 impl App {
@@ -96,15 +97,31 @@ impl App {
         self.windows.chat_window.add_system(msg);
     }
 
-    pub(crate) fn handle_auto_cast_skill(&mut self, skill_id: u16, level: i16) {
-        let target_id = self.game.world.entities.player_id().unwrap_or(0);
-        self.channel
-            .send_packet(ragnarok_network::build_use_skill_packet(
-                skill_id,
+    pub(crate) fn handle_auto_cast_skill(
+        &mut self,
+        skill_id: u16,
+        name: String,
+        level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        skill_target_type: SkillTargetType,
+    ) {
+        let name = if name.is_empty() {
+            SkillEnum::from_id(skill_id as u32).to_name().to_string()
+        } else {
+            name
+        };
+        self.game.character.item_skills.insert(
+            skill_id,
+            ItemSkill {
+                name,
                 level,
-                target_id,
-                self.active_packetver,
-            ));
+                sp_cost,
+                attack_range,
+                skill_target_type,
+            },
+        );
+        self.handle_request_use_skill(skill_id, level);
     }
 
     pub(crate) fn handle_making_arrow_list(&mut self, item_ids: Vec<u16>) {

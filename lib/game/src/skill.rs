@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub use models::enums::skill::SkillTargetType;
 use models::enums::skill_enums::SkillEnum;
 
@@ -73,6 +75,37 @@ impl SkillData {
         if self.level > 0 {
             self.selected_level = (self.selected_level + 1).min(self.level);
         }
+    }
+}
+
+/// Cast metadata for a skill granted by a consumable, learned from
+/// ZC_AUTORUN_SKILL rather than from the character's skill list. Kept apart from
+/// [`SkillList`] so it never shows up in the skill window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemSkill {
+    pub name: String,
+    pub level: i16,
+    pub sp_cost: i16,
+    pub attack_range: i16,
+    pub skill_target_type: SkillTargetType,
+}
+
+#[derive(Default)]
+pub struct ItemSkills {
+    skills: HashMap<u16, ItemSkill>,
+}
+
+impl ItemSkills {
+    pub fn insert(&mut self, id: u16, skill: ItemSkill) {
+        self.skills.insert(id, skill);
+    }
+
+    pub fn get(&self, id: u16) -> Option<&ItemSkill> {
+        self.skills.get(&id)
+    }
+
+    pub fn clear(&mut self) {
+        self.skills.clear();
     }
 }
 

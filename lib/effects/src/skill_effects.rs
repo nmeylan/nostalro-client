@@ -189,6 +189,14 @@ pub fn caster_cast_on_use(skill: SkillEnum) -> bool {
     )
 }
 
+/// Heal-family skills that become an attack on undead. When the damage packet
+/// lands with a non-zero amount their no-damage visuals are dropped, leaving only
+/// the hit spark: the revive glyph must not play on something that was never
+/// revived.
+pub fn suppresses_visuals_on_damage(skill: SkillEnum, damage: i32) -> bool {
+    damage != 0 && merc_skill_base(skill) == SkillEnum::AllResurrection
+}
+
 pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId] {
     let skill = merc_skill_base(skill);
     use EffectId as E;
@@ -1020,6 +1028,21 @@ mod tests {
             target_skill_effects(SkillEnum::KnBowlingbash).hit,
             &[EffectId::Bowlingbash]
         );
+    }
+
+    #[test]
+    fn resurrection_on_undead_keeps_only_the_holy_spark() {
+        use SkillEnum as S;
+        assert_eq!(
+            target_skill_effects(S::AllResurrection).on_target,
+            &[EffectId::Resurrection, EffectId::Revive]
+        );
+        assert!(suppresses_visuals_on_damage(S::AllResurrection, 1200));
+        assert!(!suppresses_visuals_on_damage(S::AllResurrection, 0));
+        assert!(!suppresses_visuals_on_damage(S::PrKyrie, 1200));
+
+        let hit = derive_hit_effect(Some(S::AllResurrection), false, JobName::Priest, false);
+        assert_eq!(hit.generic, &[EffectId::Holyhit]);
     }
 
     #[test]

@@ -1442,8 +1442,22 @@ impl App {
                     self.handle_guild_relation_added(gdid, relation, name);
                 }
 
-                GameEvent::AutoCastSkill { skill_id, level } => {
-                    self.handle_auto_cast_skill(skill_id, level);
+                GameEvent::AutoCastSkill {
+                    skill_id,
+                    name,
+                    level,
+                    sp_cost,
+                    attack_range,
+                    skill_target_type,
+                } => {
+                    self.handle_auto_cast_skill(
+                        skill_id,
+                        name,
+                        level,
+                        sp_cost,
+                        attack_range,
+                        skill_target_type,
+                    );
                 }
                 GameEvent::ItemIdentifyList { indices } => {
                     self.handle_item_identify_list(indices);

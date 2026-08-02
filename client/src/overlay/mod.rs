@@ -702,14 +702,14 @@ impl App {
         );
 
         let skill_id = pending.skill_id();
-        if let Some(skill_data) = self.game.character.skills.get_skill(skill_id) {
+        if let Some(internal_name) = self.game.resolve_cast_skill_name(skill_id) {
             let display_name = self
                 .game
                 .data_table
                 .skill_name
                 .as_ref()
-                .map(|t| t.get_display_name_or_internal(&skill_data.name))
-                .unwrap_or_else(|| skill_data.name.clone());
+                .map(|t| t.get_display_name_or_internal(internal_name))
+                .unwrap_or_else(|| internal_name.to_string());
             let level = pending.level();
             let banner_text = if level > 0 {
                 format!("{}(Lv {})", display_name, level)

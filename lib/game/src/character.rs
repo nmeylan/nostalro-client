@@ -3,7 +3,7 @@ use crate::event::CharacterInfo;
 use crate::hotkey::HotkeyBar;
 use crate::inventory::{CartData, InventoryData, StorageData};
 use crate::mail::MailState;
-use crate::skill::SkillList;
+use crate::skill::{ItemSkills, SkillList};
 use crate::sprite_path::{dual_wield_type, weapon_view_id_to_type};
 use crate::trade::TradeData;
 use models::enums::item::EquipmentLocation;
@@ -26,6 +26,7 @@ pub struct Character {
     pub trade: TradeData,
     pub mail: MailState,
     pub skills: SkillList,
+    pub item_skills: ItemSkills,
     pub hotkeys: HotkeyBar,
     pub cooldowns: CooldownTracker,
     pub name: String,
@@ -99,6 +100,7 @@ impl Character {
             trade: TradeData::new(),
             mail: MailState::new(),
             skills: SkillList::new(),
+            item_skills: ItemSkills::default(),
             hotkeys: HotkeyBar::new(),
             cooldowns: CooldownTracker::new(),
             name: String::new(),
@@ -358,6 +360,7 @@ impl Character {
         self.inventory.clear();
         self.cart.clear();
         self.skills.clear();
+        self.item_skills.clear();
         self.hotkeys.clear();
         self.cooldowns.clear();
         self.name.clear();

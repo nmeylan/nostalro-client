@@ -2839,9 +2839,19 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcAutorunSkill>() {
+        let name: String = p
+            .data
+            .skill_name
+            .iter()
+            .take_while(|c| **c != '\0')
+            .collect();
         return vec![GameEvent::AutoCastSkill {
             skill_id: p.data.skid as u16,
+            name,
             level: p.data.level,
+            sp_cost: p.data.spcost,
+            attack_range: p.data.attack_range,
+            skill_target_type: SkillTargetType::from_value(p.data.atype as usize),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcItemidentifyList>() {
@@ -5161,14 +5171,31 @@ mod tests {
     fn dispatch_autorun_skill_returns_auto_cast() {
         let packetver = 20120307;
         let mut pkt = PacketZcAutorunSkill::new(packetver);
-        pkt.data.skid = SkillEnum::McIdentify.id() as i16;
+        pkt.data.skid = SkillEnum::AllResurrection.id() as i16;
         pkt.data.level = 1;
+        pkt.data.atype = SkillTargetType::Friend.value() as i32;
+        pkt.data.spcost = 60;
+        pkt.data.attack_range = 9;
+        for (i, c) in "ALL_RESURRECTION".chars().enumerate() {
+            pkt.data.skill_name[i] = c;
+        }
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            GameEvent::AutoCastSkill { skill_id, level } => {
-                assert_eq!(*skill_id, SkillEnum::McIdentify.id() as u16);
+            GameEvent::AutoCastSkill {
+                skill_id,
+                name,
+                level,
+                sp_cost,
+                attack_range,
+                skill_target_type,
+            } => {
+                assert_eq!(*skill_id, SkillEnum::AllResurrection.id() as u16);
+                assert_eq!(name, "ALL_RESURRECTION");
                 assert_eq!(*level, 1);
+                assert_eq!(*sp_cost, 60);
+                assert_eq!(*attack_range, 9);
+                assert_eq!(*skill_target_type, SkillTargetType::Friend);
             }
             other => panic!("expected AutoCastSkill, got {other:?}"),
         }

@@ -12,7 +12,8 @@ use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
-    is_trail_effect, potion_throw_index, sevenwind_aura, target_skill_effects, trail_arrival_secs,
+    is_trail_effect, potion_throw_index, sevenwind_aura, suppresses_visuals_on_damage,
+    target_skill_effects, trail_arrival_secs,
 };
 use ragnarok_game::entity::{ChatBubbleState, EntityType};
 use ragnarok_game::event::GameEvent;
@@ -292,7 +293,14 @@ impl App {
         // `ZC_USESKILL_ACK` for every skill use (even instant ones), so it
         // already fired from `spawn_skill_begin_cast` at cast start. Firing it
         // again at the damage moment would double the cast circle.
-        self.spawn_skill_attack_effect(skill_id, src_gid, target_gid, effective_count, level);
+        self.spawn_skill_attack_effect(
+            skill_id,
+            src_gid,
+            target_gid,
+            effective_count,
+            level,
+            damage,
+        );
 
         // The hit spark is NOT spawned here: it must land with the damage, one
         // per hit, at each scheduled hit's fire time (a ranged skill's spark
@@ -338,6 +346,7 @@ impl App {
         target_gid: u32,
         count: u16,
         level: i16,
+        damage: i32,
     ) {
         let skill = SkillEnum::from_id(skill_id as u32);
 
@@ -348,6 +357,12 @@ impl App {
         // is its only damage-path visual.
         if skill == SkillEnum::AlHeal {
             self.effect_queue.spawn_on(EffectId::Heal3, target_gid);
+            return;
+        }
+
+        // ALL_RESURRECTION is dual-natured the same way, but on undead its only
+        // visual is the holy spark, which lands on the hit timeline.
+        if suppresses_visuals_on_damage(skill, damage) {
             return;
         }
 
@@ -711,7 +726,18 @@ impl App {
         // AL_HEAL and WE_MALE ("I Will Protect You") share the amount-tiered green
         // heal glyph and rising green number driven by the packet's level field.
         let is_heal_tier = matches!(skill, SkillEnum::AlHeal | SkillEnum::WeMale);
+        // The rising body glyph is a player-sprite animation, so only a player
+        // target gets it; anything else keeps just the ground burst.
+        let target_is_player = self
+            .game
+            .world
+            .entities
+            .get(target_gid)
+            .is_some_and(|e| e.entity_type == EntityType::Player);
         for e in target_skill_effects(skill).on_target {
+            if *e == EffectId::Revive && !target_is_player {
+                continue;
+            }
             let e = if is_heal_tier && *e == EffectId::Heal {
                 heal_effect_for_amount(level)
             } else {

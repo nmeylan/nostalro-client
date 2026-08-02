@@ -145,10 +145,8 @@ impl App {
             {
                 let class = self
                     .game
-                    .character
-                    .skills
-                    .get_skill(*skill_id)
-                    .map(|s| skill_target_class(s.skill_target_type))
+                    .resolve_cast_skill(*skill_id)
+                    .map(|(target_type, _)| skill_target_class(target_type))
                     .unwrap_or(TargetClass::Offensive);
                 hover.hovered_entity_id =
                     hovered_entity_cursor_type(mouse, entities, render_list, map, Some(class))

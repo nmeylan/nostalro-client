@@ -921,9 +921,16 @@ pub enum GameEvent {
         skill_id: u16,
         level: i16,
     },
+    /// A skill granted by a consumable, to be armed exactly like a click in the
+    /// skill window. The cast metadata rides along because the player has not
+    /// learned the skill and so it is absent from the skill list.
     AutoCastSkill {
         skill_id: u16,
+        name: String,
         level: i16,
+        sp_cost: i16,
+        attack_range: i16,
+        skill_target_type: SkillTargetType,
     },
     ShowItemInfo {
         index: u16,
