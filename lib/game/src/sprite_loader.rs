@@ -280,7 +280,7 @@ pub fn load_weapon_trail_sprite(
     sex: u8,
     weapon_type: WeaponType,
 ) -> Option<SpriteData> {
-    let base_path = crate::sprite_path::weapon_trail_sprite_path(job, sex, weapon_type);
+    let base_path = crate::sprite_path::weapon_trail_sprite_path(job, sex, weapon_type)?;
     let result = load_sprite_data(
         grf,
         &format!("{base_path}.spr"),
@@ -295,7 +295,7 @@ pub fn load_weapon_trail_sprite(
     if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
         use models::enums::EnumWithNumberValue;
         let fallback_path =
-            crate::sprite_path::weapon_trail_sprite_path(base_job.value() as u16, sex, weapon_type);
+            crate::sprite_path::weapon_trail_sprite_path(base_job.value() as u16, sex, weapon_type)?;
         return load_sprite_data(
             grf,
             &format!("{fallback_path}.spr"),

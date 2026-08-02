@@ -636,8 +636,35 @@ pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> S
     format!("data/sprite/인간족/{job}/{job}_{sex_str}{suffix}")
 }
 
-pub fn weapon_trail_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> String {
-    format!("{}_검광", weapon_sprite_path(job_class, sex, weapon_type))
+pub fn weapon_has_trail(weapon_type: WeaponType) -> bool {
+    matches!(
+        weapon_type,
+        WeaponType::Dagger
+            | WeaponType::Sword1H
+            | WeaponType::Sword2H
+            | WeaponType::Spear1H
+            | WeaponType::Spear2H
+            | WeaponType::Axe1H
+            | WeaponType::Axe2H
+            | WeaponType::Katar
+            | WeaponType::DoubleDd
+            | WeaponType::DoubleSs
+            | WeaponType::DoubleAa
+            | WeaponType::DoubleDs
+            | WeaponType::DoubleDa
+            | WeaponType::DoubleSa
+            | WeaponType::Revolver
+            | WeaponType::Rifle
+    )
+}
+
+pub fn weapon_trail_sprite_path(
+    job_class: u16,
+    sex: u8,
+    weapon_type: WeaponType,
+) -> Option<String> {
+    weapon_has_trail(weapon_type)
+        .then(|| format!("{}_검광", weapon_sprite_path(job_class, sex, weapon_type)))
 }
 
 #[cfg(test)]
@@ -823,6 +850,56 @@ mod tests {
         assert_eq!(
             weapon_sprite_path(7, 0, WeaponType::Spear1H),
             "data/sprite/인간족/기사/기사_여_창"
+        );
+    }
+
+    #[test]
+    fn only_bladed_weapons_have_a_trail() {
+        let with_trail = [
+            WeaponType::Dagger,
+            WeaponType::Sword1H,
+            WeaponType::Sword2H,
+            WeaponType::Spear1H,
+            WeaponType::Spear2H,
+            WeaponType::Axe1H,
+            WeaponType::Axe2H,
+            WeaponType::Katar,
+            WeaponType::DoubleDd,
+            WeaponType::DoubleSs,
+            WeaponType::DoubleAa,
+            WeaponType::DoubleDs,
+            WeaponType::DoubleDa,
+            WeaponType::DoubleSa,
+            WeaponType::Revolver,
+            WeaponType::Rifle,
+        ];
+        let without_trail = [
+            WeaponType::Fist,
+            WeaponType::Mace,
+            WeaponType::Mace2H,
+            WeaponType::Staff,
+            WeaponType::Staff2H,
+            WeaponType::Bow,
+            WeaponType::Knuckle,
+            WeaponType::Musical,
+            WeaponType::Whip,
+            WeaponType::Book,
+            WeaponType::Gatling,
+            WeaponType::Shotgun,
+            WeaponType::Grenade,
+            WeaponType::Huuma,
+            WeaponType::Shuriken,
+        ];
+        for wt in with_trail {
+            assert!(weapon_has_trail(wt), "{wt:?} should have a trail");
+        }
+        for wt in without_trail {
+            assert!(!weapon_has_trail(wt), "{wt:?} should have no trail");
+            assert!(weapon_trail_sprite_path(7, 1, wt).is_none());
+        }
+        assert_eq!(
+            weapon_trail_sprite_path(7, 1, WeaponType::Sword2H).as_deref(),
+            Some("data/sprite/인간족/기사/기사_남_검_검광")
         );
     }
 

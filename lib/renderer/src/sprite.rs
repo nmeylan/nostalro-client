@@ -1488,6 +1488,18 @@ impl EntitySprite {
                 });
             }
         }
+        if let Some(trail_tex) = &self.weapon_trail_textures {
+            for (mut vertices, indices, tex_idx) in clips.weapon_trail {
+                scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
+                batches.push(SpriteBatch {
+                    vertices,
+                    indices,
+                    texture: &trail_tex.bind_groups[tex_idx],
+                    additive: false,
+                    no_depth: false,
+                });
+            }
+        }
         if !shield_behind {
             batches.extend(shield_batches);
         }
@@ -1574,51 +1586,6 @@ impl EntitySprite {
                     no_depth: false,
                 });
             }
-        }
-        batches
-    }
-
-    /// Render only the weapon-trail (`검광`) layer — the Quicken swing arc. The
-    /// caller draws it additively on top of the body and tints it (yellow under
-    /// Quicken). Empty when the weapon has no trail sprite or the current motion
-    /// has no trail frames (so it only shows during the attack swing).
-    pub fn build_weapon_trail_batches(
-        &self,
-        animation: &ragnarok_formats::act::SpriteAnimationState,
-        camera_dir: Option<u8>,
-        head_dir: u8,
-        screen_anchor: [f32; 2],
-        depth: f32,
-        scale: f32,
-        depth_gradient: [f32; 2],
-    ) -> Vec<SpriteBatch<'_>> {
-        let Some(trail_tex) = &self.weapon_trail_textures else {
-            return Vec::new();
-        };
-        let action_idx = match camera_dir {
-            Some(dir) => animation.action_index(&self.body_act, dir),
-            None => animation.flat_action_index(&self.body_act),
-        };
-        let Some(clips) = build_composite_clips(
-            self,
-            action_idx,
-            animation.motion_index(),
-            head_dir,
-            screen_anchor,
-            depth,
-        ) else {
-            return Vec::new();
-        };
-        let mut batches = Vec::new();
-        for (mut vertices, indices, tex_idx) in clips.weapon_trail {
-            scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-            batches.push(SpriteBatch {
-                vertices,
-                indices,
-                texture: &trail_tex.bind_groups[tex_idx],
-                additive: true,
-                no_depth: false,
-            });
         }
         batches
     }
@@ -1931,23 +1898,6 @@ pub fn compose_actor_batches<'a>(
         }
     }
     out.append(&mut live);
-
-    // The 검광 weapon trail is a normal weapon layer: drawn whenever a weapon is
-    // equipped, it only shows during the swing because the trail ACT carries clips
-    // on attack frames alone. A quicken/overthrust buff tints it via `channels`.
-    {
-        let mut trail = sprite.build_weapon_trail_batches(
-            animation,
-            Some(dir),
-            head_dir,
-            anchor,
-            depth,
-            scale,
-            depth_gradient,
-        );
-        apply_tint_alpha(&mut trail, channels.tint, channels.alpha);
-        out.append(&mut trail);
-    }
 
     for copy in channels.copies.iter().filter(|c| !c.behind) {
         out.append(&mut build_copy(copy));
