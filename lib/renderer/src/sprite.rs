@@ -1,4 +1,6 @@
-use ragnarok_formats::act::{ActFile, Motion, SpriteFrame, attachment_offset};
+use ragnarok_formats::act::{
+    ActFile, Motion, SpriteFrame, attachment_offset, head_chained_attachment_offset,
+};
 use ragnarok_formats::imf::ImfLayerOrder;
 use ragnarok_formats::spr::{RgbaImageData, SpriteData};
 
@@ -759,7 +761,7 @@ pub fn build_clip_quad(
     textures: &SpriteTextures,
     screen_anchor: [f32; 2],
     depth: f32,
-    offset: [i32; 2],
+    offset: [f32; 2],
 ) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
     let tex_index = clip_texture_index(clip, textures)?;
     let (tex_w, tex_h) = textures.sizes[tex_index];
@@ -773,8 +775,8 @@ pub fn build_clip_quad(
     let half_w = scaled_w / 2.0;
     let half_h = scaled_h / 2.0;
 
-    let cx = screen_anchor[0] + (clip.x + offset[0]) as f32;
-    let cy = screen_anchor[1] + (clip.y + offset[1]) as f32;
+    let cx = screen_anchor[0] + clip.x as f32 + offset[0];
+    let cy = screen_anchor[1] + clip.y as f32 + offset[1];
 
     let (mut u0, u1) = if clip.mirror != 0 {
         (1.0, 0.0)
@@ -831,7 +833,7 @@ pub fn build_clip_quad_scaled(
     textures: &SpriteTextures,
     screen_anchor: [f32; 2],
     depth: f32,
-    offset: [i32; 2],
+    offset: [f32; 2],
     scale: f32,
 ) -> Option<(Vec<SpriteVertex>, Vec<u32>, usize)> {
     let (mut vertices, indices, tex_index) =
@@ -899,25 +901,39 @@ pub fn build_composite_clips(
 
     let mut body = Vec::new();
     for clip in &body_motion.clips {
-        if let Some((vertices, indices, tex_idx)) =
-            build_clip_quad(clip, &entity.body_textures, screen_anchor, depth, [0, 0])
-            && tex_idx < entity.body_textures.bind_groups.len()
+        if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+            clip,
+            &entity.body_textures,
+            screen_anchor,
+            depth,
+            [0.0, 0.0],
+        ) && tex_idx < entity.body_textures.bind_groups.len()
         {
             body.push((vertices, indices, tex_idx));
         }
     }
 
     let mut head = Vec::new();
+    let mut head_anchor: Option<(&Motion, [f32; 2])> = None;
     if let (Some(head_act), Some(head_tex)) = (&entity.head_act, &entity.head_textures) {
         let head_action_idx = action_idx % head_act.actions.len();
         let head_action = &head_act.actions[head_action_idx];
         if !head_action.motions.is_empty() {
             let head_motion = &head_action.motions[part_motion_idx(head_action.motions.len())];
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
+            let head_zoom = head_motion
+                .clips
+                .first()
+                .map_or([1.0, 1.0], |c| [c.zoom_x, c.zoom_y]);
+            head_anchor = Some((head_motion, head_zoom));
             for clip in &head_motion.clips {
-                if let Some((vertices, indices, tex_idx)) =
-                    build_clip_quad(clip, head_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < head_tex.bind_groups.len()
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                    clip,
+                    head_tex,
+                    screen_anchor,
+                    depth,
+                    [off_x as f32, off_y as f32],
+                ) && tex_idx < head_tex.bind_groups.len()
                 {
                     head.push((vertices, indices, tex_idx));
                 }
@@ -925,6 +941,7 @@ pub fn build_composite_clips(
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn build_headgear_clips(
         act: Option<&ActFile>,
         tex: Option<&SpriteTextures>,
@@ -933,6 +950,7 @@ pub fn build_composite_clips(
         head_dir: u8,
         is_idle_or_sit: bool,
         body_motion: &Motion,
+        head_anchor: Option<(&Motion, [f32; 2])>,
         screen_anchor: [f32; 2],
         depth: f32,
     ) -> Vec<ClipQuad> {
@@ -947,10 +965,23 @@ pub fn build_composite_clips(
                     motion_idx % hg_action.motions.len()
                 };
                 let hg_motion = &hg_action.motions[hg_motion_idx];
-                let (off_x, off_y) = attachment_offset(body_motion, hg_motion);
+                let body_offset = attachment_offset(body_motion, hg_motion);
                 for clip in &hg_motion.clips {
+                    let offset = match head_anchor {
+                        Some((head_motion, head_zoom)) => {
+                            let (x, y) = head_chained_attachment_offset(
+                                body_motion,
+                                head_motion,
+                                head_zoom,
+                                hg_motion,
+                                [clip.zoom_x, clip.zoom_y],
+                            );
+                            [x, y]
+                        }
+                        None => [body_offset.0 as f32, body_offset.1 as f32],
+                    };
                     if let Some((vertices, indices, tex_idx)) =
-                        build_clip_quad(clip, tex, screen_anchor, depth, [off_x, off_y])
+                        build_clip_quad(clip, tex, screen_anchor, depth, offset)
                         && tex_idx < tex.bind_groups.len()
                     {
                         clips.push((vertices, indices, tex_idx));
@@ -969,6 +1000,7 @@ pub fn build_composite_clips(
         head_dir,
         is_idle_or_sit,
         body_motion,
+        head_anchor,
         screen_anchor,
         depth,
     );
@@ -980,6 +1012,7 @@ pub fn build_composite_clips(
         head_dir,
         is_idle_or_sit,
         body_motion,
+        head_anchor,
         screen_anchor,
         depth,
     );
@@ -991,6 +1024,7 @@ pub fn build_composite_clips(
         head_dir,
         is_idle_or_sit,
         body_motion,
+        head_anchor,
         screen_anchor,
         depth,
     );
@@ -1004,9 +1038,13 @@ pub fn build_composite_clips(
             let weapon_motion = &weapon_action.motions[weapon_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, weapon_motion);
             for clip in &weapon_motion.clips {
-                if let Some((vertices, indices, tex_idx)) =
-                    build_clip_quad(clip, weapon_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < weapon_tex.bind_groups.len()
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                    clip,
+                    weapon_tex,
+                    screen_anchor,
+                    depth,
+                    [off_x as f32, off_y as f32],
+                ) && tex_idx < weapon_tex.bind_groups.len()
                 {
                     weapon.push((vertices, indices, tex_idx));
                 }
@@ -1025,9 +1063,13 @@ pub fn build_composite_clips(
             let trail_motion = &trail_action.motions[trail_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, trail_motion);
             for clip in &trail_motion.clips {
-                if let Some((vertices, indices, tex_idx)) =
-                    build_clip_quad(clip, trail_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < trail_tex.bind_groups.len()
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                    clip,
+                    trail_tex,
+                    screen_anchor,
+                    depth,
+                    [off_x as f32, off_y as f32],
+                ) && tex_idx < trail_tex.bind_groups.len()
                 {
                     weapon_trail.push((vertices, indices, tex_idx));
                 }
@@ -1044,9 +1086,13 @@ pub fn build_composite_clips(
             let shield_motion = &shield_action.motions[shield_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
             for clip in &shield_motion.clips {
-                if let Some((vertices, indices, tex_idx)) =
-                    build_clip_quad(clip, shield_tex, screen_anchor, depth, [off_x, off_y])
-                    && tex_idx < shield_tex.bind_groups.len()
+                if let Some((vertices, indices, tex_idx)) = build_clip_quad(
+                    clip,
+                    shield_tex,
+                    screen_anchor,
+                    depth,
+                    [off_x as f32, off_y as f32],
+                ) && tex_idx < shield_tex.bind_groups.len()
                 {
                     shield.push((vertices, indices, tex_idx));
                 }
@@ -1622,7 +1668,7 @@ pub fn build_shadow_batches<'a>(
     }
     for clip in &shadow_act.actions[0].motions[0].clips {
         if let Some((mut vertices, indices, tex_idx)) =
-            build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0, 0])
+            build_clip_quad(clip, shadow_tex, screen_anchor, depth, [0.0, 0.0])
             && tex_idx < shadow_tex.bind_groups.len()
         {
             scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
@@ -2012,7 +2058,7 @@ mod tests {
         };
         let textures = dummy_textures();
         let (verts, indices, tex_idx) =
-            build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5, [0, 0]).unwrap();
+            build_clip_quad(&clip, &textures, [100.0, 100.0], 0.5, [0.0, 0.0]).unwrap();
 
         assert_eq!(tex_idx, 0);
         assert_eq!(verts.len(), 4);
@@ -2041,7 +2087,7 @@ mod tests {
         };
         let textures = dummy_textures();
         let (verts, _, _) =
-            build_clip_quad_scaled(&clip, &textures, [100.0, 100.0], 0.0, [0, 0], 2.0).unwrap();
+            build_clip_quad_scaled(&clip, &textures, [100.0, 100.0], 0.0, [0.0, 0.0], 2.0).unwrap();
 
         let width = verts[2].position[0] - verts[0].position[0];
         let center_x = (verts[0].position[0] + verts[2].position[0]) / 2.0;
@@ -2069,7 +2115,7 @@ mod tests {
         };
         let textures = dummy_textures();
         let (_, _, tex_idx) =
-            build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0, [0, 0]).unwrap();
+            build_clip_quad(&clip, &textures, [200.0, 200.0], 0.0, [0.0, 0.0]).unwrap();
         assert_eq!(tex_idx, 2);
     }
 
@@ -2089,7 +2135,8 @@ mod tests {
             height: None,
         };
         let textures = dummy_textures();
-        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
+        let (verts, _, _) =
+            build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0.0, 0.0]).unwrap();
         assert!((verts[0].tex_coord[0] - 1.0).abs() < 0.01);
         assert!((verts[1].tex_coord[0] - 0.0).abs() < 0.01);
     }
@@ -2110,7 +2157,7 @@ mod tests {
             height: None,
         };
         let textures = dummy_textures();
-        assert!(build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).is_none());
+        assert!(build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0.0, 0.0]).is_none());
     }
 
     #[test]
@@ -2129,7 +2176,8 @@ mod tests {
             height: None,
         };
         let textures = dummy_textures();
-        let (verts, _, _) = build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0, 0]).unwrap();
+        let (verts, _, _) =
+            build_clip_quad(&clip, &textures, [100.0, 100.0], 0.0, [0.0, 0.0]).unwrap();
         let w = verts[1].position[0] - verts[0].position[0];
         let h = verts[3].position[1] - verts[0].position[1];
         assert!((w - 48.0).abs() < 0.01);

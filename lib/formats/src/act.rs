@@ -254,6 +254,35 @@ pub fn attachment_offset(body_motion: &Motion, head_motion: &Motion) -> (i32, i3
     }
 }
 
+/// Offset for a part that hangs off the head (headgear) rather than off the
+/// body. The part anchors to the head, and the head's own body offset carries
+/// over rescaled by the two clips' zoom ratio, so a headgear clip drawn at a
+/// zoom other than the head's still lands on the head.
+pub fn head_chained_attachment_offset(
+    body_motion: &Motion,
+    head_motion: &Motion,
+    head_zoom: [f32; 2],
+    part_motion: &Motion,
+    part_zoom: [f32; 2],
+) -> (f32, f32) {
+    let (body_x, body_y) = attachment_offset(body_motion, head_motion);
+    let (head_x, head_y) = attachment_offset(head_motion, part_motion);
+    let ratio_x = if head_zoom[0] != 0.0 {
+        part_zoom[0] / head_zoom[0]
+    } else {
+        1.0
+    };
+    let ratio_y = if head_zoom[1] != 0.0 {
+        part_zoom[1] / head_zoom[1]
+    } else {
+        1.0
+    };
+    (
+        head_x as f32 + body_x as f32 * ratio_x,
+        head_y as f32 + body_y as f32 * ratio_y,
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SpriteActionType {
@@ -679,6 +708,23 @@ mod tests {
         let body = make_motion_with_attach(10, -20);
         let head = make_motion_with_attach(3, -5);
         assert_eq!(attachment_offset(&body, &head), (7, -15));
+    }
+
+    // Real idle attach points from data.grf: 기사_남 body, 1_남 head, 남_산타모자
+    // headgear, which draws at zoom 0.93.
+    #[test]
+    fn headgear_offset_follows_the_head_through_its_own_zoom() {
+        let body = make_motion_with_attach(0, -61);
+        let head = make_motion_with_attach(1, -56);
+        let hat = make_motion_with_attach(1, -56);
+
+        let unzoomed = head_chained_attachment_offset(&body, &head, [1.0, 1.0], &hat, [1.0, 1.0]);
+        let direct = attachment_offset(&body, &hat);
+        assert_eq!(unzoomed, (direct.0 as f32, direct.1 as f32));
+
+        let (x, y) = head_chained_attachment_offset(&body, &head, [1.0, 1.0], &hat, [0.93, 0.93]);
+        assert!((x - -0.93).abs() < 1e-4, "{x}");
+        assert!((y - -4.65).abs() < 1e-4, "{y}");
     }
 
     #[test]

@@ -121,7 +121,7 @@ pub fn build_emitter_batches<'a>(draws: &[EmitterDraw<'a>]) -> Vec<SpriteBatch<'
                 &draw.sprite.textures,
                 draw.screen_anchor,
                 draw.depth,
-                draw.clip_offset,
+                [draw.clip_offset[0] as f32, draw.clip_offset[1] as f32],
             ) else {
                 continue;
             };
@@ -200,7 +200,7 @@ pub fn prepare_sprite_particle_records<'cache>(
         };
         for clip in &motion.clips {
             let Some((mut vertices, indices, tex_idx)) =
-                build_clip_quad(clip, &sprite.textures, anchor, depth, [0, 0])
+                build_clip_quad(clip, &sprite.textures, anchor, depth, [0.0, 0.0])
             else {
                 continue;
             };

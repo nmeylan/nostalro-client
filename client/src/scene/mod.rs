@@ -343,7 +343,7 @@ impl App {
                                         emo_tex,
                                         emo_center,
                                         entry.depth,
-                                        [0, 0],
+                                        [0.0, 0.0],
                                     ) && tex_idx < emo_tex.bind_groups.len()
                                     {
                                         sprite_batches.push(SpriteBatch {
@@ -389,7 +389,7 @@ impl App {
                                             emo_tex,
                                             emo_center,
                                             entry.depth,
-                                            [0, 0],
+                                            [0.0, 0.0],
                                         ) && tex_idx < emo_tex.bind_groups.len()
                                         {
                                             sprite_batches.push(SpriteBatch {
@@ -447,7 +447,7 @@ impl App {
                                     tex,
                                     center,
                                     entry.depth,
-                                    [0, 0],
+                                    [0.0, 0.0],
                                     entry.sprite_scale,
                                 ) && tex_idx < tex.bind_groups.len()
                                 {
@@ -500,7 +500,7 @@ impl App {
                                     tex,
                                     entry.screen_anchor,
                                     entry.depth,
-                                    [0, 0],
+                                    [0.0, 0.0],
                                     entry.sprite_scale,
                                 ) && tex_idx < tex.bind_groups.len()
                                 {
@@ -570,7 +570,7 @@ impl App {
                         if let Some(motion) = motion {
                             for clip in &motion.clips {
                                 if let Some((mut vertices, indices, tex_idx)) =
-                                    build_clip_quad(clip, tex, center, entry.depth, [0, 0])
+                                    build_clip_quad(clip, tex, center, entry.depth, [0.0, 0.0])
                                 {
                                     scale_clip_vertices(
                                         &mut vertices,
@@ -896,7 +896,7 @@ impl App {
             {
                 for clip in &motion.clips {
                     if let Some((vertices, indices, tex_idx)) =
-                        build_clip_quad(clip, tex, center, 0.0, [0, 0])
+                        build_clip_quad(clip, tex, center, 0.0, [0.0, 0.0])
                         && tex_idx < tex.bind_groups.len()
                     {
                         let idx = inline_textures.len();
@@ -994,7 +994,7 @@ impl App {
                 };
                 for clip in &motion.clips {
                     if let Some((vertices, indices, tex_idx)) =
-                        build_clip_quad(clip, tex, [quad.x, quad.y], 0.0, [0, 0])
+                        build_clip_quad(clip, tex, [quad.x, quad.y], 0.0, [0.0, 0.0])
                         && tex_idx < tex.bind_groups.len()
                     {
                         let idx = inline_textures.len();
@@ -1034,7 +1034,7 @@ impl App {
                 };
                 for clip in &motion.clips {
                     if let Some((vertices, indices, tex_idx)) =
-                        build_clip_quad(clip, tex, [quad.x, quad.y], 0.0, [0, 0])
+                        build_clip_quad(clip, tex, [quad.x, quad.y], 0.0, [0.0, 0.0])
                         && tex_idx < tex.bind_groups.len()
                     {
                         let idx = inline_textures.len();

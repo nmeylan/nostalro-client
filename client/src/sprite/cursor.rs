@@ -120,7 +120,7 @@ impl App {
         let mut clips = Vec::new();
         for clip in &motion.clips {
             if let Some((vertices, indices, tex_idx)) =
-                build_clip_quad(clip, cursor_tex, origin, 0.0, [0, 0])
+                build_clip_quad(clip, cursor_tex, origin, 0.0, [0.0, 0.0])
                 && tex_idx < cursor_tex.bind_groups.len()
             {
                 clips.push((vertices, indices, tex_idx));
@@ -181,7 +181,7 @@ impl App {
         let mut clips = Vec::new();
         for clip in &motion.clips {
             if let Some((vertices, indices, tex_idx)) =
-                build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0, 0])
+                build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0.0, 0.0])
                 && tex_idx < cursor_tex.bind_groups.len()
             {
                 clips.push((vertices, indices, tex_idx));
