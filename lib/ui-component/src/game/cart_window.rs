@@ -324,7 +324,9 @@ impl InGameWindow for CartWindow {
                     );
                 }
                 if response.right_clicked() {
-                    events.push(GameEvent::ShowItemInfo { index: item.index });
+                    events.push(GameEvent::ShowItemInfoDirect {
+                        item: Box::new((*item).clone()),
+                    });
                 }
                 if response.double_clicked() {
                     events.push(GameEvent::RequestMoveItemCartToBody {
@@ -463,6 +465,37 @@ mod tests {
             name: "Red Potion".into(),
             resource_name: None,
         }
+    }
+
+    #[test]
+    fn right_click_shows_the_cart_item_not_the_inventory_item_at_the_same_index() {
+        let mut win = CartWindow::new();
+        let mut character = Character::new();
+        character.cart.open();
+        let mut cart_item = potion(3, 1);
+        cart_item.item_id = 502;
+        cart_item.name = "Orange Potion".into();
+        character.cart.add_item(cart_item);
+        character.inventory.add_item(potion(3, 1));
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.mouse_x = 108.0;
+        ctx.mouse_y = 157.0;
+        ctx.mouse_right_clicked = true;
+        let events = {
+            let mut ui = make_frame(&ctx, &mut state);
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                GameEvent::ShowItemInfoDirect { item } if item.item_id == 502
+            )),
+            "right click must describe the cart item: {events:?}"
+        );
     }
 
     #[test]
