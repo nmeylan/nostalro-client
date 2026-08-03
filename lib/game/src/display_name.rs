@@ -1,4 +1,5 @@
 use crate::char_name::CharNameCache;
+use crate::data_table::DataTable;
 use crate::data_table::card_name_table::CardNameTable;
 use crate::data_table::item_slot_count_table::ItemSlotCountTable;
 use crate::item::Item;
@@ -9,6 +10,11 @@ const STAR_CRUMB_PREFIX: [&str; 4] = [
     "Very Very Strong ",
     "Very Very Very Strong ",
 ];
+
+const PRODUCER_COLOR: [f32; 4] = [0.251, 0.251, 0.878, 1.0];
+const PRODUCER_PENDING_COLOR: [f32; 4] = [0.878, 0.251, 0.251, 1.0];
+const MSI_NAMELESS: u16 = 581;
+const NAMELESS_FALLBACK: &str = "Nameless";
 
 fn element_postfix(element: u16) -> &'static str {
     match element {
@@ -21,11 +27,65 @@ fn element_postfix(element: u16) -> &'static str {
     }
 }
 
+fn color_code(color: [f32; 4]) -> String {
+    let channel = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+    format!(
+        "^{:02X}{:02X}{:02X}",
+        channel(color[0]),
+        channel(color[1]),
+        channel(color[2])
+    )
+}
+
+/// How to render the producer name when the name is wanted in colour.
+struct ProducerStyle<'a> {
+    /// Colour the rest of the name returns to after the producer segment.
+    base: [f32; 4],
+    pending_name: &'a str,
+}
+
 pub fn format_equipment_display_name(
     item: &Item,
     slot_count_table: Option<&ItemSlotCountTable>,
     card_table: Option<&CardNameTable>,
     producers: &CharNameCache,
+) -> String {
+    format_display_name(item, slot_count_table, card_table, producers, None)
+}
+
+/// Same name, but with `^RRGGBB` codes around the producer segment: the original
+/// game tints a known smith's name blue, and shows a red placeholder until the
+/// name request comes back. Only windows use this; chat lines and pickup
+/// notifications take the plain form.
+pub fn format_equipment_display_name_colored(
+    item: &Item,
+    data: &DataTable,
+    producers: &CharNameCache,
+    base_color: [f32; 4],
+) -> String {
+    let pending_name = data
+        .msg_string
+        .as_ref()
+        .and_then(|table| table.get(MSI_NAMELESS))
+        .unwrap_or(NAMELESS_FALLBACK);
+    format_display_name(
+        item,
+        data.item_slot_count.as_ref(),
+        data.card_name.as_ref(),
+        producers,
+        Some(ProducerStyle {
+            base: base_color,
+            pending_name,
+        }),
+    )
+}
+
+fn format_display_name(
+    item: &Item,
+    slot_count_table: Option<&ItemSlotCountTable>,
+    card_table: Option<&CardNameTable>,
+    producers: &CharNameCache,
+    producer_style: Option<ProducerStyle>,
 ) -> String {
     if !item.is_identified {
         return item.name.clone();
@@ -43,7 +103,19 @@ pub fn format_equipment_display_name(
 
     if let Some(char_id) = item.producer_char_id() {
         result.push_str(STAR_CRUMB_PREFIX[item.star_crumb_count() as usize]);
-        result.push_str(producers.get(char_id).unwrap_or_default());
+        let producer = producers.get(char_id);
+        match producer_style {
+            Some(style) => {
+                let (name, color) = match producer {
+                    Some(name) => (name, PRODUCER_COLOR),
+                    None => (style.pending_name, PRODUCER_PENDING_COLOR),
+                };
+                result.push_str(&color_code(color));
+                result.push_str(name);
+                result.push_str(&color_code(style.base));
+            }
+            None => result.push_str(producer.unwrap_or_default()),
+        }
         result.push_str(element_postfix(item.slot[1] & 0xff));
         result.push_str(&item.name);
         return result;
@@ -114,14 +186,26 @@ fn build_card_affixes(slots: &[u16; 4], card_table: Option<&CardNameTable>) -> (
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_table::msg_string_table::MsgStringTable;
     use crate::item::{CARD0_CREATE, CARD0_FORGE};
     use models::enums::item::ItemType;
     use std::collections::{HashMap, HashSet};
+
+    const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
     fn producers() -> CharNameCache {
         let mut cache = CharNameCache::default();
         cache.insert(0x0004_0002, "Bob".to_string());
         cache
+    }
+
+    fn table_with_nameless() -> DataTable {
+        DataTable {
+            msg_string: Some(MsgStringTable::parse(
+                format!("{}Nameless", "#".repeat(MSI_NAMELESS as usize)).as_bytes(),
+            )),
+            ..DataTable::default()
+        }
     }
 
     fn make_item(name: &str, refining: u8, slots: [u16; 4]) -> Item {
@@ -292,6 +376,34 @@ mod tests {
         assert_eq!(
             format_equipment_display_name(&item, Some(&slot_table), None, &producers()),
             "Bob's Katana"
+        );
+    }
+
+    #[test]
+    fn colored_name_tints_a_known_smith_and_returns_to_the_base_colour() {
+        let item = make_item("Katana", 7, [CARD0_FORGE, (10 << 8) | 3, 2, 4]);
+        assert_eq!(
+            format_equipment_display_name_colored(
+                &item,
+                &table_with_nameless(),
+                &producers(),
+                BLACK
+            ),
+            "+7 Very Very Strong ^4040E0Bob^000000's Fire Katana"
+        );
+    }
+
+    #[test]
+    fn colored_name_falls_back_to_a_red_placeholder_until_the_smith_is_known() {
+        let item = make_item("Katana", 0, [CARD0_FORGE, 0, 7, 9]);
+        assert_eq!(
+            format_equipment_display_name_colored(
+                &item,
+                &table_with_nameless(),
+                &CharNameCache::default(),
+                BLACK
+            ),
+            "^E04040Nameless^000000's Katana"
         );
     }
 

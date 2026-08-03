@@ -3,7 +3,7 @@ use crate::helper::window_chrome::{
     SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_sys_button, draw_titlebar, text_color,
 };
 use crate::{BuildCtx, InGameWindow, Window};
-use ragnarok_game::display_name::format_equipment_display_name;
+use ragnarok_game::display_name::format_equipment_display_name_colored;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::inventory::{EquipmentLocation, InventoryData};
 use ragnarok_game::sprite_path::OPTION_REMOVABLE_MASK;
@@ -230,8 +230,6 @@ impl InGameWindow for EquipmentWindow {
         let character = &mut *ctx.character;
         let data = ctx.data;
         let inventory = &character.inventory;
-        let slot_count_table = data.item_slot_count.as_ref();
-        let card_name_table = data.card_name.as_ref();
         let producers = &character.char_names;
         self.character_center = None;
         self.paperdoll_insert_index = None;
@@ -478,14 +476,10 @@ impl InGameWindow for EquipmentWindow {
                     });
                 }
 
-                let display_name = format_equipment_display_name(
-                    item,
-                    slot_count_table,
-                    card_name_table,
-                    producers,
-                );
+                let display_name =
+                    format_equipment_display_name_colored(item, data, producers, text_color);
                 if show_text {
-                    let mut lines = draw::word_wrap(
+                    let mut lines = draw::colored_word_wrap(
                         &display_name,
                         TEXT_MAX_W,
                         |t| ui.atlas.measure_text(t),
@@ -504,10 +498,10 @@ impl InGameWindow for EquipmentWindow {
                         let ly = block_bottom - (j as f32 + 1.0) * (line_h - line_space)
                             + (line_h - line_space) / 2.0;
                         if right_align {
-                            let text_w = ui.atlas.measure_text(line);
-                            ui.text(text_x - text_w, ly, line, text_color);
+                            let text_w = ui.atlas.measure_text(&draw::strip_color_codes(line));
+                            ui.colored_text(text_x - text_w, ly, line, text_color);
                         } else {
-                            ui.text(text_x, ly, line, text_color);
+                            ui.colored_text(text_x, ly, line, text_color);
                         }
                     }
                 }
@@ -536,7 +530,7 @@ impl InGameWindow for EquipmentWindow {
                     ui.tooltip(
                         icon_rect.x,
                         icon_rect.y - ui.atlas.line_height - 16.0,
-                        &display_name,
+                        &draw::strip_color_codes(&display_name),
                     );
                 }
             }

@@ -365,6 +365,36 @@ pub fn parse_color_codes<'a>(text: &'a str, default_color: [f32; 4]) -> Vec<Colo
     spans
 }
 
+/// Wraps text that carries `^RRGGBB` codes: the codes are excluded from the
+/// width measurement, and whichever one is active at a line break is re-emitted
+/// at the start of the next line so the colour survives the split.
+pub fn colored_word_wrap(
+    text: &str,
+    max_width: f32,
+    measure: impl Fn(&str) -> f32,
+    truncate: bool,
+) -> Vec<String> {
+    let mut lines = word_wrap(
+        text,
+        max_width,
+        |t| measure(&strip_color_codes(t)),
+        truncate,
+    );
+    let mut active: Option<String> = None;
+    for line in lines.iter_mut() {
+        if let Some(code) = &active {
+            line.insert_str(0, code);
+        }
+        if let Some(pos) = line.rfind('^') {
+            let code = &line[pos..];
+            if code.len() >= 7 && code[1..7].bytes().all(|b| b.is_ascii_hexdigit()) {
+                active = Some(code[..7].to_string());
+            }
+        }
+    }
+    lines
+}
+
 pub fn strip_color_codes(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let bytes = text.as_bytes();
@@ -590,6 +620,24 @@ mod tests {
     use super::*;
 
     const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+    #[test]
+    fn colored_word_wrap_reopens_the_active_code_on_each_line() {
+        let lines = colored_word_wrap(
+            "plain ^4040E0Smith^000000 of the Forge",
+            5.0 * 4.0,
+            |t| t.len() as f32,
+            false,
+        );
+
+        assert!(lines.len() > 1);
+        assert!(lines[0].starts_with("plain"));
+        for line in &lines[1..] {
+            assert!(line.starts_with('^'), "{line:?} lost its colour");
+        }
+        let rebuilt: Vec<String> = lines.iter().map(|l| strip_color_codes(l)).collect();
+        assert_eq!(rebuilt.join(" "), "plain Smith of the Forge");
+    }
 
     #[test]
     fn parse_color_codes_single_color() {

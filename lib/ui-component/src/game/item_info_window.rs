@@ -4,7 +4,9 @@ use crate::helper::window_chrome::{draw_sys_button, draw_titlebar, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::char_name::CharNameCache;
 use ragnarok_game::data_table::DataTable;
-use ragnarok_game::display_name::format_equipment_display_name;
+use ragnarok_game::display_name::{
+    format_equipment_display_name, format_equipment_display_name_colored,
+};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
@@ -69,6 +71,9 @@ const SLOT_EMPTY: u16 = 0xFFFF;
 struct ItemInfoData {
     item_id: u16,
     name: String,
+    /// Not redundant: the producer segment is recomposed from it every frame,
+    /// since the name only arrives after the window is already open.
+    source: Option<Item>,
     collection_path: Option<String>,
     is_damaged: bool,
     is_equipment: bool,
@@ -177,6 +182,7 @@ impl ItemInfoWindow {
                 data.card_name.as_ref(),
                 producers,
             ),
+            source: Some(item.clone()),
             collection_path,
             is_damaged: item.is_damaged,
             is_equipment: item.is_equipment(),
@@ -237,6 +243,7 @@ impl ItemInfoWindow {
         self.card_info = Some(ItemInfoData {
             item_id: card_id,
             name,
+            source: None,
             collection_path,
             is_damaged: false,
             is_equipment: false,
@@ -391,7 +398,7 @@ impl InGameWindow for ItemInfoWindow {
     }
 
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
-        let _character = &mut *ctx.character;
+        let character = &mut *ctx.character;
         let data = ctx.data;
         if self.item.is_none() && self.card_info.is_none() && self.card_illustration.is_none() {
             return Vec::new();
@@ -402,6 +409,18 @@ impl InGameWindow for ItemInfoWindow {
         let grf = self.has_grf_textures;
         let bg_size = self.bg_size;
         let mut events = Vec::new();
+
+        if let Some(info) = &mut self.item
+            && let Some(source) = info.source.as_ref()
+            && source.producer_char_id().is_some()
+        {
+            info.name = format_equipment_display_name_colored(
+                source,
+                data,
+                &character.char_names,
+                name_color(info.is_damaged, grf),
+            );
+        }
 
         if self.item.is_some() {
             if self.wrapped_lines.is_empty() {
@@ -681,6 +700,16 @@ struct InfoWindowIds {
     scroll_thumb: WidgetId,
 }
 
+fn name_color(is_damaged: bool, grf: bool) -> [f32; 4] {
+    if is_damaged {
+        [1.0, 0.0, 0.0, 1.0]
+    } else if grf {
+        [0.0, 0.0, 0.0, 1.0]
+    } else {
+        [1.0, 1.0, 1.0, 1.0]
+    }
+}
+
 struct InfoWindowResult {
     win_x: f32,
     win_y: f32,
@@ -795,18 +824,11 @@ fn build_info_window(
         };
     }
 
-    let name_color = if item_data.is_damaged {
-        [1.0, 0.0, 0.0, 1.0]
-    } else if grf {
-        [0.0, 0.0, 0.0, 1.0]
-    } else {
-        [1.0, 1.0, 1.0, 1.0]
-    };
-    ui.text(
+    ui.colored_text(
         win.x + TITLE_X,
         win.y + TITLE_Y + ui.atlas.line_height,
         &item_data.name,
-        name_color,
+        name_color(item_data.is_damaged, grf),
     );
 
     let text_color = if grf {
