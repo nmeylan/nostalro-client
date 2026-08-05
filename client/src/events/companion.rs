@@ -20,7 +20,6 @@ impl App {
                     }
                     None => self.game.companions.homunculus = Some(HomunculusState::new(gid)),
                 }
-                self.windows.homunculus_window.set_visible(true);
             }
             HOM_STATE_INTIMACY => {
                 if let Some(h) = &mut self.game.companions.homunculus {
@@ -107,7 +106,6 @@ impl App {
             m.faith = info.faith;
             m.calls = info.calls;
             m.kills = info.kills;
-            self.windows.mercenary_window.set_visible(true);
         } else if let Some(m) = &mut self.game.companions.mercenary {
             // Property update (no GID / attack range): stats only.
             m.name = info.name;

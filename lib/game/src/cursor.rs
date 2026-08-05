@@ -147,8 +147,6 @@ pub fn cursor_type_for_cell(gat: &GatFile, cell: Option<(i32, i32)>) -> CursorTy
     }
 }
 
-const MIN_PICK_SIZE: f32 = 100.0;
-
 /// `render_list` is sorted far-to-near (painter order): iterate in reverse for front-to-back.
 pub fn hovered_entity_cursor_type(
     mouse_pos: (f64, f64),
@@ -163,18 +161,7 @@ pub fn hovered_entity_cursor_type(
     let mut best: Option<(CursorType, u32, f32)> = None;
 
     for entry in render_list.iter().rev() {
-        let [mut left, mut top, mut right, mut bottom] = entry.pick_bounds;
-        let dx = MIN_PICK_SIZE - (right - left);
-        if dx > 0.0 {
-            left -= dx / 2.0;
-            right += dx / 2.0;
-        }
-        let dy = MIN_PICK_SIZE - (bottom - top);
-        if dy > 0.0 {
-            top -= dy / 2.0;
-            bottom += dy / 2.0;
-        }
-
+        let [left, top, right, bottom] = entry.pick_bounds;
         if mx >= left && mx <= right && my >= top && my <= bottom {
             let entity = match entities.get(entry.id) {
                 Some(e) => e,
@@ -213,17 +200,7 @@ pub fn hovered_player(
         if Some(entry.id) == player_id {
             continue;
         }
-        let [mut left, mut top, mut right, mut bottom] = entry.pick_bounds;
-        let dx = MIN_PICK_SIZE - (right - left);
-        if dx > 0.0 {
-            left -= dx / 2.0;
-            right += dx / 2.0;
-        }
-        let dy = MIN_PICK_SIZE - (bottom - top);
-        if dy > 0.0 {
-            top -= dy / 2.0;
-            bottom += dy / 2.0;
-        }
+        let [left, top, right, bottom] = entry.pick_bounds;
         if mx < left || mx > right || my < top || my > bottom {
             continue;
         }
@@ -636,10 +613,9 @@ mod tests {
     }
 
     #[test]
-    fn small_bounds_inflated_to_minimum_during_hit_test() {
+    fn hit_test_uses_stored_bounds_verbatim() {
         let mut entities = EntityCollection::new();
         entities.insert(make_entity(10, EntityType::Monster, 1002));
-        // Small 30x30 stored bounds centered on (400, 350)
         let list = vec![RenderEntry {
             kind: RenderEntryKind::Entity,
             id: 10,
@@ -649,19 +625,16 @@ mod tests {
             flat_depth_gradient: [0.0, 0.0],
             camera_dir: 0,
             sprite_scale: 1.0,
-            pick_bounds: [385.0, 335.0, 415.0, 365.0],
+            pick_bounds: [385.0, 320.0, 415.0, 350.0],
             head_offset: 30.0,
         }];
-        assert_eq!(
-            hovered_entity_cursor_type(
-                (400.0, 310.0),
-                &entities,
-                &list,
-                &MapProperties::default(),
-                None
-            ),
-            Some((CursorType::Attack, 10)),
-        );
+        let hit = |pos| {
+            hovered_entity_cursor_type(pos, &entities, &list, &MapProperties::default(), None)
+        };
+        assert_eq!(hit((400.0, 330.0)), Some((CursorType::Attack, 10)));
+        assert_eq!(hit((400.0, 310.0)), None);
+        assert_eq!(hit((375.0, 330.0)), None);
+        assert_eq!(hit((400.0, 360.0)), None);
     }
 
     #[test]

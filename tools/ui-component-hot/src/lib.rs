@@ -1623,7 +1623,7 @@ fn create_single(name: &str) -> State {
             );
             character
                 .hotkeys
-                .set_slot(1, HotkeySlotContent::Item { inventory_index: 0 });
+                .set_slot(1, HotkeySlotContent::Item { item_id: 501 });
 
             let mut skill_names = HashMap::new();
             skill_names.insert("AC_OWL".into(), "Owl's Eye".into());

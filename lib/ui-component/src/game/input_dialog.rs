@@ -131,6 +131,7 @@ impl InputDialog {
         let dh = DIALOG_H + label_h;
         let title_bar_h = PADDING * 2.0 + ui.atlas.line_height;
         let win = ui.window(self.win_id(), dw, dh, title_bar_h);
+        ui.interact(self.win_id(), win);
         let dx = win.x;
         let dy = win.y;
 

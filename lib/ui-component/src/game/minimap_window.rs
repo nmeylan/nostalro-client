@@ -135,6 +135,18 @@ impl MinimapWindow {
         self.visibility != MinimapVisibility::Hidden
     }
 
+    /// The minimap image is square: the map is drawn into it at a uniform
+    /// scale of `1 / max(width, height)` and centred on both axes.
+    fn cell_to_uv(&self, cell_x: f32, cell_y: f32) -> (f32, f32) {
+        let w = self.map_width.max(1) as f32;
+        let h = self.map_height.max(1) as f32;
+        let span = w.max(h);
+        (
+            0.5 + (cell_x - w / 2.0) / span,
+            0.5 - (cell_y - h / 2.0) / span,
+        )
+    }
+
     fn compute_uv_region(&self) -> ([f32; 2], [f32; 2]) {
         let zoom = ZOOM_LEVELS[self.zoom_level];
         let half = 0.5 / zoom;
@@ -142,8 +154,7 @@ impl MinimapWindow {
             return ([0.0, 0.0], [1.0, 1.0]);
         }
         let (px, py) = self.player_position.unwrap_or((0.0, 0.0));
-        let nx = px / self.map_width.max(1) as f32;
-        let ny = 1.0 - (py / self.map_height.max(1) as f32);
+        let (nx, ny) = self.cell_to_uv(px, py);
         let span = 2.0 * half;
         let u_min = (nx - half).clamp(0.0, 1.0 - span);
         let v_min = (ny - half).clamp(0.0, 1.0 - span);
@@ -159,8 +170,7 @@ impl MinimapWindow {
         map_area_x: f32,
         map_area_y: f32,
     ) -> Option<(f32, f32)> {
-        let nx = cell_x / self.map_width.max(1) as f32;
-        let ny = 1.0 - (cell_y / self.map_height.max(1) as f32);
+        let (nx, ny) = self.cell_to_uv(cell_x, cell_y);
         let u_span = uv_max[0] - uv_min[0];
         let v_span = uv_max[1] - uv_min[1];
         if u_span <= 0.0 || v_span <= 0.0 {
@@ -459,6 +469,31 @@ mod tests {
         let (sx, sy) = result.unwrap();
         assert!((sx - MAP_AREA_SIZE / 2.0).abs() < 0.01);
         assert!((sy - MAP_AREA_SIZE / 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn map_to_screen_letterboxes_a_non_square_map() {
+        let mut minimap = MinimapWindow::new();
+        minimap.map_width = 312;
+        minimap.map_height = 392;
+        minimap.zoom_level = 0;
+
+        let uv_min = [0.0, 0.0];
+        let uv_max = [1.0, 1.0];
+        let cell = MAP_AREA_SIZE / 392.0;
+        let margin = (392.0 - 312.0) / 2.0 * cell;
+
+        let (sx, sy) = minimap
+            .map_to_screen(0.0, 0.0, uv_min, uv_max, 0.0, 0.0)
+            .unwrap();
+        assert!((sx - margin).abs() < 0.01);
+        assert!((sy - MAP_AREA_SIZE).abs() < 0.01);
+
+        let (sx, sy) = minimap
+            .map_to_screen(312.0, 392.0, uv_min, uv_max, 0.0, 0.0)
+            .unwrap();
+        assert!((sx - (MAP_AREA_SIZE - margin)).abs() < 0.01);
+        assert!(sy.abs() < 0.01);
     }
 
     #[test]

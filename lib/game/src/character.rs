@@ -291,6 +291,19 @@ impl Character {
         }
     }
 
+    /// Share of a level that `amount` experience represents, in percent.
+    pub fn exp_gain_percentage(&self, amount: i32, is_base: bool) -> f32 {
+        let next = if is_base {
+            self.next_base_exp
+        } else {
+            self.next_job_exp
+        };
+        if next == 0 {
+            return 0.0;
+        }
+        amount as f32 / next as f32 * 100.0
+    }
+
     pub fn apply_parameter_changed(&mut self, var_id: u16, value: i32) -> Option<u16> {
         use models::enums::EnumWithNumberValue;
         use models::enums::status::StatusTypes;
@@ -449,6 +462,21 @@ pub fn job_class_name(class_id: u16) -> &'static str {
 mod tests {
     use super::*;
     use crate::inventory::EquipmentItemData;
+
+    #[test]
+    fn exp_gain_percentage_follows_the_next_level_requirement() {
+        use models::enums::EnumWithNumberValue;
+        use models::enums::status::StatusTypes;
+        let mut char = Character::new();
+
+        assert_eq!(char.exp_gain_percentage(1500, true), 0.0);
+
+        char.apply_parameter_changed(StatusTypes::Nextbaseexp.value() as u16, 300_000);
+        char.apply_parameter_changed(StatusTypes::Nextjobexp.value() as u16, 100_000);
+
+        assert_eq!(char.exp_gain_percentage(1500, true), 0.5);
+        assert_eq!(char.exp_gain_percentage(1500, false), 1.5);
+    }
 
     #[test]
     fn dual_wield_look_survives_an_emptied_inventory() {

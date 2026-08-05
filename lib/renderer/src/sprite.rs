@@ -1234,6 +1234,7 @@ pub fn build_entity_sprite(
     }
 }
 
+const MIN_PICK_SIZE: f32 = 40.0;
 const MAX_PICK_WIDTH: f32 = 200.0;
 const MAX_PICK_HEIGHT: f32 = 250.0;
 const PICK_BOTTOM_MARGIN: f32 = 10.0;
@@ -1300,8 +1301,8 @@ impl EntitySprite {
             ];
         }
 
-        let raw_w = max_x - min_x;
-        let raw_h = max_y - min_y;
+        let raw_w = (max_x - min_x).max(MIN_PICK_SIZE * scale);
+        let raw_h = (max_y - min_y).max(MIN_PICK_SIZE * scale);
         let w = raw_w.min(MAX_PICK_WIDTH * scale);
         let h = raw_h.min(MAX_PICK_HEIGHT * scale);
         let bottom = max_y.min(screen_anchor[1] + PICK_BOTTOM_MARGIN);

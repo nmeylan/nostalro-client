@@ -92,9 +92,9 @@ impl HotkeyBarWindow {
                         .find(|s| s.id == skill_id)
                         .map(companion_skill_icon_path)
                 }),
-            HotkeySlotContent::Item { inventory_index } => character
+            HotkeySlotContent::Item { item_id } => character
                 .inventory
-                .get_item(inventory_index)
+                .find_by_item_id(item_id)
                 .and_then(|item| item.icon_path()),
         }
     }
@@ -109,22 +109,12 @@ impl HotkeyBarWindow {
                     None
                 }
             }
-            HotkeySlotContent::Item { inventory_index } => {
-                let count: i16 = character
-                    .inventory
-                    .all_items()
-                    .iter()
-                    .filter(|i| i.index == inventory_index)
-                    .map(|i| i.count)
-                    .sum();
-                if count > 0 {
-                    Some(format!("{count}"))
-                } else if count == 0 {
-                    Some("0".to_string())
-                } else {
-                    None
-                }
-            }
+            HotkeySlotContent::Item { item_id } => character
+                .inventory
+                .find_by_item_id(item_id)
+                .map(|item| item.count)
+                .filter(|count| *count > 0)
+                .map(|count| format!("{count}")),
         }
     }
 
@@ -154,17 +144,15 @@ impl HotkeyBarWindow {
                     }
                 }
             }
-            HotkeySlotContent::Item { inventory_index } => {
-                if let Some(item) = character.inventory.get_item(inventory_index) {
+            HotkeySlotContent::Item { item_id } => {
+                if let Some(item) = character.inventory.find_by_item_id(item_id) {
                     if item.is_equipment() {
                         events.push(GameEvent::RequestEquipItem {
-                            index: inventory_index,
+                            index: item.index,
                             location: item.equip_location(),
                         });
                     } else {
-                        events.push(GameEvent::RequestUseItem {
-                            index: inventory_index,
-                        });
+                        events.push(GameEvent::RequestUseItem { index: item.index });
                     }
                 }
             }
@@ -184,13 +172,13 @@ impl HotkeyBarWindow {
                 if item.tab() == InventoryTab::Etc && !item.is_ammunition() {
                     return;
                 }
-                let inventory_index = item.index;
-                let content = HotkeySlotContent::Item { inventory_index };
+                let item_id = item.item_id;
+                let content = HotkeySlotContent::Item { item_id };
                 character.hotkeys.set_slot(slot_index, content);
                 events.push(GameEvent::RequestHotkeyChange {
                     index: slot_index as u16,
                     is_skill: false,
-                    id: inventory_index as u32,
+                    id: item_id as u32,
                     count: 0,
                 });
             }
@@ -535,11 +523,11 @@ impl InGameWindow for HotkeyBarWindow {
                                     .map(|s| s.name.clone())
                             })
                             .map(|name| format!("{name} Lv.{level}")),
-                        HotkeySlotContent::Item { inventory_index } => {
+                        HotkeySlotContent::Item { item_id } => {
                             let slot_count_table = data.item_slot_count.as_ref();
                             let card_name_table = data.card_name.as_ref();
                             let producers = &character.char_names;
-                            character.inventory.get_item(inventory_index).map(|item| {
+                            character.inventory.find_by_item_id(item_id).map(|item| {
                                 format_equipment_display_name(
                                     item,
                                     slot_count_table,
@@ -604,8 +592,27 @@ fn companion_skill_icon_path(skill: &SkillInfo) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
+    use ragnarok_game::item::Item;
     use ragnarok_game::skill::SkillTargetType;
+
+    fn potion(index: u16, count: i16) -> Item {
+        Item {
+            index,
+            item_id: 501,
+            item_type: ItemType::Healing,
+            count,
+            is_identified: true,
+            is_damaged: false,
+            refining_level: 0,
+            slot: [0; 4],
+            location: 0,
+            wear_state: 0,
+            name: "Red Potion".into(),
+            resource_name: None,
+        }
+    }
 
     fn merc_skill(id: u16, name: &str, level: i16) -> SkillInfo {
         SkillInfo {
@@ -691,5 +698,49 @@ mod tests {
             events.as_slice(),
             [GameEvent::RequestUseSkill { skill_id: 5, .. }]
         ));
+    }
+
+    #[test]
+    fn an_item_hotkey_survives_the_server_reindexing_the_inventory() {
+        let bar = HotkeyBarWindow::new();
+        let mut character = Character::new();
+        character.inventory.add_item(potion(12, 25));
+
+        let mut events = Vec::new();
+        bar.handle_drop(INV_WINDOW_ID, 12, 4, &mut character, &mut events);
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestHotkeyChange {
+                index: 4,
+                is_skill: false,
+                id: 501,
+                count: 0,
+            }]
+        ));
+
+        let persisted = character.hotkeys.to_server_format(4);
+        let mut relogged = Character::new();
+        relogged.inventory.add_item(potion(3, 25));
+        relogged
+            .hotkeys
+            .set_from_server(&[(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), persisted]);
+
+        let mut events = Vec::new();
+        bar.execute_slot(4, &relogged, &mut events);
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestUseItem { index: 3 }]
+        ));
+        assert_eq!(
+            bar.slot_count_text(relogged.hotkeys.get_slot(4), &relogged),
+            Some("25".to_string())
+        );
+
+        // Nothing is drawn for an item the character no longer owns.
+        let empty = Character::new();
+        assert_eq!(
+            bar.slot_count_text(HotkeySlotContent::Item { item_id: 501 }, &empty),
+            None
+        );
     }
 }

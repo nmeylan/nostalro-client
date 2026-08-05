@@ -13,7 +13,6 @@ use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 
-pub const OVERLAY_ID: WidgetId = WidgetId(700);
 pub const INPUT_WIN_ID: WidgetId = WidgetId(701);
 pub const OUTPUT_WIN_ID: WidgetId = WidgetId(702);
 const BUY_SELL_BTN_ID: WidgetId = WidgetId(703);
@@ -172,9 +171,6 @@ impl InGameWindow for NpcShop {
         let prev_grf = ui.has_grf_textures;
         ui.has_grf_textures = self.has_grf_textures;
 
-        let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
-        ui.interact(OVERLAY_ID, screen);
-
         let input_default_x = 100.0;
         let input_default_y = 100.0;
         let output_default_x = input_default_x + (WIN_W) + (WIN_GAP);
@@ -278,6 +274,7 @@ impl NpcShop {
         let visible = self.input_visible_rows.min(item_count).max(INPUT_MIN_ROWS);
 
         let win = ui.window_at(INPUT_WIN_ID, win_w, win_h, title_h, default_x, default_y);
+        ui.interact(INPUT_WIN_ID, Rect::new(win.x, win.y, win_w, win_h));
 
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
@@ -468,6 +465,7 @@ impl NpcShop {
         let (btn_w, btn_h) = self.btn_size;
 
         let win = ui.window_at(OUTPUT_WIN_ID, win_w, win_h, title_h, default_x, default_y);
+        ui.interact(OUTPUT_WIN_ID, Rect::new(win.x, win.y, win_w, win_h));
 
         let grf = self.has_grf_textures;
         let text_color = text_color(grf);
@@ -778,6 +776,7 @@ fn format_zeny(amount: i32) -> String {
 mod tests {
     use super::*;
     use crate::InGameWindow;
+    use crate::game::minimap_window::MINIMAP_WINDOW_ID;
     use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
@@ -916,6 +915,69 @@ mod tests {
 
         let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn shop_windows_claim_the_pointer_over_their_whole_body() {
+        let mut shop_ui = NpcShop::new();
+        shop_ui.shop.open_buy(
+            100,
+            vec![ShopBuyItem {
+                item: Item {
+                    index: 0,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 1,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
+                },
+                price: 50,
+                discount_price: 50,
+            }],
+        );
+
+        let mut state = StateCache::new();
+        // The client builds other windows before the shop, then the shop on top.
+        let frame = |state: &mut StateCache, shop_ui: &mut NpcShop, mx: f32, my: f32| -> bool {
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_x = mx;
+            ctx.mouse_y = my;
+            let mut ui = make_frame(&ctx, state);
+            shop_ui.setup_modal(&mut ui);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            ui.window_at(MINIMAP_WINDOW_ID, 200.0, 200.0, 15.0, 600.0, 0.0);
+            shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+            ui.any_hovered
+        };
+
+        frame(&mut state, &mut shop_ui, 0.0, 0.0);
+
+        let (input_h, _) = shop_ui.window_heights();
+        assert!(
+            frame(&mut state, &mut shop_ui, 150.0, 105.0),
+            "title bar must not fall through to the world"
+        );
+        assert!(
+            frame(&mut state, &mut shop_ui, 150.0, 100.0 + input_h - 5.0),
+            "footer must not fall through to the world"
+        );
+        assert!(
+            frame(&mut state, &mut shop_ui, 400.0, 105.0),
+            "basket window title bar must not fall through to the world"
+        );
+        assert!(
+            !frame(&mut state, &mut shop_ui, 600.0, 500.0),
+            "the world stays reachable outside the shop"
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@ use ragnarok_game::event::{FameKind, MvpFeedbackKind};
 use ragnarok_game::skill_msg::{SKILL_MSG_COLOR, skill_msg_line};
 use ragnarok_ui_component::game::chat_room_member_window::{OTHER_MSG_COLOR, OWN_MSG_COLOR};
 use ragnarok_ui_component::game::chat_window::ChatChannel;
-use ragnarok_ui_component::helper::colors::{CYAN, RED};
+use ragnarok_ui_component::helper::colors::{CYAN, GREEN, RED};
 
 const MSI_PLAYERS_CONNECTED: u16 = 178;
 
@@ -141,12 +141,13 @@ impl App {
         if !self.game.prefs.show_exp {
             return;
         }
-        let message = if is_base {
-            format!("Gained {amount} base experience")
-        } else {
-            format!("Gained {amount} job experience")
-        };
-        self.windows.chat_window.add_system(message);
+        let percentage = self.game.character.exp_gain_percentage(amount, is_base);
+        let kind = if is_base { "base" } else { "job" };
+        self.windows.chat_window.add_message(
+            format!("Gained {amount} {kind} experience ({percentage:.2}%)"),
+            GREEN,
+            ChatChannel::System,
+        );
     }
 
     pub(super) fn handle_whisper_setting_result(&mut self, allow: bool, result: u8, all: bool) {

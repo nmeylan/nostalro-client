@@ -6,7 +6,7 @@ pub const HOTKEY_TOTAL: usize = HOTKEY_ROWS * HOTKEY_COLS;
 pub enum HotkeySlotContent {
     Empty,
     Skill { skill_id: u16, level: i16 },
-    Item { inventory_index: u16 },
+    Item { item_id: u16 },
 }
 
 pub struct HotkeyBar {
@@ -38,9 +38,7 @@ impl HotkeyBar {
                     level: count,
                 }
             } else if id != 0 {
-                HotkeySlotContent::Item {
-                    inventory_index: id as u16,
-                }
+                HotkeySlotContent::Item { item_id: id as u16 }
             } else {
                 HotkeySlotContent::Empty
             };
@@ -143,7 +141,7 @@ impl HotkeyBar {
         match self.get_slot(index) {
             HotkeySlotContent::Empty => (0, 0, 0),
             HotkeySlotContent::Skill { skill_id, level } => (1, skill_id as u32, level),
-            HotkeySlotContent::Item { inventory_index } => (0, inventory_index as u32, 0),
+            HotkeySlotContent::Item { item_id } => (0, item_id as u32, 0),
         }
     }
 
@@ -161,7 +159,7 @@ mod tests {
         let mut bar = HotkeyBar::new();
         let server_data = vec![
             (1i8, 28u32, 5i16), // Skill: id=28, level=5
-            (0, 7, 0),          // Item: inventory_index=7
+            (0, 501, 0),        // Item: item_id=501
             (0, 0, 0),          // Empty
             (1, 10, 3),         // Skill: id=10, level=3
         ];
@@ -174,10 +172,7 @@ mod tests {
                 level: 5
             }
         );
-        assert_eq!(
-            bar.get_slot(1),
-            HotkeySlotContent::Item { inventory_index: 7 }
-        );
+        assert_eq!(bar.get_slot(1), HotkeySlotContent::Item { item_id: 501 });
         assert_eq!(bar.get_slot(2), HotkeySlotContent::Empty);
         assert_eq!(
             bar.get_slot(3),
@@ -222,11 +217,8 @@ mod tests {
             }
         );
 
-        bar.set_slot(5, HotkeySlotContent::Item { inventory_index: 3 });
-        assert_eq!(
-            bar.get_slot(5),
-            HotkeySlotContent::Item { inventory_index: 3 }
-        );
+        bar.set_slot(5, HotkeySlotContent::Item { item_id: 501 });
+        assert_eq!(bar.get_slot(5), HotkeySlotContent::Item { item_id: 501 });
 
         bar.clear_slot(5);
         assert_eq!(bar.get_slot(5), HotkeySlotContent::Empty);
@@ -236,17 +228,17 @@ mod tests {
     fn skill_level_change_follows_slots_at_the_learned_level() {
         let mut bar = HotkeyBar::new();
         bar.set_from_server(&[
-            (1, 5, 5),  // SM_BASH at the learned level
-            (1, 5, 2),  // SM_BASH deliberately down-ranked
-            (1, 10, 5), // another skill, same level
-            (0, 7, 0),  // an item
+            (1, 5, 5),   // SM_BASH at the learned level
+            (1, 5, 2),   // SM_BASH deliberately down-ranked
+            (1, 10, 5),  // another skill, same level
+            (0, 501, 0), // an item
         ]);
 
         assert_eq!(bar.apply_skill_level_change(5, 5, 6), vec![0]);
         assert_eq!(bar.to_server_format(0), (1, 5, 6));
         assert_eq!(bar.to_server_format(1), (1, 5, 2));
         assert_eq!(bar.to_server_format(2), (1, 10, 5));
-        assert_eq!(bar.to_server_format(3), (0, 7, 0));
+        assert_eq!(bar.to_server_format(3), (0, 501, 0));
 
         // A reset pulls every slot back to what is still castable.
         assert_eq!(bar.apply_skill_level_change(5, 6, 1), vec![0, 1]);
@@ -270,10 +262,10 @@ mod tests {
                 level: 5,
             },
         );
-        bar.set_slot(1, HotkeySlotContent::Item { inventory_index: 3 });
+        bar.set_slot(1, HotkeySlotContent::Item { item_id: 501 });
 
         assert_eq!(bar.to_server_format(0), (1, 28, 5));
-        assert_eq!(bar.to_server_format(1), (0, 3, 0));
+        assert_eq!(bar.to_server_format(1), (0, 501, 0));
         assert_eq!(bar.to_server_format(2), (0, 0, 0));
     }
 }

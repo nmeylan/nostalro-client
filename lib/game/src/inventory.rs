@@ -103,6 +103,10 @@ impl InventoryData {
         self.items.iter().find(|i| i.index == index)
     }
 
+    pub fn find_by_item_id(&self, item_id: u16) -> Option<&Item> {
+        self.items.iter().find(|i| i.item_id == item_id)
+    }
+
     pub fn set_item_damaged(&mut self, index: u16, damaged: bool) {
         if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
             item.is_damaged = damaged;
