@@ -56,6 +56,16 @@ impl App {
                 .send_packet(build_req_enter_room_packet(room_id, self.active_packetver));
             return;
         }
+        if let Some(is_mercenary) = self.game.pending_casts.pending_companion_patrol.take() {
+            if let Some((cx, cy)) = self.hovered_cell() {
+                self.push_owner_command_to(
+                    is_mercenary,
+                    OwnerCommand::patrol(cx, cy),
+                    self.input.shift_pressed,
+                );
+            }
+            return;
+        }
         if let Some(pending) = self.game.pending_casts.pending_companion_skill.take() {
             let reserved = self.input.shift_pressed;
             let target = match pending.target {

@@ -1607,6 +1607,10 @@ pub enum GameEvent {
     ToggleCompanionStandby {
         is_mercenary: bool,
     },
+    /// Patrol button: arm the destination pick, or stop an ongoing patrol.
+    ToggleCompanionPatrol {
+        is_mercenary: bool,
+    },
     ToggleCompanionAiConfig,
     SaveCompanionAiConfig,
     RevertCompanionAiConfig,

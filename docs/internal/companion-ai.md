@@ -123,10 +123,24 @@ Direct commands override the AI until they complete, then the AI resumes.
 - Holding Shift while issuing a command queues it as a reserved command. Reserved
   commands run after the current action finishes, in order, up to ten queued.
 - Right-clicking the companion without Alt opens a context menu: Show Info, Feed
-  (homunculus only), Stand By, and AI Settings.
+  (homunculus only), Stand By, Patrol, and AI Settings.
 - Stand By puts the companion in a follow-and-hold state. It stops seeking
   targets and stays near the owner until the next command. Any command clears it.
 - Ctrl and T toggles Stand By for the mercenary.
+
+Patrol:
+
+- The Patrol button in the homunculus window, or the context-menu entry, arms a
+  destination pick. The next left-click on a cell starts the patrol, and the
+  companion paces between the cell it was standing on and the clicked cell.
+- A patrol is a standing order: the companion breaks off to engage targets the
+  usual way, then goes back to pacing instead of returning to the owner. It
+  ignores follow range for as long as the order stands.
+- While a patrol stands, the aggro and reaction radii are measured from the
+  companion rather than from the owner, so it picks up what it walks past. Every
+  other state measures them from the owner.
+- The button reads Stop while a patrol is standing. Any other command, including
+  Stand By and a plain move order, also ends it.
 
 Casting a specific skill:
 
@@ -173,8 +187,9 @@ Idle, in this order:
 5. If the owner is sitting and rest is allowed, stop seeking targets.
 6. Otherwise select a target: a monster a friend is attacking, then an aggro or
    reaction target, then a tank target.
-7. If no target and the owner is out of follow range, follow.
-8. Otherwise, if idle-walk is on and the companion is healthy, wander near the
+7. If a patrol order stands, resume pacing toward its current endpoint.
+8. If no target and the owner is out of follow range, follow.
+9. Otherwise, if idle-walk is on and the companion is healthy, wander near the
    owner.
 
 Chase: move toward the target, drop it if it goes out of sight or becomes a
@@ -252,10 +267,10 @@ status, and purpose.
 The Status column is one of:
 
 - Active: the engine reads this field, so changing it changes behavior.
-- Reserved: the field exists in the config file and the in-game window, so it can
-  be set and is saved, but the engine does not read it yet, so setting it has no
-  effect. Reserved fields are kept for layout compatibility with the reference AI
-  and as room for future behavior. Do not rely on them doing anything.
+- Reserved: the field exists in the config file, and usually in the in-game window,
+  so it can be set and is saved, but the engine does not read it yet, so setting it
+  has no effect. Reserved fields are kept for layout compatibility with the
+  reference AI and as room for future behavior. Do not rely on them doing anything.
 
 Defaults shown are the homunculus defaults. Differences in the mercenary section
 are noted at the end.
@@ -266,11 +281,11 @@ are noted at the end.
 | --- | --- | --- | --- |
 | AggroHP | 60 | Active | Only pick aggressive targets while the companion HP percent is above this. |
 | AggroSP | 0 | Active | Only pick aggressive targets while the companion SP percent is above this. |
-| OldHomunType | 3 | Reserved | Pre-mutation type for a Homunculus S. Unused since Homunculus S is unsupported. |
+| OldHomunType | 3 | Reserved | Pre-mutation type for a Homunculus S. Unused since Homunculus S is unsupported, and not exposed in the window. The engine takes the family from the live homunculus job instead. |
 | UseSkillOnly | -1 | Reserved | Reference mode to cast only, never melee. The engine always allows melee. |
 | UseAttackSkill | 1 | Active | Enable offensive attack-skill casting. 1 on, 0 off. |
 | OpportunisticTargeting | 0 | Active | While chasing, switch to a closer or higher priority target if one appears. 1 on. |
-| DoNotChase | 0 | Active | Do not close on targets whose chase tactic defers to this option. Also required for the dance attack. 1 on. |
+| DoNotChase | 0 | Active | Do not close on targets whose chase tactic defers to this option, so only what comes within attack range is engaged. Also required for the dance attack. 1 on. |
 | UseDanceAttack | 0 | Active | Circle-strafe the target between melee hits. Only Vanilmirth and Filir with DoNotChase set. 1 on. |
 | SuperPassive | 0 | Active | The companion never seeks targets on its own. 1 on. |
 | RescueOwnerLowHP | 0 | Reserved | Intended to drop the current target to rescue the owner below this HP. |
@@ -278,8 +293,8 @@ are noted at the end.
 | AttackLastFullSP | 0 | Active | For the attack-last basic tactic, only engage at full SP. 1 on. |
 | DanceMinSP | 0 | Active | Only dance while SP is at least this. |
 | TankMonsterLimit | 4 | Active | The most tank-tactic monsters the companion will pick up at once. |
-| StationaryAggroDist | 12 | Active | Aggro search radius from the owner while the owner is not moving. |
-| MobileAggroDist | 7 | Active | Aggro search radius from the owner while the owner is moving. |
+| StationaryAggroDist | 12 | Active | Aggro search radius, from the owner while the owner is not moving, or from the companion while patrolling. |
+| MobileAggroDist | 7 | Active | Aggro search radius while the owner is moving, same anchor rule as StationaryAggroDist. |
 | UseAvoid | 0 | Active | Retreat from monsters on the dangerous-mob list. 1 on. |
 | DoNotAttackMoving | 0 | Active | Do not aggro or chase moving monsters. 1 on. |
 | LagReduction | 0 | Reserved | Reference option to reduce action frequency on laggy connections. |
@@ -373,8 +388,8 @@ and levels.
 | ChaseSPPause | 0 | Reserved | Pause chasing when SP is low. |
 | ChaseSPPauseSP | -60 | Reserved | SP level for the chase pause. |
 | ChaseSPPauseTime | 3000 | Reserved | Duration of the chase pause. |
-| StationaryMoveBounds | 14 | Active | How far from the owner the companion roams while the owner is not moving. |
-| MobileMoveBounds | 9 | Active | How far from the owner the companion roams while the owner is moving. |
+| StationaryMoveBounds | 14 | Active | Radius the companion reacts to attacked targets within while the owner is not moving. Same anchor rule as the aggro distances. |
+| MobileMoveBounds | 9 | Active | Reaction radius while the owner is moving, same anchor rule as StationaryMoveBounds. |
 
 ### Buffs and heal
 

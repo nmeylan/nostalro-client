@@ -121,6 +121,7 @@ impl App {
                         self.game.pending_casts.pending_skill_target = None;
                         self.game.pending_casts.pending_skill_id = None;
                         self.game.pending_casts.pending_skill_level = None;
+                        self.game.pending_casts.pending_companion_patrol = None;
                         self.game.companions.capture_targeting = false;
                         self.game.companions.pet_roulette = None;
                     } else {
@@ -171,6 +172,14 @@ impl App {
         }
     }
 
+    fn patrol_menu_label(&self, is_mercenary: bool) -> String {
+        if self.companion_is_patrolling(is_mercenary) {
+            "Stop Patrol".to_string()
+        } else {
+            "Patrol".to_string()
+        }
+    }
+
     fn open_companion_context_menu(&mut self, entity_id: Option<u32>) -> bool {
         let Some(entity_id) = entity_id else {
             return false;
@@ -210,6 +219,12 @@ impl App {
                     },
                 },
                 ContextMenuItem {
+                    label: self.patrol_menu_label(false),
+                    action: ContextMenuAction::CompanionPatrol {
+                        is_mercenary: false,
+                    },
+                },
+                ContextMenuItem {
                     label: "AI Settings".to_string(),
                     action: ContextMenuAction::CompanionAiConfig,
                 },
@@ -223,6 +238,10 @@ impl App {
                 ContextMenuItem {
                     label: "Standby".to_string(),
                     action: ContextMenuAction::CompanionStandby { is_mercenary: true },
+                },
+                ContextMenuItem {
+                    label: self.patrol_menu_label(true),
+                    action: ContextMenuAction::CompanionPatrol { is_mercenary: true },
                 },
                 ContextMenuItem {
                     label: "AI Settings".to_string(),

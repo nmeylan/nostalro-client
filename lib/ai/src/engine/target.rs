@@ -169,10 +169,21 @@ impl CompanionAi {
         }
     }
 
+    /// Where the aggro and reaction radii are measured from: the owner, except
+    /// while a patrol order stands, when the companion works its own route and
+    /// an owner-anchored search would see nothing along it.
+    fn search_anchor(&self, ctx: &AiContext) -> Option<(i32, i32)> {
+        if self.is_patrolling() {
+            Some((ctx.my_x, ctx.my_y))
+        } else {
+            ctx.owner_pos
+        }
+    }
+
     /// Reference `GetEnemyList`: candidate monsters for the given aggro level
     /// (1 aggressive, 0 react, -1 tank, -2 rescue).
     pub(crate) fn enemy_list(&self, ctx: &AiContext, aggro: i32) -> Vec<Candidate> {
-        let Some((ox, oy)) = ctx.owner_pos else {
+        let Some((ox, oy)) = self.search_anchor(ctx) else {
             return Vec::new();
         };
         let move_bounds = ctx.move_bounds();
@@ -214,6 +225,13 @@ impl CompanionAi {
                 continue;
             }
             if !self.is_not_ks(ctx, a.gid) {
+                continue;
+            }
+            // A target we may not close on is only worth picking once it is in
+            // reach; selecting it earlier parks the AI in a chase it cannot walk.
+            if self.chase_blocked(ctx, a.gid)
+                && get_distance(ctx.my_x, ctx.my_y, a.x, a.y) > ctx.attack_range
+            {
                 continue;
             }
             let within = if aggro == 0 || v2 > 0 {

@@ -26,6 +26,7 @@ pub struct SoundManager {
     out_rate: u32,
     last_sweep: Instant,
     dropped_voices: u64,
+    paused: bool,
 }
 
 impl SoundManager {
@@ -41,6 +42,7 @@ impl SoundManager {
                 out_rate,
                 last_sweep: Instant::now(),
                 dropped_voices: 0,
+                paused: false,
             },
             Err(e) => {
                 tracing::warn!("audio disabled: {e}");
@@ -60,6 +62,7 @@ impl SoundManager {
             out_rate: 44100,
             last_sweep: Instant::now(),
             dropped_voices: 0,
+            paused: false,
         }
     }
 
@@ -75,6 +78,11 @@ impl SoundManager {
         load: impl FnOnce() -> Option<Vec<u8>>,
     ) {
         let Some(core) = &self.core else { return };
+        // A paused mixer never advances a voice cursor, so anything accepted here
+        // would sit at frame 0 and burst out together on resume.
+        if self.paused {
+            return;
+        }
         if self.failed.contains(key) {
             return;
         }
@@ -165,6 +173,7 @@ impl SoundManager {
     }
 
     pub fn set_paused(&mut self, paused: bool) {
+        self.paused = paused;
         if let Some(core) = &self.core {
             core.lock().unwrap().set_paused(paused);
         }
@@ -262,6 +271,35 @@ mod tests {
         assert!(!m.cache.contains_key("old.wav"));
         assert!(m.cache.contains_key("fresh.wav"));
         assert_eq!(playing.frames(), 10);
+    }
+
+    /// A mixer-backed manager with no output stream.
+    fn silent(out_rate: u32) -> SoundManager {
+        let mut m = SoundManager::disabled();
+        m.core = Some(Arc::new(Mutex::new(MixerCore::new(out_rate, 1.0, 1.0))));
+        m.out_rate = out_rate;
+        m
+    }
+
+    fn active_voices(m: &SoundManager) -> usize {
+        m.core.as_ref().unwrap().lock().unwrap().active_sfx_voices()
+    }
+
+    #[test]
+    fn sfx_requested_while_paused_is_discarded_not_deferred() {
+        let mut m = silent(22050);
+        let wav = || Some(crate::decode::wav_pcm16(22050, 1, 2205));
+
+        m.set_paused(true);
+        for _ in 0..5 {
+            m.play_sfx("hit.wav", 1.0, 0.0, wav);
+        }
+        assert_eq!(active_voices(&m), 0);
+        assert!(m.cache.is_empty());
+
+        m.set_paused(false);
+        m.play_sfx("hit.wav", 1.0, 0.0, wav);
+        assert_eq!(active_voices(&m), 1);
     }
 
     #[test]

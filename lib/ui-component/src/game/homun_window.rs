@@ -13,6 +13,7 @@ use ragnarok_ui::text_input::TextInput;
 pub const HOMUN_WINDOW_ID: WidgetId = WidgetId(2900);
 const CLOSE_BTN_ID: WidgetId = WidgetId(2901);
 const FEED_BTN_ID: WidgetId = WidgetId(2902);
+const PATROL_BTN_ID: WidgetId = WidgetId(2904);
 const DEL_BTN_ID: WidgetId = WidgetId(2903);
 const RENAME_INPUT_ID: WidgetId = WidgetId(2905);
 const RENAME_BTN_ID: WidgetId = WidgetId(2906);
@@ -54,6 +55,9 @@ const CELL_H: f32 = 21.0;
 const BAR_H: f32 = 11.0;
 const EXP_BAR_H: f32 = 4.0;
 const BASELINE: f32 = 10.0;
+
+const PATROL_BTN_W: f32 = 48.0;
+const PATROL_BTN_H: f32 = 16.0;
 
 const NOTE_COLOR: [f32; 4] = crate::helper::colors::RED;
 
@@ -286,7 +290,22 @@ impl HomunWindow {
 
         ui.text(rx, ry + BASELINE, "Intimacy", tc);
         ui.text(rx + 52.0, ry + BASELINE, intimacy_label(homun.intimacy), tc);
-        ry += 16.0;
+        ry += 18.0;
+
+        let patrolling = homun.ai.is_patrolling();
+        let patrol_rect = Rect::new(right_edge - PATROL_BTN_W, ry, PATROL_BTN_W, PATROL_BTN_H);
+        let patrol_label = if patrolling { "Stop" } else { "Patrol" };
+        if ui
+            .text_button(PATROL_BTN_ID, patrol_rect, patrol_label)
+            .clicked()
+        {
+            events.push(GameEvent::ToggleCompanionPatrol {
+                is_mercenary: false,
+            });
+        }
+        if patrolling {
+            ui.text(rx, ry + BASELINE + 1.0, "Patrolling", lc);
+        }
 
         // Red note, placed below the left stat column.
         let note_y = y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0;

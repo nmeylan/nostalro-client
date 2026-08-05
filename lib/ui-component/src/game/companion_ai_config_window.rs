@@ -289,7 +289,6 @@ const STICKY_STANDBY_OPTS: &[(i32, &str)] =
     &[(0, "Disabled"), (1, "Enabled"), (2, "Enabled+Relog")];
 const AUTO_HEAL_OPTS: &[(i32, &str)] = &[(0, "Never"), (1, "Always"), (2, "Idle"), (3, "Idle Low")];
 const PUSHBACK_OPTS: &[(i32, &str)] = &[(0, "Off"), (1, "Self"), (2, "All")];
-const OLD_HOMUN_OPTS: &[(i32, &str)] = &[(1, "Lif"), (2, "Amistr"), (3, "Filir")];
 const BUFF_WHEN_OPTS: &[(i32, &str)] = &[
     (-2, "Idle Low"),
     (-1, "Chase"),
@@ -343,13 +342,6 @@ fn homun_specs() -> Vec<FieldSpec<HomunConfig>> {
                 step: 5
             },
             "Only aggress while SP is above this percent."
-        ),
-        spec!(
-            "Old Homun Type",
-            "Basic",
-            OldHomunType,
-            Enum(OLD_HOMUN_OPTS),
-            "Pre-evolution family used for skill selection."
         ),
         spec!(
             "Use Skill Only",

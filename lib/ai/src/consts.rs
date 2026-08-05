@@ -28,7 +28,6 @@ macro_rules! int_enum {
 
 int_enum!(UseSkillOnly { Attacking = 0, Chasing = -1, SkillOnly = 1 } default Chasing);
 int_enum!(UseAutoPushback { Off = 0, SelfOnly = 1, All = 2 } default Off);
-int_enum!(OldHomunType { Lif = 1, Amistr = 2, Filir = 3 } default Filir);
 int_enum!(AutoMobMode { Disabled = 0, Aggressive = 1, All = 2 } default All);
 int_enum!(AutoComboMode { Never = 0, Tactics = 1, Always = 2 } default Tactics);
 int_enum!(UseIdleWalk {

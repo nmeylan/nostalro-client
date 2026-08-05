@@ -125,6 +125,22 @@ impl App {
         }
     }
 
+    pub(crate) fn companion_is_patrolling(&self, is_mercenary: bool) -> bool {
+        if is_mercenary {
+            self.game
+                .companions
+                .mercenary
+                .as_ref()
+                .is_some_and(|m| m.ai.is_patrolling())
+        } else {
+            self.game
+                .companions
+                .homunculus
+                .as_ref()
+                .is_some_and(|h| h.ai.is_patrolling())
+        }
+    }
+
     pub(crate) fn initiate_attack(&mut self, target_id: u32) {
         let locked = self.game.prefs.noctrl_mode || self.input.ctrl_pressed;
         self.begin_attack(target_id, locked);

@@ -143,30 +143,31 @@ fn riff_data_chunk(bytes: &[u8]) -> Option<&[u8]> {
 }
 
 #[cfg(test)]
+pub(crate) fn wav_pcm16(rate: u32, channels: u16, frames: usize) -> Vec<u8> {
+    let data_len = frames * channels as usize * 2;
+    let mut out = Vec::new();
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_len as u32).to_le_bytes());
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&channels.to_le_bytes());
+    out.extend_from_slice(&rate.to_le_bytes());
+    out.extend_from_slice(&(rate * channels as u32 * 2).to_le_bytes());
+    out.extend_from_slice(&(channels * 2).to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&(data_len as u32).to_le_bytes());
+    for i in 0..frames * channels as usize {
+        out.extend_from_slice(&((i % 128) as i16 * 256).to_le_bytes());
+    }
+    out
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    fn wav_pcm16(rate: u32, channels: u16, frames: usize) -> Vec<u8> {
-        let data_len = frames * channels as usize * 2;
-        let mut out = Vec::new();
-        out.extend_from_slice(b"RIFF");
-        out.extend_from_slice(&(36 + data_len as u32).to_le_bytes());
-        out.extend_from_slice(b"WAVE");
-        out.extend_from_slice(b"fmt ");
-        out.extend_from_slice(&16u32.to_le_bytes());
-        out.extend_from_slice(&1u16.to_le_bytes());
-        out.extend_from_slice(&channels.to_le_bytes());
-        out.extend_from_slice(&rate.to_le_bytes());
-        out.extend_from_slice(&(rate * channels as u32 * 2).to_le_bytes());
-        out.extend_from_slice(&(channels * 2).to_le_bytes());
-        out.extend_from_slice(&16u16.to_le_bytes());
-        out.extend_from_slice(b"data");
-        out.extend_from_slice(&(data_len as u32).to_le_bytes());
-        for i in 0..frames * channels as usize {
-            out.extend_from_slice(&((i % 128) as i16 * 256).to_le_bytes());
-        }
-        out
-    }
 
     #[test]
     fn decodes_and_resamples_wav() {

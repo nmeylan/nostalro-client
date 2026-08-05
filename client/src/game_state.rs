@@ -191,6 +191,7 @@ pub struct CursorInput {
 pub struct CursorPending {
     pub companion_target_armed: bool,
     pub pending_companion_skill: bool,
+    pub pending_companion_patrol: bool,
     pub capture_targeting: bool,
     pub pending_skill: bool,
     pub marriage_targeting: bool,
@@ -218,6 +219,7 @@ pub fn cursor_type_from_hover(
         CursorType::Default
     } else if pending.companion_target_armed
         || pending.pending_companion_skill
+        || pending.pending_companion_patrol
         || pending.capture_targeting
         || pending.pending_skill
         || pending.marriage_targeting
@@ -243,6 +245,8 @@ pub fn cursor_type_from_hover(
 pub struct PendingCasts {
     pub pending_skill_target: Option<PendingSkillTarget>,
     pub pending_companion_skill: Option<PendingCompanionSkill>,
+    /// A patrol order awaiting its destination click; the flag is `is_mercenary`.
+    pub pending_companion_patrol: Option<bool>,
     pub pending_skill_id: Option<u16>,
     pub pending_skill_level: Option<i16>,
     pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
@@ -967,6 +971,7 @@ mod cursor_from_hover_tests {
         CursorPending {
             companion_target_armed: false,
             pending_companion_skill: false,
+            pending_companion_patrol: false,
             capture_targeting: false,
             pending_skill: false,
             marriage_targeting: false,

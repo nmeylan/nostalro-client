@@ -49,6 +49,9 @@ pub enum ContextMenuAction {
     CompanionStandby {
         is_mercenary: bool,
     },
+    CompanionPatrol {
+        is_mercenary: bool,
+    },
     CompanionAiConfig,
     KickFromChatRoom {
         name: String,
@@ -195,6 +198,9 @@ impl ContextMenu {
                 }
                 ContextMenuAction::CompanionStandby { is_mercenary } => {
                     events.push(GameEvent::ToggleCompanionStandby { is_mercenary });
+                }
+                ContextMenuAction::CompanionPatrol { is_mercenary } => {
+                    events.push(GameEvent::ToggleCompanionPatrol { is_mercenary });
                 }
                 ContextMenuAction::CompanionAiConfig => {
                     events.push(GameEvent::ToggleCompanionAiConfig);

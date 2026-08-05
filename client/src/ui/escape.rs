@@ -159,6 +159,9 @@ pub fn route_escape(
         return events;
     }
 
+    if game.pending_casts.pending_companion_patrol.take().is_some() {
+        return events;
+    }
     if game.pending_casts.pending_skill_target.is_some() {
         game.pending_casts.pending_skill_target = None;
         game.pending_casts.pending_skill_id = None;

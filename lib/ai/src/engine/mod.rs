@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use crate::context::{ActorView, AiContext, AiIntent, Motion};
 
@@ -16,6 +16,7 @@ const TANK_HIT_INTERVAL_MS: u32 = 1500;
 const IDLE_WALK_INTERVAL_MS: u32 = 2000;
 const IDLE_WALK_RADIUS: i32 = 3;
 const MOVE_TO_OWNER_RETRY_MS: u32 = 500;
+const UNREACHABLE_EXPIRE_MS: u32 = 30_000;
 
 const HLIF_HEAL: u16 = 8001;
 const HAMI_CASTLE: u16 = 8005;
@@ -233,6 +234,10 @@ pub struct CompanionAi {
     dest_y: i32,
     patrol_x: i32,
     patrol_y: i32,
+    /// The two endpoints of a standing patrol order, so pacing resumes after a
+    /// fight instead of falling back to following the owner.
+    patrol_route: Option<((i32, i32), (i32, i32))>,
+    patrol_step_ms: Option<u32>,
     skill: u16,
     skill_level: u8,
     is_mercenary: bool,
@@ -245,7 +250,8 @@ pub struct CompanionAi {
     standby: bool,
     chase_giveup: u32,
     tank_hit_ms: u32,
-    unreachable: HashSet<u32>,
+    /// Targets a chase failed to reach, with the time it was given up on.
+    unreachable: HashMap<u32, u32>,
     my_skill_used_count: u32,
     skill_count_enemy: u32,
     auto_skill_ready_ms: u32,
@@ -277,6 +283,8 @@ impl CompanionAi {
             dest_y: 0,
             patrol_x: 0,
             patrol_y: 0,
+            patrol_route: None,
+            patrol_step_ms: None,
             skill: 0,
             skill_level: 0,
             is_mercenary,
@@ -289,7 +297,7 @@ impl CompanionAi {
             standby: false,
             chase_giveup: 0,
             tank_hit_ms: 0,
-            unreachable: HashSet::new(),
+            unreachable: HashMap::new(),
             my_skill_used_count: 0,
             skill_count_enemy: 0,
             auto_skill_ready_ms: 0,
@@ -315,8 +323,35 @@ impl CompanionAi {
         self.standby = standby;
     }
 
+    /// Whether a patrol order is standing, so pacing resumes after every fight.
+    pub fn is_patrolling(&self) -> bool {
+        self.patrol_route.is_some()
+    }
+
+    /// Drops the per-map state: a patrol order is a pair of cells, and the
+    /// unreachable targets are gone with the old map.
+    pub fn on_map_change(&mut self) {
+        self.patrol_route = None;
+        self.patrol_step_ms = None;
+        self.unreachable.clear();
+        if self.state == AiState::PatrolCmd {
+            self.state = AiState::Idle;
+        }
+    }
+
     pub(crate) fn is_unreachable(&self, gid: u32) -> bool {
-        self.unreachable.contains(&gid)
+        self.unreachable
+            .get(&gid)
+            .is_some_and(|at| self.clock_ms.wrapping_sub(*at) < UNREACHABLE_EXPIRE_MS)
+    }
+
+    /// A monster that could not be reached may well be reachable later, so the
+    /// entry expires instead of blacklisting the target for the whole session.
+    fn mark_unreachable(&mut self, gid: u32) {
+        let now = self.clock_ms;
+        self.unreachable
+            .retain(|_, at| now.wrapping_sub(*at) < UNREACHABLE_EXPIRE_MS);
+        self.unreachable.insert(gid, now);
     }
 
     fn aggro_flag(&self, ctx: &AiContext) -> i32 {
@@ -405,6 +440,9 @@ impl CompanionAi {
 
     fn process_command(&mut self, cmd: OwnerCommand, ctx: &AiContext, out: &mut Vec<AiIntent>) {
         self.standby = false;
+        if cmd.kind != CommandKind::Patrol {
+            self.patrol_route = None;
+        }
         match cmd.kind {
             CommandKind::Move => self.on_move_command(cmd.x, cmd.y, ctx, out),
             CommandKind::Stop => self.on_stop_command(ctx, out),
@@ -427,6 +465,9 @@ impl CompanionAi {
                 self.patrol_y = ctx.my_y;
                 self.dest_x = cmd.x;
                 self.dest_y = cmd.y;
+                self.patrol_route = Some(((ctx.my_x, ctx.my_y), (cmd.x, cmd.y)));
+                self.enemy = 0;
+                self.skill = 0;
                 self.emit_move(cmd.x, cmd.y, ctx, out);
                 self.state = AiState::PatrolCmd;
             }
@@ -550,6 +591,15 @@ impl CompanionAi {
                 }
             }
         }
+        if let Some((a, b)) = self.patrol_route {
+            self.patrol_x = a.0;
+            self.patrol_y = a.1;
+            self.dest_x = b.0;
+            self.dest_y = b.1;
+            self.state = AiState::PatrolCmd;
+            self.on_patrol_cmd(ctx, out);
+            return;
+        }
         let distance = self.distance_from_owner(ctx);
         if distance > FOLLOW_DISTANCE || distance == -1 {
             self.state = AiState::Follow;
@@ -607,7 +657,7 @@ impl CompanionAi {
         }
         if ctx.my_motion != Motion::Move {
             if self.chase_giveup > CHASE_GIVEUP_LIMIT {
-                self.unreachable.insert(self.enemy);
+                self.mark_unreachable(self.enemy);
                 self.chase_giveup = 0;
                 self.drop_enemy_to_idle();
                 return;
@@ -643,7 +693,7 @@ impl CompanionAi {
             || (self.chase_giveup > CHASE_GIVEUP_LIMIT && ctx.my_motion != Motion::Move)
         {
             if self.chase_giveup > CHASE_GIVEUP_LIMIT {
-                self.unreachable.insert(self.enemy);
+                self.mark_unreachable(self.enemy);
             }
             self.chase_giveup = 0;
             self.drop_enemy_to_idle();
@@ -1122,7 +1172,26 @@ impl CompanionAi {
             self.dest_x = new_dest.0;
             self.dest_y = new_dest.1;
             self.emit_move(self.dest_x, self.dest_y, ctx, out);
+        } else if ctx.my_motion != Motion::Move {
+            self.emit_patrol_step(ctx, out);
         }
+    }
+
+    /// Walks back toward the current patrol endpoint after an interruption,
+    /// halving an over-long leg so `emit_move` does not drop it.
+    fn emit_patrol_step(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
+        if let Some(last) = self.patrol_step_ms
+            && self.clock_ms.wrapping_sub(last) < MOVE_TO_OWNER_RETRY_MS
+        {
+            return;
+        }
+        self.patrol_step_ms = Some(self.clock_ms);
+        let (mut x, mut y) = (self.dest_x, self.dest_y);
+        while (x - ctx.my_x).abs() + (y - ctx.my_y).abs() > MOVE_SPLIT_DISTANCE {
+            x = (x + ctx.my_x) / 2;
+            y = (y + ctx.my_y) / 2;
+        }
+        self.emit_move(x, y, ctx, out);
     }
 
     fn on_hold_cmd(&mut self, ctx: &AiContext, out: &mut Vec<AiIntent>) {
@@ -1469,6 +1538,69 @@ mod tests {
 
     fn one_step(ai: &mut CompanionAi, c: &AiContext) -> Vec<AiIntent> {
         ai.tick(0.15, c)
+    }
+
+    #[test]
+    fn patrol_paces_between_endpoints_and_resumes_after_a_fight() {
+        let noskill = |_: u16| 1;
+        let fx = Fixture::new();
+        let mut ai = CompanionAi::new(false);
+
+        ai.push_command(OwnerCommand::patrol(108, 100));
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        let out = one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::PatrolCmd);
+        assert!(ai.is_patrolling());
+        assert!(out.contains(&AiIntent::MoveTo { x: 108, y: 100 }));
+
+        let c = fx.ctx((108, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        let out = one_step(&mut ai, &c);
+        assert!(out.contains(&AiIntent::MoveTo { x: 100, y: 100 }));
+
+        let mobs = [monster(200, 1002, 104, 100, None)];
+        let c = fx.ctx((108, 100), Motion::Stand, Some((100, 100)), &mobs, &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Chase);
+
+        // Target gone: the patrol resumes instead of falling back to following.
+        let c = fx.ctx((104, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Idle);
+        let out = one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::PatrolCmd);
+        assert!(out.contains(&AiIntent::MoveTo { x: 108, y: 100 }));
+
+        ai.push_command(OwnerCommand::stop());
+        one_step(&mut ai, &c);
+        assert!(!ai.is_patrolling());
+        assert_ne!(ai.state(), AiState::PatrolCmd);
+    }
+
+    #[test]
+    fn patrol_keeps_pacing_and_engages_along_the_route() {
+        let noskill = |_: u16| 1;
+        let mut fx = Fixture::new();
+        fx.params.do_not_chase = true;
+        let mut ai = CompanionAi::new(false);
+
+        ai.push_command(OwnerCommand::patrol(120, 100));
+        let c = fx.ctx((100, 100), Motion::Stand, Some((100, 100)), &[], &noskill);
+        one_step(&mut ai, &c);
+
+        // A monster the companion may not chase must not capture the patrol.
+        let mobs = [monster(200, 1002, 106, 100, None)];
+        for _ in 0..8 {
+            let c = fx.ctx((104, 100), Motion::Stand, Some((100, 100)), &mobs, &noskill);
+            one_step(&mut ai, &c);
+        }
+        assert_eq!(ai.state(), AiState::PatrolCmd);
+
+        // Far from the owner but next to the companion: engaged, because the
+        // search is anchored on the companion while a patrol stands.
+        let mobs = [monster(201, 1002, 119, 100, None)];
+        let c = fx.ctx((118, 100), Motion::Stand, Some((100, 100)), &mobs, &noskill);
+        one_step(&mut ai, &c);
+        assert_eq!(ai.state(), AiState::Chase);
     }
 
     #[test]

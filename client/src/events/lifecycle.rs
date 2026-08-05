@@ -34,6 +34,13 @@ impl App {
                 self.game.pending_casts.pending_skill_id = None;
                 self.game.pending_casts.pending_skill_level = None;
                 self.game.pending_casts.pending_skill_unit_cast = None;
+                self.game.pending_casts.pending_companion_patrol = None;
+                if let Some(h) = self.game.companions.homunculus.as_mut() {
+                    h.ai.on_map_change();
+                }
+                if let Some(m) = self.game.companions.mercenary.as_mut() {
+                    m.ai.on_map_change();
+                }
                 self.game.pending_casts.marriage_targeting = false;
                 self.game.combat.attack_target_id = None;
                 self.game.combat.attack_request_sent = false;

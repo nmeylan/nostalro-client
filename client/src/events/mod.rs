@@ -2494,6 +2494,20 @@ impl App {
                         false,
                     );
                 }
+                GameEvent::ToggleCompanionPatrol { is_mercenary } => {
+                    let patrolling = self.companion_is_patrolling(is_mercenary);
+                    let armed = self.game.pending_casts.pending_companion_patrol.is_some();
+                    self.game.pending_casts.pending_companion_patrol = None;
+                    if patrolling {
+                        self.push_owner_command_to(
+                            is_mercenary,
+                            ragnarok_game::companion::OwnerCommand::stop(),
+                            false,
+                        );
+                    } else if !armed {
+                        self.game.pending_casts.pending_companion_patrol = Some(is_mercenary);
+                    }
+                }
                 GameEvent::HotkeyListReceived { slots } => {
                     self.game.character.hotkeys.set_from_server(&slots);
                 }

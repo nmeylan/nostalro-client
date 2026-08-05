@@ -914,6 +914,11 @@ impl ApplicationHandler for App {
                             .pending_casts
                             .pending_companion_skill
                             .is_some(),
+                        pending_companion_patrol: self
+                            .game
+                            .pending_casts
+                            .pending_companion_patrol
+                            .is_some(),
                         capture_targeting: self.game.companions.capture_targeting,
                         pending_skill: self.game.pending_casts.pending_skill_target.is_some(),
                         marriage_targeting: self.game.pending_casts.marriage_targeting,

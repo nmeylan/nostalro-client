@@ -105,13 +105,13 @@ impl MixerCore {
         self.sfx_master = sfx;
     }
 
-    /// Silences output and freezes the BGM cursor. One-shot SFX are dropped
-    /// rather than resumed — a hit sound restarting minutes later is wrong.
     /// Off collapses every voice to centre, keeping distance attenuation.
     pub fn set_stereo(&mut self, stereo: bool) {
         self.stereo = stereo;
     }
 
+    /// Silences output and freezes the BGM cursor. One-shot SFX are dropped
+    /// rather than resumed — a hit sound restarting minutes later is wrong.
     pub fn set_paused(&mut self, paused: bool) {
         if paused && !self.paused {
             self.stop_all_sfx();
@@ -186,7 +186,7 @@ impl MixerCore {
     }
 
     #[cfg(test)]
-    fn active_sfx_voices(&self) -> usize {
+    pub(crate) fn active_sfx_voices(&self) -> usize {
         self.voices.iter().filter(|v| !v.finished()).count()
     }
 }
