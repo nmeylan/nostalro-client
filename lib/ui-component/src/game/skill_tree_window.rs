@@ -245,6 +245,7 @@ impl InGameWindow for SkillTreeWindow {
 
             let row_rect = Rect::new(x + PAD_X, row_y, skill_area_w, ROW_H);
             let row_resp = ui.interact(entry_id, row_rect);
+            let mut pointer_on_row_widget = false;
             if row_resp.hovered() {
                 let hover_bg = if has_grf {
                     [0.85, 0.85, 0.8, 0.5]
@@ -343,6 +344,7 @@ impl InGameWindow for SkillTreeWindow {
                 if right_resp.clicked() {
                     level_changes.push((skill_id, true));
                 }
+                pointer_on_row_widget |= left_resp.hovered() || right_resp.hovered();
             } else {
                 let level_text = format!("Lv : {}", skill.level);
                 ui.text(name_x, level_y, &level_text, level_color);
@@ -376,9 +378,13 @@ impl InGameWindow for SkillTreeWindow {
                 if btn_resp.clicked() {
                     events.push(GameEvent::RequestSkillLevelUp { skill_id: skill.id });
                 }
+                pointer_on_row_widget |= btn_resp.hovered();
             }
 
-            if skill.level > 0 && skill.skill_target_type != SkillTargetType::Passive {
+            if skill.level > 0
+                && skill.skill_target_type != SkillTargetType::Passive
+                && !pointer_on_row_widget
+            {
                 if row_resp.double_clicked() {
                     events.push(GameEvent::RequestUseSkill {
                         skill_id: skill.id,
@@ -501,5 +507,66 @@ impl InGameWindow for SkillTreeWindow {
         }
 
         events
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
+    use ragnarok_game::skill::SkillData;
+    use ragnarok_renderer::font_atlas::FontAtlas;
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
+
+    fn character_with_upgradable_skill() -> Character {
+        let mut character = Character::new();
+        character.skill_point = 5;
+        character.skills.set_skills(vec![SkillData {
+            id: 5,
+            name: "SM_BASH".to_string(),
+            level: 3,
+            selected_level: 3,
+            sp_cost: 8,
+            attack_range: 1,
+            upgradable: true,
+            skill_target_type: SkillTargetType::Target,
+        }]);
+        character.skills.open();
+        character
+    }
+
+    #[test]
+    fn double_clicking_the_level_up_button_only_spends_points() {
+        let mut win = SkillTreeWindow::new();
+        let mut character = character_with_upgradable_skill();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
+            Box::leak(Box::default());
+
+        let (lup_w, lup_h) = win.levelup_btn_size;
+        let type_x = 400.0 + WIN_W - SCROLLBAR_W - PAD_X - 50.0;
+        let btn_x = type_x - lup_w - 4.0;
+        let btn_y = 100.0 + TITLE_H + (ROW_H - lup_h) / 2.0;
+
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.mouse_x = btn_x + lup_w / 2.0;
+        ctx.mouse_y = btn_y + lup_h / 2.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_double_clicked = true;
+        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, None, positions);
+        let events = win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+
+        assert!(
+            matches!(
+                events.as_slice(),
+                [GameEvent::RequestSkillLevelUp { skill_id: 5 }]
+            ),
+            "expected a single level-up request, got {events:?}"
+        );
+        assert!(!ui.is_dragging(), "the + button must not start a skill drag");
     }
 }

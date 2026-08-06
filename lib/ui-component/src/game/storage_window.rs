@@ -43,6 +43,7 @@ const TITLE_H: f32 = 17.0;
 const FOOTER_H: f32 = 27.0;
 const ROW_H: f32 = 32.0;
 const ICON: f32 = 24.0;
+const LIST_PAD_LEFT: f32 = 16.0;
 const TAB_FALLBACK_W: f32 = 20.0;
 const TAB_FALLBACK_H: f32 = 96.0;
 const CLOSE_W: f32 = 42.0;
@@ -270,8 +271,8 @@ impl InGameWindow for StorageWindow {
         }
 
         // --- Item list (client-side filtered by tab) ---
-        let list_x = x + tab_w;
-        let list_w = WIN_W - tab_w - SCROLLBAR_W;
+        let list_x = x + tab_w + LIST_PAD_LEFT;
+        let list_w = WIN_W - tab_w - LIST_PAD_LEFT - SCROLLBAR_W;
         let filtered: Vec<&ragnarok_game::item::Item> = character
             .storage
             .all_items()
@@ -546,7 +547,7 @@ mod tests {
 
         // First row sits at container top (window default 320,80; tab column 28 wide).
         let mut ctx = UiContext::new(1024.0, 768.0);
-        ctx.mouse_x = 320.0 + TAB_FALLBACK_W + 20.0;
+        ctx.mouse_x = 320.0 + TAB_FALLBACK_W + LIST_PAD_LEFT + 20.0;
         ctx.mouse_y = 80.0 + TITLE_H + ROW_H / 2.0;
         ctx.mouse_right_clicked = true;
         let events = {

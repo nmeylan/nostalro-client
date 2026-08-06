@@ -100,7 +100,24 @@ pub const Z_ORDER_STATE_ID: WidgetId = WidgetId(u32::MAX - 1);
 const WINDOW_RECTS_STATE_ID: WidgetId = WidgetId(u32::MAX - 2);
 const FOCUS_STATE_ID: WidgetId = WidgetId(u32::MAX - 3);
 const POPUP_BLOCKER_STATE_ID: WidgetId = WidgetId(u32::MAX - 4);
+const WINDOW_DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX - 5);
 const DRAG_THRESHOLD: f32 = 5.0;
+
+#[derive(Default, Clone, Copy)]
+struct WindowDragOwner(Option<WidgetId>);
+
+/// The dragged window is tracked here as well as in its own `WindowState` so the
+/// drag can be released without the window being built: a window closed mid-drag
+/// would otherwise stay armed and jump to the cursor when reopened.
+fn release_window_drag_when_mouse_is_up(state: &mut StateCache, mouse_down: bool) {
+    if mouse_down {
+        return;
+    }
+    let owner = state.get_or_default::<WindowDragOwner>(WINDOW_DRAG_STATE_ID);
+    if let Some(id) = owner.0.take() {
+        state.get_or_default::<WindowState>(id).dragging = false;
+    }
+}
 
 #[derive(Default, Clone, Copy)]
 struct FocusState(Option<WidgetId>);
@@ -238,6 +255,7 @@ impl<'a> UiFrame<'a> {
     ) -> Self {
         let focus =
             initial_focus.or_else(|| state.get::<FocusState>(FOCUS_STATE_ID).and_then(|f| f.0));
+        release_window_drag_when_mouse_is_up(state, ctx.mouse_down);
         Self {
             ctx,
             atlas,
@@ -500,6 +518,9 @@ impl<'a> UiFrame<'a> {
                 state.dragging = true;
                 state.drag_offset_x = ox;
                 state.drag_offset_y = oy;
+                self.state
+                    .get_or_default::<WindowDragOwner>(WINDOW_DRAG_STATE_ID)
+                    .0 = Some(id);
                 self.drag_started_this_frame = Some(id);
             }
         }
@@ -537,6 +558,12 @@ impl<'a> UiFrame<'a> {
 
     pub fn cancel_window_drag(&mut self, id: WidgetId) {
         self.state.get_or_default::<WindowState>(id).dragging = false;
+        let owner = self
+            .state
+            .get_or_default::<WindowDragOwner>(WINDOW_DRAG_STATE_ID);
+        if owner.0 == Some(id) {
+            owner.0 = None;
+        }
     }
 
     /// Place a window at (x, y) the first time it is seen. Once the window has
@@ -1492,6 +1519,37 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
+    }
+
+    #[test]
+    fn a_window_closed_from_its_title_bar_reopens_where_it_was() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let positions = HashMap::new();
+        let id = WidgetId(4242);
+
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.mouse_x = 760.0;
+        ctx.mouse_y = 305.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        ui.window_at(id, 280.0, 200.0, 17.0, 500.0, 300.0);
+
+        for down in [true, false] {
+            let mut ctx = UiContext::new(1024.0, 768.0);
+            ctx.mouse_down = down;
+            make_frame(&ctx, &atlas, &mut state, &positions);
+        }
+
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.mouse_x = 120.0;
+        ctx.mouse_y = 640.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let rect = ui.window_at(id, 280.0, 200.0, 17.0, 500.0, 300.0);
+        assert_eq!((rect.x, rect.y), (500.0, 300.0));
     }
 
     #[test]

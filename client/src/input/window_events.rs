@@ -28,25 +28,34 @@ fn logical_window_size(size: PhysicalSize<u32>, scale_factor: f32) -> (u32, u32)
     )
 }
 
+/// Folds this session's windows into the saved layout. Must merge, not replace:
+/// a window never opened this session has no entry here and would otherwise lose
+/// the position an earlier session recorded.
+fn merge_window_state(
+    saved: &mut HashMap<u32, WindowStateEntry>,
+    positions: &HashMap<u32, [f32; 2]>,
+    open_collapsed: &HashMap<u32, (bool, bool)>,
+) {
+    for (id, pos) in positions {
+        let (open, collapsed) = open_collapsed.get(id).copied().unwrap_or((false, false));
+        saved.insert(
+            *id,
+            WindowStateEntry {
+                position: *pos,
+                open,
+                collapsed,
+            },
+        );
+    }
+}
+
 impl App {
     pub(crate) fn capture_window_state(&mut self) {
         let positions = self.ui_state_cache.extract_window_positions();
         let open_collapsed = self
             .game
             .extract_window_state(&self.windows, &self.ui_state_cache);
-        let mut window_state = HashMap::new();
-        for (id, pos) in &positions {
-            let (open, collapsed) = open_collapsed.get(id).copied().unwrap_or((false, false));
-            window_state.insert(
-                *id,
-                WindowStateEntry {
-                    position: *pos,
-                    open,
-                    collapsed,
-                },
-            );
-        }
-        self.config.window_state = window_state;
+        merge_window_state(&mut self.config.window_state, &positions, &open_collapsed);
         self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
         self.config.battle_mode = self.game.character.hotkeys.battle_mode();
         self.capture_window_size();
@@ -677,6 +686,45 @@ mod tests {
         let parsed: Config =
             serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
         assert_eq!((parsed.screen_width, parsed.screen_height), (1280, 720));
+    }
+
+    #[test]
+    fn a_window_left_closed_for_a_whole_session_still_reopens_where_it_was() {
+        use ragnarok_renderer::font_atlas::FontAtlas;
+        use ragnarok_ui::context::UiContext;
+        use ragnarok_ui::frame::UiFrame;
+        use ragnarok_ui::state::StateCache;
+        use ragnarok_ui_component::game::inventory_window::INV_WINDOW_ID;
+        use ragnarok_ui_component::game::storage_window::STORAGE_WINDOW_ID;
+
+        let mut config = Config::default();
+
+        let positions = HashMap::from([
+            (STORAGE_WINDOW_ID.0, [500.0, 300.0]),
+            (INV_WINDOW_ID.0, [10.0, 20.0]),
+        ]);
+        let open_collapsed = HashMap::from([(INV_WINDOW_ID.0, (true, false))]);
+        merge_window_state(&mut config.window_state, &positions, &open_collapsed);
+
+        let positions = HashMap::from([(INV_WINDOW_ID.0, [40.0, 60.0])]);
+        merge_window_state(&mut config.window_state, &positions, &open_collapsed);
+
+        let config: Config =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        let saved: HashMap<u32, [f32; 2]> = config
+            .window_state
+            .iter()
+            .map(|(&id, entry)| (id, entry.position))
+            .collect();
+
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut state = StateCache::new();
+        let ctx = UiContext::new(1024.0, 768.0);
+        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, None, &saved);
+        let storage = ui.window_at(STORAGE_WINDOW_ID, 280.0, 300.0, 17.0, 320.0, 80.0);
+        let inventory = ui.window_at(INV_WINDOW_ID, 280.0, 300.0, 17.0, 0.0, 0.0);
+        assert_eq!((storage.x, storage.y), (500.0, 300.0));
+        assert_eq!((inventory.x, inventory.y), (40.0, 60.0));
     }
 
     #[test]
