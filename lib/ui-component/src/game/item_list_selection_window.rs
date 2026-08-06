@@ -6,7 +6,7 @@ use crate::helper::window_chrome::{
 };
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 pub const ITEM_LIST_SELECTION_WINDOW_ID: WidgetId = WidgetId(2100);
@@ -206,10 +206,9 @@ impl ItemListSelectionWindow {
 
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
-        ui.interact(
-            ITEM_LIST_SELECTION_WINDOW_ID,
-            Rect::new(dx, dy, WIN_W, win_h),
-        );
+        ui.ensure_in_z_order_with(ITEM_LIST_SELECTION_WINDOW_ID, WindowOrder::Foreground);
+        let win = ui.window_fixed(ITEM_LIST_SELECTION_WINDOW_ID, WIN_W, win_h, dx, dy);
+        ui.interact(ITEM_LIST_SELECTION_WINDOW_ID, win);
 
         draw_titlebar(ui, dx, dy, WIN_W, TITLE_H, grf);
         ui.text(dx + 17.0, dy + TITLE_H - 3.0, &self.title, tc);

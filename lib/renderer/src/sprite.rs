@@ -83,6 +83,38 @@ pub struct SpriteUniforms {
     pub pan: [f32; 2],
     pub _pad2: [f32; 2],
     pub world_light: [f32; 4],
+    pub fog_color: [f32; 4],
+    pub fog_near: f32,
+    pub fog_far: f32,
+    pub fog_enabled: f32,
+    pub _pad3: f32,
+    /// The camera planes the vertex depth was projected with. A sprite quad
+    /// carries an NDC depth and no world position, so the shader inverts the
+    /// projection to get the eye distance the fog ramp needs.
+    pub clip_near: f32,
+    pub clip_far: f32,
+    pub _pad4: [f32; 2],
+}
+
+impl Default for SpriteUniforms {
+    fn default() -> Self {
+        Self {
+            screen_size: [1.0, 1.0],
+            zoom: 1.0,
+            _pad: 0.0,
+            pan: [0.0, 0.0],
+            _pad2: [0.0, 0.0],
+            world_light: [1.0; 4],
+            fog_color: [0.0; 4],
+            fog_near: 0.0,
+            fog_far: 1.0,
+            fog_enabled: 0.0,
+            _pad3: 0.0,
+            clip_near: 1.0,
+            clip_far: 1.0,
+            _pad4: [0.0, 0.0],
+        }
+    }
 }
 
 const INITIAL_VERTEX_CAPACITY: usize = 1024;
@@ -138,11 +170,7 @@ impl SpriteRenderer {
 
         let uniform_data = SpriteUniforms {
             screen_size: [logical_width, logical_height],
-            zoom: 1.0,
-            _pad: 0.0,
-            pan: [0.0, 0.0],
-            _pad2: [0.0, 0.0],
-            world_light: [1.0; 4],
+            ..Default::default()
         };
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("sprite_uniforms"),
@@ -479,6 +507,22 @@ impl SpriteRenderer {
 
     pub fn set_world_light(&mut self, queue: &wgpu::Queue, light: [f32; 3]) {
         self.uniforms.world_light = [light[0], light[1], light[2], 1.0];
+        self.update_uniforms(queue, &self.uniforms);
+    }
+
+    pub fn set_fog(
+        &mut self,
+        queue: &wgpu::Queue,
+        fog: &crate::FogUniform,
+        clip_near: f32,
+        clip_far: f32,
+    ) {
+        self.uniforms.fog_color = fog.color;
+        self.uniforms.fog_near = fog.near;
+        self.uniforms.fog_far = fog.far;
+        self.uniforms.fog_enabled = fog.enabled;
+        self.uniforms.clip_near = clip_near;
+        self.uniforms.clip_far = clip_far;
         self.update_uniforms(queue, &self.uniforms);
     }
 

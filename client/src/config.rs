@@ -43,6 +43,10 @@ pub struct DebugConfig {
 pub struct CustomConfig {
     /// Green aura under boss monsters at level 99 or above.
     pub boss_aura: bool,
+    /// Multiplies both fog distances. The original game's are tuned for its own
+    /// window and camera range; raise this to push fog back on a screen that
+    /// shows more of the map, lower it to pull fog in. 1.0 is the original.
+    pub fog_scale: f32,
     pub sound: CustomSoundConfig,
     pub window: CustomWindowConfig,
     pub skill: CustomSkillConfig,
@@ -52,6 +56,7 @@ impl Default for CustomConfig {
     fn default() -> Self {
         Self {
             boss_aura: false,
+            fog_scale: 1.0,
             sound: CustomSoundConfig::default(),
             window: CustomWindowConfig::default(),
             skill: CustomSkillConfig::default(),
@@ -421,6 +426,11 @@ mod tests {
         assert!(config.custom.skill.al_teleport.separate_lvl);
         assert!(!config.custom.skill.al_teleport.skip_lvl1_menu);
         assert!(!config.custom.boss_aura);
+        assert_eq!(config.custom.fog_scale, 1.0);
+
+        let json = r#"{"custom": {"fog_scale": 2.5}}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.custom.fog_scale, 2.5);
     }
 
     #[test]

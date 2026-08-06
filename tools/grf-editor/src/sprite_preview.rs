@@ -424,11 +424,7 @@ impl SpritePreview {
             &self.queue,
             &SpriteUniforms {
                 screen_size: [CANVAS as f32, CANVAS as f32],
-                zoom: 1.0,
-                _pad: 0.0,
-                pan: [0.0, 0.0],
-                _pad2: [0.0, 0.0],
-                world_light: [1.0; 4],
+                ..Default::default()
             },
         );
 
@@ -616,11 +612,7 @@ impl SpritePreview {
             &self.queue,
             &SpriteUniforms {
                 screen_size: [CANVAS as f32, CANVAS as f32],
-                zoom: 1.0,
-                _pad: 0.0,
-                pan: [0.0, 0.0],
-                _pad2: [0.0, 0.0],
-                world_light: [1.0; 4],
+                ..Default::default()
             },
         );
 

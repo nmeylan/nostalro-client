@@ -12,7 +12,7 @@ use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
 use ragnarok_game::skill_action::{SkillCaster, skill_caster};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{UiFrame, WidgetId};
+use ragnarok_ui::frame::{UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 pub const HOTKEY_BAR_WINDOW_ID: WidgetId = WidgetId(1300);
@@ -276,6 +276,7 @@ impl InGameWindow for HotkeyBarWindow {
         let win_h = visible_rows as f32 * ROW_H;
         let default_x = (ui.ctx.screen_width - WIN_W) / 2.0;
         let default_y = self.top_margin;
+        ui.ensure_in_z_order_with(HOTKEY_BAR_WINDOW_ID, WindowOrder::Foreground);
         let win = ui.window_at(
             HOTKEY_BAR_WINDOW_ID,
             WIN_W,

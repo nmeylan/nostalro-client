@@ -5,13 +5,14 @@ use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_dialog::{NpcDialogData, NpcDialogState};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
-use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
 
 const OVERLAY_ID: WidgetId = WidgetId(600);
 pub const NPC_DIALOG_WINDOW_ID: WidgetId = WidgetId(610);
 pub const NPC_MENU_WINDOW_ID: WidgetId = WidgetId(611);
+const NPC_DEAL_WINDOW_ID: WidgetId = WidgetId(612);
 const NEXT_BTN_ID: WidgetId = WidgetId(601);
 const CLOSE_BTN_ID: WidgetId = WidgetId(602);
 const INPUT_ID: WidgetId = WidgetId(603);
@@ -329,6 +330,7 @@ impl InGameWindow for NpcDialog {
 
             let dialog_h = (padding + text_h + input_h + btn_area_h + padding).max(DIALOG_H);
 
+            ui.ensure_in_z_order_with(NPC_DIALOG_WINDOW_ID, WindowOrder::Foreground);
             let win = ui.window_at(
                 NPC_DIALOG_WINDOW_ID,
                 dialog_w,
@@ -337,6 +339,7 @@ impl InGameWindow for NpcDialog {
                 DIALOG_DEFAULT_X,
                 DIALOG_DEFAULT_Y,
             );
+            ui.interact(NPC_DIALOG_WINDOW_ID, win);
             let (dx, dy) = (win.x, win.y);
 
             self.container.draw(
@@ -475,6 +478,7 @@ impl NpcDialog {
         let needs_scroll = total_items > MENU_VISIBLE_ROWS;
         let content_h = MENU_VISIBLE_ROWS as f32 * menu_item_h;
 
+        ui.ensure_in_z_order_with(NPC_MENU_WINDOW_ID, WindowOrder::Foreground);
         let win = ui.window_at(
             NPC_MENU_WINDOW_ID,
             menu_w,
@@ -483,6 +487,7 @@ impl NpcDialog {
             MENU_DEFAULT_X,
             MENU_DEFAULT_Y,
         );
+        ui.interact(NPC_MENU_WINDOW_ID, win);
         let (dx, menu_y) = (win.x, win.y);
 
         self.container.draw(
@@ -610,6 +615,10 @@ impl NpcDialog {
         let dx = ((ui.ctx.screen_width - dialog_w) / 2.0).floor();
         let dy = (ui.ctx.screen_height / 1.5).floor();
 
+        ui.ensure_in_z_order_with(NPC_DEAL_WINDOW_ID, WindowOrder::Foreground);
+        let win = ui.window_fixed(NPC_DEAL_WINDOW_ID, dialog_w, dialog_h, dx, dy);
+        ui.interact(NPC_DEAL_WINDOW_ID, win);
+
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(dx, dy, dialog_w, dialog_h, [1.0, 1.0, 1.0, 1.0]);
             ui.draw_calls.push(DrawCall {
@@ -690,6 +699,9 @@ impl NpcDialog {
 mod tests {
     use super::*;
     use crate::InGameWindow;
+    use crate::game::chat_window::CHAT_WINDOW_ID;
+    use crate::game::inventory_window::INV_WINDOW_ID;
+    use crate::game::minimap_window::MINIMAP_WINDOW_ID;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_renderer::font_atlas::FontAtlas;
@@ -848,6 +860,79 @@ mod tests {
             state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
             Some(&[MENU_DEFAULT_X + 40.0, MENU_DEFAULT_Y + 40.0]),
             "pressing a menu row must not drag the window"
+        );
+    }
+
+    #[test]
+    fn menu_row_stays_clickable_after_another_window_is_raised() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.show_menu(100, vec!["Buy".into(), "Sell".into()]);
+        let mut state = StateCache::new();
+
+        let frame = |state: &mut StateCache, npc: &mut NpcDialog, ctx: &UiContext| -> bool {
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ui = make_frame(ctx, state);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            ui.window_at(INV_WINDOW_ID, 280.0, 240.0, 15.0, 190.0, 290.0);
+            npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+            ui.any_hovered
+        };
+
+        let mut raise_inventory = UiContext::new(800.0, 600.0);
+        raise_inventory.mouse_x = 300.0;
+        raise_inventory.mouse_y = 500.0;
+        raise_inventory.mouse_clicked = true;
+        frame(&mut state, &mut npc, &raise_inventory);
+
+        let mut click_row = UiContext::new(800.0, 600.0);
+        click_row.mouse_x = 300.0;
+        click_row.mouse_y = 330.0;
+        click_row.mouse_clicked = true;
+        let claimed = frame(&mut state, &mut npc, &click_row);
+        assert_eq!(npc.dialog.selected_menu_index, 1);
+        assert!(claimed, "the menu body must claim the pointer");
+    }
+
+    #[test]
+    fn deal_type_buttons_work_under_a_raised_window() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.show_deal_type(100);
+        let mut state = StateCache::new();
+
+        let frame =
+            |state: &mut StateCache, npc: &mut NpcDialog, ctx: &UiContext| -> Vec<GameEvent> {
+                let mut character = Character::new();
+                let data = DataTable::new();
+                let mut ui = make_frame(ctx, state);
+                let z = ui.get_z_order();
+                ui.compute_hovered_window(&z);
+                ui.window_at(CHAT_WINDOW_ID, 560.0, 200.0, 15.0, 0.0, 400.0);
+                ui.window_at(MINIMAP_WINDOW_ID, 200.0, 200.0, 15.0, 600.0, 0.0);
+                npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+            };
+
+        let mut raise_chat = UiContext::new(800.0, 600.0);
+        raise_chat.mouse_x = 50.0;
+        raise_chat.mouse_y = 550.0;
+        raise_chat.mouse_clicked = true;
+        frame(&mut state, &mut npc, &raise_chat);
+
+        let mut click_buy = UiContext::new(800.0, 600.0);
+        click_buy.mouse_x = 410.0;
+        click_buy.mouse_y = 500.0;
+        click_buy.mouse_clicked = true;
+        let events = frame(&mut state, &mut npc, &click_buy);
+        assert!(
+            matches!(
+                events.as_slice(),
+                [GameEvent::RequestNpcDealType {
+                    npc_id: 100,
+                    deal_type: 0
+                }]
+            ),
+            "expected a buy deal type, got {events:?}"
         );
     }
 

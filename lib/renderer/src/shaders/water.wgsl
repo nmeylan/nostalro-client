@@ -25,7 +25,6 @@ struct FogUniforms {
     color: vec4<f32>,
     near: f32,
     far: f32,
-    factor: f32,
     enabled: f32,
 };
 
@@ -44,12 +43,15 @@ struct LightUniforms {
     shadow_strength: f32,
 };
 
-fn apply_fog(color: vec3<f32>, view_z: f32) -> vec3<f32> {
+fn apply_fog(color: vec3<f32>, view_pos: vec3<f32>) -> vec3<f32> {
     if (fog.enabled <= 0.0) {
         return color;
     }
-    let depth = abs(view_z);
-    let fog_amount = smoothstep(fog.near, fog.far, depth);
+    let fog_amount = clamp(
+        (length(view_pos) - fog.near) / (fog.far - fog.near),
+        0.0,
+        1.0,
+    );
     return mix(color, fog.color.rgb, fog_amount);
 }
 
@@ -61,7 +63,7 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coord: vec2<f32>,
-    @location(1) view_z: f32,
+    @location(1) view_pos: vec3<f32>,
 };
 
 const PI: f32 = 3.14159265;
@@ -76,7 +78,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
     out.tex_coord = in.tex_coord;
     let view_pos = camera.view * vec4<f32>(pos, 1.0);
-    out.view_z = view_pos.z;
+    out.view_pos = view_pos.xyz;
     return out;
 }
 
@@ -84,6 +86,6 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(water_texture, water_sampler, in.tex_coord);
     let tinted = mix(tex_color.rgb, tex_color.rgb * light.ambient_color.rgb, water.ambient_tint);
-    let fogged = apply_fog(tinted, in.view_z);
+    let fogged = apply_fog(tinted, in.view_pos);
     return vec4<f32>(fogged, water.opacity);
 }

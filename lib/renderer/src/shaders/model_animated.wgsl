@@ -21,7 +21,6 @@ struct FogUniforms {
     color: vec4<f32>,
     near: f32,
     far: f32,
-    factor: f32,
     enabled: f32,
 };
 
@@ -53,12 +52,15 @@ fn cell_light_at(world_pos: vec3<f32>) -> vec3<f32> {
     return textureSample(cell_light_texture, cell_light_sampler, uv).rgb;
 }
 
-fn apply_fog(color: vec3<f32>, view_z: f32) -> vec3<f32> {
+fn apply_fog(color: vec3<f32>, view_pos: vec3<f32>) -> vec3<f32> {
     if (fog.enabled <= 0.0) {
         return color;
     }
-    let depth = abs(view_z);
-    let fog_amount = smoothstep(fog.near, fog.far, depth);
+    let fog_amount = clamp(
+        (length(view_pos) - fog.near) / (fog.far - fog.near),
+        0.0,
+        1.0,
+    );
     return mix(color, fog.color.rgb, fog_amount);
 }
 
@@ -101,7 +103,7 @@ struct VertexOutput {
     @location(1) normal: vec3<f32>,
     @location(2) alpha: f32,
     @location(3) world_position: vec3<f32>,
-    @location(4) view_z: f32,
+    @location(4) view_pos: vec3<f32>,
     @location(5) lit_scale: f32,
 };
 
@@ -117,7 +119,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.normal = rotation * in.normal;
     out.alpha = in.alpha;
     out.world_position = world.xyz;
-    out.view_z = (camera.view * world).z;
+    out.view_pos = (camera.view * world).xyz;
     out.lit_scale = in.lit_scale;
     return out;
 }
@@ -138,7 +140,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let pl = point_light_contribution(in.world_position, normalize(in.normal));
     color += tex_color.rgb * pl;
 
-    color = apply_fog(color, in.view_z);
+    color = apply_fog(color, in.view_pos);
 
     return vec4<f32>(color, tex_color.a * in.alpha);
 }

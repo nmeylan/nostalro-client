@@ -56,7 +56,7 @@ are lost on the next save.
 | `display` | Name plate, damage and cast bar visibility. See [display](#display). | `{"show_other_damage": true, "show_other_cast_bars": true, "hide_name_player": false, "hide_name_monster": false, "hide_name_npc": false, "show_level_aura": true}` | No |
 | `snap` | Mouse snapping targets. See [snap](#snap). | `{"monster_no_skill": false, "monster_skill": true, "item": false}` | No |
 | `debug` | Trace toggles. See [debug](#debug). | `{"trace_packet": "none", "trace_effects": false, "trace_input": false, "trace_texture_load": false}` | No |
-| `custom` | Behaviour the original game has no counterpart for. See [custom](#custom). | `{"boss_aura": false, "sound": {"act_percent": 100, "stereo": true, "play_when_unfocused": false}, "window": {"exclude_close_via_esc": []}}` | No |
+| `custom` | Behaviour the original game has no counterpart for. See [custom](#custom). | `{"boss_aura": false, "fog_scale": 1.0, "sound": {"act_percent": 100, "stereo": true, "play_when_unfocused": false}, "window": {"exclude_close_via_esc": []}}` | No |
 
 ## Login server
 
@@ -107,12 +107,50 @@ Off unless opted into, so the default configuration matches the original game.
 | Config key | Description | Default value | Mandatory |
 | --- | --- | --- | --- |
 | `custom.boss_aura` | Green aura under boss monsters at level 99 or above. | `false` | No |
+| `custom.fog_scale` | Multiplies both fog distances, so a wider view than the original game's is not swallowed by fog. See [Fog scale](#fog-scale). | `1.0` | No |
 | `custom.sound.act_percent` | Percentage of ACT frame sounds (monster grunts, footsteps) that play. `100` plays all of them. | `100` | No |
 | `custom.sound.stereo` | Pan world sounds across the stereo field. Off keeps distance attenuation but centres everything. | `true` | No |
 | `custom.sound.play_when_unfocused` | Keep the mixer running while the window is not focused. The original game always pauses. | `false` | No |
 | `custom.window.exclude_close_via_esc` | Windows Escape must leave alone, by the names in `ESC_WINDOW_NAMES` (`client/src/ui/escape.rs`), matched case- and space-insensitively. Escape then moves on to the next window behind them. Unknown names are logged and ignored. | `[]` | No |
 | `custom.skill.al_teleport.separate_lvl` | Give Teleport a level picker in the skill tree, the way Fire Bolt has one. See [Forced level select](#forced-level-select). | `false` | No |
 | `custom.skill.al_teleport.skip_lvl1_menu` | Answer a level 1 Teleport's warp list without showing it, so the cast warps straight away. See [Skipping the level 1 warp list](#skipping-the-level-1-warp-list). | `false` | No |
+
+## Fog scale
+
+`data/fogparametertable.txt` gives a fogged map a near and a far value, both
+fractions of the original game's view frustum. The client turns each into a
+world distance from the camera:
+
+```text
+distance = 10 + fraction * 1490
+```
+
+Fog then ramps linearly between the two, measured as the straight-line distance
+from the eye rather than depth into the screen. For the `0.2 / 0.8` entry most
+maps use, that is fully clear at 308 units and fully fogged at 1202.
+
+Those numbers come from a 4:3 window and a camera that did not pull back as far
+as ours does. Two things push a modern view past them. Zooming out moves the eye
+away from the ground, and outdoor camera distance runs to 1500, past the point
+where everything is fogged. A wider aspect ratio also puts the corners of the
+screen further from the eye than the centre, so an ultrawide fogs at its edges
+where a 4:3 window did not. Resolution on its own changes nothing, since the
+distances are in world units.
+
+`custom.fog_scale` multiplies both distances, keeping the ramp's shape:
+
+| `custom.fog_scale` | `0.2 / 0.8` entry |
+| --- | --- |
+| `1.0` | 308 → 1202 |
+| `1.5` | 462 → 1803 |
+| `2.0` | 616 → 2404 |
+| `3.0` | 924 → 3606 |
+
+`2.0` puts the far end beyond maximum zoom-out. Values below `1.0` pull fog in.
+
+The value is read once when the renderer is created. Changing the key needs a
+restart. It has no effect on maps with no fog table entry, or while `/fog` is
+off.
 
 ## Forced level select
 

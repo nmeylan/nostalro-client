@@ -711,11 +711,12 @@ impl ApplicationHandler for App {
         } else {
             os_scale
         };
-        let renderer = block_on(Renderer::new(
+        let mut renderer = block_on(Renderer::new(
             window.clone(),
             self.config.font_px_height(),
             dpi_scale,
         ));
+        renderer.set_fog_scale(self.config.custom.fog_scale);
 
         let physical_size = window.inner_size();
         self.window = Some(window);

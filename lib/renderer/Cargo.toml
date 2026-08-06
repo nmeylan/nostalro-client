@@ -17,3 +17,6 @@ image = { workspace = true }
 winit = { workspace = true }
 ab_glyph = { workspace = true }
 encoding_rs = { workspace = true }
+
+[dev-dependencies]
+naga = { version = "28", features = ["wgsl-in"] }

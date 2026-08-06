@@ -3129,6 +3129,7 @@ dependencies = [
  "glam",
  "image",
  "models",
+ "naga 28.0.0",
  "ragnarok-effects",
  "ragnarok-formats",
  "ragnarok-profiling",

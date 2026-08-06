@@ -141,10 +141,21 @@ pub struct Renderer {
     /// diffuse rgb over this so the day/night fade never loses the map's light dir,
     /// ambient or shadow strength.
     pub base_light: LightUniform,
-    /// World-unit scale of the loaded map (240 * gnd zoom), needed to convert
-    /// fog-table near/far into world distances when fog is toggled at runtime.
+    /// The loaded map's fog, kept so a `fog_scale` change can re-derive the
+    /// distances without the caller handing back the table entry. `None` when
+    /// the map has no entry or the player turned fog off.
+    fog_entry: Option<FogEntry>,
     fog_scale: f32,
     lightmap_enabled: bool,
+}
+
+/// The view planes the fog table's `near`/`far` columns are fractions of. Not
+/// [`Camera::near`]/[`Camera::far`], which are ours and are set wider.
+const FOG_TABLE_NEAR_PLANE: f32 = 10.0;
+const FOG_TABLE_FAR_PLANE: f32 = 1500.0;
+
+fn fog_world_distance(fraction: f32, scale: f32) -> f32 {
+    (FOG_TABLE_NEAR_PLANE + fraction * (FOG_TABLE_FAR_PLANE - FOG_TABLE_NEAR_PLANE)) * scale
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -292,7 +303,8 @@ impl Renderer {
             screen_distortion,
             background_mode: BackgroundMode::default(),
             base_light: LightUniform::default(),
-            fog_scale: 240.0,
+            fog_entry: None,
+            fog_scale: 1.0,
             lightmap_enabled: true,
         }
     }
@@ -337,18 +349,37 @@ impl Renderer {
     }
 
     pub fn set_fog(&mut self, fog: Option<FogEntry>) {
-        let fog_uniform = match fog {
+        self.fog_entry = fog;
+        self.upload_fog();
+    }
+
+    /// Multiplies both fog distances, so a wider view than the original game's
+    /// does not sit entirely inside the fog. 1.0 is the original.
+    pub fn set_fog_scale(&mut self, scale: f32) {
+        self.fog_scale = scale.max(f32::EPSILON);
+        self.upload_fog();
+    }
+
+    fn upload_fog(&mut self) {
+        let scale = self.fog_scale;
+        let fog_uniform = match self.fog_entry {
             Some(entry) => FogUniform {
                 color: [entry.color[0], entry.color[1], entry.color[2], 1.0],
-                near: entry.near * self.fog_scale,
-                far: entry.far * self.fog_scale,
-                factor: entry.factor,
+                near: fog_world_distance(entry.near, scale),
+                far: fog_world_distance(entry.far, scale),
                 enabled: 1.0,
+                _pad: 0.0,
             },
             None => FogUniform::default(),
         };
         self.global_uniforms
             .update_fog(&self.device.queue, &fog_uniform);
+        self.sprite_renderer.set_fog(
+            &self.device.queue,
+            &fog_uniform,
+            self.camera.near,
+            self.camera.far,
+        );
     }
 
     pub fn load_map(
@@ -358,7 +389,6 @@ impl Renderer {
         grf: &GrfArchive,
         fog: Option<FogEntry>,
     ) {
-        self.fog_scale = 240.0 * gnd.zoom;
         self.set_fog(fog);
 
         let center_x = gnd.width as f32 * gnd.zoom / 2.0;
@@ -1033,6 +1063,61 @@ mod tests {
     #[test]
     fn background_mode_default_is_rsw_map() {
         assert_eq!(BackgroundMode::default(), BackgroundMode::RswMap);
+    }
+
+    #[test]
+    fn fog_table_fractions_map_onto_the_original_view_planes() {
+        assert_eq!(fog_world_distance(0.0, 1.0), 10.0);
+        assert_eq!(fog_world_distance(1.0, 1.0), 1500.0);
+        assert_eq!(fog_world_distance(0.2, 1.0), 308.0);
+        assert_eq!(fog_world_distance(0.8, 1.0), 1202.0);
+
+        assert_eq!(fog_world_distance(0.2, 2.0), 616.0);
+        assert_eq!(fog_world_distance(0.8, 2.0), 2404.0);
+    }
+
+    #[test]
+    fn every_shader_is_valid_wgsl() {
+        let shaders: [(&str, &str); 15] = [
+            ("sprite", SPRITE_SHADER_SRC),
+            ("terrain", include_str!("shaders/terrain.wgsl")),
+            ("model", include_str!("shaders/model.wgsl")),
+            ("model_animated", include_str!("shaders/model_animated.wgsl")),
+            ("gr2_model", include_str!("shaders/gr2_model.wgsl")),
+            ("water", include_str!("shaders/water.wgsl")),
+            ("ground_proxy", include_str!("shaders/ground_proxy.wgsl")),
+            ("grid_selector", include_str!("shaders/grid_selector.wgsl")),
+            ("ui", include_str!("shaders/ui.wgsl")),
+            (
+                "screen_distortion",
+                include_str!("shaders/screen_distortion.wgsl"),
+            ),
+            (
+                "effect_cylinder",
+                include_str!("shaders/effect_cylinder.wgsl"),
+            ),
+            ("effect_frustum", include_str!("shaders/effect_frustum.wgsl")),
+            (
+                "effect_fullscreen",
+                include_str!("shaders/effect_fullscreen.wgsl"),
+            ),
+            (
+                "effect_ground_disc",
+                include_str!("shaders/effect_ground_disc.wgsl"),
+            ),
+            ("effect_sphere", include_str!("shaders/effect_sphere.wgsl")),
+        ];
+
+        for (name, src) in shaders {
+            let module = naga::front::wgsl::parse_str(src)
+                .unwrap_or_else(|e| panic!("{name}.wgsl failed to parse: {}", e.emit_to_string(src)));
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .unwrap_or_else(|e| panic!("{name}.wgsl failed validation: {e:?}"));
+        }
     }
 
     #[test]

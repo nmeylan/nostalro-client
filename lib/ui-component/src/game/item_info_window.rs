@@ -10,7 +10,7 @@ use ragnarok_game::display_name::{
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::item::Item;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef, strip_color_codes, word_wrap};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 pub const ITEM_INFO_WINDOW_ID: WidgetId = WidgetId(1000);
@@ -743,6 +743,7 @@ fn build_info_window(
 
     let default_x = (ui.ctx.screen_width - win_w) / 2.0;
     let default_y = (ui.ctx.screen_height - win_h) / 2.0;
+    ui.ensure_in_z_order_with(ids.window, WindowOrder::Foreground);
     let win = ui.window_at(ids.window, win_w, win_h, container_h, default_x, default_y);
 
     let win_rect = Rect::new(win.x, win.y, win_w, win_h);

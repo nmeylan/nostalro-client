@@ -1,7 +1,7 @@
 use crate::Window;
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 pub const WARP_LIST_WINDOW_ID: WidgetId = WidgetId(4600);
@@ -134,6 +134,9 @@ impl WarpListWindow {
 
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
         ui.interact(OVERLAY_ID, screen);
+        ui.ensure_in_z_order_with(WARP_LIST_WINDOW_ID, WindowOrder::Foreground);
+        let win = ui.window_fixed(WARP_LIST_WINDOW_ID, WIN_W, win_h, dx, dy);
+        ui.interact(WARP_LIST_WINDOW_ID, win);
 
         if self.has_grf_textures {
             let (v, i) = draw::quad_vertices(dx, dy, WIN_W, win_h, [1.0, 1.0, 1.0, 1.0]);

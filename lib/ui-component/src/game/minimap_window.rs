@@ -1,7 +1,7 @@
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 pub const MINIMAP_WINDOW_ID: WidgetId = WidgetId(1600);
@@ -277,6 +277,7 @@ impl InGameWindow for MinimapWindow {
 
         let x = (ui.ctx.screen_width - MAP_AREA_SIZE - 2.0).max(0.0);
         let y = 2.0;
+        ui.ensure_in_z_order_with(MINIMAP_WINDOW_ID, WindowOrder::Foreground);
         ui.window_fixed(MINIMAP_WINDOW_ID, MAP_AREA_SIZE, MAP_AREA_SIZE, x, y);
 
         let win_rect = Rect::new(x, y, MAP_AREA_SIZE, MAP_AREA_SIZE);

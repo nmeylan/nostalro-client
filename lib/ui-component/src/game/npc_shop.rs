@@ -10,7 +10,7 @@ use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::npc_shop::{NpcShopData, NpcShopMode};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, RESIZE_HANDLE_TEX, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 pub const INPUT_WIN_ID: WidgetId = WidgetId(701);
@@ -273,6 +273,7 @@ impl NpcShop {
         let item_count = visible_indices.len();
         let visible = self.input_visible_rows.min(item_count).max(INPUT_MIN_ROWS);
 
+        ui.ensure_in_z_order_with(INPUT_WIN_ID, WindowOrder::Foreground);
         let win = ui.window_at(INPUT_WIN_ID, win_w, win_h, title_h, default_x, default_y);
         ui.interact(INPUT_WIN_ID, Rect::new(win.x, win.y, win_w, win_h));
 
@@ -464,6 +465,7 @@ impl NpcShop {
         let scrollbar_w = SCROLLBAR_W;
         let (btn_w, btn_h) = self.btn_size;
 
+        ui.ensure_in_z_order_with(OUTPUT_WIN_ID, WindowOrder::Foreground);
         let win = ui.window_at(OUTPUT_WIN_ID, win_w, win_h, title_h, default_x, default_y);
         ui.interact(OUTPUT_WIN_ID, Rect::new(win.x, win.y, win_w, win_h));
 
@@ -709,6 +711,7 @@ impl NpcShop {
         let (item_idx, dialog) = self.qty_popup.as_mut().unwrap();
         let item_idx = *item_idx;
         dialog.init_container(&self.container);
+        ui.ensure_in_z_order_with(dialog.win_id(), WindowOrder::Foreground);
 
         match dialog.build(ui) {
             InputDialogResult::Submitted => {
@@ -777,6 +780,7 @@ mod tests {
     use super::*;
     use crate::InGameWindow;
     use crate::game::minimap_window::MINIMAP_WINDOW_ID;
+    use crate::game::skill_tree_window::SKILL_WINDOW_ID;
     use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
@@ -977,6 +981,72 @@ mod tests {
         assert!(
             !frame(&mut state, &mut shop_ui, 600.0, 500.0),
             "the world stays reachable outside the shop"
+        );
+    }
+
+    #[test]
+    fn action_button_works_with_another_window_raised_behind() {
+        let mut shop_ui = NpcShop::new();
+        let mut state = StateCache::new();
+
+        let open_with_basket = |shop_ui: &mut NpcShop| {
+            shop_ui.shop.open_buy(
+                100,
+                vec![ShopBuyItem {
+                    item: Item {
+                        index: 0,
+                        item_id: 501,
+                        item_type: ItemType::Healing,
+                        count: 1,
+                        is_identified: true,
+                        is_damaged: false,
+                        refining_level: 0,
+                        slot: [0; 4],
+                        location: 0,
+                        wear_state: 0,
+                        name: "Red Potion".into(),
+                        resource_name: None,
+                    },
+                    price: 50,
+                    discount_price: 50,
+                }],
+            );
+            shop_ui.shop.add_to_basket(0, 1);
+        };
+
+        let frame = |state: &mut StateCache,
+                     shop_ui: &mut NpcShop,
+                     mx: f32,
+                     my: f32,
+                     clicked: bool|
+         -> Vec<GameEvent> {
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_x = mx;
+            ctx.mouse_y = my;
+            ctx.mouse_clicked = clicked;
+            let mut ui = make_frame(&ctx, state);
+            shop_ui.setup_modal(&mut ui);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            ui.window_at(SKILL_WINDOW_ID, 300.0, 300.0, 15.0, 500.0, 150.0);
+            shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+
+        open_with_basket(&mut shop_ui);
+        frame(&mut state, &mut shop_ui, 0.0, 0.0, false);
+
+        shop_ui.close();
+        frame(&mut state, &mut shop_ui, 750.0, 400.0, true);
+
+        open_with_basket(&mut shop_ui);
+        frame(&mut state, &mut shop_ui, 0.0, 0.0, false);
+
+        let events = frame(&mut state, &mut shop_ui, 587.0, 205.0, true);
+        assert!(
+            matches!(events.as_slice(), [GameEvent::RequestNpcShopBuy { .. }]),
+            "expected a buy request, got {events:?}"
         );
     }
 

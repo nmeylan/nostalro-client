@@ -35,8 +35,8 @@ pub struct FogUniform {
     pub color: [f32; 4],
     pub near: f32,
     pub far: f32,
-    pub factor: f32,
     pub enabled: f32,
+    pub _pad: f32,
 }
 
 impl Default for FogUniform {
@@ -45,8 +45,8 @@ impl Default for FogUniform {
             color: [0.0; 4],
             near: 0.0,
             far: 1.0,
-            factor: 0.0,
             enabled: 0.0,
+            _pad: 0.0,
         }
     }
 }
