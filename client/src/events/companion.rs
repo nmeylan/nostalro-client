@@ -12,15 +12,13 @@ const HOM_STATE_HUNGRY: i8 = 2;
 impl App {
     pub(super) fn handle_companion_state_changed(&mut self, state: i8, gid: u32, data: i32) {
         match state {
-            HOM_STATE_ACK => {
-                match &mut self.game.companions.homunculus {
-                    Some(h) => {
-                        h.gid = gid;
-                        h.vaporized = false;
-                    }
-                    None => self.game.companions.homunculus = Some(HomunculusState::new(gid)),
+            HOM_STATE_ACK => match &mut self.game.companions.homunculus {
+                Some(h) => {
+                    h.gid = gid;
+                    h.vaporized = false;
                 }
-            }
+                None => self.game.companions.homunculus = Some(HomunculusState::new(gid)),
+            },
             HOM_STATE_INTIMACY => {
                 if let Some(h) = &mut self.game.companions.homunculus {
                     h.intimacy = data as i16;
