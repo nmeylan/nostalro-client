@@ -118,6 +118,10 @@ impl AcidDemonEffect {
 }
 
 impl Effect for AcidDemonEffect {
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.world_pos = pos;
+    }
+
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age += ctx.delta * FRAMES_PER_SECOND;
         if self.process() >= TOTAL_FRAMES {
@@ -322,6 +326,20 @@ mod tests {
         let shake = e.take_camera_shake().expect("shake fires after frame 5");
         assert!(shake.amplitude > 0.0 && shake.duration_ms > 0);
         assert!(e.take_camera_shake().is_none(), "shake is one-shot");
+    }
+
+    #[test]
+    fn cones_follow_the_entity_while_it_moves() {
+        let mut e = AcidDemonEffect::new([0.0; 3]);
+        wake(&mut e);
+        step(&mut e, 25.0);
+        e.set_position([10.0, 1.0, -4.0]);
+        for p in frustums(&e) {
+            match p {
+                EffectPrimitiveDraw::Frustum { base, .. } => assert_eq!(base, [10.0, 1.0, -4.0]),
+                other => panic!("expected Frustum, got {other:?}"),
+            }
+        }
     }
 
     #[test]
