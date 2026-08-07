@@ -249,6 +249,9 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
 
         S::MgNapalmbeat
         | S::MgSoulstrike
+        | S::NpcDarkstrike
+        | S::NpcStop
+        | S::NpcWidesight
         | S::MgColdbolt
         | S::MgFrostdiver
         | S::MgStonecurse
@@ -265,6 +268,7 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::WzSightrasher
         | S::WzMeteor
         | S::WzJupitel
+        | S::NpcDarkthunder
         | S::WzVermilion
         | S::WzIcewall
         | S::WzSightblaster
@@ -426,6 +430,8 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
         | S::SlHunter
         | S::SlSoullinker
         | S::SlHigh => &[E::Bluecasting],
+
+        S::NpcUndeadattack => &[E::Darkcasting],
 
         _ => &[],
     }
@@ -638,6 +644,16 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::NpcDefender => C::cast(&[E::Deffender]),
         S::NpcPowerup => C::cast(&[E::Gumgangnpc]),
         S::NpcAgiup => C::cast(&[E::Agiup]),
+        S::NpcSuicide => C::cast(&[E::Suicide]),
+        S::NpcStoneskin => C::cast(&[E::Keeping]),
+        S::NpcAntimagic => C::cast(&[E::Guard3]),
+        S::NpcWidesight => C::cast(&[E::Sight]),
+        S::NpcWideconfuse => C::cast(&[E::Wideconfuse]),
+        S::NpcDragonfear => C::cast(&[E::Dragonfear]),
+        S::NpcWidebleeding => C::cast(&[E::Bleeding]),
+        S::NpcPulsestrike => C::cast(&[E::Soulbreaker2]),
+        S::NpcGranddarkness => C::cast(&[E::Grandcross2]),
+        S::NpcEarthquake => C::cast(&[E::NpcEarthquake]),
 
         _ => C::default(),
     }
@@ -945,6 +961,51 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
 
         S::NpcStop => T::on_target(&[E::NpcStop]),
         S::NpcWeaponbraker => T::on_target(&[E::Stripweapon]),
+        S::NpcDarkstrike => T {
+            before_hit: &[E::Soulstrike2],
+            ..Default::default()
+        },
+        S::NpcDarkthunder => T {
+            on_target: &[E::Yufitel],
+            hit: &[E::Yufitel2],
+            ..Default::default()
+        },
+        S::NpcWidefreeze => T::on_target(&[E::Stormgust]),
+        S::NpcWidesilence
+        | S::NpcWidestun
+        | S::NpcWidestone
+        | S::NpcWidesleep
+        | S::NpcWideconfuse => T::on_target(&[E::Darkcasting]),
+        S::NpcRangeattack => T::on_target(&[E::Spearbmr]),
+        S::NpcDarkcross => T::on_target(&[E::Holycross]),
+        S::NpcShieldbrake => T::on_target(&[E::Stripshield]),
+        S::NpcArmorbrake => T::on_target(&[E::Striparmor]),
+        S::NpcHelmbrake => T::on_target(&[E::Striphelm]),
+        S::NpcCriticalwound => T::on_target(&[E::Criticalwound]),
+        S::NpcSlowcast => T::on_target(&[E::NpcSlowcast]),
+        S::NpcExpulsion => T::on_target(&[E::Intimidate]),
+        S::NpcHelljudgement => T::hit(&[E::Devil]),
+        S::NpcMentalbreaker => T::hit(&[E::Mentalbreak]),
+        S::NpcMagicalattack => T::hit(&[E::Magicalatthit]),
+        S::NpcComboattack => T::hit(&[E::Comboattack1]),
+        S::NpcGuidedattack => T::hit(&[E::Guidedattack]),
+        S::NpcPoison => T::hit(&[E::Enchantpoison]),
+        S::NpcSilenceattack => T::hit(&[E::Silenceattack]),
+        S::NpcStunattack => T::hit(&[E::Stunattack]),
+        S::NpcPetrifyattack => T::hit(&[E::Petrifyattack]),
+        S::NpcCurseattack => T::hit(&[E::Curseattack]),
+        S::NpcSleepattack => T::hit(&[E::Sleepattack]),
+        S::NpcWaterattack => T::hit(&[E::Coldhit]),
+        S::NpcGroundattack => T::hit(&[E::Earthhit]),
+        S::NpcFireattack | S::NpcFirebreath => T::hit(&[E::Firehit]),
+        S::NpcWindattack => T::hit(&[E::Windhit]),
+        S::NpcPoisonattack => T::hit(&[E::Poisonattack]),
+        S::NpcHolyattack => T::hit(&[E::Holyhit]),
+        S::NpcDarknessattack => T::hit(&[E::Darkattack]),
+        S::NpcTelekinesisattack => T::hit(&[E::Telekhit]),
+        S::NpcBlooddrain => T::hit(&[E::Blooddrain]),
+        S::NpcEnergydrain => T::hit(&[E::Energydrain]),
+        S::NpcDarkbreath => T::hit(&[E::Darkbreath]),
 
         _ => T::default(),
     }
@@ -1603,6 +1664,50 @@ mod tests {
             [E::Hit1]
         );
         assert!(hit_markers(Some(S::TkStormkick), false, Novice).is_empty());
+    }
+
+    #[test]
+    fn mob_skills_get_their_own_cast_projectile_and_spark() {
+        use EffectId as E;
+        use JobName::Novice;
+        use SkillEnum as S;
+
+        assert_eq!(begin_cast_effect(S::NpcDarkstrike), &[E::Beginspell]);
+        assert_eq!(
+            target_skill_effects(S::NpcDarkstrike).before_hit,
+            &[E::Soulstrike2]
+        );
+        assert_eq!(
+            hit_markers(Some(S::NpcDarkstrike), false, Novice),
+            [E::Hit1]
+        );
+
+        assert_eq!(begin_cast_effect(S::NpcUndeadattack), &[E::Darkcasting]);
+        assert!(hit_markers(Some(S::NpcUndeadattack), false, Novice).is_empty());
+
+        // The elemental mob attacks drop the plain spark and keep only the
+        // elemental one; Darkness Attack shows both.
+        assert_eq!(
+            hit_markers(Some(S::NpcFireattack), false, Novice),
+            [E::Firehit]
+        );
+        assert_eq!(
+            hit_markers(Some(S::NpcDarknessattack), false, Novice),
+            [E::Hitdark, E::Darkattack]
+        );
+
+        let darkthunder = target_skill_effects(S::NpcDarkthunder);
+        assert_eq!(darkthunder.on_target, &[E::Yufitel]);
+        assert_eq!(darkthunder.hit, &[E::Yufitel2]);
+
+        assert_eq!(
+            target_skill_effects(S::NpcShieldbrake).on_target,
+            &[E::Stripshield]
+        );
+        assert_eq!(
+            caster_skill_effects(S::NpcPulsestrike).cast,
+            &[E::Soulbreaker2]
+        );
     }
 
     #[test]
