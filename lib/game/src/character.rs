@@ -216,6 +216,27 @@ impl Character {
         }
     }
 
+    /// Moves the acked add request off the inventory and onto my side of the deal.
+    /// The server never reports the deduction: it deletes silently on commit and
+    /// re-sends a pickup for every staged item on cancel.
+    pub fn commit_trade_add(&mut self) {
+        let Some((index, count)) = self.trade.take_pending_add() else {
+            return;
+        };
+        if index == crate::trade::TRADE_ZENY_INDEX {
+            self.trade.add_my_zeny(count as i64);
+            self.inventory.zeny = (self.inventory.zeny - count).max(0);
+            return;
+        }
+        let Some(src) = self.inventory.get_item(index) else {
+            return;
+        };
+        let mut item = src.clone();
+        item.count = count as i16;
+        self.trade.add_my_item(item);
+        self.inventory.subtract_item_count(index, count as i16);
+    }
+
     /// Char ids of item makers whose name we still need and may ask for now.
     pub fn pending_producer_names(&mut self, now_ms: u64) -> Vec<u32> {
         let mut char_ids: Vec<u32> = self
@@ -476,6 +497,65 @@ mod tests {
 
         assert_eq!(char.exp_gain_percentage(1500, true), 0.5);
         assert_eq!(char.exp_gain_percentage(1500, false), 1.5);
+    }
+
+    #[test]
+    fn staged_trade_item_leaves_the_inventory_and_frees_its_slot() {
+        use crate::data_table::item_name_table::ItemNameTable;
+        use crate::inventory::NormalItemData;
+        use models::enums::item::ItemType;
+        use std::collections::HashMap;
+
+        let names = HashMap::from([
+            (991u16, "Crystal Blue".to_string()),
+            (992u16, "Wind of Verdure".to_string()),
+        ]);
+        let mut data = crate::data_table::DataTable::default();
+        data.item_name = Some(ItemNameTable::from_entries(names.clone(), names));
+
+        let mut char = Character::new();
+        char.inventory.apply_normal_items(
+            vec![NormalItemData {
+                index: 5,
+                item_id: 991,
+                item_type: 3,
+                is_identified: true,
+                count: 20,
+                wear_state: 0,
+            }],
+            &data,
+        );
+
+        char.trade.begin("Bob".into(), 2000, 50, 50);
+        char.trade.set_pending_add(5, 20);
+        char.commit_trade_add();
+
+        assert_eq!(char.trade.my_items().len(), 1);
+        assert_eq!(char.trade.my_items()[0].item_id, 991);
+        assert!(
+            char.inventory.get_item(5).is_none(),
+            "the server deletes a traded item without telling us"
+        );
+
+        let (name, _, _) = char
+            .inventory
+            .apply_item_pickup(
+                5,
+                992,
+                157,
+                ItemType::Etc,
+                true,
+                false,
+                0,
+                [0; 4],
+                0,
+                0,
+                &data,
+                &char.char_names,
+            )
+            .unwrap();
+        assert_eq!(name, "Wind of Verdure");
+        assert_eq!(char.inventory.get_item(5).unwrap().count, 157);
     }
 
     #[test]

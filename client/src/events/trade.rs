@@ -2,7 +2,6 @@ use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::item::ItemType;
 use ragnarok_game::item::Item;
-use ragnarok_game::trade::TRADE_ZENY_INDEX;
 
 impl App {
     pub(super) fn handle_exchange_requested(&mut self, name: String, gid: u32, _level: i16) {
@@ -95,21 +94,11 @@ impl App {
     }
 
     pub(super) fn handle_exchange_add_result(&mut self, _index: u16, result: u8) {
-        let pending = self.game.character.trade.take_pending_add();
+        if result != 0 {
+            self.game.character.trade.take_pending_add();
+        }
         match result {
-            0 => {
-                if let Some((idx, cnt)) = pending {
-                    if idx == TRADE_ZENY_INDEX {
-                        self.game.character.trade.add_my_zeny(cnt as i64);
-                        self.game.character.inventory.zeny =
-                            (self.game.character.inventory.zeny - cnt).max(0);
-                    } else if let Some(src) = self.game.character.inventory.get_item(idx) {
-                        let mut item = src.clone();
-                        item.count = cnt as i16;
-                        self.game.character.trade.add_my_item(item);
-                    }
-                }
-            }
+            0 => self.game.character.commit_trade_add(),
             1 => self
                 .windows
                 .chat_window
