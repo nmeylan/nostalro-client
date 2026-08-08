@@ -279,8 +279,8 @@ pub fn make_effect(
             effects::body_buff::BodyBuffEffect::new(effects::body_buff::ENERGY_COAT)
                 .with_life_ms(duration_ms),
         ),
-        EffectId::Overthrust => Box::new(
-            effects::body_buff::BodyBuffEffect::new(effects::body_buff::OVERTHRUST)
+        EffectId::Makeblur => Box::new(
+            effects::body_buff::BodyBuffEffect::new(effects::body_buff::blur_params(hit_count))
                 .with_life_ms(duration_ms),
         ),
 
@@ -1816,7 +1816,9 @@ pub fn make_effect(
             effects::magic_bolt::ICE_ARROW,
         )),
 
-        EffectId::Sonicblow => Box::new(effects::overthrust::OverthrustEffect::new(anchor.point())),
+        EffectId::Sonicblow | EffectId::Overthrust => {
+            Box::new(effects::overthrust::OverthrustEffect::new(anchor.point()))
+        }
         EffectId::Callzone => Box::new(effects::callzone::CallzoneEffect::new(anchor.point())),
         EffectId::Groundsample => Box::new(effects::ground_sample::GroundSampleEffect::new(
             anchor.point(),

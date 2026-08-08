@@ -932,7 +932,13 @@ impl App {
             if !reaction.aura.is_empty() {
                 let key = self.next_entity_effect_key();
                 for &id in reaction.aura {
-                    self.effect_queue.spawn_on_keyed(id, gid, key);
+                    self.effect_queue.spawn_on_keyed_for_with_count(
+                        id,
+                        gid,
+                        key,
+                        0,
+                        reaction.aura_count,
+                    );
                 }
                 self.game.effect_keys.opt3_keys.insert((gid, bit), key);
             }
@@ -1032,8 +1038,13 @@ impl App {
         if active && !reaction.aura.is_empty() {
             let key = self.next_entity_effect_key();
             for &id in reaction.aura {
-                self.effect_queue
-                    .spawn_on_keyed_for(id, gid, key, remain_ms);
+                self.effect_queue.spawn_on_keyed_for_with_count(
+                    id,
+                    gid,
+                    key,
+                    remain_ms,
+                    reaction.aura_count,
+                );
             }
             self.game.effect_keys.status_buff_keys.insert(map_key, key);
         }
@@ -1128,7 +1139,7 @@ impl App {
             .map(|s| (s.efst, s.end_ms))
             .collect();
         for (efst, end_ms) in statuses {
-            let Some(aura) = persistent_aura(efst) else {
+            let Some((aura, aura_count)) = persistent_aura(efst) else {
                 continue;
             };
             let remain_ms = end_ms
@@ -1137,7 +1148,7 @@ impl App {
             let key = self.next_entity_effect_key();
             for &id in aura {
                 self.effect_queue
-                    .spawn_on_keyed_for(id, gid, key, remain_ms);
+                    .spawn_on_keyed_for_with_count(id, gid, key, remain_ms, aura_count);
             }
             self.game
                 .effect_keys

@@ -1170,7 +1170,7 @@ impl GuildWindow {
                 name_color,
             );
 
-            if is_master && !s.passive && s.upgradable {
+            if remaining > 0 && s.upgradable {
                 let up_rect = Rect::new(x + WIN_W - 76.0, row_y + 4.0, 18.0, 18.0);
                 let up = ui.button(
                     WidgetId(SKILL_UP_BASE + row as u32),
@@ -1181,7 +1181,7 @@ impl GuildWindow {
                 if up.hovered() {
                     ui.any_interactive_hovered = true;
                 }
-                if up.clicked() && remaining > 0 {
+                if up.clicked() {
                     self.adjust_pending(s.skid, 1);
                 }
             }
@@ -1426,6 +1426,60 @@ mod tests {
                 }
             )),
             "expected delete-relation event, got {events:?}"
+        );
+    }
+
+    #[test]
+    fn allocating_a_point_to_a_passive_guild_skill_requests_the_upgrade() {
+        let mut win = GuildWindow::new();
+        win.open();
+        win.tab = GuildTab::Skill;
+        let mut guild = Guild::default();
+        guild.gdid = 1;
+        guild.master_name = "Me".to_string();
+        guild.skill_point = 1;
+        guild.skills = vec![ragnarok_game::guild::GuildSkill {
+            skid: 10000,
+            name: "GD_APPROVAL".to_string(),
+            level: 0,
+            upgradable: true,
+            passive: true,
+            ..Default::default()
+        }];
+        let mut character = Character::new();
+        character.name = "Me".to_string();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        let win_x = 80.0;
+        let win_y = 50.0;
+        let content_y = win_y + TITLE_H + TAB_H;
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = win_x + WIN_W - 76.0 + 9.0;
+        ctx.mouse_y = content_y + 4.0 + 4.0 + 9.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
+        build_ctx.guild = Some(&guild);
+        build_ctx.local_gid = 1;
+        win.build(&mut ui, &mut build_ctx);
+        assert_eq!(win.skill_pending, vec![(10000, 1)]);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = win_x + WIN_W - 100.0 + 21.0;
+        ctx.mouse_y = content_y + CONTENT_H - 27.0 + 4.0 + 10.0;
+        ctx.mouse_clicked = true;
+        let mut ui = make_frame(&ctx, &mut state);
+        let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
+        build_ctx.guild = Some(&guild);
+        build_ctx.local_gid = 1;
+        let events = win.build(&mut ui, &mut build_ctx);
+
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestUpgradeGuildSkill { skid: 10000 })),
+            "expected upgrade event, got {events:?}"
         );
     }
 }

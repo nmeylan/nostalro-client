@@ -311,6 +311,7 @@ pub fn is_custom_bucket(id: EffectId) -> bool {
             | EffectId::Magicalbullet
             | EffectId::Magnum2
             | EffectId::Magnumbreak
+            | EffectId::Makeblur
             | EffectId::Maple
             | EffectId::Mappillar
             | EffectId::Mappillar2
@@ -623,7 +624,6 @@ pub fn is_noop_bucket(id: EffectId) -> bool {
             | EffectId::MadnessRed
             | EffectId::Magiccrasher
             | EffectId::Magiccrasher2
-            | EffectId::Makeblur
             | EffectId::Makeblur3
             | EffectId::Makeblur4
             | EffectId::Makeblur5

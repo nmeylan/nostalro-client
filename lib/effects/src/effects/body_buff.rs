@@ -17,6 +17,14 @@ pub struct Params {
     pub sfx: Option<&'static str>,
     pub afterimage: Option<Afterimage>,
     pub weapon_trail: bool,
+    /// Swapped in for `tint` on 1 frame out of `one_in`.
+    pub flicker: Option<Flicker>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Flicker {
+    pub tint: [u8; 3],
+    pub one_in: u32,
 }
 
 const QUICKEN_BLUR: Afterimage = Afterimage {
@@ -31,6 +39,7 @@ pub const TWOHAND_QUICKEN: Params = Params {
     sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: Some(QUICKEN_BLUR),
     weapon_trail: true,
+    flicker: None,
 };
 pub const SPEAR_QUICKEN: Params = Params {
     tint: [200, 200, 0],
@@ -38,6 +47,7 @@ pub const SPEAR_QUICKEN: Params = Params {
     sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: Some(QUICKEN_BLUR),
     weapon_trail: true,
+    flicker: None,
 };
 pub const LK_CONCENTRATION: Params = Params {
     tint: [255, 255, 160],
@@ -45,6 +55,7 @@ pub const LK_CONCENTRATION: Params = Params {
     sfx: Some("effect\\knight_twohandquicken.wav"),
     afterimage: None,
     weapon_trail: true,
+    flicker: None,
 };
 
 const BUNSIN_BLUR: Afterimage = Afterimage {
@@ -58,6 +69,7 @@ pub const BUNSINJYUTSU: Params = Params {
     sfx: None,
     afterimage: Some(BUNSIN_BLUR),
     weapon_trail: false,
+    flicker: None,
 };
 
 const ENERGY_COAT_BLUR: Afterimage = Afterimage {
@@ -71,6 +83,7 @@ pub const ENERGY_COAT: Params = Params {
     sfx: None,
     afterimage: Some(ENERGY_COAT_BLUR),
     weapon_trail: false,
+    flicker: None,
 };
 
 const OVERTHRUST_BLUR: Afterimage = Afterimage {
@@ -84,7 +97,31 @@ pub const OVERTHRUST: Params = Params {
     sfx: None,
     afterimage: Some(OVERTHRUST_BLUR),
     weapon_trail: true,
+    flicker: None,
 };
+
+pub const EXPLOSION_SPIRITS: Params = Params {
+    tint: [250, 200, 200],
+    str_name: None,
+    sfx: None,
+    afterimage: None,
+    weapon_trail: false,
+    flicker: Some(Flicker {
+        tint: [250, 250, 250],
+        one_in: 14,
+    }),
+};
+
+/// Which flavour an `EffectId::Makeblur` spawn carries, selected by its count.
+pub const BLUR_OVERTHRUST: u8 = 0;
+pub const BLUR_EXPLOSION_SPIRITS: u8 = 1;
+
+pub fn blur_params(count: Option<u8>) -> Params {
+    match count.unwrap_or(BLUR_OVERTHRUST) {
+        BLUR_EXPLOSION_SPIRITS => EXPLOSION_SPIRITS,
+        _ => OVERTHRUST,
+    }
+}
 
 pub const TEXTURES: &[&str] = &[];
 
@@ -93,6 +130,7 @@ pub struct BodyBuffEffect {
     age_frames: f32,
     sfx_pending: bool,
     life_frames: Option<f32>,
+    rng: u32,
 }
 
 impl BodyBuffEffect {
@@ -102,6 +140,7 @@ impl BodyBuffEffect {
             age_frames: 0.0,
             sfx_pending: true,
             life_frames: None,
+            rng: 0x9e37_79b9,
         }
     }
 
@@ -114,6 +153,7 @@ impl BodyBuffEffect {
 impl Effect for BodyBuffEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
         self.age_frames += ctx.delta * FPS;
+        self.rng = self.rng.wrapping_mul(1664525).wrapping_add(1013904223);
         if self.age_frames >= self.life_frames.unwrap_or(TOTAL_FRAMES) {
             EffectStatus::Dead
         } else {
@@ -128,9 +168,11 @@ impl Effect for BodyBuffEffect {
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
-        Some(BodyTint {
-            rgb: self.params.tint,
-        })
+        let rgb = match self.params.flicker {
+            Some(f) if (self.rng >> 16) % f.one_in == 0 => f.tint,
+            _ => self.params.tint,
+        };
+        Some(BodyTint { rgb })
     }
 
     fn body_afterimage(&self) -> Option<Afterimage> {
@@ -199,6 +241,28 @@ mod tests {
             ot.body_afterimage().is_some(),
             "overthrust sheds afterimages"
         );
+    }
+
+    #[test]
+    fn fury_blur_flickers_white_and_sheds_no_afterimages() {
+        let mut fury = BodyBuffEffect::new(blur_params(Some(BLUR_EXPLOSION_SPIRITS)));
+        assert!(fury.body_afterimage().is_none());
+
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..400 {
+            step(&mut fury, 1.0);
+            seen.insert(fury.body_tint().unwrap().rgb);
+        }
+        assert_eq!(
+            seen,
+            std::collections::HashSet::from([[250, 200, 200], [250, 250, 250]])
+        );
+
+        let mut steady = BodyBuffEffect::new(blur_params(None));
+        for _ in 0..400 {
+            step(&mut steady, 1.0);
+            assert_eq!(steady.body_tint().unwrap().rgb, OVERTHRUST.tint);
+        }
     }
 
     #[test]

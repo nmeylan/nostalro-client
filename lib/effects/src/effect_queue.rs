@@ -135,6 +135,17 @@ impl EffectQueue {
         key: u32,
         duration_ms: u32,
     ) {
+        self.spawn_on_keyed_for_with_count(effect_id, entity_id, key, duration_ms, None);
+    }
+
+    pub fn spawn_on_keyed_for_with_count(
+        &mut self,
+        effect_id: EffectId,
+        entity_id: u32,
+        key: u32,
+        duration_ms: u32,
+        hit_count: Option<u8>,
+    ) {
         let duration_ms = if duration_ms == 0 {
             u32::MAX
         } else {
@@ -143,6 +154,7 @@ impl EffectQueue {
         self.push(SpawnRequest {
             key: Some(key),
             override_duration_ms: Some(duration_ms),
+            hit_count,
             ..SpawnRequest::new(effect_id, Attach::Entity(entity_id))
         });
     }

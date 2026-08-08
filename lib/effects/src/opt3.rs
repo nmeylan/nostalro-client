@@ -1,6 +1,8 @@
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 
+use crate::effects::body_buff;
+
 pub const OPT3_QUICKEN: i32 = 0x0000_0001;
 pub const OPT3_OVERTHRUST: i32 = 0x0000_0002;
 pub const OPT3_ENERGYCOAT: i32 = 0x0000_0004;
@@ -49,6 +51,8 @@ const ALL_BITS: [i32; 18] = [
 pub struct Opt3Reaction {
     /// Relaunched for as long as the bit is set, despawned when it clears.
     pub aura: &'static [EffectId],
+    /// Which flavour the aura spawns with, for effects that have more than one.
+    pub aura_count: Option<u8>,
     /// Played once the moment the bit clears.
     pub on_clear: &'static [EffectId],
     /// Freezes the actor's motion and greys its sprite.
@@ -59,24 +63,30 @@ impl Opt3Reaction {
     const fn aura(aura: &'static [EffectId]) -> Self {
         Self {
             aura,
+            aura_count: None,
             on_clear: &[],
             grip: false,
+        }
+    }
+
+    const fn aura_with_count(aura: &'static [EffectId], count: u8) -> Self {
+        Self {
+            aura_count: Some(count),
+            ..Self::aura(aura)
         }
     }
 
     const fn aura_with_clear(aura: &'static [EffectId], on_clear: &'static [EffectId]) -> Self {
         Self {
-            aura,
             on_clear,
-            grip: false,
+            ..Self::aura(aura)
         }
     }
 
     const fn grip() -> Self {
         Self {
-            aura: &[],
-            on_clear: &[],
             grip: true,
+            ..Self::aura(&[])
         }
     }
 }
@@ -113,10 +123,13 @@ pub fn player_opt3_reaction(bit: i32) -> Option<Opt3Reaction> {
     use EffectId as E;
     let reaction = match bit {
         OPT3_QUICKEN => Opt3Reaction::aura(&[E::Twohandquicken]),
-        OPT3_OVERTHRUST => Opt3Reaction::aura(&[E::Overthrust]),
+        OPT3_OVERTHRUST => Opt3Reaction::aura(&[E::Makeblur]),
         OPT3_ENERGYCOAT => Opt3Reaction::aura(&[E::Energycoat]),
         OPT3_BUNSIN => Opt3Reaction::aura(&[E::Bunsinjyutsu]),
-        OPT3_EXPLOSIONSPIRITS => Opt3Reaction::aura(&[E::Gumgang]),
+        OPT3_EXPLOSIONSPIRITS => Opt3Reaction::aura_with_count(
+            &[E::Gumgang, E::Makeblur],
+            body_buff::BLUR_EXPLOSION_SPIRITS,
+        ),
         OPT3_STEELBODY => Opt3Reaction::aura(&[E::Steelbody]),
         OPT3_WARM => Opt3Reaction::aura(&[E::Doublegumgang, E::Redlightbody]),
         OPT3_KAITE => Opt3Reaction::aura(&[E::Reflectbody]),
@@ -197,6 +210,32 @@ mod tests {
         }
         assert_eq!(opt3_bit_for_icon(I::Bladestop), Some(OPT3_BLADESTOP));
         assert_eq!(opt3_bit_for_icon(I::Poisonreact), None);
+    }
+
+    #[test]
+    fn the_persistent_overthrust_body_is_a_silent_blur() {
+        use crate::sfx::effect_sound;
+        use crate::status_buff::status_reaction;
+        use ClientEffectIcon as I;
+
+        let bit = opt3_bit_for_icon(I::Overthrust).unwrap();
+        let from_opt3 = player_opt3_reaction(bit).unwrap().aura;
+        assert_eq!(from_opt3, &[EffectId::Makeblur]);
+        assert_eq!(status_reaction(I::Overthrustmax).unwrap().aura, from_opt3);
+
+        assert!(effect_sound(EffectId::Makeblur).is_none());
+        assert!(effect_sound(EffectId::Overthrust).is_some());
+    }
+
+    #[test]
+    fn fury_wears_the_blur_alongside_its_spheres() {
+        let fury = player_opt3_reaction(OPT3_EXPLOSIONSPIRITS).unwrap();
+        assert_eq!(fury.aura, &[EffectId::Gumgang, EffectId::Makeblur]);
+        assert_eq!(
+            fury.aura_count,
+            Some(body_buff::BLUR_EXPLOSION_SPIRITS),
+            "fury takes the flickering flavour, not over thrust's steady red"
+        );
     }
 
     #[test]

@@ -2,6 +2,7 @@ use models::enums::EnumWithNumberValue;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::effect_id::EffectId;
 
+use crate::effects::body_buff;
 use crate::sfx::SfxPos;
 
 /// A wave the status plays the moment it turns on.
@@ -26,6 +27,8 @@ pub enum StatusKind {
 pub struct StatusReaction {
     /// Re-launched for the whole duration and despawned when the status ends.
     pub aura: &'static [EffectId],
+    /// Which flavour the aura spawns with, for effects that have more than one.
+    pub aura_count: Option<u8>,
     /// Played once the moment the status turns on.
     pub on_activate: &'static [EffectId],
     /// Played once the moment the status turns off.
@@ -43,6 +46,7 @@ impl StatusReaction {
     const fn new() -> Self {
         Self {
             aura: &[],
+            aura_count: None,
             on_activate: &[],
             on_deactivate: &[],
             kind: StatusKind::Visual,
@@ -102,6 +106,13 @@ impl StatusReaction {
         }
     }
 
+    const fn aura_with_count(aura: &'static [EffectId], count: u8) -> Self {
+        Self {
+            aura_count: Some(count),
+            ..Self::aura(aura)
+        }
+    }
+
     const fn on_activate(ids: &'static [EffectId]) -> Self {
         Self {
             on_activate: ids,
@@ -141,12 +152,15 @@ pub fn status_reaction(efst: ClientEffectIcon) -> Option<StatusReaction> {
         I::NjBunsinjyutsu => StatusReaction::aura(&[E::Bunsinjyutsu]),
         I::Twohandquicken | I::Onehandquicken => StatusReaction::aura(&[E::Twohandquicken]),
         I::Spearquicken => StatusReaction::aura(&[E::Spearquicken]),
-        I::Overthrust | I::Overthrustmax => StatusReaction::aura(&[E::Overthrust]),
+        I::Overthrust | I::Overthrustmax => StatusReaction::aura(&[E::Makeblur]),
         I::Magicpower => StatusReaction::aura(&[E::Lightblade]),
         I::Aurablade => StatusReaction::aura(&[E::Aurablade2]),
         I::Kaite => StatusReaction::aura(&[E::Reflectbody]),
         I::Soullink => StatusReaction::aura(&[E::Asurabody]).with_night_filter(),
-        I::Explosionspirits => StatusReaction::aura(&[E::Gumgang]),
+        I::Explosionspirits => StatusReaction::aura_with_count(
+            &[E::Gumgang, E::Makeblur],
+            body_buff::BLUR_EXPLOSION_SPIRITS,
+        ),
         I::SgSunWarm => StatusReaction::aura(&[E::Doublegumgang, E::Redlightbody]),
         I::Mindbreaker => StatusReaction::on_activate(&[E::Magiccrasher2]),
         I::Ting => StatusReaction::on_activate(&[E::Quakebody]).with_sound(
@@ -178,15 +192,15 @@ pub const EFST_SG_STAR_WARM: i16 = 167;
 /// The auras a status keeps alive for its whole duration, resolved from either
 /// reaction table. They outlive an effect-queue wipe, so a map change has to
 /// re-launch them from the statuses still running.
-pub fn persistent_aura(efst: i16) -> Option<&'static [EffectId]> {
+pub fn persistent_aura(efst: i16) -> Option<(&'static [EffectId], Option<u8>)> {
     status_reaction_by_efst(efst)
         .or_else(|| {
             ClientEffectIcon::try_from_value(efst as usize)
                 .ok()
                 .and_then(status_reaction)
         })
-        .map(|reaction| reaction.aura)
-        .filter(|aura| !aura.is_empty())
+        .map(|reaction| (reaction.aura, reaction.aura_count))
+        .filter(|(aura, _)| !aura.is_empty())
 }
 
 pub fn status_reaction_by_efst(efst: i16) -> Option<StatusReaction> {
@@ -250,10 +264,9 @@ mod tests {
         use ClientEffectIcon as I;
         use EffectId as E;
 
-        assert_eq!(
-            status_reaction(I::Explosionspirits).unwrap().aura,
-            &[E::Gumgang]
-        );
+        let fury = status_reaction(I::Explosionspirits).unwrap();
+        assert_eq!(fury.aura, &[E::Gumgang, E::Makeblur]);
+        assert_eq!(fury.aura_count, Some(body_buff::BLUR_EXPLOSION_SPIRITS));
         assert_eq!(
             status_reaction_by_efst(EFST_MOON).unwrap().aura,
             &[E::Spherewind2]
@@ -302,7 +315,7 @@ mod tests {
         let persistent: &[(I, &[EffectId])] = &[
             (I::Berserk, &[EffectId::Redbody]),
             (I::Steelbody, &[EffectId::Steelbody]),
-            (I::Overthrust, &[EffectId::Overthrust]),
+            (I::Overthrust, &[EffectId::Makeblur]),
             (I::Spearquicken, &[EffectId::Spearquicken]),
             (I::Onehandquicken, &[EffectId::Twohandquicken]),
             (I::Twohandquicken, &[EffectId::Twohandquicken]),
@@ -348,15 +361,15 @@ mod tests {
 
         assert_eq!(
             persistent_aura(I::Berserk.value() as i16),
-            Some(&[EffectId::Redbody][..])
+            Some((&[EffectId::Redbody][..], None))
         );
         assert_eq!(
             persistent_aura(I::Twohandquicken.value() as i16),
-            Some(&[EffectId::Twohandquicken][..])
+            Some((&[EffectId::Twohandquicken][..], None))
         );
         assert_eq!(
             persistent_aura(EFST_MOON),
-            Some(&[EffectId::Spherewind2][..])
+            Some((&[EffectId::Spherewind2][..], None))
         );
         assert_eq!(persistent_aura(EFST_SKE), None);
         assert_eq!(persistent_aura(I::Adrenaline.value() as i16), None);
