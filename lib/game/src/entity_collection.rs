@@ -291,7 +291,7 @@ impl EntityCollection {
         if let Some(entity) = self.entities.get_mut(&target_gid) {
             entity.state = EntityState::Standing;
             entity.state_timer = 0.0;
-            entity.cast_total_duration = 0.0;
+            entity.clear_cast();
             entity.active_skill_id = None;
         }
     }

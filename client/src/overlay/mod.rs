@@ -1,6 +1,6 @@
 use crate::App;
 use ragnarok_game::cursor::RenderEntry;
-use ragnarok_game::entity::{Entity, EntityCategory, EntityState, EntityType};
+use ragnarok_game::entity::{Entity, EntityCategory, EntityType};
 use ragnarok_game::sprite_path::JT_HIDDEN_NPC;
 use ragnarok_game::targeting::{GM_TEXT_COLOR, pk_name_color};
 use ragnarok_renderer::{UiDrawCall, UiTextureRef};
@@ -372,13 +372,11 @@ impl App {
             if (self.config.display.show_other_cast_bars
                 || self.game.world.entities.is_player(entry.id))
                 && let Some(entity) = self.game.world.entities.get(entry.id)
-                && entity.state == EntityState::Casting
-                && entity.cast_total_duration > 0.0
+                && let Some(progress) = entity.cast_progress()
                 && !entity
                     .active_skill_id
                     .is_some_and(|id| casting_skill(SkillEnum::from_id(id as u32)).hide_cast_bar)
             {
-                let progress = 1.0 - (entity.state_timer / entity.cast_total_duration);
                 let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
                 render_bar(
                     entry.screen_anchor[0],

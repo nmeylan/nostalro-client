@@ -823,6 +823,9 @@ pub enum GameEvent {
     RequestDepositItem {
         index: u16,
     },
+    RequestWithdrawItem {
+        index: u16,
+    },
     RequestMoveItemStoreToBody {
         index: u16,
         count: i16,

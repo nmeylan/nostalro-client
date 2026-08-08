@@ -4,6 +4,7 @@ use std::rc::Rc;
 use crate::config::WindowStateEntry;
 use crate::ui::windows::Windows;
 use models::enums::effect_id::EffectId;
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use ragnarok_formats::map_coordinates::MapCoordinates;
@@ -24,7 +25,7 @@ use ragnarok_game::day_night::DayNightState;
 use ragnarok_game::doridori::DoridoriTracker;
 use ragnarok_game::effect::EffectQueue;
 use ragnarok_game::effects::AmbientEffectScheduler;
-use ragnarok_game::entity::ChatBubbleState;
+use ragnarok_game::entity::{ChatBubbleState, EntityState};
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
@@ -537,6 +538,9 @@ pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
 /// Item id of the Token of Siegfried, which enables standing resurrection.
 pub(crate) const TOKEN_OF_SIEGFRIED: u16 = 7621;
 
+/// First id of the guild skill block, which no cast-time relief covers.
+const GUILD_SKILL_ID_BASE: u16 = 10000;
+
 impl GameState {
     /// Resolves a skill's cast metadata `(target type, attack range)` from the
     /// player's skills first, then the mercenary's, then the homunculus'.
@@ -561,6 +565,29 @@ impl GameState {
             .item_skills
             .get(skill_id)
             .map(|s| (s.skill_target_type, s.attack_range))
+    }
+
+    /// Whether the running cast pins the player in place. Free Cast releases the
+    /// pin for everything but guild skills, which is the same condition the
+    /// server applies to a move request, so the two never disagree.
+    pub fn casting_blocks_action(&self) -> bool {
+        let Some(player) = self.world.entities.player() else {
+            return false;
+        };
+        if player.state != EntityState::Casting {
+            return false;
+        }
+        if self
+            .character
+            .skills
+            .get_skill(SkillEnum::SaFreecast.id() as u16)
+            .is_none()
+        {
+            return true;
+        }
+        player
+            .active_skill_id
+            .is_some_and(|id| id >= GUILD_SKILL_ID_BASE)
     }
 
     /// A castable skill's internal name (`ALL_RESURRECTION`), searched in the
@@ -778,6 +805,54 @@ mod cart_option_tests {
         let mut game = with_player(0);
         assert_eq!(game.player_cart_from_option(), None);
         assert_eq!(game.character.cart_design, None);
+    }
+}
+
+#[cfg(test)]
+mod free_cast_tests {
+    use super::*;
+    use ragnarok_game::entity::Entity;
+    use ragnarok_game::event::SkillInfo;
+
+    fn casting_player(skill_id: u16) -> GameState {
+        let mut game = GameState::new();
+        let mut player = Entity::new_player(1000, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0);
+        player.enter_casting(2.0, skill_id);
+        game.world.entities.set_player_id(1000);
+        game.world.entities.insert(player);
+        game
+    }
+
+    fn learn_free_cast(game: &mut GameState) {
+        game.character.skills.apply_skill_list(vec![SkillInfo {
+            id: SkillEnum::SaFreecast.id() as u16,
+            name: "SA_FREECAST".to_string(),
+            level: 5,
+            sp_cost: 0,
+            attack_range: 0,
+            upgradable: false,
+            skill_target_type: SkillTargetType::Passive,
+        }]);
+    }
+
+    #[test]
+    fn free_cast_releases_the_cast_pin_except_for_guild_skills() {
+        let mut game = casting_player(SkillEnum::MgFirebolt.id() as u16);
+        assert!(game.casting_blocks_action());
+
+        learn_free_cast(&mut game);
+        assert!(!game.casting_blocks_action());
+
+        let mut guild_cast = casting_player(SkillEnum::GdBattleorder.id() as u16);
+        learn_free_cast(&mut guild_cast);
+        assert!(guild_cast.casting_blocks_action());
+    }
+
+    #[test]
+    fn a_player_who_is_not_casting_is_never_pinned() {
+        let mut game = casting_player(SkillEnum::MgFirebolt.id() as u16);
+        game.world.entities.apply_skill_cast_cancel(1000);
+        assert!(!game.casting_blocks_action());
     }
 }
 

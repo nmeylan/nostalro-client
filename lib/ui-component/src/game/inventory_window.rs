@@ -425,14 +425,8 @@ impl InGameWindow for InventoryWindow {
                     }
                 }
             } else if source_id == super::storage_window::STORAGE_WINDOW_ID {
-                let count = character
-                    .storage
-                    .get_item(item_index as u16)
-                    .map(|i| i.count)
-                    .unwrap_or(1);
-                events.push(GameEvent::RequestMoveItemStoreToBody {
+                events.push(GameEvent::RequestWithdrawItem {
                     index: item_index as u16,
-                    count,
                 });
             }
         }

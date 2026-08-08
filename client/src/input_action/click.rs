@@ -34,8 +34,13 @@ impl App {
             self.dispel_autocounter();
             return;
         }
-        if let Some(entity) = self.game.world.entities.player()
-            && matches!(entity.state, EntityState::Casting | EntityState::SkillExec)
+        if self.game.casting_blocks_action()
+            || self
+                .game
+                .world
+                .entities
+                .player()
+                .is_some_and(|e| e.state == EntityState::SkillExec)
         {
             return;
         }

@@ -43,14 +43,13 @@ impl App {
             return;
         }
 
-        if let Some(player) = self.game.world.entities.player()
-            && matches!(
-                player.state,
-                EntityState::Casting
-                    | EntityState::SkillExec
-                    | EntityState::Dead
-                    | EntityState::Sitting
-            )
+        if self.game.casting_blocks_action()
+            || self.game.world.entities.player().is_some_and(|player| {
+                matches!(
+                    player.state,
+                    EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
+                )
+            })
         {
             self.game.combat.attack_target_id = None;
             return;
@@ -98,17 +97,16 @@ impl App {
             if matches!(
                 player_state,
                 EntityState::Standing | EntityState::ReadyFight
-            ) {
+            ) || (player_state == EntityState::Casting && !self.game.casting_blocks_action())
+            {
                 self.send_attack_packet(target_id);
                 self.game.combat.attack_request_cooldown = 0.3;
             }
-        } else if let Some(player) = self.game.world.entities.player()
+        } else if !self.game.casting_blocks_action()
+            && let Some(player) = self.game.world.entities.player()
             && !matches!(
                 player.state,
-                EntityState::Casting
-                    | EntityState::SkillExec
-                    | EntityState::Dead
-                    | EntityState::Sitting
+                EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
             )
         {
             self.try_move_toward(target_pos.0 as i32, target_pos.1 as i32, px, py, range);

@@ -4289,6 +4289,23 @@ mod tests {
     }
 
     #[test]
+    fn autospell_list_reads_every_int32_slot() {
+        let packetver = 20120307;
+        // 0x1cd: header(2) + 7 int32 slots, zeroed where the caster does not
+        // qualify.
+        let mut wire = vec![0xcdu8, 0x01];
+        for skill_id in [11i32, 14, 19, 20, 0, 0, 0] {
+            wire.extend_from_slice(&skill_id.to_le_bytes());
+        }
+        let pkt = PacketZcAutospelllist::from(&wire, packetver);
+        let events = dispatch_packet(&pkt, packetver);
+        match &events[0] {
+            GameEvent::AutoSpellList { skill_ids } => assert_eq!(skill_ids, &vec![11, 14, 19, 20]),
+            other => panic!("expected AutoSpellList, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn dispatch_stopmove_returns_entity_stop_move() {
         let packetver = 20120307;
         let mut pkt = PacketZcStopmove::new(packetver);

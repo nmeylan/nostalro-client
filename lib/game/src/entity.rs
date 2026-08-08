@@ -294,6 +294,10 @@ pub struct Entity {
     pub speed: u16,
     pub state: EntityState,
     pub state_timer: f32,
+    /// Cast countdown, tracked apart from `state_timer` because a cast outlives
+    /// the casting pose: Free Cast walks the caster away while the bar keeps
+    /// filling.
+    pub cast_remaining: f32,
     pub cast_total_duration: f32,
     pub animation_duration: Option<f32>,
     pub animation_start_frame: Option<usize>,
@@ -426,6 +430,7 @@ impl Entity {
             speed,
             state: EntityState::Standing,
             state_timer: 0.0,
+            cast_remaining: 0.0,
             cast_total_duration: 0.0,
             animation_duration: None,
             animation_start_frame: None,
@@ -563,6 +568,13 @@ impl Entity {
             }
         }
 
+        if self.cast_remaining > 0.0 {
+            self.cast_remaining -= dt;
+            if self.cast_remaining <= 0.0 {
+                self.clear_cast();
+            }
+        }
+
         if self.state == EntityState::Dead {
             return;
         }
@@ -686,8 +698,19 @@ impl Entity {
         self.movement.stop();
         self.state = EntityState::Casting;
         self.state_timer = duration_secs;
+        self.cast_remaining = duration_secs;
         self.cast_total_duration = duration_secs;
         self.active_skill_id = Some(skill_id);
+    }
+
+    pub fn clear_cast(&mut self) {
+        self.cast_remaining = 0.0;
+        self.cast_total_duration = 0.0;
+    }
+
+    pub fn cast_progress(&self) -> Option<f32> {
+        (self.cast_total_duration > 0.0)
+            .then(|| 1.0 - (self.cast_remaining / self.cast_total_duration))
     }
 
     pub fn enter_skill_exec(&mut self, duration_secs: f32, skill_id: u16, hit_count: u16) {
@@ -704,6 +727,7 @@ impl Entity {
     pub fn enter_dead(&mut self) {
         self.state = EntityState::Dead;
         self.state_timer = 0.0;
+        self.clear_cast();
         self.forced_animation = None;
         self.movement.stop();
         self.pending_death = false;
@@ -1648,6 +1672,27 @@ mod tests {
         e.enter_casting(2.0, 0);
         assert!(!e.movement.is_moving());
         assert_eq!(e.cast_total_duration, 2.0);
+    }
+
+    #[test]
+    fn walking_away_mid_cast_keeps_the_cast_running() {
+        let mut e = make_entity();
+        e.enter_casting(1.0, 0);
+
+        e.begin_move(
+            vec![
+                make_path_node(101, 100, false),
+                make_path_node(102, 100, false),
+            ],
+            0.0,
+        );
+        e.update_state(0.5);
+        assert_eq!(e.state, EntityState::Moving);
+        assert_eq!(e.cast_progress(), Some(0.5));
+
+        e.update_state(0.6);
+        assert_eq!(e.state, EntityState::Moving);
+        assert_eq!(e.cast_progress(), None);
     }
 
     #[test]

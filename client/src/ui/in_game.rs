@@ -118,6 +118,21 @@ pub fn build_in_game_ui(
         }
     }
 
+    let withdraw_intents: Vec<u16> = events
+        .iter()
+        .filter_map(|e| match e {
+            GameEvent::RequestWithdrawItem { index } => Some(*index),
+            _ => None,
+        })
+        .collect();
+    if !withdraw_intents.is_empty() {
+        events.retain(|e| !matches!(e, GameEvent::RequestWithdrawItem { .. }));
+        for index in withdraw_intents {
+            let withdraw = windows.storage_window.begin_withdraw(ctx.character, index);
+            events.extend(withdraw);
+        }
+    }
+
     windows.hotkey_bar.chat_is_active = windows.chat_window.is_active();
     windows.hotkey_bar.companion_skills.clear();
     if let Some(m) = ctx.mercenary {

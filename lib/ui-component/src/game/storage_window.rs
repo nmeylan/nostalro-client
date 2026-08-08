@@ -287,7 +287,7 @@ impl InGameWindow for StorageWindow {
         }
 
         let mut drag_index: Option<(u16, Option<String>)> = None;
-        let mut withdraw: Option<(u16, i16)> = None;
+        let mut withdraw: Option<u16> = None;
         for row in 0..self.rows {
             let item_idx = self.scroll_offset + row;
             let ry = container_y + row as f32 * ROW_H;
@@ -357,14 +357,14 @@ impl InGameWindow for StorageWindow {
                 drag_index = Some((item.index, item.icon_path()));
             }
             if resp.right_clicked() || resp.double_clicked() {
-                withdraw = Some((item.index, item.count));
+                withdraw = Some(item.index);
             }
         }
         if let Some((index, icon)) = drag_index {
             ui.drag_source(STORAGE_WINDOW_ID, index as usize, icon, (ICON, ICON));
         }
-        if let Some((index, count)) = withdraw {
-            events.extend(self.begin_withdraw(character, index, count));
+        if let Some(index) = withdraw {
+            events.extend(self.begin_withdraw(character, index));
         }
 
         // --- Drop zone: deposit from inventory / cart ---
@@ -579,6 +579,51 @@ mod tests {
         );
         assert!(!character.storage.is_open());
     }
+
+    #[test]
+    fn withdrawing_a_stack_opens_dialog_then_sends_entered_count() {
+        let mut win = StorageWindow::new();
+        let mut character = open_storage_with_potion();
+        character.storage.add_item(Item {
+            index: 6,
+            item_id: 501,
+            item_type: ItemType::Healing,
+            count: 10,
+            is_identified: true,
+            is_damaged: false,
+            refining_level: 0,
+            slot: [0; 4],
+            location: 0,
+            wear_state: 0,
+            name: "Red Potion".into(),
+            resource_name: None,
+        });
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+
+        let events = win.begin_withdraw(&character, 6);
+        assert!(
+            events.is_empty(),
+            "a stack withdraw must open the dialog, not move immediately: {events:?}"
+        );
+        assert!(win.qty_dialog.is_some(), "quantity dialog should be open");
+
+        win.qty_dialog.as_mut().unwrap().1.set_input_text("4");
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.key_enter = true;
+        let events = {
+            let mut ui = make_frame(&ctx, &mut state);
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                GameEvent::RequestMoveItemStoreToBody { index: 6, count: 4 }
+            )),
+            "submitting the dialog withdraws the entered count: {events:?}"
+        );
+        assert!(win.qty_dialog.is_none());
+    }
 }
 
 impl StorageWindow {
@@ -603,12 +648,11 @@ impl StorageWindow {
 
     /// Withdraw would create a new inventory slot but the player is already at
     /// the 100-distinct-item cap: refuse client-side like the original game.
-    fn begin_withdraw(&mut self, character: &Character, index: u16, count: i16) -> Vec<GameEvent> {
-        let item_id = character
-            .storage
-            .get_item(index)
-            .map(|i| i.item_id)
-            .unwrap_or(0);
+    pub fn begin_withdraw(&mut self, character: &Character, index: u16) -> Vec<GameEvent> {
+        let Some(item) = character.storage.get_item(index) else {
+            return Vec::new();
+        };
+        let (item_id, count) = (item.item_id, item.count);
         let creates_new_slot = !character
             .inventory
             .all_items()
