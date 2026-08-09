@@ -477,6 +477,7 @@ impl App {
             .sprite_caches
             .gr2_models
             .insert(gid, Gr2ModelInstance::new(pose, clips));
+        self.apply_guild_emblem_to_model(gid);
     }
 
     pub(crate) fn remove_gr2_model(&mut self, gid: u32) {

@@ -25,7 +25,7 @@ pub use effect_queue::{
 };
 pub use effect_trait::{
     Afterimage, BodyAction, BodyCopy, BodyTint, BodyVertical, CameraShake, CameraView, Effect,
-    EffectRenderCtx, EffectUpdateCtx, NumberRequest,
+    EffectRenderCtx, EffectUpdateCtx, NumberRequest, WeaponLight,
 };
 pub use factory::make_effect;
 pub use opt3::{

@@ -49,6 +49,7 @@ impl Effect for Ef4wayBodyEffect {
                     alpha,
                     additive: false,
                     behind: true,
+                    body_layers_only: false,
                 })
                 .collect(),
         )

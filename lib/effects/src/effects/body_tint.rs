@@ -428,6 +428,7 @@ impl Effect for BodyTintEffect {
                 alpha,
                 additive: true,
                 behind: false,
+                body_layers_only: false,
             }]);
         }
 
@@ -447,6 +448,7 @@ impl Effect for BodyTintEffect {
                 alpha,
                 additive: true,
                 behind: false,
+                body_layers_only: false,
             };
             return Some(vec![copy, copy]);
         }
@@ -463,6 +465,7 @@ impl Effect for BodyTintEffect {
                 alpha: 160.0 / 255.0,
                 additive: true,
                 behind: false,
+                body_layers_only: false,
             };
             return Some(vec![copy, copy]);
         }
@@ -478,6 +481,7 @@ impl Effect for BodyTintEffect {
                     alpha: self.params.glow,
                     additive: true,
                     behind: false,
+                    body_layers_only: false,
                 });
             }
         }
@@ -491,6 +495,7 @@ impl Effect for BodyTintEffect {
                 alpha: halo.alpha,
                 additive: false,
                 behind: true,
+                body_layers_only: false,
             });
         }
         (!copies.is_empty()).then_some(copies)

@@ -1430,12 +1430,13 @@ impl EntitySprite {
             depth,
             scale,
             depth_gradient,
+            ragnarok_effects::WeaponLight::None,
             false,
         )
     }
 
-    /// `build_batches`, optionally adding one additive draw of the weapon layer
-    /// over its normal one. The glow keeps the weapon's slot in the layer order.
+    /// `build_batches`, with the weapon layer optionally lit and the weapon and
+    /// shield optionally dropped. A lit weapon keeps its slot in the layer order.
     #[allow(clippy::too_many_arguments)]
     fn build_layers(
         &self,
@@ -1446,7 +1447,8 @@ impl EntitySprite {
         depth: f32,
         scale: f32,
         depth_gradient: [f32; 2],
-        weapon_glow: bool,
+        weapon_light: ragnarok_effects::WeaponLight,
+        body_layers_only: bool,
     ) -> Vec<SpriteBatch<'_>> {
         let action_idx = match camera_dir {
             Some(dir) => animation.action_index(&self.body_act, dir),
@@ -1470,7 +1472,9 @@ impl EntitySprite {
         let shield_behind = effective_dir > 1 && effective_dir < 6;
 
         let mut shield_batches = Vec::new();
-        if let Some(shield_tex) = &self.shield_textures {
+        if let Some(shield_tex) = &self.shield_textures
+            && !body_layers_only
+        {
             for (mut vertices, indices, tex_idx) in clips.shield {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 shield_batches.push(SpriteBatch {
@@ -1558,10 +1562,13 @@ impl EntitySprite {
                 });
             }
         }
-        if let Some(weapon_tex) = &self.weapon_textures {
+        if let Some(weapon_tex) = &self.weapon_textures
+            && !body_layers_only
+        {
+            use ragnarok_effects::WeaponLight;
             for (mut vertices, indices, tex_idx) in clips.weapon {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
-                if weapon_glow {
+                if weapon_light == WeaponLight::Spark {
                     batches.push(SpriteBatch {
                         vertices: vertices.clone(),
                         indices: indices.clone(),
@@ -1574,12 +1581,14 @@ impl EntitySprite {
                     vertices,
                     indices,
                     texture: &weapon_tex.bind_groups[tex_idx],
-                    additive: weapon_glow,
+                    additive: weapon_light != WeaponLight::None,
                     no_depth: false,
                 });
             }
         }
-        if let Some(trail_tex) = &self.weapon_trail_textures {
+        if let Some(trail_tex) = &self.weapon_trail_textures
+            && !body_layers_only
+        {
             for (mut vertices, indices, tex_idx) in clips.weapon_trail {
                 scale_clip_vertices(&mut vertices, screen_anchor, scale, depth_gradient);
                 batches.push(SpriteBatch {
@@ -1743,8 +1752,10 @@ pub struct BodyChannels {
     pub angle: f32,
     pub squeeze: f32,
     pub additive: bool,
-    /// Draw the weapon layer a second time, additively, over its normal draw.
-    pub weapon_glow: bool,
+    pub weapon_light: ragnarok_effects::WeaponLight,
+    /// Screen pixels per `BodyCopy::margin_px` unit — `400 / camera distance`,
+    /// so a copy's outline keeps its share of the sprite at any zoom.
+    pub copy_margin_scale: f32,
     pub copies: Vec<ragnarok_effects::BodyCopy>,
 }
 
@@ -1761,7 +1772,8 @@ impl Default for BodyChannels {
             angle: 0.0,
             squeeze: 1.0,
             additive: false,
-            weapon_glow: false,
+            weapon_light: ragnarok_effects::WeaponLight::None,
+            copy_margin_scale: 1.0,
             copies: Vec::new(),
         }
     }
@@ -1841,6 +1853,41 @@ fn apply_tint_alpha(batches: &mut [SpriteBatch], tint: Option<[u8; 3]>, alpha: f
     }
 }
 
+/// Pushes every edge of each clip out by `margin` screen pixels, so the whole
+/// silhouette gains an even outline instead of stretching about a shared centre.
+fn grow_clips(batches: &mut [SpriteBatch], margin: f32, depth_gradient: [f32; 2]) {
+    if margin == 0.0 {
+        return;
+    }
+    for batch in batches {
+        grow_clip(&mut batch.vertices, margin, depth_gradient);
+    }
+}
+
+fn grow_clip(vertices: &mut [SpriteVertex], margin: f32, depth_gradient: [f32; 2]) {
+    let (mut min, mut max) = ([f32::MAX; 2], [f32::MIN; 2]);
+    for v in vertices.iter() {
+        for axis in 0..2 {
+            min[axis] = min[axis].min(v.position[axis]);
+            max[axis] = max[axis].max(v.position[axis]);
+        }
+    }
+    let (w, h) = (max[0] - min[0], max[1] - min[1]);
+    if w <= 0.0 || h <= 0.0 {
+        return;
+    }
+    let (cx, cy) = ((min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5);
+    let (sx, sy) = ((w + 2.0 * margin) / w, (h + 2.0 * margin) / h);
+    for v in vertices {
+        let x = cx + (v.position[0] - cx) * sx;
+        let y = cy + (v.position[1] - cy) * sy;
+        v.position[2] +=
+            depth_gradient[0] * (x - v.position[0]) + depth_gradient[1] * (y - v.position[1]);
+        v.position[0] = x;
+        v.position[1] = y;
+    }
+}
+
 /// Moves the four edges of the composed body independently, remapping every
 /// vertex into the jittered box. Equal offsets on opposite edges translate;
 /// unequal ones stretch.
@@ -1898,7 +1945,8 @@ pub fn compose_actor_batches<'a>(
         depth,
         scale,
         depth_gradient,
-        channels.weapon_glow,
+        channels.weapon_light,
+        false,
     );
     let (body_center, body_w, body_h) = batches_bbox(&live)
         .map(|(min, max)| {
@@ -1911,7 +1959,7 @@ pub fn compose_actor_batches<'a>(
         .unwrap_or((anchor, 1.0, 1.0));
 
     let build_copy = |copy: &ragnarok_effects::BodyCopy| {
-        let mut batches = sprite.build_batches(
+        let mut batches = sprite.build_layers(
             animation,
             Some(dir),
             head_dir,
@@ -1919,25 +1967,31 @@ pub fn compose_actor_batches<'a>(
             depth,
             scale,
             depth_gradient,
+            ragnarok_effects::WeaponLight::None,
+            copy.body_layers_only,
         );
-        let scale_xy = if copy.margin_px != 0.0 {
-            [
-                (body_w + 2.0 * copy.margin_px) / body_w,
-                (body_h + 2.0 * copy.margin_px) / body_h,
-            ]
-        } else if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
-            let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
-            [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
+        if copy.margin_px != 0.0 {
+            grow_clips(
+                &mut batches,
+                copy.margin_px * channels.copy_margin_scale,
+                depth_gradient,
+            );
         } else {
-            copy.scale
-        };
-        transform_batch_vertices_with_depth(
-            &mut batches,
-            body_center,
-            0.0,
-            scale_xy,
-            depth_gradient,
-        );
+            let scale_xy =
+                if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
+                    let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
+                    [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
+                } else {
+                    copy.scale
+                };
+            transform_batch_vertices_with_depth(
+                &mut batches,
+                body_center,
+                0.0,
+                scale_xy,
+                depth_gradient,
+            );
+        }
         if copy.offset_px != [0.0, 0.0] {
             let offset_dz =
                 depth_gradient[0] * copy.offset_px[0] + depth_gradient[1] * copy.offset_px[1];
@@ -2084,6 +2138,41 @@ mod tests {
         // The old bug: body stuck on frame 0 while the head turned -> big gap.
         let (ox, oy) = attachment_offset(&body[0], &head[1]);
         assert!(ox.abs() > 10 || oy.abs() > 10);
+    }
+
+    /// The halo copies of a body grow clip by clip, so a small head sprite and a
+    /// tall body sprite each gain the same outline instead of the whole rig
+    /// being stretched about one shared centre.
+    #[test]
+    fn body_copy_margin_outlines_each_clip_by_the_same_pixels() {
+        let quad = |x0: f32, y0: f32, x1: f32, y1: f32| {
+            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+                .map(|(x, y)| SpriteVertex {
+                    position: [x, y, 0.0],
+                    tex_coord: [0.0, 0.0],
+                    color: [1.0; 4],
+                })
+                .to_vec()
+        };
+        let bounds = |v: &[SpriteVertex]| {
+            let xs: Vec<f32> = v.iter().map(|v| v.position[0]).collect();
+            let ys: Vec<f32> = v.iter().map(|v| v.position[1]).collect();
+            [
+                xs.iter().cloned().fold(f32::MAX, f32::min),
+                ys.iter().cloned().fold(f32::MAX, f32::min),
+                xs.iter().cloned().fold(f32::MIN, f32::max),
+                ys.iter().cloned().fold(f32::MIN, f32::max),
+            ]
+        };
+
+        let mut head = quad(90.0, 10.0, 110.0, 30.0);
+        let mut body = quad(80.0, 30.0, 120.0, 130.0);
+        for clip in [&mut head, &mut body] {
+            grow_clip(clip, 5.0, [0.0, 0.0]);
+        }
+
+        assert_eq!(bounds(&head), [85.0, 5.0, 115.0, 35.0]);
+        assert_eq!(bounds(&body), [75.0, 25.0, 125.0, 135.0]);
     }
 
     #[test]

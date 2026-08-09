@@ -1,7 +1,9 @@
 //! Multi-render body lights — `Reflectbody` (419), `Assumptio` (375), `Lightblade` (382), `Undeadbody` (655).
 
 use crate::draw::{EffectDrawList, EffectStatus};
-use crate::effect_trait::{BodyCopy, BodyVertical, Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{
+    BodyCopy, BodyVertical, Effect, EffectRenderCtx, EffectUpdateCtx, WeaponLight,
+};
 
 const FPS: f32 = 60.0;
 
@@ -48,15 +50,8 @@ pub struct Params {
     undead: Option<UndeadAura>,
     /// When set, overrides the static copy fields.
     pulse: Option<DoublePulse>,
-    /// Extra additive draw of the weapon layer.
-    weapon_glow: Option<WeaponGlow>,
+    weapon_light: WeaponLight,
     total_frames: f32,
-}
-
-#[derive(Clone, Copy)]
-struct WeaponGlow {
-    /// Skip every other frame, so the blade pulses instead of holding.
-    alternate: bool,
 }
 
 impl Params {
@@ -76,7 +71,7 @@ pub const REFLECTBODY: Params = Params {
     body_alpha: 150.0 / 255.0,
     ripple: Some(Ripple {
         count: 4,
-        step: 10.0,
+        step: 5.0,
         wrap: 20.0,
         speed: 0.1,
         alpha_base: 100.0,
@@ -84,7 +79,7 @@ pub const REFLECTBODY: Params = Params {
     }),
     undead: None,
     pulse: None,
-    weapon_glow: None,
+    weapon_light: WeaponLight::None,
     total_frames: 120.0,
 };
 
@@ -100,12 +95,12 @@ pub const ASSUMPTIO: Params = Params {
     ripple: None,
     undead: None,
     pulse: Some(DoublePulse {
-        base_px: 8.0,
-        amp_px: 2.0,
-        period_frames: 180.0,
+        base_px: 5.0,
+        amp_px: 1.5,
+        period_frames: 90.0,
         tint: [255, 255, 255],
     }),
-    weapon_glow: None,
+    weapon_light: WeaponLight::None,
     total_frames: 120.0,
 };
 
@@ -123,7 +118,7 @@ pub const LIGHTBLADE: Params = Params {
     ripple: None,
     undead: None,
     pulse: None,
-    weapon_glow: Some(WeaponGlow { alternate: true }),
+    weapon_light: WeaponLight::Spark,
     total_frames: 120.0,
 };
 
@@ -131,7 +126,7 @@ pub const LIGHTBLADE: Params = Params {
 /// lights the weapon only — the body halo and blue cast belong to the separate
 /// path the original uses for monsters and NPCs.
 pub const LIGHTSWORD: Params = Params {
-    weapon_glow: Some(WeaponGlow { alternate: false }),
+    weapon_light: WeaponLight::Glow,
     ..LIGHTBLADE
 };
 
@@ -147,13 +142,13 @@ pub const UNDEADBODY: Params = Params {
     ripple: None,
     undead: Some(UndeadAura {
         count: 2,
-        margin_unit: 5.0,
+        margin_unit: 1.0,
         tint: [5, 155, 5],
         ramp_frames: 200.0,
         max_alpha: 200.0 / 255.0,
     }),
     pulse: None,
-    weapon_glow: None,
+    weapon_light: WeaponLight::None,
     total_frames: 240.0,
 };
 
@@ -200,10 +195,10 @@ impl Effect for MultiBodyEffect {
         })
     }
 
-    fn body_weapon_glow(&self) -> bool {
-        match self.params.weapon_glow {
-            Some(g) => !g.alternate || (self.age_frames as u32) % 2 == 0,
-            None => false,
+    fn body_weapon_light(&self) -> WeaponLight {
+        match self.params.weapon_light {
+            WeaponLight::Spark if (self.age_frames as u32) % 2 != 0 => WeaponLight::None,
+            light => light,
         }
     }
 
@@ -233,6 +228,7 @@ impl Effect for MultiBodyEffect {
                 alpha,
                 additive: self.params.additive,
                 behind: self.params.behind,
+                body_layers_only: false,
             });
         }
         (!copies.is_empty()).then_some(copies)
@@ -252,6 +248,7 @@ impl MultiBodyEffect {
                 alpha,
                 additive: true,
                 behind: false,
+                body_layers_only: false,
             })
             .collect()
     }
@@ -268,6 +265,7 @@ impl MultiBodyEffect {
             alpha: 1.0,
             additive: true,
             behind: true,
+            body_layers_only: true,
         }
     }
 
@@ -289,6 +287,7 @@ impl MultiBodyEffect {
                     alpha,
                     additive: false,
                     behind: true,
+                    body_layers_only: false,
                 })
             })
             .collect()
@@ -311,7 +310,7 @@ mod tests {
     fn reflectbody_ripples_outward_with_a_fading_alpha() {
         let e = MultiBodyEffect::new(REFLECTBODY);
         let copies = e.body_copies().expect("ghosts");
-        assert!(copies.len() >= 3, "several concentric ghosts");
+        assert_eq!(copies.len(), 4, "every ring survives the 20px wrap");
         assert!(copies.iter().all(|c| !c.additive), "alpha-blended ghosts");
         assert!(
             copies
@@ -336,18 +335,18 @@ mod tests {
         let a = assumptio.body_copies().expect("halo");
         assert_eq!(a.len(), 1);
         assert!(
-            a[0].additive && a[0].behind && a[0].scale == [1.0, 1.0] && a[0].margin_px >= 5.0,
-            "additive margin glow behind"
+            a[0].additive && a[0].behind && a[0].scale == [1.0, 1.0] && a[0].body_layers_only,
+            "additive margin glow behind, sparing the weapon"
         );
+        assert!((a[0].margin_px - 5.0).abs() < 1e-4, "5px at the trough");
 
-        let base = a[0].margin_px;
-        step(&mut assumptio, 90.0);
+        step(&mut assumptio, 45.0);
         let peak = assumptio.body_copies().unwrap()[0].margin_px;
-        step(&mut assumptio, 90.0);
+        assert!((peak - 6.5).abs() < 1e-3, "6.5px at the crest");
+        step(&mut assumptio, 45.0);
         let back = assumptio.body_copies().unwrap()[0].margin_px;
-        assert!(peak > base, "margin grows toward the peak");
         assert!(
-            (back - base).abs() < 0.1,
+            (back - 5.0).abs() < 0.1,
             "margin returns to base over a cycle"
         );
     }
@@ -355,16 +354,24 @@ mod tests {
     #[test]
     fn sword_lights_touch_the_weapon_only_and_the_spark_skips_every_other_frame() {
         let mut spark = MultiBodyEffect::new(LIGHTBLADE);
-        assert!(spark.body_weapon_glow());
+        assert_eq!(spark.body_weapon_light(), WeaponLight::Spark);
         step(&mut spark, 1.0);
-        assert!(!spark.body_weapon_glow(), "skips every other frame");
+        assert_eq!(
+            spark.body_weapon_light(),
+            WeaponLight::None,
+            "skips every other frame"
+        );
         step(&mut spark, 1.0);
-        assert!(spark.body_weapon_glow());
+        assert_eq!(spark.body_weapon_light(), WeaponLight::Spark);
 
         let mut glow = MultiBodyEffect::new(LIGHTSWORD);
-        assert!(glow.body_weapon_glow());
+        assert_eq!(glow.body_weapon_light(), WeaponLight::Glow);
         step(&mut glow, 1.0);
-        assert!(glow.body_weapon_glow(), "held every frame");
+        assert_eq!(
+            glow.body_weapon_light(),
+            WeaponLight::Glow,
+            "held every frame"
+        );
 
         // Neither touches the actor: no halo, no tint, no dimming.
         for e in [&spark, &glow] {
@@ -393,8 +400,9 @@ mod tests {
                 .iter()
                 .all(|c| c.additive && !c.behind && c.tint == [5, 155, 5])
         );
-        assert!(
-            early[1].margin_px > early[0].margin_px,
+        assert_eq!(
+            [early[0].margin_px, early[1].margin_px],
+            [1.0, 2.0],
             "concentric expansion"
         );
         let early_alpha = early[0].alpha;

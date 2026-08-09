@@ -90,6 +90,15 @@ impl App {
             .as_ref()
             .map(|r| r.camera.distance)
             .unwrap_or(ragnarok_renderer::camera::DEFAULT_DISTANCE);
+        // Body copies track the zoom target, not the eased distance, so a halo
+        // reaches its new width the moment the wheel moves.
+        let copy_margin_scale = 400.0
+            / self
+                .renderer
+                .as_ref()
+                .map(|r| r.camera.dest_distance)
+                .unwrap_or(ragnarok_renderer::camera::DEFAULT_DISTANCE)
+                .max(1.0);
 
         // TODO refactor
         if !self.game.world.freeze_shatters.is_empty() {
@@ -196,6 +205,7 @@ impl App {
 
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.copy_margin_scale = copy_margin_scale;
                         body_channels.scale *=
                             ragnarok_game::sprite_path::baby_body_scale(entity.job);
                         if let Some(rgb) = ailment::ailment_visual(
@@ -612,6 +622,7 @@ impl App {
                         }
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.copy_margin_scale = copy_margin_scale;
                         body_channels.alpha *= entity.alpha();
                         body_channels.light = self.actor_light(entity.movement.position());
 
@@ -654,6 +665,7 @@ impl App {
                         }
                         let mut body_channels =
                             self.effect_holder.body_channels_for_entity(entry.id);
+                        body_channels.copy_margin_scale = copy_margin_scale;
                         body_channels.alpha *= entity.alpha();
                         body_channels.light = self.actor_light(entity.movement.position());
 

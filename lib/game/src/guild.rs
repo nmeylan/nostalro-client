@@ -8,6 +8,11 @@ pub fn emblem_texture_key(gdid: u32, version: i32) -> String {
     format!("__guild_emblem_{gdid}_{version}")
 }
 
+/// The same emblem uploaded for the guild flag's 3D model, which samples sRGB.
+pub fn emblem_model_texture_key(gdid: u32, version: i32) -> String {
+    format!("__guild_emblem_model_{gdid}_{version}")
+}
+
 pub fn validate_emblem_bmp(bmp: &[u8]) -> Result<(), String> {
     const MAX_LEN: usize = 1782;
     if bmp.len() < 54 {

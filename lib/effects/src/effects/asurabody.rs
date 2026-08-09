@@ -56,6 +56,7 @@ impl Effect for AsuraBodyEffect {
                 alpha,
                 additive: true,
                 behind: false,
+                body_layers_only: false,
             });
         }
         (!copies.is_empty()).then_some(copies)

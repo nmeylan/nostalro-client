@@ -1435,6 +1435,7 @@ impl App {
                         .entities
                         .apply_entity_guild_changed(aid, gdid, emblem_version);
                     self.request_entity_guild_emblem(gdid, emblem_version);
+                    self.apply_guild_emblem_to_models(gdid, emblem_version);
                 }
                 GameEvent::GuildDisbandResult { reason } => {
                     self.handle_guild_disband_result(reason);

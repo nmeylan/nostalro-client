@@ -250,6 +250,7 @@ impl App {
 
     pub(super) fn handle_guild_emblem(&mut self, gdid: u32, version: i32, bmp: Vec<u8>) {
         let key = ragnarok_game::guild::emblem_texture_key(gdid, version);
+        let model_key = ragnarok_game::guild::emblem_model_texture_key(gdid, version);
         if let Some(renderer) = self.renderer.as_mut()
             && renderer.texture_cache.texture_size(&key).is_none()
         {
@@ -269,14 +270,63 @@ impl App {
                         ragnarok_renderer::wgpu::AddressMode::ClampToEdge,
                     );
                     renderer.texture_cache.insert(&key, bg, w, h);
+                    let model_bg = ragnarok_renderer::gr2_model::create_emblem_bind_group(
+                        &renderer.device.device,
+                        &renderer.device.queue,
+                        rgba.as_raw(),
+                        w,
+                        h,
+                        &renderer.texture_cache,
+                        &model_key,
+                    );
+                    renderer.texture_cache.insert(&model_key, model_bg, w, h);
                 }
                 None => tracing::warn!("Failed to decode guild emblem for guild {gdid}"),
             }
         }
+        self.apply_guild_emblem_to_models(gdid, version);
 
         if let Some(guild) = self.game.guild.as_mut().filter(|g| g.gdid == gdid) {
             guild.emblem_version = version;
             guild.emblem_bmp = Some(bmp);
+        }
+    }
+
+    /// Paint a guild's emblem onto every one of its loaded flag models. The
+    /// emblem image and the flag's guild ownership arrive in either order, so
+    /// this runs from both sides.
+    pub(crate) fn apply_guild_emblem_to_models(&mut self, gdid: u32, version: i32) {
+        let flags: Vec<u32> = self
+            .game
+            .world
+            .entities
+            .iter()
+            .filter(|e| e.guild_id == gdid && e.guild_emblem_version == version)
+            .map(|e| e.id)
+            .collect();
+        for gid in flags {
+            self.apply_guild_emblem_to_model(gid);
+        }
+    }
+
+    /// No-op unless `gid` is drawn as a model with an emblem slot and its
+    /// guild's emblem is already decoded.
+    pub(crate) fn apply_guild_emblem_to_model(&mut self, gid: u32) {
+        let Some(entity) = self.game.world.entities.get(gid) else {
+            return;
+        };
+        let key = ragnarok_game::guild::emblem_model_texture_key(
+            entity.guild_id,
+            entity.guild_emblem_version,
+        );
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        let Some(bind_group) = renderer.texture_cache.get(&key).cloned() else {
+            return;
+        };
+        if let Some(model) = renderer.gr2_models.get_mut(&gid) {
+            model.set_emblem_texture(bind_group);
         }
     }
 

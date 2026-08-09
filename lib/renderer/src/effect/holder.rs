@@ -751,8 +751,9 @@ impl EffectHolder {
                     *acc += v;
                 }
             }
-            if c.body_weapon_glow() {
-                ch.weapon_glow = true;
+            match c.body_weapon_light() {
+                ragnarok_effects::WeaponLight::None => {}
+                light => ch.weapon_light = light,
             }
             if let Some(t) = c.body_tint() {
                 ch.tint = Some(t.rgb);

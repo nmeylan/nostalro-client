@@ -57,12 +57,26 @@ pub struct BodyVertical {
 pub struct BodyCopy {
     pub offset_px: [f32; 2],
     pub scale: [f32; 2],
-    /// Margin added symmetrically on every edge in screen pixels (on top of `scale`).
+    /// Margin added to every edge of every sprite clip, in screen pixels at a
+    /// 400-unit camera distance. Closer cameras widen it proportionally.
     pub margin_px: f32,
     pub tint: [u8; 3],
     pub alpha: f32,
     pub additive: bool,
     pub behind: bool,
+    /// Skip the weapon and shield layers, so only the actor itself glows.
+    pub body_layers_only: bool,
+}
+
+/// How an effect lights the weapon layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum WeaponLight {
+    #[default]
+    None,
+    /// An extra additive draw over the normal one, on every other frame.
+    Spark,
+    /// Drawn additively instead of normally, held every frame.
+    Glow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -119,8 +133,8 @@ pub trait Effect: Send {
 
     /// One extra additive draw of the weapon layer, over its normal draw, this
     /// frame.
-    fn body_weapon_glow(&self) -> bool {
-        false
+    fn body_weapon_light(&self) -> WeaponLight {
+        WeaponLight::None
     }
 
     fn body_afterimage(&self) -> Option<Afterimage> {

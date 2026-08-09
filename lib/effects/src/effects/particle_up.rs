@@ -259,6 +259,7 @@ impl Effect for ParticleUpEffect {
             alpha: (alpha_255 / 255.0).clamp(0.0, 1.0),
             additive: true,
             behind: false,
+            body_layers_only: false,
         };
         Some(vec![copy, copy])
     }

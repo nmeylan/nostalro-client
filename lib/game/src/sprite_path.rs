@@ -11,6 +11,17 @@ pub const JT_HIDDEN_NPC: u16 = 111;
 pub const JT_HIDDEN_WARP_NPC: u16 = 139;
 pub const JT_INVISIBLE: u16 = 32767;
 
+pub const JT_ARCHER_GUARDIAN: u16 = 1285;
+pub const JT_KNIGHT_GUARDIAN: u16 = 1286;
+pub const JT_SOLDIER_GUARDIAN: u16 = 1287;
+
+pub fn is_guardian(job: u16) -> bool {
+    matches!(
+        job,
+        JT_ARCHER_GUARDIAN | JT_KNIGHT_GUARDIAN | JT_SOLDIER_GUARDIAN
+    )
+}
+
 pub const SKILL_UNIT_JOB_MIN: u16 = 126;
 pub const SKILL_UNIT_JOB_MAX: u16 = 201;
 
@@ -975,6 +986,16 @@ mod tests {
         for (job, expected) in cases {
             assert_eq!(entity_category_from_job(job), expected, "job {job}");
         }
+    }
+
+    #[test]
+    fn only_castle_guardians_are_guardians() {
+        assert!(is_guardian(JT_ARCHER_GUARDIAN));
+        assert!(is_guardian(JT_KNIGHT_GUARDIAN));
+        assert!(is_guardian(JT_SOLDIER_GUARDIAN));
+        // Emperium and the castle flag.
+        assert!(!is_guardian(1288));
+        assert!(!is_guardian(722));
     }
 
     #[test]

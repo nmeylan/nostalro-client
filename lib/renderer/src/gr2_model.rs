@@ -51,6 +51,39 @@ pub struct Gr2Geometry {
     pub size: [f32; 3],
 }
 
+/// Index of the model's emblem texture slot, swapped at runtime for the owning
+/// guild's emblem. Only the guild flag has one.
+pub fn emblem_texture_index(file: &Gr2File) -> Option<usize> {
+    file.textures
+        .iter()
+        .position(|t| t.from_file_name.to_ascii_lowercase().contains("emblem"))
+}
+
+/// Upload an emblem for `set_emblem_texture`, matching how the model's own
+/// embedded textures are uploaded.
+pub fn create_emblem_bind_group(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    texture_cache: &TextureCache,
+    label: &str,
+) -> wgpu::BindGroup {
+    create_texture_bind_group_from_rgba(
+        device,
+        queue,
+        rgba,
+        width,
+        height,
+        &texture_cache.bind_group_layout,
+        label,
+        wgpu::FilterMode::Linear,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        wgpu::AddressMode::ClampToEdge,
+    )
+}
+
 pub fn build_gr2_geometry(file: &Gr2File, model_index: usize) -> Option<Gr2Geometry> {
     let model = file.models.get(model_index)?;
     let skeleton = file.skeletons.get(model.skeleton_index?)?;
@@ -63,6 +96,7 @@ pub fn build_gr2_geometry(file: &Gr2File, model_index: usize) -> Option<Gr2Geome
 
     let mut vertices: Vec<Gr2ModelVertex> = Vec::new();
     let mut per_texture: HashMap<usize, Vec<u32>> = HashMap::new();
+    let emblem_index = emblem_texture_index(file);
 
     for &mi in &model.mesh_indices {
         let mesh = file.meshes.get(mi)?;
@@ -95,11 +129,10 @@ pub fn build_gr2_geometry(file: &Gr2File, model_index: usize) -> Option<Gr2Geome
         // the banner's centerline; recenter its bind-pose X span on the model's
         // symmetry axis. Emblem-textured meshes are the only ones nudged.
         let is_emblem_mesh = !topo.groups.is_empty()
-            && topo.groups.iter().all(|g| {
-                file.textures
-                    .get(group_texture(g))
-                    .is_some_and(|t| t.from_file_name.to_ascii_lowercase().contains("emblem"))
-            });
+            && topo
+                .groups
+                .iter()
+                .all(|g| Some(group_texture(g)) == emblem_index);
         let x_shift = if is_emblem_mesh {
             let (min, max) = vd
                 .vertices
@@ -191,6 +224,7 @@ pub struct Gr2ModelRenderer {
     bone_buffer: wgpu::Buffer,
     skin_bind_group: wgpu::BindGroup,
     bone_count: usize,
+    emblem_texture_index: Option<usize>,
     /// Bind-pose bounding-box center/size in model space (before the instance
     /// transform), for camera framing.
     pub center: [f32; 3],
@@ -336,6 +370,7 @@ impl Gr2ModelRenderer {
             bone_buffer,
             skin_bind_group,
             bone_count,
+            emblem_texture_index: emblem_texture_index(file),
             center: geometry.center,
             size: geometry.size,
         })
@@ -345,12 +380,17 @@ impl Gr2ModelRenderer {
         self.bone_count
     }
 
-    /// Replace the texture of slot `index` (indices match `Gr2File::textures`).
-    /// Used to swap the guild flag's embedded default emblem for a real one.
-    pub fn set_texture(&mut self, index: usize, bind_group: wgpu::BindGroup) {
-        if let Some(slot) = self.textures.get_mut(index) {
-            *slot = bind_group;
-        }
+    /// Swap the guild flag's embedded default emblem for a real one. Returns
+    /// false when the model has no emblem slot.
+    pub fn set_emblem_texture(&mut self, bind_group: wgpu::BindGroup) -> bool {
+        let Some(slot) = self
+            .emblem_texture_index
+            .and_then(|i| self.textures.get_mut(i))
+        else {
+            return false;
+        };
+        *slot = bind_group;
+        true
     }
 
     pub fn set_transform(&self, queue: &wgpu::Queue, matrix: glam::Mat4) {
@@ -506,6 +546,7 @@ mod tests {
         assert_eq!(g.batches.len(), 1);
         assert_eq!(g.bone_count, 18);
         assert_eq!(g.batches[0], (0, 0, 414));
+        assert_eq!(emblem_texture_index(&file), None);
         for v in &g.vertices {
             let sum: u32 = v.bone_weights.iter().map(|&w| w as u32).sum();
             assert_eq!(sum, 255, "weights must sum to 1");
@@ -526,11 +567,7 @@ mod tests {
             return;
         };
         let g = build_gr2_geometry(&file, 0).expect("geometry");
-        let emblem_tex = file
-            .textures
-            .iter()
-            .position(|t| t.from_file_name.to_ascii_lowercase().contains("emblem"))
-            .expect("emblem texture");
+        let emblem_tex = emblem_texture_index(&file).expect("emblem texture");
         let &(_, start, count) = g
             .batches
             .iter()

@@ -111,16 +111,6 @@ fn apply_emblem_override(
     queue: &wgpu::Queue,
     texture_cache: &TextureCache,
 ) {
-    let Some(index) = scene
-        .assets
-        .file
-        .textures
-        .iter()
-        .position(|t| t.from_file_name.to_ascii_lowercase().contains("emblem"))
-    else {
-        eprintln!("model has no emblem texture slot");
-        return;
-    };
     let bytes = match std::fs::read(image_path) {
         Ok(b) => b,
         Err(e) => {
@@ -139,20 +129,20 @@ fn apply_emblem_override(
     if image_path.to_ascii_lowercase().ends_with(".bmp") {
         ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
     }
-    let bind_group = ragnarok_renderer::texture::create_texture_bind_group_from_rgba(
+    let bind_group = ragnarok_renderer::gr2_model::create_emblem_bind_group(
         device,
         queue,
         rgba.as_raw(),
         rgba.width(),
         rgba.height(),
-        &texture_cache.bind_group_layout,
+        texture_cache,
         "gr2_viewer_emblem",
-        wgpu::FilterMode::Linear,
-        wgpu::TextureFormat::Rgba8UnormSrgb,
-        wgpu::AddressMode::ClampToEdge,
     );
-    scene.renderer.set_texture(index, bind_group);
-    eprintln!("emblem override: {image_path} -> texture slot {index}");
+    if scene.renderer.set_emblem_texture(bind_group) {
+        eprintln!("emblem override: {image_path}");
+    } else {
+        eprintln!("model has no emblem texture slot");
+    }
 }
 
 impl Scene {
