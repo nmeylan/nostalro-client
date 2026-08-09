@@ -121,14 +121,24 @@ impl App {
     }
 
     pub(super) fn handle_whisper_ack(&mut self, result: u8) {
+        let sent = self.game.pending_confirms.pending_whisper_out.take();
         let text = match result {
-            0 => return,
+            0 => {
+                if let Some((name, message)) = sent {
+                    self.windows.chat_window.add_whisper_out(name, message);
+                }
+                return;
+            }
             1 => "The target character is not logged in.",
             2 => "The target character is ignoring whispers.",
             3 => "The target character is ignoring everyone.",
             _ => "Failed to send whisper.",
         };
-        self.windows.chat_window.add_error(text.to_string());
+        let text = match sent {
+            Some((name, _)) => format!("({name}) {text}"),
+            None => text.to_string(),
+        };
+        self.windows.chat_window.add_error(text);
     }
 
     pub(super) fn handle_exp_gained(

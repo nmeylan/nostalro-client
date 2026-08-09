@@ -2637,7 +2637,7 @@ impl App {
                         &message,
                         self.active_packetver,
                     ));
-                    self.windows.chat_window.add_whisper_out(name, message);
+                    self.game.pending_confirms.pending_whisper_out = Some((name, message));
                 }
                 GameEvent::ToggleShortcutList => {
                     if !self.windows.shortcut_list_window.is_open() {

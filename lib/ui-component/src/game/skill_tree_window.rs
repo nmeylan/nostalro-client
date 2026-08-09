@@ -567,6 +567,9 @@ mod tests {
             ),
             "expected a single level-up request, got {events:?}"
         );
-        assert!(!ui.is_dragging(), "the + button must not start a skill drag");
+        assert!(
+            !ui.is_dragging(),
+            "the + button must not start a skill drag"
+        );
     }
 }

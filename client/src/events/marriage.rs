@@ -28,8 +28,9 @@ impl App {
         if !self.game.pending_casts.marriage_targeting {
             return false;
         }
-        if let Some(target_aid) = self.game.hover.hovered_player_id {
+        if let Some(entity_id) = self.game.hover.hovered_player_id {
             self.game.pending_casts.marriage_targeting = false;
+            let target_aid = self.game.world.entities.account_id_of(entity_id);
             self.channel.send_packet(build_marry_request_packet(
                 target_aid,
                 self.active_packetver,

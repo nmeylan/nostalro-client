@@ -323,27 +323,21 @@ impl App {
             return;
         }
         let (mx, my) = self.input.mouse_position;
-        // For players the on-screen unit id equals the account id, which is the invite key.
+        let target_aid = self.game.world.entities.account_id_of(entity_id);
         let mut items = vec![
             ContextMenuItem {
                 label: "Deal".to_string(),
-                action: ContextMenuAction::RequestTrade {
-                    target_aid: entity_id,
-                },
+                action: ContextMenuAction::RequestTrade { target_aid },
             },
             ContextMenuItem {
                 label: "Invite to Party".to_string(),
-                action: ContextMenuAction::InviteToParty {
-                    target_aid: entity_id,
-                },
+                action: ContextMenuAction::InviteToParty { target_aid },
             },
         ];
         if matches!(entity.job, 0..=6 | 23) {
             items.push(ContextMenuItem {
                 label: "Adopt as Baby".to_string(),
-                action: ContextMenuAction::AdoptBaby {
-                    target_aid: entity_id,
-                },
+                action: ContextMenuAction::AdoptBaby { target_aid },
             });
         }
         if let Some(g) = &self.game.guild {
@@ -358,23 +352,17 @@ impl App {
             if rights.can_invite {
                 items.push(ContextMenuItem {
                     label: "Invite to Guild".to_string(),
-                    action: ContextMenuAction::GuildInvite {
-                        target_aid: entity_id,
-                    },
+                    action: ContextMenuAction::GuildInvite { target_aid },
                 });
             }
             if g.is_master(local_gid) {
                 items.push(ContextMenuItem {
                     label: "Request Alliance".to_string(),
-                    action: ContextMenuAction::GuildAlly {
-                        target_aid: entity_id,
-                    },
+                    action: ContextMenuAction::GuildAlly { target_aid },
                 });
                 items.push(ContextMenuItem {
                     label: "Declare Hostility".to_string(),
-                    action: ContextMenuAction::GuildHostile {
-                        target_aid: entity_id,
-                    },
+                    action: ContextMenuAction::GuildHostile { target_aid },
                 });
             }
         }
@@ -382,20 +370,20 @@ impl App {
             items.push(ContextMenuItem {
                 label: "Give Manner Point".to_string(),
                 action: ContextMenuAction::GiveMannerPoint {
-                    target_aid: entity_id,
+                    target_aid,
                     positive: true,
                 },
             });
             items.push(ContextMenuItem {
                 label: "Take Manner Point".to_string(),
                 action: ContextMenuAction::GiveMannerPoint {
-                    target_aid: entity_id,
+                    target_aid,
                     positive: false,
                 },
             });
             items.push(ContextMenuItem {
                 label: "Account Name".to_string(),
-                action: ContextMenuAction::AccountName { aid: entity_id },
+                action: ContextMenuAction::AccountName { aid: target_aid },
             });
         }
         self.windows
@@ -521,7 +509,12 @@ impl App {
             return;
         }
 
-        if self.windows.chat_window.is_active() || self.windows.system_menu.open {
+        // A focused chat box only swallows unmodified keys; Alt/Ctrl chords stay
+        // live while typing.
+        let typing = self.windows.chat_window.is_active()
+            && !self.input.alt_pressed
+            && !self.input.ctrl_pressed;
+        if typing || self.windows.system_menu.open {
             return;
         }
 

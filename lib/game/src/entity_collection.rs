@@ -45,6 +45,18 @@ impl EntityCollection {
         self.account_to_key.get(&id).copied().unwrap_or(id)
     }
 
+    /// Inverse of [`Self::resolve_key`]: the account id a CZ request must carry
+    /// to address the entity behind `key`. Every player-targeted request (trade,
+    /// party/guild invite, adoption, manner points) is keyed by account id, not
+    /// by the char id the entity is stored under.
+    pub fn account_id_of(&self, key: u32) -> u32 {
+        self.account_to_key
+            .iter()
+            .find(|(_, k)| **k == key)
+            .map(|(account_id, _)| *account_id)
+            .unwrap_or(key)
+    }
+
     pub fn set_player_id(&mut self, id: u32) {
         self.player_id = Some(id);
     }
@@ -396,6 +408,18 @@ mod tests {
         col.insert(make_entity(2000101));
         col.apply_entity_name_received(2000101, "Other".to_string());
         assert_eq!(col.get(2000101).unwrap().name.as_deref(), Some("Other"));
+    }
+
+    #[test]
+    fn picked_entity_resolves_back_to_the_account_id_requests_are_addressed_to() {
+        let mut col = EntityCollection::new();
+        col.insert(make_entity(2000100));
+        col.register_account_id(2000101, 2000100);
+        col.insert(make_entity(110000));
+
+        assert_eq!(col.account_id_of(2000100), 2000101);
+        assert_eq!(col.resolve_key(col.account_id_of(2000100)), 2000100);
+        assert_eq!(col.account_id_of(110000), 110000);
     }
 
     #[test]

@@ -356,7 +356,12 @@ impl InGameWindow for StorageWindow {
             if resp.clicked() {
                 drag_index = Some((item.index, item.icon_path()));
             }
-            if resp.right_clicked() || resp.double_clicked() {
+            if resp.right_clicked() {
+                events.push(GameEvent::ShowItemInfoDirect {
+                    item: Box::new((*item).clone()),
+                });
+            }
+            if resp.double_clicked() {
                 withdraw = Some(item.index);
             }
         }
@@ -539,17 +544,40 @@ mod tests {
     }
 
     #[test]
-    fn right_click_single_item_withdraws_and_close_notifies_server() {
+    fn right_click_shows_info_double_click_withdraws_and_close_notifies_server() {
         let mut win = StorageWindow::new();
         let mut character = open_storage_with_potion();
         let data = DataTable::new();
         let mut state = StateCache::new();
 
         // First row sits at container top (window default 320,80; tab column 28 wide).
+        let row_x = 320.0 + TAB_FALLBACK_W + LIST_PAD_LEFT + 20.0;
+        let row_y = 80.0 + TITLE_H + ROW_H / 2.0;
         let mut ctx = UiContext::new(1024.0, 768.0);
-        ctx.mouse_x = 320.0 + TAB_FALLBACK_W + LIST_PAD_LEFT + 20.0;
-        ctx.mouse_y = 80.0 + TITLE_H + ROW_H / 2.0;
+        ctx.mouse_x = row_x;
+        ctx.mouse_y = row_y;
         ctx.mouse_right_clicked = true;
+        let events = {
+            let mut ui = make_frame(&ctx, &mut state);
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, GameEvent::ShowItemInfoDirect { item } if item.index == 5)),
+            "expected item info, got {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, GameEvent::RequestMoveItemStoreToBody { .. })),
+            "right click must not withdraw, got {events:?}"
+        );
+
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        ctx.mouse_x = row_x;
+        ctx.mouse_y = row_y;
+        ctx.mouse_double_clicked = true;
         let events = {
             let mut ui = make_frame(&ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))

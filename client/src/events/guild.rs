@@ -4,6 +4,8 @@ use ragnarok_game::guild::{
     Guild, GuildBanEntry, GuildMember, GuildPosition, GuildRelation, GuildSkill, OtherGuild,
 };
 
+const GUILD_MENU_ON_MAP_ENTRY: [i32; 4] = [0, 1, 2, 3];
+
 impl App {
     fn guild_mut(&mut self) -> &mut Guild {
         self.game.guild.get_or_insert_with(Guild::default)
@@ -17,6 +19,20 @@ impl App {
                 .find(|p| p.id == member.position_id)
                 .map(|p| p.name.clone())
                 .unwrap_or_default();
+        }
+    }
+
+    /// Info, member list, positions and skills, pulled on every world entry.
+    /// Without the member list arriving on its own, a guild mate's position
+    /// packet has no row to land on and the minimap stays blank until the guild
+    /// window is opened.
+    pub(super) fn request_guild_data(&mut self) {
+        for atype in GUILD_MENU_ON_MAP_ENTRY {
+            self.channel
+                .send_packet(ragnarok_network::build_req_guild_menu(
+                    atype,
+                    self.active_packetver,
+                ));
         }
     }
 

@@ -1028,6 +1028,17 @@ impl App {
     }
 
     pub(super) fn handle_request_use_skill(&mut self, skill_id: u16, level: i16) {
+        self.request_use_skill(skill_id, level, true);
+    }
+
+    /// A skill the server told us to run comes from an item, not from the skill
+    /// bar, so the caster's own cooldown never gates it — a second Fly Wing has
+    /// to fire while the first teleport's after-cast delay is still ticking.
+    pub(super) fn handle_item_use_skill(&mut self, skill_id: u16, level: i16) {
+        self.request_use_skill(skill_id, level, false);
+    }
+
+    fn request_use_skill(&mut self, skill_id: u16, level: i16, respect_cooldown: bool) {
         if self.player_hidden() && !hide_allows_skill(skill_id) {
             return;
         }
@@ -1050,7 +1061,7 @@ impl App {
             .unwrap_or(SkillTargetType::Target);
         match skill_target_type {
             SkillTargetType::MySelf => {
-                if !self.skill_on_cooldown(skill_id) {
+                if !respect_cooldown || !self.skill_on_cooldown(skill_id) {
                     let target_id = self.game.world.entities.player_id().unwrap_or(0);
                     self.channel.send_packet(build_use_skill_packet(
                         skill_id,

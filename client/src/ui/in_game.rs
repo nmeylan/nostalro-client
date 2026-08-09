@@ -433,7 +433,11 @@ fn sync_party_live_state(game: &mut GameState) {
                 if let Some(p) = game.world.entities.player() {
                     (m.x, m.y) = p.movement.cell_position();
                 }
-            } else if let Some(e) = game.world.entities.get(m.aid) {
+            } else if let Some(e) = game
+                .world
+                .entities
+                .get(game.world.entities.resolve_key(m.aid))
+            {
                 if let (Some(hp), Some(max_hp)) = (e.hp, e.max_hp) {
                     m.hp = Some(hp);
                     m.max_hp = Some(max_hp);

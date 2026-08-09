@@ -121,7 +121,7 @@ impl App {
                 skill_target_type,
             },
         );
-        self.handle_request_use_skill(skill_id, level);
+        self.handle_item_use_skill(skill_id, level);
     }
 
     pub(crate) fn handle_making_arrow_list(&mut self, item_ids: Vec<u16>) {

@@ -396,6 +396,7 @@ impl App {
         self.game.character.inventory.clear();
         self.channel
             .send_packet(build_map_loaded_packet(self.active_packetver));
+        self.request_guild_data();
     }
 
     /// Drop every actor but the player. A warp is authoritative about what is
@@ -506,6 +507,7 @@ impl App {
         self.game.character.inventory.clear();
         self.channel
             .send_packet(build_map_loaded_packet(self.active_packetver));
+        self.request_guild_data();
     }
 
     pub(super) fn handle_player_moved(

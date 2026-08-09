@@ -136,6 +136,8 @@ fn effective_channel(
         SendChannel::Party
     } else if msg.starts_with('$') || msg.starts_with("/gc ") || alt {
         SendChannel::Guild
+    } else if msg.starts_with('/') {
+        SendChannel::Public
     } else if whisper_active {
         SendChannel::Whisper
     } else {
@@ -1920,6 +1922,19 @@ mod tests {
         );
         assert_eq!(
             effective_channel("hi", SendChannel::Public, false, true, true),
+            SendChannel::Guild
+        );
+        // a client command is never chat, whatever the target or sticky channel
+        assert_eq!(
+            effective_channel("/sit", SendChannel::Whisper, false, false, true),
+            SendChannel::Public
+        );
+        assert_eq!(
+            effective_channel("/sit", SendChannel::Party, false, false, false),
+            SendChannel::Public
+        );
+        assert_eq!(
+            effective_channel("/gc hello", SendChannel::Public, false, false, true),
             SendChannel::Guild
         );
     }

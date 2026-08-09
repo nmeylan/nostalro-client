@@ -1082,7 +1082,10 @@ mod tests {
             ("sprite", SPRITE_SHADER_SRC),
             ("terrain", include_str!("shaders/terrain.wgsl")),
             ("model", include_str!("shaders/model.wgsl")),
-            ("model_animated", include_str!("shaders/model_animated.wgsl")),
+            (
+                "model_animated",
+                include_str!("shaders/model_animated.wgsl"),
+            ),
             ("gr2_model", include_str!("shaders/gr2_model.wgsl")),
             ("water", include_str!("shaders/water.wgsl")),
             ("ground_proxy", include_str!("shaders/ground_proxy.wgsl")),
@@ -1096,7 +1099,10 @@ mod tests {
                 "effect_cylinder",
                 include_str!("shaders/effect_cylinder.wgsl"),
             ),
-            ("effect_frustum", include_str!("shaders/effect_frustum.wgsl")),
+            (
+                "effect_frustum",
+                include_str!("shaders/effect_frustum.wgsl"),
+            ),
             (
                 "effect_fullscreen",
                 include_str!("shaders/effect_fullscreen.wgsl"),
@@ -1109,8 +1115,9 @@ mod tests {
         ];
 
         for (name, src) in shaders {
-            let module = naga::front::wgsl::parse_str(src)
-                .unwrap_or_else(|e| panic!("{name}.wgsl failed to parse: {}", e.emit_to_string(src)));
+            let module = naga::front::wgsl::parse_str(src).unwrap_or_else(|e| {
+                panic!("{name}.wgsl failed to parse: {}", e.emit_to_string(src))
+            });
             naga::valid::Validator::new(
                 naga::valid::ValidationFlags::all(),
                 naga::valid::Capabilities::all(),
