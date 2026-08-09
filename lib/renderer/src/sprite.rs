@@ -1977,13 +1977,12 @@ pub fn compose_actor_batches<'a>(
                 depth_gradient,
             );
         } else {
-            let scale_xy =
-                if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
-                    let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
-                    [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
-                } else {
-                    copy.scale
-                };
+            let scale_xy = if (copy.scale[0] - copy.scale[1]).abs() < 1e-6 && copy.scale[1] != 1.0 {
+                let margin = (copy.scale[1] - 1.0) * body_h * 0.5;
+                [(body_w + 2.0 * margin) / body_w, copy.scale[1]]
+            } else {
+                copy.scale
+            };
             transform_batch_vertices_with_depth(
                 &mut batches,
                 body_center,

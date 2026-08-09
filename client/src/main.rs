@@ -170,6 +170,7 @@ impl App {
         windows
             .escape
             .set_excluded(&config.custom.window.exclude_close_via_esc);
+        windows.item_info_window.wrap_title = config.custom.window.wrap_item_info_title;
         game.prefs.self_config.refuse_party_invite = config.refuse_party_invite;
         let mut effect_queue = EffectQueue::new();
         effect_queue.set_effects_enabled(config.show_skill_effects);

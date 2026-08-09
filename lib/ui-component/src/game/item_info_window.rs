@@ -36,6 +36,7 @@ const COLLECTION_W: f32 = 75.0;
 const COLLECTION_H: f32 = 100.0;
 const TITLE_X: f32 = 90.0;
 const TITLE_Y: f32 = 9.0;
+const TITLE_W: f32 = 174.0;
 const DESC_X: f32 = 90.0;
 const DESC_Y: f32 = 25.0;
 const DESC_W: f32 = 170.0;
@@ -93,6 +94,9 @@ struct CardIllustration {
 
 pub struct ItemInfoWindow {
     pub has_grf_textures: bool,
+    /// Deviation, opt-in: the original game draws the name on one line and lets
+    /// it run past the right edge of the window.
+    pub wrap_title: bool,
     item: Option<ItemInfoData>,
     wrapped_lines: Vec<String>,
     scroll_offset: usize,
@@ -114,6 +118,7 @@ impl ItemInfoWindow {
     pub fn new() -> Self {
         Self {
             has_grf_textures: false,
+            wrap_title: false,
             item: None,
             wrapped_lines: Vec::new(),
             scroll_offset: 0,
@@ -458,6 +463,7 @@ impl InGameWindow for ItemInfoWindow {
                 grf,
                 bg_size,
                 extra_h,
+                self.wrap_title,
             );
             self.scroll_offset = result.scroll_offset;
 
@@ -610,6 +616,7 @@ impl InGameWindow for ItemInfoWindow {
                 grf,
                 bg_size,
                 VIEW_SECTION_H,
+                self.wrap_title,
             );
             self.card_scroll_offset = result.scroll_offset;
 
@@ -710,6 +717,25 @@ fn name_color(is_damaged: bool, grf: bool) -> [f32; 4] {
     }
 }
 
+/// Splits the composed name over as many lines as the title box needs, and
+/// reopens the colour run a break landed inside on the next line.
+fn wrap_title_lines(name: &str, measure: impl Fn(&str) -> f32) -> Vec<String> {
+    let mut lines = word_wrap(name, TITLE_W, measure, false);
+    let mut active: Option<String> = None;
+    for line in lines.iter_mut() {
+        if let Some(code) = &active {
+            line.insert_str(0, code);
+        }
+        if let Some(pos) = line.rfind('^')
+            && let Some(hex) = line.get(pos + 1..pos + 7)
+            && hex.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            active = Some(line[pos..pos + 7].to_string());
+        }
+    }
+    lines
+}
+
 struct InfoWindowResult {
     win_x: f32,
     win_y: f32,
@@ -726,6 +752,7 @@ fn build_info_window(
     grf: bool,
     bg_size: (f32, f32),
     extra_height: f32,
+    wrap_title: bool,
 ) -> InfoWindowResult {
     let (container_w, container_h) = if grf {
         bg_size
@@ -735,7 +762,16 @@ fn build_info_window(
     let win_w = container_w;
     let win_h = container_h + extra_height;
 
-    let desc_area_h = container_h - DESC_Y - 4.0;
+    let title_lines = if wrap_title {
+        wrap_title_lines(&item_data.name, |t| {
+            ui.atlas.measure_text(&strip_color_codes(t))
+        })
+    } else {
+        Vec::new()
+    };
+    let title_overflow = title_lines.len().saturating_sub(1) as f32 * TEXT_LINE_H;
+
+    let desc_area_h = (container_h - DESC_Y - title_overflow - 4.0).max(0.0);
     let visible_lines = (desc_area_h / TEXT_LINE_H).floor() as usize;
     let total_lines = wrapped_lines.len();
     let max_scroll = total_lines.saturating_sub(visible_lines);
@@ -825,12 +861,16 @@ fn build_info_window(
         };
     }
 
-    ui.colored_text(
-        win.x + TITLE_X,
-        win.y + TITLE_Y + ui.atlas.line_height,
-        &item_data.name,
-        name_color(item_data.is_damaged, grf),
-    );
+    let title_color = name_color(item_data.is_damaged, grf);
+    let mut title_y = win.y + TITLE_Y + ui.atlas.line_height;
+    if title_lines.is_empty() {
+        ui.colored_text(win.x + TITLE_X, title_y, &item_data.name, title_color);
+    } else {
+        for line in &title_lines {
+            ui.colored_text(win.x + TITLE_X, title_y, line, title_color);
+            title_y += TEXT_LINE_H;
+        }
+    }
 
     let text_color = if grf {
         [0.0, 0.0, 0.0, 1.0]
@@ -838,7 +878,7 @@ fn build_info_window(
         [0.9, 0.9, 0.9, 1.0]
     };
     let desc_x = win.x + DESC_X;
-    let desc_top = win.y + DESC_Y;
+    let desc_top = win.y + DESC_Y + title_overflow;
     let start = scroll_offset;
     let end = (start + visible_lines).min(total_lines);
     let mut text_y = desc_top + ui.atlas.line_height;
@@ -905,6 +945,26 @@ mod tests {
             name: format!("TestItem{item_id}"),
             resource_name: Some("test_resource".to_string()),
         }
+    }
+
+    #[test]
+    fn wrapped_title_reopens_the_colour_run_a_break_landed_in() {
+        let measure = |t: &str| strip_color_codes(t).chars().count() as f32 * 10.0;
+        let name = "^4040E0Producername Something^000000 Chain [1]";
+
+        let lines = wrap_title_lines(name, measure);
+
+        assert_eq!(lines.len(), 3);
+        assert!(lines[1].starts_with("^4040E0"));
+        assert!(lines[2].starts_with("^000000"));
+        assert_eq!(
+            lines
+                .iter()
+                .map(|l| strip_color_codes(l))
+                .collect::<Vec<_>>()
+                .join(" "),
+            strip_color_codes(name),
+        );
     }
 
     #[test]

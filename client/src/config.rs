@@ -88,6 +88,10 @@ pub struct CustomWindowConfig {
     /// `ui::escape::ESC_WINDOW_NAMES` (case- and space-insensitive). Escape then
     /// moves on to the next window behind them.
     pub exclude_close_via_esc: Vec<String>,
+    /// Wrap a long item name inside the item information window, pushing the
+    /// description down. The original game keeps it on one line and lets it run
+    /// past the right edge.
+    pub wrap_item_info_title: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -411,6 +415,7 @@ mod tests {
         assert_eq!(config.login_servers[0].port, 6900);
         assert_eq!(config.screen_width, 1024);
         assert!(config.custom.window.exclude_close_via_esc.is_empty());
+        assert!(!config.custom.window.wrap_item_info_title);
         assert!(!config.custom.skill.al_teleport.separate_lvl);
 
         let json = r#"{"custom": {"window": {"exclude_close_via_esc": ["Stats", "Inventory"]}}}"#;

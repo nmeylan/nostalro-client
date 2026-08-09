@@ -34,6 +34,7 @@ const SP_BAR_COLOR: [f32; 4] = [0.063, 0.094, 0.61, 1.0];
 const CAST_BAR_COLOR: [f32; 4] = [0.0, 0.8, 0.0, 1.0];
 const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
 const MOB_INFO_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
+const EMBLEM_HOVER_SIZE: f32 = 24.0;
 const EMBLEM_HEAD_SIZE: f32 = 24.0;
 const TALKBOX_BUBBLE_LIFT: f32 = 20.0;
 
@@ -133,7 +134,8 @@ impl App {
         {
             let text_width = renderer.font_atlas.measure_text(name);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
-            let mut text_y = bar_y + HP_BAR_HEIGHT + 13.0;
+            let name_y = bar_y + HP_BAR_HEIGHT + 13.0;
+            let mut text_y = name_y;
             build_outlined_text(
                 name,
                 text_x,
@@ -143,11 +145,28 @@ impl App {
                 calls,
             );
 
+            let mut leftmost_x = text_x;
             if let Some((line, color)) = second_plate_line(entity) {
                 let line_width = renderer.font_atlas.measure_text(&line);
                 let line_x = entry.screen_anchor[0] - line_width / 2.0;
+                leftmost_x = leftmost_x.min(line_x);
                 text_y += renderer.font_atlas.line_height;
                 build_outlined_text(&line, line_x, text_y, color, &renderer.font_atlas, calls);
+            }
+
+            if entity.guild_id != 0 && entity.guild_emblem_version != 0 {
+                let block_center_y = (name_y + text_y) / 2.0;
+                let emblem_x = leftmost_x - EMBLEM_HOVER_SIZE - 3.0;
+                let emblem_y = block_center_y - EMBLEM_HOVER_SIZE / 2.0;
+                push_emblem(
+                    entity.guild_id,
+                    entity.guild_emblem_version,
+                    emblem_x,
+                    emblem_y,
+                    EMBLEM_HOVER_SIZE,
+                    renderer,
+                    calls,
+                );
             }
         }
     }
