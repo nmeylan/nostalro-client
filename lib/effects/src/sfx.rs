@@ -435,7 +435,10 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
             at!(Fixed("effect\\EF_MagnumBreak.wav"), &[30]),
         ],
         E::Vallentine => &[fixed_at0!("effect\\vallentine.wav")],
-        E::Aciddemon => &[fixed_at0!("effect\\EF_FireWall.wav")],
+        E::Aciddemon => &[at!(
+            Fixed("effect\\EF_FireWall.wav"),
+            &[crate::effects::aciddemon::IMPACT_FRAME]
+        )],
         E::Agiup => &[fixed_at0!("effect\\EF_IncAgility.wav")],
         E::Beginasura11 => &[fixed_at0!("effect\\EF_BeginSpell.wav")],
         E::Grandcross2 => &[fixed_at0!("effect\\cru_grand cross.wav")],
@@ -637,5 +640,12 @@ mod tests {
         assert_eq!(run(EffectId::PokjukSound, 300).len(), 1);
         assert_eq!(run(EffectId::PokjukSound, 2301).len(), 1);
         assert_eq!(run(EffectId::PokjukSound, 2302).len(), 2);
+    }
+
+    #[test]
+    fn acid_demonstration_bursts_with_the_landing_bottle() {
+        let impact = crate::effects::aciddemon::IMPACT_FRAME as i32;
+        assert!(run(EffectId::Aciddemon, impact - 1).is_empty());
+        assert_eq!(run(EffectId::Aciddemon, impact).len(), 1);
     }
 }

@@ -105,6 +105,32 @@ fn open_v1_grf_and_read_file() {
     assert!(gat.width > 0 && gat.height > 0);
 }
 
+#[test]
+fn aliased_map_resolves_through_res_name_table() {
+    let Some(grf) = open_v1_grf() else { return };
+    if !grf.file_exists(ragnarok_resources::table::RES_NAME) {
+        eprintln!("Skipping test: archive has no resnametable.txt");
+        return;
+    }
+
+    assert!(!grf.file_exists("data/pvp_n_2-2.rsw.missing"));
+
+    let rsw = RswFile::parse(&grf.read_file("data/pvp_n_2-2.rsw").unwrap())
+        .expect("pvp_n_2-2 should redirect to a parsable rsw");
+    let gnd = GndFile::parse(&grf.read_file("data/pvp_n_2-2.gnd").unwrap())
+        .expect("pvp_n_2-2 should redirect to a parsable gnd");
+    assert_eq!(rsw.gnd_file.to_ascii_lowercase(), "job_hunter.gnd");
+    assert!(gnd.width > 0 && gnd.height > 0);
+
+    let minimap = "data/texture/유저인터페이스/map/pvp_n_2-2.bmp";
+    assert!(grf.file_exists(minimap));
+    assert_eq!(
+        grf.read_file(minimap).unwrap(),
+        grf.read_file("data/texture/유저인터페이스/map/job_hunter.bmp")
+            .unwrap()
+    );
+}
+
 fn temp_grf_path(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("test_grf_{}_{name}.grf", std::process::id()))
 }

@@ -36,7 +36,8 @@ const QUAKE_DURATION_MS: u32 = 650;
 /// 30 frames (`throw_item`: 5-frame launch + 25-frame flight, distance-
 /// independent). Hold the aura dormant for that long so it erupts as the bottle
 /// lands rather than at cast time.
-const SPAWN_DELAY_FRAMES: f32 = 30.0;
+pub const IMPACT_FRAME: u16 = 30;
+const SPAWN_DELAY_FRAMES: f32 = IMPACT_FRAME as f32;
 
 const FADE_IN_FRAMES: f32 = 20.0;
 const FADE_OUT_FRAMES: f32 = 40.0;

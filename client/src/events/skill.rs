@@ -103,6 +103,18 @@ impl App {
         }
     }
 
+    pub(super) fn skill_display_name(&self, internal_name: &str) -> Option<String> {
+        self.game
+            .data_table
+            .skill_name
+            .as_ref()
+            .map(|table| table.get_display_name_or_internal(internal_name))
+    }
+
+    pub(super) fn skill_display_name_by_id(&self, skill_id: u16) -> Option<String> {
+        self.skill_display_name(SkillEnum::from_id(skill_id as u32).to_name())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn handle_skill_damage(
         &mut self,
@@ -146,6 +158,12 @@ impl App {
         tracing::info!(
             "SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
         );
+
+        let display_name = self.skill_display_name_by_id(skill_id);
+        self.game
+            .world
+            .entities
+            .show_skill_chat_bubble(src_gid, skill_id, display_name);
 
         if let Some(wav) = skill_projectile_sound(SkillEnum::from_id(skill_id as u32)) {
             self.sound_queue.ui(wav);

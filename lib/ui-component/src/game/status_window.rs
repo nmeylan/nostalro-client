@@ -106,16 +106,6 @@ impl StatusWindow {
             format!("- {}", -v)
         }
     }
-
-    fn computed_cost(stat: u8, server_cost: u16) -> u16 {
-        if server_cost > 0 {
-            server_cost
-        } else if stat == 0 {
-            2
-        } else {
-            ((stat as u16 - 1) / 10) + 2
-        }
-    }
 }
 
 impl Window for StatusWindow {
@@ -326,7 +316,6 @@ impl InGameWindow for StatusWindow {
         let arr_h = self.arrow_size.1;
         for (i, &(up_id, base, bonus, cost, status_id)) in rows.iter().enumerate() {
             let baseline = y + ROWS_TOP + i as f32 * ROW_H + TEXT_BASELINE_OFF;
-            let display_cost = Self::computed_cost(base, cost);
 
             ui.text(x + STATS_LEFT, baseline, &base.to_string(), tc);
             if bonus != 0 {
@@ -337,7 +326,7 @@ impl InGameWindow for StatusWindow {
                     tc,
                 );
             }
-            let can_raise = (display_cost as u32) <= status_point;
+            let can_raise = cost > 0 && (cost as u32) <= status_point;
             if can_raise {
                 let arr_y = y + UP_TOP + i as f32 * (arr_h + 5.0);
                 let arr_rect = Rect::new(x + UP_LEFT, arr_y, arr_w, arr_h);
@@ -372,12 +361,7 @@ impl InGameWindow for StatusWindow {
                     });
                 }
             }
-            ui.text_right(
-                x + REQ_LEFT + REQ_WIDTH,
-                baseline,
-                &display_cost.to_string(),
-                tc,
-            );
+            ui.text_right(x + REQ_LEFT + REQ_WIDTH, baseline, &cost.to_string(), tc);
         }
 
         let col1_lines: [String; 4] = [

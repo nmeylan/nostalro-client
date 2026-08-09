@@ -13,6 +13,7 @@ pub mod map_coordinates;
 mod mixcrypt;
 pub mod pal;
 pub mod pettalk;
+pub mod res_name_table;
 pub mod rsm;
 pub mod rsw;
 pub mod spr;

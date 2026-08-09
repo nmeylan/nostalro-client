@@ -54,6 +54,7 @@ pub mod dir {
         SPRITE_PLAYER = "data/sprite/인간족/";
         SPRITE_SHIELD = "data/sprite/방패/";
         STR_EFFECT = "data/texture/effect/";
+        TEXTURE = "data/texture/";
     }
 }
 
@@ -424,6 +425,7 @@ pub mod table {
         MSG_STRING = "data/msgstringtable.txt";
         PET_TALK = "data/pettalktable.xml";
         QUEST_DISPLAY = "data/questid2display.txt";
+        RES_NAME = "data/resnametable.txt";
         SKILL_DESC = "data/skilldesctable.txt";
         SKILL_NAME = "data/skillnametable.txt";
         SKILL_SP_AMOUNT = "data/leveluseskillspamount.txt";

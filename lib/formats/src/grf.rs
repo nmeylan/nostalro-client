@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
@@ -10,6 +10,7 @@ use flate2::write::ZlibEncoder;
 
 use crate::FormatError;
 use crate::mixcrypt;
+use crate::res_name_table::ResNameTable;
 
 const HEADER_SIZE: usize = 46;
 const FILE_OFFSET: usize = 7;
@@ -38,6 +39,7 @@ pub struct GrfArchive {
     writable: bool,
     data_dir: Option<DataDirIndex>,
     overlays: Vec<GrfArchive>,
+    res_name_table: OnceLock<ResNameTable>,
 }
 
 /// Extracted files on disk, keyed by their normalized path relative to the
@@ -130,6 +132,7 @@ impl GrfArchive {
             writable: false,
             data_dir: None,
             overlays: Vec::new(),
+            res_name_table: OnceLock::new(),
         })
     }
 
@@ -184,6 +187,7 @@ impl GrfArchive {
             writable: true,
             data_dir: None,
             overlays: Vec::new(),
+            res_name_table: OnceLock::new(),
         })
     }
 
@@ -218,6 +222,7 @@ impl GrfArchive {
             writable: true,
             data_dir: None,
             overlays: Vec::new(),
+            res_name_table: OnceLock::new(),
         })
     }
 
@@ -225,18 +230,63 @@ impl GrfArchive {
         self.writable
     }
 
+    /// Reads `name`, falling back to the `resnametable.txt` alias when nothing
+    /// carries that name. Maps such as `pvp_n_2-2` ship no geometry of their
+    /// own and exist only as aliases.
     pub fn read_file(&self, name: &str) -> Result<Vec<u8>, FormatError> {
+        match self.read_file_direct(name) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                let Some(alias) = self.alias_table().resolve(name) else {
+                    return Err(e);
+                };
+                tracing::debug!("Resource {name} redirected to {alias}");
+                self.read_file_direct(&alias)
+            }
+        }
+    }
+
+    /// Every layer contributes its own table; the higher-priority layer wins a
+    /// key both define.
+    fn alias_table(&self) -> &ResNameTable {
+        self.res_name_table.get_or_init(|| {
+            let mut table = ResNameTable::default();
+            let path = ragnarok_resources::table::RES_NAME;
+            if let Some(disk) = self.data_dir.as_ref().and_then(|d| d.lookup(path))
+                && let Ok(data) = std::fs::read(disk)
+            {
+                table.extend_from(ResNameTable::parse(&data));
+            }
+            for layer in std::iter::once(self).chain(self.overlays.iter()) {
+                if let Ok(data) = layer.read_archive_entry(path) {
+                    table.extend_from(ResNameTable::parse(&data));
+                }
+            }
+            tracing::info!("Loaded resource name table ({} entries)", table.len());
+            table
+        })
+    }
+
+    fn read_file_direct(&self, name: &str) -> Result<Vec<u8>, FormatError> {
         if let Some(path) = self.data_dir.as_ref().and_then(|d| d.lookup(name)) {
             return std::fs::read(path).map_err(FormatError::Io);
         }
 
         let name_lower = name.to_lowercase().replace('\\', "/");
-        let Some(entry) = self.entries.get(&name_lower) else {
+        if !self.entries.contains_key(&name_lower) {
             for overlay in &self.overlays {
                 if overlay.entries.contains_key(&name_lower) {
-                    return overlay.read_file(name);
+                    return overlay.read_archive_entry(name);
                 }
             }
+        }
+        self.read_archive_entry(name)
+    }
+
+    /// This archive's own entries, ignoring `data_dir` and overlays.
+    fn read_archive_entry(&self, name: &str) -> Result<Vec<u8>, FormatError> {
+        let name_lower = name.to_lowercase().replace('\\', "/");
+        let Some(entry) = self.entries.get(&name_lower) else {
             return Err(FormatError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("file not found in archive: {name}"),
@@ -370,6 +420,14 @@ impl GrfArchive {
     }
 
     pub fn file_exists(&self, name: &str) -> bool {
+        self.entry_exists(name)
+            || self
+                .alias_table()
+                .resolve(name)
+                .is_some_and(|alias| self.entry_exists(&alias))
+    }
+
+    fn entry_exists(&self, name: &str) -> bool {
         if self
             .data_dir
             .as_ref()

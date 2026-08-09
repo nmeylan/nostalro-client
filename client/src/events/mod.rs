@@ -1033,9 +1033,7 @@ impl App {
                     {
                         self.start_autocounter_channel(gid);
                     } else {
-                        let display_name = self.game.data_table.skill_name.as_ref().map(|table| {
-                            table.get_display_name_or_internal(&skill_name.unwrap_or_default())
-                        });
+                        let display_name = self.skill_display_name(&skill_name.unwrap_or_default());
                         self.game.world.entities.apply_skill_casting(
                             gid,
                             target_gid,
@@ -1100,6 +1098,14 @@ impl App {
                     {
                         self.start_autocounter_channel(src_gid);
                     } else {
+                        if SkillEnum::from_id(skill_id as u32) != SkillEnum::MgSrecovery {
+                            let display_name = self.skill_display_name_by_id(skill_id);
+                            self.game.world.entities.show_skill_chat_bubble(
+                                src_gid,
+                                skill_id,
+                                display_name,
+                            );
+                        }
                         self.game
                             .world
                             .entities
@@ -1114,6 +1120,12 @@ impl App {
                     x,
                     y,
                 } => {
+                    let display_name = self.skill_display_name_by_id(skill_id);
+                    self.game.world.entities.show_skill_chat_bubble(
+                        src_gid,
+                        skill_id,
+                        display_name,
+                    );
                     self.game
                         .world
                         .entities

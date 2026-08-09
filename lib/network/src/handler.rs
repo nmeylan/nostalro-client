@@ -1031,10 +1031,23 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcStatus>() {
-        return vec![GameEvent::ParameterChanged {
-            var_id: 9, // StatusTypes::Statuspoint
+        let costs = [
+            (StatusTypes::StrNextLevelIncreaseCost, p.standard_str),
+            (StatusTypes::AgiNextLevelIncreaseCost, p.standard_agi),
+            (StatusTypes::VitNextLevelIncreaseCost, p.standard_vit),
+            (StatusTypes::IntNextLevelIncreaseCost, p.standard_int),
+            (StatusTypes::DexNextLevelIncreaseCost, p.standard_dex),
+            (StatusTypes::LukNextLevelIncreaseCost, p.standard_luk),
+        ];
+        let mut events = vec![GameEvent::ParameterChanged {
+            var_id: StatusTypes::Statuspoint.value() as u16,
             value: p.point as i32,
         }];
+        events.extend(costs.map(|(status, cost)| GameEvent::ParameterChanged {
+            var_id: status.value() as u16,
+            value: cost as i32,
+        }));
+        return events;
     }
     if let Some(p) = any.downcast_ref::<PacketZcStatusChange>() {
         return vec![GameEvent::ParameterChanged {
@@ -4589,6 +4602,14 @@ mod tests {
         let packetver = 20120307;
         let mut character = ragnarok_game::character::Character::new();
 
+        let mut initial = PacketZcStatus::new(packetver);
+        initial.set_point(48);
+        initial.set_str(110);
+        initial.set_standard_str(19);
+        initial.set_luk(1);
+        initial.set_standard_luk(2);
+        initial.fill_raw();
+
         let mut ack = PacketZcStatusChangeAck::new(packetver);
         ack.set_status_id(StatusTypes::Str.value() as u16);
         ack.set_result(true);
@@ -4599,6 +4620,18 @@ mod tests {
         cost.set_status_id(StatusTypes::StrNextLevelIncreaseCost.value() as u16);
         cost.set_value(3);
         cost.fill_raw();
+
+        for event in dispatch_packet(&initial, packetver) {
+            match event {
+                GameEvent::ParameterChanged { var_id, value } => {
+                    character.apply_parameter_changed(var_id, value);
+                }
+                other => panic!("expected ParameterChanged, got {other:?}"),
+            }
+        }
+        assert_eq!(character.status_point, 48);
+        assert_eq!(character.str_cost, 19);
+        assert_eq!(character.luk_cost, 2);
 
         for event in dispatch_packet(&ack, packetver)
             .into_iter()

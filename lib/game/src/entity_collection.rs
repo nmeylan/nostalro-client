@@ -197,7 +197,7 @@ impl EntityCollection {
         y: i16,
         skill_name: Option<String>,
     ) {
-        self.show_skill_chat_bubble(gid, skill_name);
+        self.show_skill_chat_bubble(gid, skill_id, skill_name);
         let target_pos = if target_gid != 0 {
             self.entities
                 .get(&target_gid)
@@ -273,7 +273,16 @@ impl EntityCollection {
         }
     }
 
-    fn show_skill_chat_bubble(&mut self, gid: u32, skill_name: Option<String>) {
+    pub fn show_skill_chat_bubble(&mut self, gid: u32, skill_id: u16, skill_name: Option<String>) {
+        if matches!(
+            SkillEnum::from_id(skill_id as u32),
+            SkillEnum::StChasewalk
+                | SkillEnum::DcScream
+                | SkillEnum::BaFrostjoker
+                | SkillEnum::ItemEnchantarms
+        ) {
+            return;
+        }
         if let Some(name) = skill_name
             && let Some(entity) = self.entities.get_mut(&gid)
         {
@@ -727,5 +736,39 @@ mod tests {
         col.insert(make_entity(2));
         col.apply_skill_no_damage(SkillEnum::AlHeal.id() as u16, 2, 0);
         assert!(col.get(2).unwrap().forced_animation.is_none());
+    }
+
+    #[test]
+    fn skill_name_is_shouted_unless_the_skill_is_silent() {
+        let mut col = EntityCollection::new();
+        col.insert(make_entity(1));
+
+        col.show_skill_chat_bubble(
+            1,
+            SkillEnum::TkReadystorm.id() as u16,
+            Some("Tornado Stance".to_string()),
+        );
+        assert_eq!(
+            col.get(1).unwrap().chat_bubble.as_ref().unwrap().message,
+            "Tornado Stance !!"
+        );
+
+        col.get_mut(1).unwrap().chat_bubble = None;
+        col.show_skill_chat_bubble(
+            1,
+            SkillEnum::StChasewalk.id() as u16,
+            Some("Chase Walk".to_string()),
+        );
+        assert!(col.get(1).unwrap().chat_bubble.is_none());
+
+        let mut monster = make_entity(2);
+        monster.entity_type = EntityType::Monster;
+        col.insert(monster);
+        col.show_skill_chat_bubble(
+            2,
+            SkillEnum::NpcDarkstrike.id() as u16,
+            Some("Dark Strike".to_string()),
+        );
+        assert!(col.get(2).unwrap().chat_bubble.is_none());
     }
 }
