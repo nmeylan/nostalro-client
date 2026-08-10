@@ -1,6 +1,7 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
 use models::enums::status::StatusTypes;
+use models::enums::effect_id::EffectId;
 use ragnarok_game::damage_number::DamageNumber;
 
 impl App {
@@ -8,14 +9,15 @@ impl App {
         let Some(gid) = self.game.world.entities.player_id() else {
             return;
         };
-        let color = match StatusTypes::try_from_value(var_id as usize) {
-            Ok(StatusTypes::Sp) => [0.0, 0.0, 1.0],
-            _ => [0.0, 1.0, 0.0],
+        let (color, effect) = match StatusTypes::try_from_value(var_id as usize) {
+            Ok(StatusTypes::Sp) => ([0.0, 0.0, 1.0], EffectId::Sptime),
+            _ => ([0.0, 1.0, 0.0], EffectId::Hptime),
         };
         self.game
             .combat
             .damage_numbers
             .add(DamageNumber::effect_number(gid, amount, color, 0.0));
+        self.effect_queue.spawn_on(effect, gid);
     }
 
     pub(super) fn handle_parameter_changed(&mut self, var_id: u16, value: i32) {

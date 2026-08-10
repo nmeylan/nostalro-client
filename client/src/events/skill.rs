@@ -789,6 +789,20 @@ impl App {
                     0.0,
                 ));
         }
+        // Potion Pitcher and the Slim/Berserk variants report the SP they restored
+        // as a MG_SRECOVERY no-damage packet whose level field carries the amount:
+        // a blue rising recovery number on the target, no glyph.
+        if skill == SkillEnum::MgSrecovery && level > 0 {
+            self.game
+                .combat
+                .damage_numbers
+                .add(DamageNumber::effect_number(
+                    target_gid,
+                    level as i32,
+                    [0.0, 0.0, 1.0],
+                    0.0,
+                ));
+        }
         self.spawn_wedding_balloon(skill, src_gid, target_gid);
         if skill == SkillEnum::WeCallpartner {
             self.spawn_call_partner_balloon(src_gid);
