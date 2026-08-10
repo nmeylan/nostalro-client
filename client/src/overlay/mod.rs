@@ -297,9 +297,10 @@ impl App {
         None
     }
 
-    /// Always-on HP bars below party members and the player's mercenary/homunculus.
-    /// The player is handled by `build_player_bars`; the hovered entity by the hover
-    /// overlay — both are skipped here to avoid drawing twice.
+    /// Always-on HP bars below party members, the player's mercenary/homunculus and
+    /// monsters the server reports HP for. The player is handled by `build_player_bars`;
+    /// the hovered entity by the hover overlay — both are skipped here to avoid drawing
+    /// twice.
     fn build_persistent_bars(
         &self,
         hovered_entity_id: Option<u32>,
@@ -331,13 +332,10 @@ impl App {
                 .party
                 .as_ref()
                 .is_some_and(|p| p.members.iter().any(|m| m.aid == entry.id));
-            if !is_companion && !is_party_member {
-                continue;
-            }
             let Some(entity) = self.game.world.entities.get(entry.id) else {
                 continue;
             };
-            if entity.effect_state & ragnarok_game::sprite_path::OPTION_HIDE != 0 {
+            if !persistent_bar_eligible(entity, is_companion, is_party_member) {
                 continue;
             }
             let Some(ratio) = self.entity_hp_ratio(entry.id) else {
@@ -880,6 +878,19 @@ fn render_bar(
     });
 }
 
+/// Whether an entity carries a bar with no pointer over it. Monsters qualify once the
+/// server has reported HP for them, which it pushes to the area on every hit.
+fn persistent_bar_eligible(entity: &Entity, is_companion: bool, is_party_member: bool) -> bool {
+    let has_mob_hp = entity
+        .mob_info
+        .as_ref()
+        .is_some_and(|info| info.hp_ratio().is_some());
+    if !is_companion && !is_party_member && !has_mob_hp {
+        return false;
+    }
+    entity.effect_state & ragnarok_game::sprite_path::OPTION_HIDE == 0 && entity.is_alive()
+}
+
 fn render_hp_bar(
     entry: &RenderEntry,
     ratio: f32,
@@ -951,6 +962,42 @@ mod tests {
             0,
             150,
         )
+    }
+
+    fn monster() -> Entity {
+        Entity::new(
+            2,
+            EntityType::Monster,
+            1002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            150,
+        )
+    }
+
+    #[test]
+    fn monster_keeps_its_bar_off_hover_once_the_server_reports_hp() {
+        let mut mob = monster();
+        assert!(!persistent_bar_eligible(&mob, false, false));
+
+        mob.mob_info = ragnarok_game::mob_info::MobInfo::parse("Lv. 5 | HP: 100/200");
+        assert!(persistent_bar_eligible(&mob, false, false));
+
+        mob.mob_info = ragnarok_game::mob_info::MobInfo::parse("Lv. 5");
+        assert!(!persistent_bar_eligible(&mob, false, false));
+
+        mob.mob_info = ragnarok_game::mob_info::MobInfo::parse("HP: 0/200");
+        mob.enter_dead();
+        assert!(!persistent_bar_eligible(&mob, false, false));
     }
 
     #[test]
