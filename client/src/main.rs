@@ -933,7 +933,8 @@ impl ApplicationHandler for App {
                     .game
                     .hover
                     .target_id()
-                    .or(self.game.hover.hovered_player_id);
+                    .or(self.game.hover.hovered_player_id)
+                    .or(self.game.hover.hovered_self_id);
                 let hovered_floor_item_id = self.game.hover.hovered_floor_item_id;
                 if let Some(entity_id) = hovered_named_id
                     && let Some(entity) = self.game.world.entities.get_mut(entity_id)

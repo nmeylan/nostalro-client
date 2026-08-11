@@ -166,6 +166,9 @@ impl EffectKeys {
 pub struct HoverState {
     pub hovered_entity_id: Option<u32>,
     pub hovered_player_id: Option<u32>,
+    /// Set purely so the player's own name plate shows on hover; never a click
+    /// or skill target.
+    pub hovered_self_id: Option<u32>,
     /// AID of the deployed trap under the cursor, resolved only while a
     /// trap-targeting skill is armed.
     pub hovered_skill_unit_id: Option<u32>,

@@ -223,6 +223,25 @@ pub fn hovered_player(
     best.map(|(id, _)| id)
 }
 
+/// The player's own sprite under the cursor. Feeds the name plate only: the
+/// player is never a click target, so this must stay out of the cursor and the
+/// targeting paths.
+pub fn hovered_self(
+    mouse_pos: (f64, f64),
+    entities: &EntityCollection,
+    render_list: &[RenderEntry],
+) -> Option<u32> {
+    let player_id = entities.player_id()?;
+    let (mx, my) = (mouse_pos.0 as f32, mouse_pos.1 as f32);
+    let entry = render_list.iter().find(|e| e.id == player_id)?;
+    let [left, top, right, bottom] = entry.pick_bounds;
+    if mx < left || mx > right || my < top || my > bottom {
+        return None;
+    }
+    let entity = entities.get(player_id)?;
+    (!entity.is_fading()).then_some(player_id)
+}
+
 pub struct CursorAnimationState {
     cursor_type: CursorType,
     motion_index: usize,
@@ -493,21 +512,19 @@ mod tests {
     }
 
     #[test]
-    fn entity_hover_skips_local_player() {
+    fn hovering_local_player_names_it_without_targeting_it() {
         let mut entities = EntityCollection::new();
         entities.set_player_id(1);
         entities.insert(make_entity(1, EntityType::Player, 0));
         let list = vec![entry(1, 400.0, 350.0, 0.5, 1.0)];
+        let over = (400.0, 310.0);
         assert_eq!(
-            hovered_entity_cursor_type(
-                (400.0, 310.0),
-                &entities,
-                &list,
-                &MapProperties::default(),
-                None
-            ),
+            hovered_entity_cursor_type(over, &entities, &list, &MapProperties::default(), None),
             None
         );
+        assert_eq!(hovered_player(over, &entities, &list), None);
+        assert_eq!(hovered_self(over, &entities, &list), Some(1));
+        assert_eq!(hovered_self((0.0, 0.0), &entities, &list), None);
     }
 
     #[test]

@@ -98,6 +98,7 @@ impl App {
 
         hover.hovered_player_id =
             ragnarok_game::cursor::hovered_player(mouse, entities, render_list);
+        hover.hovered_self_id = ragnarok_game::cursor::hovered_self(mouse, entities, render_list);
 
         if let Some(gat) = &self.game.session.gat {
             hover.cell_cursor = cursor_type_for_cell(gat, hovered_cell);
