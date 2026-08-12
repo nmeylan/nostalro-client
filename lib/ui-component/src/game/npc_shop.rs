@@ -689,15 +689,18 @@ impl NpcShop {
         let price = self.shop.item_price(item_idx);
         let label = format!("{} ({}z)", name, format_thousands(price as i64));
         let default_qty = match self.shop.mode {
-            Some(NpcShopMode::Sell) => self.shop.sell_item_remaining(item_idx).max(1),
-            _ => 1,
+            Some(NpcShopMode::Sell) => match self.shop.sell_item_remaining(item_idx) {
+                remaining if remaining > 0 => remaining.to_string(),
+                _ => String::new(),
+            },
+            _ => String::new(),
         };
         let mut dialog = InputDialog::new(
             InputDialogConfig {
                 label: Some(label),
                 show_cancel: false,
                 escape_cancels: false,
-                default_value: default_qty.to_string(),
+                default_value: default_qty,
                 max_len: 6,
                 numeric_only: true,
             },
@@ -870,6 +873,40 @@ mod tests {
             Some(10),
             "default must follow what is left after the basket"
         );
+
+        shop_ui.qty_popup = None;
+        shop_ui.shop.add_to_basket(0, 10);
+        shop_ui.open_qty_popup(0);
+        assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_str(), "");
+    }
+
+    #[test]
+    fn buy_qty_popup_starts_empty() {
+        let mut shop_ui = NpcShop::new();
+        shop_ui.shop.open_buy(
+            100,
+            vec![ShopBuyItem {
+                item: Item {
+                    index: 0,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 1,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
+                },
+                price: 50,
+                discount_price: 50,
+            }],
+        );
+
+        shop_ui.open_qty_popup(0);
+        assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_str(), "");
     }
 
     #[test]
