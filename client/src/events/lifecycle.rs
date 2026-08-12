@@ -21,7 +21,7 @@ impl App {
                 self.effect_holder.clear();
                 self.sound_queue.clear();
                 self.sound.stop_all_sfx();
-                self.game.world.arrows.clear();
+                self.game.world.clear_map_scoped();
                 self.game.combat.damage_numbers.clear();
                 self.game.character.storage.clear();
                 self.windows.storage_password_window.close();
@@ -62,10 +62,7 @@ impl App {
                     renderer.gr2_models.clear();
                 }
                 self.game.sprite_caches.sprite_cache.clear();
-                self.game.world.floor_items.clear();
-                self.game.world.graffiti.clear();
-                self.game.world.cast_marks.clear();
-                self.game.world.talkbox_bubbles.clear();
+                self.game.world.clear_map_scoped();
                 self.game.boss_mark = None;
                 self.game.show_digit = None;
                 self.game.assets.floor_item_sprites.clear();

@@ -371,6 +371,22 @@ pub struct World {
     pub talkbox_bubbles: HashMap<u32, ([f32; 3], ChatBubbleState)>,
 }
 
+impl World {
+    /// Drop everything the world holds that belongs to the map we are leaving.
+    /// Entities are left alone: a map change keeps the player, a logout drops
+    /// every one of them.
+    pub fn clear_map_scoped(&mut self) {
+        self.floor_items.clear();
+        self.arrows.clear();
+        self.trap_units.clear();
+        self.hidden_traps.clear();
+        self.freeze_shatters.clear();
+        self.graffiti.clear();
+        self.cast_marks.clear();
+        self.talkbox_bubbles.clear();
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct TrapUnit {
     pub unit_id: u8,
@@ -1201,5 +1217,57 @@ mod effect_reset_tests {
         assert!(keys.sight_aura_keys.is_empty());
         assert!(keys.ruwach_aura_keys.is_empty());
         assert!(keys.weather_keys.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod map_scoped_reset_tests {
+    use super::*;
+    use ragnarok_game::entity::Entity;
+
+    #[test]
+    fn leaving_a_map_drops_traps_and_every_other_ground_object_but_keeps_entities() {
+        let mut game = GameState::new();
+        let player = Entity::new_player(1000, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0);
+        game.world.entities.set_player_id(1000);
+        game.world.entities.insert(player);
+
+        let trap = TrapUnit {
+            unit_id: 0x90,
+            world: [10.0, 0.0, 10.0],
+            cell: (10, 10),
+        };
+        game.world.trap_units.insert(1, trap);
+        game.world.hidden_traps.insert(2, trap);
+        game.world.graffiti.insert(
+            3,
+            Graffiti {
+                creator_aid: 1000,
+                cell_x: 5,
+                cell_y: 5,
+                yaw: 0.0,
+                message: "hi".to_string(),
+            },
+        );
+        game.world.talkbox_bubbles.insert(
+            4,
+            ([0.0, 0.0, 0.0], ChatBubbleState::new("box".to_string())),
+        );
+        game.world.cast_marks.insert(
+            1000,
+            CastMark::Lockon {
+                target_gid: 2000,
+                remaining: 1.0,
+            },
+        );
+
+        game.world.clear_map_scoped();
+
+        assert!(game.world.trap_units.is_empty());
+        assert!(game.world.hidden_traps.is_empty());
+        assert!(game.world.graffiti.is_empty());
+        assert!(game.world.talkbox_bubbles.is_empty());
+        assert!(game.world.cast_marks.is_empty());
+        assert!(game.world.entities.player().is_some());
     }
 }

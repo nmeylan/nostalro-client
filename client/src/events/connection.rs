@@ -415,12 +415,9 @@ impl App {
             renderer.gr2_models.clear();
         }
         self.game.world.entities.clear_non_player();
+        self.game.world.clear_map_scoped();
         self.game.companions.pet.clear_entity();
         self.game.quest_markers.clear();
-        self.game.world.floor_items.clear();
-        self.game.world.graffiti.clear();
-        self.game.world.cast_marks.clear();
-        self.game.world.talkbox_bubbles.clear();
         self.game.boss_mark = None;
         self.game.assets.floor_item_sprites.clear();
         self.game.schedulers.repeat_sounds.clear();
