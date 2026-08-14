@@ -321,14 +321,16 @@ impl App {
             Some(c) => c,
             None => return,
         };
-        if self
+        let locked_state = self
             .game
             .world
             .entities
             .player()
-            .is_some_and(|e| e.is_move_locked())
-        {
+            .filter(|e| e.is_move_locked())
+            .map(|e| e.state);
+        if let Some(state) = locked_state {
             self.game.combat.queued_move = Some((dest_x, dest_y));
+            self.game.combat.queued_move_state = Some(state);
             return;
         }
         let gat = match &self.game.session.gat {

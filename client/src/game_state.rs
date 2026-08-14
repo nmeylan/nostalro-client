@@ -103,9 +103,11 @@ pub struct CombatState {
     pub attack_request_sent: bool,
     pub waiting_item_throw_ack: bool,
     pub damage_numbers: DamageNumberManager,
-    /// Destination clicked while the swing (or a pickup/hurt motion) held the
-    /// character; sent as soon as the motion releases.
+    /// Destination clicked while the swing (or a pickup) held the character.
+    /// Released on the next state change, not once the motion ends.
     pub queued_move: Option<(i32, i32)>,
+    /// State the character was in when `queued_move` was taken.
+    pub queued_move_state: Option<EntityState>,
 }
 
 impl Default for CombatState {
@@ -126,6 +128,7 @@ impl CombatState {
             waiting_item_throw_ack: false,
             damage_numbers: DamageNumberManager::new(),
             queued_move: None,
+            queued_move_state: None,
         }
     }
 }

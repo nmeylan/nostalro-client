@@ -619,10 +619,7 @@ impl Entity {
     }
 
     pub fn is_move_locked(&self) -> bool {
-        matches!(
-            self.state,
-            EntityState::Hurt | EntityState::Pickup | EntityState::Attacking
-        )
+        matches!(self.state, EntityState::Pickup | EntityState::Attacking)
     }
 
     pub fn begin_move(&mut self, path: Vec<crate::path::PathNode>, now: f32) {
@@ -630,23 +627,36 @@ impl Entity {
         self.state_timer = 0.0;
     }
 
-    pub fn enter_hurt(&mut self, damage_motion_secs: f32) {
-        if matches!(
-            self.state,
-            EntityState::Dead
-                | EntityState::Attacking
-                | EntityState::SkillExec
-                | EntityState::Casting
-        ) {
+    /// Action group the damage motion plays from.
+    pub fn hurt_action_group(&self) -> usize {
+        match self.entity_type {
+            EntityType::Player | EntityType::Mercenary => SpriteActionType::Hurt as usize,
+            EntityType::Monster | EntityType::Npc | EntityType::Homunculus => 3,
+        }
+    }
+
+    /// `natural_secs` is the damage action's own duration. The server's damage
+    /// motion time scales it: below one average the motion is played faster,
+    /// above it the motion plays once and the last frame is held for the rest.
+    /// Only a player keeps swinging through a blow; everything else flinches
+    /// mid-attack.
+    pub fn enter_hurt(&mut self, damage_motion_secs: f32, natural_secs: Option<f32>) {
+        if self.state == EntityState::Dead
+            || (self.state == EntityState::Attacking && self.entity_type == EntityType::Player)
+        {
             return;
         }
-        if damage_motion_secs <= AVG_ATTACKED_SPEED_SECS {
+        if damage_motion_secs <= 0.0 {
             return;
         }
+        let natural = natural_secs
+            .filter(|s| *s > 0.0)
+            .unwrap_or(AVG_ATTACKED_SPEED_SECS);
+        let factor = damage_motion_secs / AVG_ATTACKED_SPEED_SECS;
         self.movement.stop();
         self.state = EntityState::Hurt;
-        self.state_timer = damage_motion_secs;
-        self.animation_duration = Some(damage_motion_secs);
+        self.state_timer = natural * factor;
+        self.animation_duration = Some(natural * factor.min(1.0));
     }
 
     pub fn enter_attack(&mut self, duration_secs: f32, motion_factor: f32) {
@@ -1393,7 +1403,7 @@ mod tests {
     }
 
     #[test]
-    fn hurt_cancels_movement_and_recovers_to_the_combat_stance() {
+    fn hurt_cancels_movement_without_locking_it_and_recovers_to_the_combat_stance() {
         let mut e = make_entity();
         let path = vec![
             make_path_node(101, 100, false),
@@ -1402,21 +1412,20 @@ mod tests {
         e.movement.start_move(path, 0.0);
         assert!(e.movement.is_moving());
 
-        assert!(!e.is_move_locked());
-
-        e.enter_hurt(0.5);
+        e.enter_hurt(0.5, None);
         assert_eq!(e.state, EntityState::Hurt);
         assert!(!e.movement.is_moving());
-        assert!(e.is_move_locked());
+        assert!(
+            !e.is_move_locked(),
+            "the damage motion never swallows a move request"
+        );
 
         e.update_state(0.3);
         assert_eq!(e.state, EntityState::Hurt);
-        assert!(e.is_move_locked());
 
         e.update_state(0.3);
         assert_eq!(e.state, EntityState::ReadyFight);
         assert_eq!(e.action_index(), 4);
-        assert!(!e.is_move_locked());
     }
 
     #[test]
@@ -1461,19 +1470,27 @@ mod tests {
     }
 
     #[test]
-    fn light_hit_below_threshold_keeps_walking() {
-        let mut e = make_entity();
-        let path = vec![
-            make_path_node(101, 100, false),
-            make_path_node(102, 100, false),
-        ];
-        e.movement.start_move(path, 0.0);
+    fn damage_motion_time_scales_the_action_and_a_slow_blow_holds_the_pose() {
+        let natural = Some(0.4);
 
-        e.enter_hurt(0.2);
-        e.update_state(0.016);
-        assert_eq!(e.state, EntityState::Moving);
-        assert!(e.movement.is_moving());
-        assert!(!e.is_move_locked());
+        let mut fast = make_entity();
+        fast.enter_hurt(AVG_ATTACKED_SPEED_SECS / 2.0, natural);
+        assert_eq!(fast.state, EntityState::Hurt);
+        assert_eq!(fast.state_timer, 0.2);
+        assert_eq!(
+            fast.animation_duration,
+            Some(0.2),
+            "a quick blow plays the action faster"
+        );
+
+        let mut slow = make_entity();
+        slow.enter_hurt(AVG_ATTACKED_SPEED_SECS * 2.0, natural);
+        assert_eq!(slow.state_timer, 0.8);
+        assert_eq!(
+            slow.animation_duration,
+            Some(0.4),
+            "a slow blow plays the action once and holds the last frame"
+        );
     }
 
     #[test]
@@ -1482,7 +1499,7 @@ mod tests {
         e.enter_dead();
         assert_eq!(e.state, EntityState::Dead);
 
-        e.enter_hurt(1.0);
+        e.enter_hurt(1.0, None);
         assert_eq!(e.state, EntityState::Dead);
 
         e.enter_attack(1.0, 1.0);
@@ -1518,18 +1535,27 @@ mod tests {
     }
 
     #[test]
-    fn attacking_and_skill_exec_block_hurt() {
-        let mut e = make_entity();
-        e.enter_attack(1.0, 1.0);
-        assert_eq!(e.state, EntityState::Attacking);
-        e.enter_hurt(0.5);
-        assert_eq!(e.state, EntityState::Attacking);
+    fn only_a_player_swings_through_a_blow() {
+        let mut player = make_entity();
+        player.enter_attack(1.0, 1.0);
+        player.enter_hurt(0.5, None);
+        assert_eq!(player.state, EntityState::Attacking);
 
-        let mut e2 = make_entity();
-        e2.enter_skill_exec(1.0, 0, 1);
-        assert_eq!(e2.state, EntityState::SkillExec);
-        e2.enter_hurt(0.5);
-        assert_eq!(e2.state, EntityState::SkillExec);
+        let mut monster = make_entity();
+        monster.entity_type = EntityType::Monster;
+        monster.enter_attack(1.0, 1.0);
+        monster.enter_hurt(0.5, None);
+        assert_eq!(monster.state, EntityState::Hurt);
+
+        let mut casting = make_entity();
+        casting.enter_casting(2.0, 0);
+        casting.enter_hurt(0.5, None);
+        assert_eq!(casting.state, EntityState::Hurt);
+
+        let mut skilling = make_entity();
+        skilling.enter_skill_exec(1.0, 0, 1);
+        skilling.enter_hurt(0.5, None);
+        assert_eq!(skilling.state, EntityState::Hurt);
     }
 
     #[test]
@@ -1634,16 +1660,6 @@ mod tests {
         e.enter_casting(2.0, 0);
         assert_eq!(e.state, EntityState::Casting);
         assert_eq!(e.action_index(), 12);
-    }
-
-    #[test]
-    fn casting_blocks_hurt() {
-        let mut e = make_entity();
-        e.enter_casting(2.0, 0);
-        assert_eq!(e.state, EntityState::Casting);
-
-        e.enter_hurt(0.5);
-        assert_eq!(e.state, EntityState::Casting);
     }
 
     #[test]

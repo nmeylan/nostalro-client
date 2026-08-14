@@ -91,20 +91,22 @@ impl App {
         }
     }
 
+    /// A move clicked during a swing or a pickup leaves on the next state
+    /// change, whatever that state turns out to be, rather than waiting for the
+    /// motion to play out.
     pub(crate) fn flush_queued_move(&mut self) {
-        if self
-            .game
-            .world
-            .entities
-            .player()
-            .is_some_and(|p| p.is_move_locked())
-        {
+        if self.game.combat.queued_move.is_none() {
+            return;
+        }
+        let state = self.game.world.entities.player().map(|p| p.state);
+        if state == self.game.combat.queued_move_state {
             return;
         }
         self.send_queued_move();
     }
 
     pub(crate) fn send_queued_move(&mut self) {
+        self.game.combat.queued_move_state = None;
         let Some((dest_x, dest_y)) = self.game.combat.queued_move.take() else {
             return;
         };

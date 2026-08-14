@@ -1,7 +1,7 @@
 use crate::App;
 use models::enums::EnumWithNumberValue;
-use models::enums::status::StatusTypes;
 use models::enums::effect_id::EffectId;
+use models::enums::status::StatusTypes;
 use ragnarok_game::damage_number::DamageNumber;
 
 impl App {

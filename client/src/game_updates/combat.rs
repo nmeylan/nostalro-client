@@ -5,7 +5,6 @@ use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::effect::{derive_hit_effect, is_trail_effect};
 use ragnarok_game::entity::EntityState;
-use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::path::{in_attack_range, try_move_to};
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
 use ragnarok_game::skill::skill_needs_talkbox;
@@ -94,10 +93,19 @@ impl App {
                 .player()
                 .map(|e| e.state)
                 .unwrap_or(EntityState::Standing);
+            // The damage motion and the walk are animation states, not action
+            // locks: the swing keeps being requested through both. Mid-swing
+            // only a fresh target gets through, so switching enemies does not
+            // cost a full attack motion.
             if matches!(
                 player_state,
-                EntityState::Standing | EntityState::ReadyFight
+                EntityState::Standing
+                    | EntityState::ReadyFight
+                    | EntityState::Moving
+                    | EntityState::Hurt
             ) || (player_state == EntityState::Casting && !self.game.casting_blocks_action())
+                || (player_state == EntityState::Attacking
+                    && self.game.combat.last_attacked_enemy != Some(target_id))
             {
                 self.send_attack_packet(target_id);
                 self.game.combat.attack_request_cooldown = 0.3;
@@ -434,20 +442,20 @@ impl App {
                 {
                     let is_sonic_or_chain = hit.skill_id == SkillEnum::AsSonicblow.id() as u16
                         || hit.skill_id == SkillEnum::MoChaincombo.id() as u16;
-                    let attacker_pos = self
+                    let hurt_secs = self
                         .game
                         .world
                         .entities
-                        .get(hit.attacker_gid)
-                        .map(|e| e.movement.cell_position());
+                        .get(entity_id)
+                        .zip(self.game.sprite_caches.sprites.get(&entity_id))
+                        .and_then(|(entity, sprite)| {
+                            sprite
+                                .body_act
+                                .action_group_duration_ms(entity.hurt_action_group())
+                        })
+                        .map(|ms| ms / 1000.0);
                     if let Some(entity) = self.game.world.entities.get_mut(entity_id) {
-                        if !is_sonic_or_chain && let Some(ap) = attacker_pos {
-                            let tp = entity.movement.cell_position();
-                            if let Some(dir) = direction_from_positions(tp.0, tp.1, ap.0, ap.1) {
-                                entity.set_facing(dir);
-                            }
-                        }
-                        entity.enter_hurt(hit.attacked_mt_secs);
+                        entity.enter_hurt(hit.attacked_mt_secs, hurt_secs);
 
                         if is_sonic_or_chain {
                             entity.spin_quarter_turn();

@@ -185,7 +185,7 @@ impl App {
         let suppress_flinch = matches!(
             action,
             ActionType::AttackNomotion | ActionType::AttackMultipleNomotion
-        ) || (action == ActionType::Skill && effective_count == 1);
+        );
 
         let target_pos = self
             .game

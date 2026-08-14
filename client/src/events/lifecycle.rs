@@ -45,6 +45,7 @@ impl App {
                 self.game.combat.attack_target_id = None;
                 self.game.combat.attack_request_sent = false;
                 self.game.combat.queued_move = None;
+                self.game.combat.queued_move_state = None;
                 self.game.npc_cutins = [None, None, None];
                 self.game.session.progress_bar = None;
             }
@@ -77,6 +78,7 @@ impl App {
                 self.game.combat.attack_target_id = None;
                 self.game.combat.attack_request_sent = false;
                 self.game.combat.queued_move = None;
+                self.game.combat.queued_move_state = None;
                 self.game.companions.homunculus = None;
                 self.game.companions.mercenary = None;
                 self.game.companions.pet = ragnarok_game::pet::PetState::default();
