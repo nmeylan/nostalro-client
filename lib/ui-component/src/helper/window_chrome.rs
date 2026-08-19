@@ -149,7 +149,7 @@ pub fn draw_exp_bar(
     } else {
         push_quad(ui, x, y, w + 2.0, h + 2.0, [0.3, 0.3, 0.35, 0.9]);
     }
-    if fill_pct > 0.0 {
+    if fill_pct > 0.0 && fill_pct < 1.0 {
         let fw = (w * fill_pct.clamp(0.0, 1.0)).floor();
         push_quad(ui, x + 1.0, y + 1.0, fw, h, [0.26, 0.38, 0.65, 1.0]);
     }
