@@ -15,7 +15,7 @@ use ragnarok_game::effect::{
     is_trail_effect, potion_throw_index, sevenwind_aura, suppresses_visuals_on_damage,
     target_skill_effects, trail_arrival_secs,
 };
-use ragnarok_game::entity::{ChatBubbleState, EntityType};
+use ragnarok_game::entity::EntityType;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::job_class::job_class_name;
 use ragnarok_game::movement::direction_from_positions;
@@ -828,9 +828,7 @@ impl App {
             .and_then(|e| e.name.clone())
             .unwrap_or_default();
         let message = format!("{partner} !!  {love_line}");
-        if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
-            caster.chat_bubble = Some(ChatBubbleState::new(message));
-        }
+        self.game.world.entities.set_chat_bubble(src_gid, message);
     }
 
     /// WE_CALLPARTNER ("I miss You") balloon uses the couple name stored from
@@ -841,9 +839,7 @@ impl App {
             return;
         }
         let message = format!("{partner} !!  I miss you");
-        if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
-            caster.chat_bubble = Some(ChatBubbleState::new(message));
-        }
+        self.game.world.entities.set_chat_bubble(src_gid, message);
     }
 
     fn queue_skill_sound(&mut self, sound: Option<(&'static str, SkillSoundPos)>, target_gid: u32) {

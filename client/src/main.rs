@@ -881,8 +881,11 @@ impl ApplicationHandler for App {
                     .iter()
                     .filter(|entry| {
                         self.game.world.entities.get(entry.id).is_none_or(|e| {
-                            hidden_render(e.effect_state, self.hidden_viewer_for(entry.id))
-                                != HiddenRender::Skip
+                            hidden_render(
+                                e.effect_state,
+                                self.hidden_viewer_for(entry.id),
+                                self.player_clairvoyant(),
+                            ) != HiddenRender::Skip
                         })
                     })
                     .copied()

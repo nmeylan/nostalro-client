@@ -115,11 +115,10 @@ impl App {
         };
 
         let mut bar_y = entry.pick_bounds[3] + 5.0;
-        let hp_ratio = entity
-            .category()
-            .has_health_bar()
-            .then(|| self.entity_hp_ratio(entity_id))
-            .flatten();
+        let hp_ratio = (entity.category().has_health_bar()
+            && !self.game.world.entities.hides_overhead_ui(entity_id))
+        .then(|| self.entity_hp_ratio(entity_id))
+        .flatten();
         if let Some(ratio) = hp_ratio {
             let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
             bar_y = y;
@@ -888,7 +887,7 @@ fn persistent_bar_eligible(entity: &Entity, is_companion: bool, is_party_member:
     if !is_companion && !is_party_member && !has_mob_hp {
         return false;
     }
-    entity.effect_state & ragnarok_game::sprite_path::OPTION_HIDE == 0 && entity.is_alive()
+    !ragnarok_game::sprite_path::is_hidden(entity.effect_state) && entity.is_alive()
 }
 
 fn render_hp_bar(
@@ -998,6 +997,18 @@ mod tests {
         mob.mob_info = ragnarok_game::mob_info::MobInfo::parse("HP: 0/200");
         mob.enter_dead();
         assert!(!persistent_bar_eligible(&mob, false, false));
+    }
+
+    #[test]
+    fn stealth_takes_the_persistent_bar_away() {
+        use ragnarok_game::sprite_path::{OPTION_CHASEWALK, OPTION_CLOAK, OPTION_HIDE};
+
+        let mut member = player();
+        assert!(persistent_bar_eligible(&member, false, true));
+        for option in [OPTION_HIDE, OPTION_CLOAK, OPTION_CLOAK | OPTION_CHASEWALK] {
+            member.effect_state = option;
+            assert!(!persistent_bar_eligible(&member, false, true));
+        }
     }
 
     #[test]

@@ -809,6 +809,7 @@ impl App {
                 self.despawn_falcon_visual(gid);
             }
         }
+        self.game.world.entities.clear_hidden_chat_bubble(gid);
         if is_player {
             for &(bit, efst) in OPTION_STATUS_ICONS {
                 let was = old_effect_state & bit != 0;

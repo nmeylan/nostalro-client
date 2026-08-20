@@ -257,6 +257,10 @@ impl Character {
         self.active_statuses.retain(|s| s.efst != efst);
     }
 
+    pub fn has_status(&self, efst: i16) -> bool {
+        self.active_statuses.iter().any(|s| s.efst == efst)
+    }
+
     pub fn prune_expired(&mut self, now_ms: u64) {
         self.active_statuses
             .retain(|s| s.end_ms.is_none_or(|end| now_ms < end));

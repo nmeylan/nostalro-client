@@ -50,6 +50,13 @@ impl App {
         }
     }
 
+    /// maya purple effect
+    pub(crate) fn player_clairvoyant(&self) -> bool {
+        self.game
+            .character
+            .has_status(ragnarok_game::sprite_path::EFST_CLAIRVOYANCE)
+    }
+
     /// Ground-lightmap tint for a sprite standing at `cell` (GAT coordinates).
     fn actor_light(&self, cell: (f32, f32)) -> [f32; 3] {
         let lightmap_on = self.renderer.as_ref().is_some_and(|r| r.lightmap_enabled());
@@ -148,8 +155,11 @@ impl App {
                         self.game.sprite_caches.sprites.get(&entry.id),
                         self.game.world.entities.get(entry.id),
                     ) {
-                        let render =
-                            hidden_render(entity.effect_state, self.hidden_viewer_for(entry.id));
+                        let render = hidden_render(
+                            entity.effect_state,
+                            self.hidden_viewer_for(entry.id),
+                            self.player_clairvoyant(),
+                        );
                         if render == HiddenRender::Skip {
                             continue;
                         }
@@ -216,6 +226,9 @@ impl App {
                         .tint
                         {
                             body_channels.tint = Some(rgb);
+                        }
+                        if render == HiddenRender::Silhouette {
+                            body_channels.tint = Some([0, 0, 0]);
                         }
                         body_channels.alpha *= body_alpha;
                         body_channels.lift_px += entity.hover_lift_px(camera_distance);

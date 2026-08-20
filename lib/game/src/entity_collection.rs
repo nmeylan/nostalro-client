@@ -284,12 +284,38 @@ impl EntityCollection {
             return;
         }
         if let Some(name) = skill_name
-            && let Some(entity) = self.entities.get_mut(&gid)
+            && self
+                .entities
+                .get(&gid)
+                .is_some_and(|e| e.entity_type != EntityType::Monster)
         {
-            if entity.entity_type != EntityType::Monster {
-                entity.chat_bubble =
-                    Some(crate::entity::ChatBubbleState::new(format!("{} !!", name)));
-            }
+            self.set_chat_bubble(gid, format!("{} !!", name));
+        }
+    }
+
+    pub fn hides_overhead_ui(&self, gid: u32) -> bool {
+        !self.is_player(gid)
+            && self
+                .entities
+                .get(&gid)
+                .is_some_and(|e| crate::sprite_path::is_hidden(e.effect_state))
+    }
+
+    pub fn set_chat_bubble(&mut self, gid: u32, message: String) {
+        if self.hides_overhead_ui(gid) {
+            return;
+        }
+        if let Some(entity) = self.entities.get_mut(&gid) {
+            entity.chat_bubble = Some(crate::entity::ChatBubbleState::new(message));
+        }
+    }
+
+    pub fn clear_hidden_chat_bubble(&mut self, gid: u32) {
+        if !self.hides_overhead_ui(gid) {
+            return;
+        }
+        if let Some(entity) = self.entities.get_mut(&gid) {
+            entity.chat_bubble = None;
         }
     }
 
@@ -444,7 +470,7 @@ mod tests {
 
         let e = col.get(2000100).unwrap();
         assert_eq!(
-            hidden_render(e.effect_state, HiddenViewer::Other),
+            hidden_render(e.effect_state, HiddenViewer::Other, false),
             HiddenRender::Skip
         );
     }
@@ -770,5 +796,30 @@ mod tests {
             Some("Dark Strike".to_string()),
         );
         assert!(col.get(2).unwrap().chat_bubble.is_none());
+    }
+
+    #[test]
+    fn a_stealthed_actor_neither_keeps_nor_gains_a_balloon() {
+        use crate::sprite_path::{OPTION_CLOAK, OPTION_HIDE};
+
+        let mut col = EntityCollection::new();
+        col.insert(make_entity(1));
+        col.show_skill_chat_bubble(1, SkillEnum::AlHeal.id() as u16, Some("Heal".to_string()));
+        assert!(col.get(1).unwrap().chat_bubble.is_some());
+
+        col.get_mut(1).unwrap().effect_state = OPTION_CLOAK;
+        col.clear_hidden_chat_bubble(1);
+        assert!(col.get(1).unwrap().chat_bubble.is_none());
+
+        col.show_skill_chat_bubble(1, SkillEnum::AlHeal.id() as u16, Some("Heal".to_string()));
+        assert!(col.get(1).unwrap().chat_bubble.is_none());
+
+        col.insert(make_entity(2));
+        col.set_player_id(2);
+        col.get_mut(2).unwrap().effect_state = OPTION_HIDE;
+        col.show_skill_chat_bubble(2, SkillEnum::AlHeal.id() as u16, Some("Heal".to_string()));
+        assert!(col.get(2).unwrap().chat_bubble.is_some());
+        col.clear_hidden_chat_bubble(2);
+        assert!(col.get(2).unwrap().chat_bubble.is_some());
     }
 }

@@ -197,6 +197,8 @@ pub fn is_costume_job(job: u16) -> bool {
 
 pub const EFST_RIDING: i16 = 27;
 pub const EFST_FALCON: i16 = 28;
+/// Maya Purple: the wearer sees stealthed actors as black silhouettes.
+pub const EFST_CLAIRVOYANCE: i16 = 184;
 
 /// OPTION bits the server delivers only as a bitmask (no status packet), paired with the
 /// status-bar icon the client synthesizes for the local player when the bit toggles.
@@ -244,6 +246,8 @@ pub enum HiddenRender {
     /// Draw only the shadow (Hiding for the local player).
     ShadowOnly,
     Alpha(f32),
+    /// Body at full opacity with its colour crushed to black, and no shadow.
+    Silhouette,
     Skip,
 }
 
@@ -263,9 +267,9 @@ pub fn hide_allows_skill(skill_id: u16) -> bool {
     matches!(skill_id, 51 | 137 | 212 | 214)
 }
 
-pub fn hidden_render(effect_state: i32, viewer: HiddenViewer) -> HiddenRender {
+pub fn hidden_render(effect_state: i32, viewer: HiddenViewer, clairvoyant: bool) -> HiddenRender {
     use HiddenViewer::*;
-    if effect_state & OPTION_HIDE != 0 {
+    let render = if effect_state & OPTION_HIDE != 0 {
         match viewer {
             Own => HiddenRender::ShadowOnly,
             _ => HiddenRender::Skip,
@@ -277,6 +281,11 @@ pub fn hidden_render(effect_state: i32, viewer: HiddenViewer) -> HiddenRender {
         }
     } else {
         HiddenRender::Visible
+    };
+    if clairvoyant && render == HiddenRender::Skip {
+        HiddenRender::Silhouette
+    } else {
+        render
     }
 }
 
@@ -757,25 +766,56 @@ mod tests {
     fn hidden_render_is_per_state_and_viewer_aware() {
         use HiddenRender::*;
         use HiddenViewer::*;
-        assert_eq!(hidden_render(0, Own), Visible);
-        assert_eq!(hidden_render(OPTION_RIDING, Other), Visible);
+        assert_eq!(hidden_render(0, Own, false), Visible);
+        assert_eq!(hidden_render(OPTION_RIDING, Other, false), Visible);
 
-        assert_eq!(hidden_render(OPTION_CLOAK, Own), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(hidden_render(OPTION_CLOAK, Ally), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(hidden_render(OPTION_CLOAK, Other), Skip);
+        assert_eq!(
+            hidden_render(OPTION_CLOAK, Own, false),
+            Alpha(CLOAK_BODY_ALPHA)
+        );
+        assert_eq!(
+            hidden_render(OPTION_CLOAK, Ally, false),
+            Alpha(CLOAK_BODY_ALPHA)
+        );
+        assert_eq!(hidden_render(OPTION_CLOAK, Other, false), Skip);
 
-        assert_eq!(hidden_render(OPTION_HIDE, Own), ShadowOnly);
-        assert_eq!(hidden_render(OPTION_HIDE, Ally), Skip);
-        assert_eq!(hidden_render(OPTION_HIDE, Other), Skip);
+        assert_eq!(hidden_render(OPTION_HIDE, Own, false), ShadowOnly);
+        assert_eq!(hidden_render(OPTION_HIDE, Ally, false), Skip);
+        assert_eq!(hidden_render(OPTION_HIDE, Other, false), Skip);
 
         // Hide beats cloak when both are set.
-        assert_eq!(hidden_render(OPTION_HIDE | OPTION_CLOAK, Own), ShadowOnly);
-        assert_eq!(hidden_render(OPTION_HIDE | OPTION_CLOAK, Ally), Skip);
+        assert_eq!(
+            hidden_render(OPTION_HIDE | OPTION_CLOAK, Own, false),
+            ShadowOnly
+        );
+        assert_eq!(hidden_render(OPTION_HIDE | OPTION_CLOAK, Ally, false), Skip);
 
         let chasewalk = OPTION_CHASEWALK | OPTION_CLOAK;
-        assert_eq!(hidden_render(chasewalk, Own), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(hidden_render(chasewalk, Ally), Alpha(CLOAK_BODY_ALPHA));
-        assert_eq!(hidden_render(chasewalk, Other), Skip);
+        assert_eq!(
+            hidden_render(chasewalk, Own, false),
+            Alpha(CLOAK_BODY_ALPHA)
+        );
+        assert_eq!(
+            hidden_render(chasewalk, Ally, false),
+            Alpha(CLOAK_BODY_ALPHA)
+        );
+        assert_eq!(hidden_render(chasewalk, Other, false), Skip);
+    }
+
+    #[test]
+    fn maya_purple_turns_an_unseen_body_into_a_silhouette() {
+        use HiddenRender::*;
+        use HiddenViewer::*;
+        assert_eq!(hidden_render(OPTION_CLOAK, Other, true), Silhouette);
+        assert_eq!(hidden_render(OPTION_HIDE, Other, true), Silhouette);
+        assert_eq!(hidden_render(OPTION_HIDE, Ally, true), Silhouette);
+
+        assert_eq!(hidden_render(0, Other, true), Visible);
+        assert_eq!(hidden_render(OPTION_HIDE, Own, true), ShadowOnly);
+        assert_eq!(
+            hidden_render(OPTION_CLOAK, Ally, true),
+            Alpha(CLOAK_BODY_ALPHA)
+        );
     }
 
     #[test]
