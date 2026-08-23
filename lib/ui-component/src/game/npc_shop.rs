@@ -160,8 +160,6 @@ impl InGameWindow for NpcShop {
     }
 
     fn build(&mut self, ui: &mut UiFrame, ctx: &mut BuildCtx) -> Vec<GameEvent> {
-        let _character = &mut *ctx.character;
-        let _data = ctx.data;
         if !self.shop.is_open() {
             return Vec::new();
         }
@@ -182,6 +180,7 @@ impl InGameWindow for NpcShop {
         self.build_input_window(
             ui,
             &mut events,
+            ctx,
             input_default_x,
             input_default_y,
             input_win_h,
@@ -189,6 +188,7 @@ impl InGameWindow for NpcShop {
         let output_rect = self.build_output_window(
             ui,
             &mut events,
+            ctx,
             output_default_x,
             output_default_y,
             output_win_h,
@@ -198,7 +198,8 @@ impl InGameWindow for NpcShop {
             && source_id == INPUT_WIN_ID
         {
             if self.shop.needs_quantity_prompt(item_idx) {
-                self.open_qty_popup(item_idx);
+                let name = self.item_display_name(item_idx, ctx);
+                self.open_qty_popup(item_idx, &name);
             } else {
                 self.shop.add_to_basket(item_idx, 1);
             }
@@ -253,6 +254,7 @@ impl NpcShop {
         &mut self,
         ui: &mut UiFrame,
         events: &mut Vec<GameEvent>,
+        ctx: &BuildCtx,
         default_x: f32,
         default_y: f32,
         win_h: f32,
@@ -368,9 +370,9 @@ impl NpcShop {
                 ui.text(count_x, ry + row_h - 2.0, &count_str, text_color);
             }
 
-            let name = self.shop.item_name(item_idx);
+            let name = self.item_display_name(item_idx, ctx);
             let text_y = ry + row_h - (8.0);
-            ui.text(name_x, text_y, name, text_color);
+            ui.text(name_x, text_y, &name, text_color);
 
             let price_right = win.x + win_w - pad_right - scrollbar_w - (8.0);
             draw_shop_price(
@@ -389,7 +391,7 @@ impl NpcShop {
             }
             if response.double_clicked() {
                 if self.shop.needs_quantity_prompt(item_idx) {
-                    self.open_qty_popup(item_idx);
+                    self.open_qty_popup(item_idx, &name);
                 } else {
                     self.shop.add_to_basket(item_idx, 1);
                 }
@@ -451,6 +453,7 @@ impl NpcShop {
         &mut self,
         ui: &mut UiFrame,
         events: &mut Vec<GameEvent>,
+        ctx: &BuildCtx,
         default_x: f32,
         default_y: f32,
         win_h: f32,
@@ -564,8 +567,8 @@ impl NpcShop {
             let qty_x = win.x + pad_left + (ICON_OFFSET_X) + icon_size - qty_w;
             ui.text(qty_x, ry + icon_size, &qty_str, text_color);
 
-            let name = self.shop.item_name(basket_item.source_index);
-            ui.text(name_x, text_y, name, text_color);
+            let name = self.item_display_name(basket_item.source_index, ctx);
+            ui.text(name_x, text_y, &name, text_color);
 
             let price = self.shop.item_price(basket_item.source_index);
             let subtotal = price as i64 * basket_item.quantity as i64;
@@ -684,8 +687,12 @@ impl NpcShop {
         win
     }
 
-    fn open_qty_popup(&mut self, item_idx: usize) {
-        let name = self.shop.item_name(item_idx);
+    fn item_display_name(&self, index: usize, ctx: &BuildCtx) -> String {
+        self.shop
+            .item_display_name(index, ctx.data, &ctx.character.char_names)
+    }
+
+    fn open_qty_popup(&mut self, item_idx: usize, name: &str) {
         let price = self.shop.item_price(item_idx);
         let label = format!("{} ({}z)", name, format_thousands(price as i64));
         let default_qty = match self.shop.mode {
@@ -862,12 +869,12 @@ mod tests {
             }],
         );
 
-        shop_ui.open_qty_popup(0);
+        shop_ui.open_qty_popup(0, "Red Potion");
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_i16(), Some(16));
 
         shop_ui.qty_popup = None;
         shop_ui.shop.add_to_basket(0, 6);
-        shop_ui.open_qty_popup(0);
+        shop_ui.open_qty_popup(0, "Red Potion");
         assert_eq!(
             shop_ui.qty_popup.as_ref().unwrap().1.value_i16(),
             Some(10),
@@ -876,7 +883,7 @@ mod tests {
 
         shop_ui.qty_popup = None;
         shop_ui.shop.add_to_basket(0, 10);
-        shop_ui.open_qty_popup(0);
+        shop_ui.open_qty_popup(0, "Red Potion");
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_str(), "");
     }
 
@@ -905,7 +912,7 @@ mod tests {
             }],
         );
 
-        shop_ui.open_qty_popup(0);
+        shop_ui.open_qty_popup(0, "Red Potion");
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_str(), "");
     }
 
@@ -933,7 +940,7 @@ mod tests {
                 discount_price: 50,
             }],
         );
-        shop_ui.open_qty_popup(0);
+        shop_ui.open_qty_popup(0, "Red Potion");
 
         let mut character = Character::new();
         let data = DataTable::new();

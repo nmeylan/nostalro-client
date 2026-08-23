@@ -1,3 +1,5 @@
+use crate::char_name::CharNameCache;
+use crate::data_table::DataTable;
 use crate::data_table::item_resource_table::ItemResourceTable;
 use crate::item::Item;
 use models::enums::EnumWithNumberValue;
@@ -137,20 +139,22 @@ impl NpcShopData {
         }
     }
 
-    pub fn item_name(&self, index: usize) -> &str {
-        match self.mode {
-            Some(NpcShopMode::Buy) => self
-                .buy_items
-                .get(index)
-                .map(|i| i.item.name.as_str())
-                .unwrap_or(""),
-            Some(NpcShopMode::Sell) => self
-                .sell_items
-                .get(index)
-                .map(|i| i.item.name.as_str())
-                .unwrap_or(""),
-            None => "",
-        }
+    pub fn item_display_name(
+        &self,
+        index: usize,
+        data: &DataTable,
+        producers: &CharNameCache,
+    ) -> String {
+        self.item_at(index)
+            .map(|item| {
+                crate::display_name::format_equipment_display_name(
+                    item,
+                    data.item_slot_count.as_ref(),
+                    data.card_name.as_ref(),
+                    producers,
+                )
+            })
+            .unwrap_or_default()
     }
 
     pub fn item_at(&self, index: usize) -> Option<&Item> {
@@ -369,7 +373,10 @@ impl NpcShopData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_table::card_name_table::CardNameTable;
+    use crate::data_table::item_slot_count_table::ItemSlotCountTable;
     use models::enums::item::ItemType;
+    use std::collections::{HashMap, HashSet};
 
     fn make_item(item_id: u16, name: &str) -> Item {
         Item {
@@ -441,6 +448,37 @@ mod tests {
     }
 
     #[test]
+    fn sell_list_names_match_the_inventory_composition() {
+        let data = DataTable {
+            item_slot_count: Some(ItemSlotCountTable::from_entries(HashMap::from([(1201, 3)]))),
+            card_name: Some(CardNameTable::from_data(
+                HashMap::from([(4001, "Poring".to_string())]),
+                HashSet::new(),
+            )),
+            ..DataTable::default()
+        };
+        let producers = CharNameCache::default();
+
+        let mut inventory = crate::inventory::InventoryData::new();
+        inventory.add_item({
+            let mut i = make_item(1201, "Knife");
+            i.item_type = ItemType::Weapon;
+            i.index = 5;
+            i.refining_level = 7;
+            i.slot = [4001, 0, 0, 0];
+            i
+        });
+
+        let mut shop = NpcShopData::new();
+        shop.apply_sell_list(100, 100, vec![(5, 5000, 5500)], &inventory);
+
+        assert_eq!(
+            shop.item_display_name(0, &data, &producers),
+            "+7 Poring Knife [3]"
+        );
+    }
+
+    #[test]
     fn shop_lifecycle_buy() {
         let mut shop = NpcShopData::new();
         assert!(!shop.is_open());
@@ -449,7 +487,10 @@ mod tests {
         assert!(shop.is_open());
         assert_eq!(shop.mode, Some(NpcShopMode::Buy));
         assert_eq!(shop.item_count(), 3);
-        assert_eq!(shop.item_name(0), "Red Potion");
+        assert_eq!(
+            shop.item_display_name(0, &DataTable::default(), &CharNameCache::default()),
+            "Red Potion"
+        );
         assert_eq!(shop.item_price(1), 200);
         assert!(shop.needs_quantity_prompt(0));
         assert!(!shop.needs_quantity_prompt(2));
