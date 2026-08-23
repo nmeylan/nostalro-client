@@ -10,6 +10,7 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use crate::{BuildCtx, InGameWindow, Window};
 
 pub const SKILL_WINDOW_ID: WidgetId = WidgetId(1200);
@@ -273,11 +274,10 @@ impl InGameWindow for SkillTreeWindow {
                 texture: TextureRef::Named(icon_path),
             });
 
-            let display_name = data
-                .skill_name
-                .as_ref()
-                .map(|t| t.get_display_name_or_internal(&skill.name))
-                .unwrap_or_else(|| skill.name.clone());
+            let display_name = format_skill_display_name(
+                &skill.name,
+                data.skill_name.as_ref(),
+            );
             let name_x = icon_x + ICON_SIZE + 6.0;
             let name_y = row_y + 14.0;
             ui.text(name_x, name_y, &display_name, tc);

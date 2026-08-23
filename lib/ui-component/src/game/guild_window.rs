@@ -7,6 +7,7 @@ use crate::helper::window_chrome::{
 };
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::data_table::DataTable;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::guild::{GUILD_PERM_EXPEL, GUILD_PERM_INVITE, Guild, GuildPosition};
 use ragnarok_game::job_class::job_class_name;
@@ -1157,11 +1158,7 @@ impl GuildWindow {
             });
 
             let name_color = if dim { OFFLINE_COLOR } else { TEXT };
-            let display = data
-                .skill_name
-                .as_ref()
-                .map(|t| t.get_display_name_or_internal(&s.name))
-                .unwrap_or_else(|| s.name.clone());
+            let display = format_skill_display_name(&s.name, data.skill_name.as_ref());
             ui.text(x + 45.0, row_y + 12.0, &display, name_color);
             ui.text(
                 x + 45.0,

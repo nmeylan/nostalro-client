@@ -8,6 +8,7 @@ use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::MercenaryState;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -168,7 +169,8 @@ impl MercenarySkillWindow {
             });
 
             let name_x = icon_x + ICON_SIZE + 8.0;
-            ui.text(name_x, row_y + 14.0, &skill.name, tc);
+            let display_name = format_skill_display_name(&skill.name, data.skill_name.as_ref());
+            ui.text(name_x, row_y + 14.0, &display_name, tc);
             ui.text(name_x, row_y + 28.0, &format!("Lv : {}", skill.level), tc);
             ui.text_right(
                 x + WIN_W - PAD,

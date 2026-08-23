@@ -7,6 +7,7 @@ use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::{GameEvent, SkillInfo};
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -169,7 +170,8 @@ impl HomunSkillWindow {
             });
 
             let name_x = icon_x + ICON_SIZE + 8.0;
-            ui.text(name_x, row_y + 14.0, &skill.name, tc);
+            let display_name = format_skill_display_name(&skill.name, data.skill_name.as_ref());
+            ui.text(name_x, row_y + 14.0, &display_name, tc);
             ui.text(name_x, row_y + 28.0, &format!("Lv : {}", skill.level), tc);
 
             let mut sp_right = x + WIN_W - PAD;
@@ -321,11 +323,7 @@ pub(crate) fn draw_companion_skill_tooltip(
     anchor_x: f32,
     anchor_y: f32,
 ) {
-    let display_name = data
-        .skill_name
-        .as_ref()
-        .map(|t| t.get_display_name_or_internal(&skill.name))
-        .unwrap_or_else(|| skill.name.clone());
+    let display_name = format_skill_display_name(&skill.name, data.skill_name.as_ref());
     let mut lines = vec![display_name];
 
     let type_str = match skill.skill_target_type {

@@ -1,5 +1,6 @@
 use crate::App;
 use ragnarok_game::cursor::RenderEntry;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::entity::{Entity, EntityCategory, EntityType};
 use ragnarok_game::sprite_path::JT_HIDDEN_NPC;
 use ragnarok_game::targeting::{GM_TEXT_COLOR, pk_name_color};
@@ -702,13 +703,10 @@ impl App {
 
         let skill_id = pending.skill_id();
         if let Some(internal_name) = self.game.resolve_cast_skill_name(skill_id) {
-            let display_name = self
-                .game
-                .data_table
-                .skill_name
-                .as_ref()
-                .map(|t| t.get_display_name_or_internal(internal_name))
-                .unwrap_or_else(|| internal_name.to_string());
+            let display_name = format_skill_display_name(
+                internal_name,
+                self.game.data_table.skill_name.as_ref(),
+            );
             let level = pending.level();
             let banner_text = if level > 0 {
                 format!("{}(Lv {})", display_name, level)

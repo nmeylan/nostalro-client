@@ -4,6 +4,7 @@ use models::enums::EnumWithStringValue;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::autocounter;
 use ragnarok_game::cast_scope::CastScope;
@@ -104,11 +105,10 @@ impl App {
     }
 
     pub(super) fn skill_display_name(&self, internal_name: &str) -> Option<String> {
-        self.game
-            .data_table
-            .skill_name
-            .as_ref()
-            .map(|table| table.get_display_name_or_internal(internal_name))
+        Some(format_skill_display_name(
+            internal_name,
+            self.game.data_table.skill_name.as_ref(),
+        ))
     }
 
     pub(super) fn skill_display_name_by_id(&self, skill_id: u16) -> Option<String> {

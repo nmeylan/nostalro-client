@@ -1,4 +1,5 @@
 use crate::App;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::{RefineItemRow, VendorItem};
@@ -146,13 +147,10 @@ impl App {
                 let skill = self.game.character.skills.get_skill(id as u16);
                 let (name, icon) = match skill {
                     Some(s) => {
-                        let display = self
-                            .game
-                            .data_table
-                            .skill_name
-                            .as_ref()
-                            .map(|t| t.get_display_name_or_internal(&s.name))
-                            .unwrap_or_else(|| s.name.clone());
+                        let display = format_skill_display_name(
+                            &s.name,
+                            self.game.data_table.skill_name.as_ref(),
+                        );
                         (display, Some(s.icon_path()))
                     }
                     None => (format!("Skill #{id}"), None),
