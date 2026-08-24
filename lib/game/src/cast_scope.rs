@@ -11,9 +11,9 @@ const ROTATION_PER_FRAME: f32 = 0.5;
 pub const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 pub const HOSTILE_RED: [f32; 3] = [1.0, 0.0, 0.0];
 
-/// Side of the scope square, in cells, for a ground-placed `skill_id`.
-pub fn scope_size(skill_id: u16) -> u16 {
-    let extent = match SkillEnum::from_id(skill_id as u32) {
+/// Side of the scope square, in cells, for a ground-placed `skill`.
+pub fn scope_size(skill: SkillEnum) -> u16 {
+    let extent = match skill {
         SkillEnum::MgNapalmbeat
         | SkillEnum::WzFrostnova
         | SkillEnum::BsHammerfall
@@ -52,8 +52,14 @@ pub struct CastScope {
 }
 
 impl CastScope {
-    pub fn new(skill_id: u16, cell_x: u16, cell_y: u16, hostile: bool, duration_secs: f32) -> Self {
-        let size = scope_size(skill_id);
+    pub fn new(
+        skill: SkillEnum,
+        cell_x: u16,
+        cell_y: u16,
+        hostile: bool,
+        duration_secs: f32,
+    ) -> Self {
+        let size = scope_size(skill);
         Self {
             cell_x,
             cell_y,
@@ -108,15 +114,15 @@ mod tests {
 
     #[test]
     fn scope_covers_the_skill_footprint_plus_a_cell_of_margin() {
-        assert_eq!(scope_size(SkillEnum::WzStormgust.id() as u16), 11);
-        assert_eq!(scope_size(SkillEnum::WzVermilion.id() as u16), 13);
-        assert_eq!(scope_size(SkillEnum::AcShower.id() as u16), 2);
-        assert_eq!(scope_size(SkillEnum::AlWarp.id() as u16), 2);
+        assert_eq!(scope_size(SkillEnum::WzStormgust), 11);
+        assert_eq!(scope_size(SkillEnum::WzVermilion), 13);
+        assert_eq!(scope_size(SkillEnum::AcShower), 2);
+        assert_eq!(scope_size(SkillEnum::AlWarp), 2);
     }
 
     #[test]
     fn a_scope_sits_on_its_cell_and_spins_and_pulses_until_the_cast_ends() {
-        let mut scope = CastScope::new(SkillEnum::WzStormgust.id() as u16, 100, 80, false, 1.0);
+        let mut scope = CastScope::new(SkillEnum::WzStormgust, 100, 80, false, 1.0);
         assert_eq!(scope.origin_cell(), (95, 75));
         let first = scope.cell_uv(0, 0);
 
@@ -130,8 +136,8 @@ mod tests {
 
     #[test]
     fn opposing_casters_get_a_red_scope() {
-        let mine = CastScope::new(SkillEnum::WzMeteor.id() as u16, 10, 10, false, 1.0);
-        let theirs = CastScope::new(SkillEnum::WzMeteor.id() as u16, 10, 10, true, 1.0);
+        let mine = CastScope::new(SkillEnum::WzMeteor, 10, 10, false, 1.0);
+        let theirs = CastScope::new(SkillEnum::WzMeteor, 10, 10, true, 1.0);
 
         assert_eq!(mine.color_rgb, WHITE);
         assert_eq!(theirs.color_rgb, HOSTILE_RED);

@@ -1,13 +1,13 @@
 use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::skill::TALKBOX_MESSAGE_MAX_LEN;
+use ragnarok_game::skill::{SkillEnum, TALKBOX_MESSAGE_MAX_LEN};
 use ragnarok_ui::frame::{UiFrame, WidgetId};
 
 const BASE_ID: WidgetId = WidgetId(430);
 
 pub struct SkillTalkboxDialog {
-    pub skill_id: u16,
+    pub skill: SkillEnum,
     pub level: i16,
     pub x: i16,
     pub y: i16,
@@ -16,7 +16,7 @@ pub struct SkillTalkboxDialog {
 }
 
 impl SkillTalkboxDialog {
-    pub fn new(skill_id: u16, level: i16, x: i16, y: i16) -> Self {
+    pub fn new(skill: SkillEnum, level: i16, x: i16, y: i16) -> Self {
         let config = InputDialogConfig {
             label: Some("Message:".to_string()),
             show_cancel: true,
@@ -26,7 +26,7 @@ impl SkillTalkboxDialog {
             numeric_only: false,
         };
         Self {
-            skill_id,
+            skill,
             level,
             x,
             y,
@@ -57,7 +57,7 @@ impl InGameWindow for SkillTalkboxDialog {
             // An empty message would place a blank unit, so the cast waits for text.
             InputDialogResult::Submitted if self.inner.value_str().is_empty() => vec![],
             InputDialogResult::Submitted => vec![GameEvent::ConfirmedSkillTalkbox {
-                skill_id: self.skill_id,
+                skill: self.skill,
                 level: self.level,
                 x: self.x,
                 y: self.y,

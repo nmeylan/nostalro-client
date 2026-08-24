@@ -4,6 +4,7 @@ use crate::data_table::name_table::NameTable;
 use crate::entity::{EntityCategory, EntityType};
 use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
+use models::enums::skill_enums::SkillEnum;
 
 pub const JT_WARPNPC: u16 = 45;
 pub const JT_EFFECTLAUNCHER: u16 = 104;
@@ -227,9 +228,6 @@ pub const OPTION_HIDDEN_MASK: i32 = OPTION_HIDE | OPTION_CLOAK | OPTION_CHASEWAL
 
 pub const CLOAK_BODY_ALPHA: f32 = 100.0 / 255.0;
 
-/// Skill known only to Rogues that lifts the Hiding no-move restriction.
-pub const SKILL_TUNNEL_DRIVE: u16 = 213;
-
 /// Relationship of the viewer to the stealthed actor. Self and party members
 /// (and, later, the caster's own pet) still see a cloaked body; everyone else
 /// sees nothing.
@@ -263,8 +261,11 @@ pub fn hide_blocks_move(effect_state: i32, knows_tunnel_drive: bool) -> bool {
 
 /// The few skills usable while Hiding (TF_HIDING to unhide, plus the ambush
 /// attacks). Every other action is blocked until the bit clears.
-pub fn hide_allows_skill(skill_id: u16) -> bool {
-    matches!(skill_id, 51 | 137 | 212 | 214)
+pub fn hide_allows_skill(skill: SkillEnum) -> bool {
+    matches!(
+        skill,
+        SkillEnum::TfHiding | SkillEnum::AsGrimtooth | SkillEnum::RgBackstap | SkillEnum::RgRaid
+    )
 }
 
 pub fn hidden_render(effect_state: i32, viewer: HiddenViewer, clairvoyant: bool) -> HiddenRender {
@@ -824,8 +825,7 @@ mod tests {
 
         let mut list = SkillList::new();
         list.set_skills(vec![crate::skill::SkillData {
-            id: 5,
-            name: "SM_BASH".to_string(),
+            skill: SkillEnum::SmBash,
             level: 5,
             selected_level: 5,
             sp_cost: 10,
@@ -833,7 +833,7 @@ mod tests {
             upgradable: true,
             skill_target_type: crate::skill::SkillTargetType::Target,
         }]);
-        let knows = |l: &SkillList| l.get_skill(SKILL_TUNNEL_DRIVE).is_some();
+        let knows = |l: &SkillList| l.get_skill(SkillEnum::RgTunneldrive).is_some();
 
         assert!(hide_blocks_move(OPTION_HIDE, knows(&list)));
         assert!(!hide_blocks_move(OPTION_CLOAK, knows(&list)));
@@ -843,8 +843,7 @@ mod tests {
         ));
 
         list.add_skill(crate::skill::SkillData {
-            id: SKILL_TUNNEL_DRIVE,
-            name: "RG_TUNNELDRIVE".to_string(),
+            skill: SkillEnum::RgTunneldrive,
             level: 1,
             selected_level: 1,
             sp_cost: 0,

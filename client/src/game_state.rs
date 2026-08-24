@@ -257,17 +257,17 @@ pub struct PendingCasts {
     pub pending_companion_skill: Option<PendingCompanionSkill>,
     /// A patrol order awaiting its destination click; the flag is `is_mercenary`.
     pub pending_companion_patrol: Option<bool>,
-    pub pending_skill_id: Option<u16>,
+    pub pending_skill: Option<SkillEnum>,
     pub pending_skill_level: Option<i16>,
-    pub pending_ground_cast: Option<(u16, i16, i16, i16)>,
+    pub pending_ground_cast: Option<(SkillEnum, i16, i16, i16)>,
     /// A trap-targeting skill waiting out the walk to its trap: skill, level and
     /// the trap's unit AID.
-    pub pending_skill_unit_cast: Option<(u16, i16, u32)>,
+    pub pending_skill_unit_cast: Option<(SkillEnum, i16, u32)>,
     pub pending_card_composition_index: Option<u16>,
     /// Skill that opened the shared 0x01ad arrow/converter list, so the reply
     /// can be routed to the right context (the server disambiguates the same way
     /// via menuskill_id).
-    pub pending_list_skill: Option<u16>,
+    pub pending_list_skill: Option<SkillEnum>,
     /// AID of the Repair Weapon target, remembered from the cast so the
     /// server's broken-item list can be attributed back to that player.
     pub pending_repair_target: Option<u32>,
@@ -564,7 +564,7 @@ pub const COMPANION_AI_CONFIG_PATH: &str = "companion_ai.json";
 pub(crate) const TOKEN_OF_SIEGFRIED: u16 = 7621;
 
 /// First id of the guild skill block, which no cast-time relief covers.
-const GUILD_SKILL_ID_BASE: u16 = 10000;
+const GUILD_SKILL_ID_BASE: u32 = 10000;
 
 impl GameState {
     /// Resolves a skill's cast metadata `(target type, attack range)` from the
@@ -572,23 +572,23 @@ impl GameState {
     /// Companion skill IDs live in their own ranges, so the lookup order is
     /// unambiguous. The cast packet is identical for all three; the server
     /// attributes companion-range IDs to the companion.
-    pub fn resolve_cast_skill(&self, skill_id: u16) -> Option<(SkillTargetType, i16)> {
-        if let Some(s) = self.character.skills.get_skill(skill_id) {
+    pub fn resolve_cast_skill(&self, skill: SkillEnum) -> Option<(SkillTargetType, i16)> {
+        if let Some(s) = self.character.skills.get_skill(skill) {
             return Some((s.skill_target_type, s.attack_range));
         }
         if let Some(m) = &self.companions.mercenary
-            && let Some(s) = m.skills.iter().find(|s| s.id == skill_id)
+            && let Some(s) = m.skills.iter().find(|s| s.skill == skill)
         {
             return Some((s.skill_target_type, s.attack_range));
         }
         if let Some(h) = &self.companions.homunculus
-            && let Some(s) = h.skills.iter().find(|s| s.id == skill_id)
+            && let Some(s) = h.skills.iter().find(|s| s.skill == skill)
         {
             return Some((s.skill_target_type, s.attack_range));
         }
         self.character
             .item_skills
-            .get(skill_id)
+            .get(skill)
             .map(|s| (s.skill_target_type, s.attack_range))
     }
 
@@ -605,37 +605,14 @@ impl GameState {
         if self
             .character
             .skills
-            .get_skill(SkillEnum::SaFreecast.id() as u16)
+            .get_skill(SkillEnum::SaFreecast)
             .is_none()
         {
             return true;
         }
         player
-            .active_skill_id
-            .is_some_and(|id| id >= GUILD_SKILL_ID_BASE)
-    }
-
-    /// A castable skill's internal name (`ALL_RESURRECTION`), searched in the
-    /// same order as [`Self::resolve_cast_skill`]. The display-name table keys on
-    /// this.
-    pub fn resolve_cast_skill_name(&self, skill_id: u16) -> Option<&str> {
-        if let Some(s) = self.character.skills.get_skill(skill_id) {
-            return Some(&s.name);
-        }
-        if let Some(m) = &self.companions.mercenary
-            && let Some(s) = m.skills.iter().find(|s| s.id == skill_id)
-        {
-            return Some(&s.name);
-        }
-        if let Some(h) = &self.companions.homunculus
-            && let Some(s) = h.skills.iter().find(|s| s.id == skill_id)
-        {
-            return Some(&s.name);
-        }
-        self.character
-            .item_skills
-            .get(skill_id)
-            .map(|s| s.name.as_str())
+            .active_skill
+            .is_some_and(|skill| skill.id() >= GUILD_SKILL_ID_BASE)
     }
 
     /// Reads the player's cart design out of the `OPTION_CART` bits carried in
@@ -839,10 +816,10 @@ mod free_cast_tests {
     use ragnarok_game::entity::Entity;
     use ragnarok_game::event::SkillInfo;
 
-    fn casting_player(skill_id: u16) -> GameState {
+    fn casting_player(skill: SkillEnum) -> GameState {
         let mut game = GameState::new();
         let mut player = Entity::new_player(1000, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0);
-        player.enter_casting(2.0, skill_id);
+        player.enter_casting(2.0, skill);
         game.world.entities.set_player_id(1000);
         game.world.entities.insert(player);
         game
@@ -850,8 +827,7 @@ mod free_cast_tests {
 
     fn learn_free_cast(game: &mut GameState) {
         game.character.skills.apply_skill_list(vec![SkillInfo {
-            id: SkillEnum::SaFreecast.id() as u16,
-            name: "SA_FREECAST".to_string(),
+            skill: SkillEnum::SaFreecast,
             level: 5,
             sp_cost: 0,
             attack_range: 0,
@@ -862,20 +838,20 @@ mod free_cast_tests {
 
     #[test]
     fn free_cast_releases_the_cast_pin_except_for_guild_skills() {
-        let mut game = casting_player(SkillEnum::MgFirebolt.id() as u16);
+        let mut game = casting_player(SkillEnum::MgFirebolt);
         assert!(game.casting_blocks_action());
 
         learn_free_cast(&mut game);
         assert!(!game.casting_blocks_action());
 
-        let mut guild_cast = casting_player(SkillEnum::GdBattleorder.id() as u16);
+        let mut guild_cast = casting_player(SkillEnum::GdBattleorder);
         learn_free_cast(&mut guild_cast);
         assert!(guild_cast.casting_blocks_action());
     }
 
     #[test]
     fn a_player_who_is_not_casting_is_never_pinned() {
-        let mut game = casting_player(SkillEnum::MgFirebolt.id() as u16);
+        let mut game = casting_player(SkillEnum::MgFirebolt);
         game.world.entities.apply_skill_cast_cancel(1000);
         assert!(!game.casting_blocks_action());
     }
@@ -892,8 +868,7 @@ mod skill_resolve_tests {
         let mut game = GameState::new();
         let mut merc = MercenaryState::new(2000);
         merc.skills = vec![SkillInfo {
-            id: 8201,
-            name: "MS_BASH".to_string(),
+            skill: SkillEnum::MsBash,
             level: 3,
             sp_cost: 15,
             attack_range: 9,
@@ -903,10 +878,10 @@ mod skill_resolve_tests {
         game.companions.mercenary = Some(merc);
 
         assert_eq!(
-            game.resolve_cast_skill(8201),
+            game.resolve_cast_skill(SkillEnum::MsBash),
             Some((SkillTargetType::Target, 9))
         );
-        assert_eq!(game.resolve_cast_skill(9999), None);
+        assert_eq!(game.resolve_cast_skill(SkillEnum::SmBash), None);
     }
 
     #[test]
@@ -916,14 +891,13 @@ mod skill_resolve_tests {
         use ragnarok_game::targeting::{TargetClass, skill_target_class};
 
         let mut game = GameState::new();
-        let resurrection = SkillEnum::AllResurrection.id() as u16;
-        let firewall = SkillEnum::MgFirewall.id() as u16;
+        let resurrection = SkillEnum::AllResurrection;
+        let firewall = SkillEnum::MgFirewall;
         assert_eq!(game.resolve_cast_skill(resurrection), None);
 
         game.character.item_skills.insert(
             resurrection,
             ItemSkill {
-                name: "ALL_RESURRECTION".to_string(),
                 level: 1,
                 sp_cost: 60,
                 attack_range: 9,
@@ -933,7 +907,6 @@ mod skill_resolve_tests {
         game.character.item_skills.insert(
             firewall,
             ItemSkill {
-                name: "MG_FIREWALL".to_string(),
                 level: 1,
                 sp_cost: 40,
                 attack_range: 9,
@@ -944,16 +917,11 @@ mod skill_resolve_tests {
         let (target_type, range) = game.resolve_cast_skill(resurrection).unwrap();
         assert_eq!(skill_target_class(target_type), TargetClass::Supportive);
         assert_eq!(range, 9);
-        assert_eq!(
-            game.resolve_cast_skill_name(resurrection),
-            Some("ALL_RESURRECTION")
-        );
         let (target_type, _) = game.resolve_cast_skill(firewall).unwrap();
         assert_eq!(skill_target_class(target_type), TargetClass::Ground);
 
         game.character.clear();
         assert_eq!(game.resolve_cast_skill(resurrection), None);
-        assert_eq!(game.resolve_cast_skill_name(resurrection), None);
     }
 }
 

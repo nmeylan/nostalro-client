@@ -1,3 +1,5 @@
+use models::enums::skill_enums::SkillEnum;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DamageMessage {
     /// Target flinches and takes damage
@@ -14,7 +16,7 @@ pub struct ScheduledHit {
     pub damage: i32,
     pub fire_at: f32,
     pub attacker_gid: u32,
-    pub skill_id: u16,
+    pub skill: Option<SkillEnum>,
     pub is_last_hit: bool,
     pub is_critical: bool,
     pub hit_index: u16,
@@ -22,13 +24,13 @@ pub struct ScheduledHit {
 }
 
 impl ScheduledHit {
-    pub fn single(damage: i32, skill_id: u16, is_critical: bool) -> Self {
+    pub fn single(damage: i32, skill: Option<SkillEnum>, is_critical: bool) -> Self {
         Self {
             message: DamageMessage::Attacked,
             damage,
             fire_at: 0.0,
             attacker_gid: 0,
-            skill_id,
+            skill,
             is_last_hit: true,
             is_critical,
             hit_index: 0,
@@ -39,7 +41,7 @@ impl ScheduledHit {
     pub fn multi_hit(
         damage: i32,
         total_damage: i32,
-        skill_id: u16,
+        skill: Option<SkillEnum>,
         hit_index: u16,
         is_last_hit: bool,
     ) -> Self {
@@ -48,7 +50,7 @@ impl ScheduledHit {
             damage,
             fire_at: 0.0,
             attacker_gid: 0,
-            skill_id,
+            skill,
             is_last_hit,
             is_critical: false,
             hit_index,
@@ -100,7 +102,7 @@ impl Swing {
             damage,
             fire_at: self.fire_at + offset,
             attacker_gid: self.attacker_gid,
-            skill_id: 0,
+            skill: None,
             is_last_hit,
             is_critical: self.is_critical,
             hit_index,
@@ -232,7 +234,7 @@ mod tests {
             damage: 100,
             fire_at: 1.0,
             attacker_gid: 1,
-            skill_id: 0,
+            skill: None,
             is_last_hit: true,
             is_critical: false,
             hit_index: 0,
@@ -243,7 +245,7 @@ mod tests {
             damage: 200,
             fire_at: 2.0,
             attacker_gid: 1,
-            skill_id: 0,
+            skill: None,
             is_last_hit: true,
             is_critical: false,
             hit_index: 0,
@@ -254,7 +256,7 @@ mod tests {
             damage: 50,
             fire_at: 0.5,
             attacker_gid: 1,
-            skill_id: 0,
+            skill: None,
             is_last_hit: true,
             is_critical: false,
             hit_index: 0,
@@ -286,7 +288,7 @@ mod tests {
                 damage: per_hit,
                 fire_at: hit_time,
                 attacker_gid: 1,
-                skill_id: 10,
+                skill: Some(SkillEnum::MgSight),
                 is_last_hit: i == hit_count - 1,
                 is_critical: false,
                 hit_index: i,

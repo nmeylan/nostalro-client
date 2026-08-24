@@ -174,7 +174,7 @@ impl App {
                     item_id: item.map(|it| it.item_id).unwrap_or(0),
                     refine: 0,
                     cards: [0; 4],
-                    skill_id: 0,
+                    skill: None,
                 }
             })
             .collect();

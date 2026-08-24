@@ -5,6 +5,7 @@ use crate::helper::window_chrome::{
     text_color,
 };
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::skill::SkillEnum;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
@@ -64,7 +65,7 @@ pub struct ListRow {
     pub item_id: u16,
     pub refine: u8,
     pub cards: [u16; 4],
-    pub skill_id: i32,
+    pub skill: Option<SkillEnum>,
 }
 
 #[derive(Default)]
@@ -128,7 +129,7 @@ impl ItemListSelectionWindow {
                     cards: [0; 4],
                 },
                 ListContext::Identify => GameEvent::RequestIdentifyItem { index: -1 },
-                ListContext::AutoSpell => GameEvent::RequestSelectAutoSpell { skill_id: 0 },
+                ListContext::AutoSpell => GameEvent::RequestSelectAutoSpell { skill: None },
                 // Hatching is an item-use, not a menuskill; cancelling needs no reply.
                 ListContext::SelectPetEgg => {
                     self.close();
@@ -164,9 +165,7 @@ impl ItemListSelectionWindow {
                 cards: row.cards,
             },
             ListContext::Identify => GameEvent::RequestIdentifyItem { index: row.index },
-            ListContext::AutoSpell => GameEvent::RequestSelectAutoSpell {
-                skill_id: row.skill_id,
-            },
+            ListContext::AutoSpell => GameEvent::RequestSelectAutoSpell { skill: row.skill },
             ListContext::SelectPetEgg => GameEvent::RequestSelectPetEgg {
                 index: row.index as u16,
             },
@@ -399,7 +398,7 @@ mod tests {
             item_id,
             refine: 0,
             cards: [0; 4],
-            skill_id: 0,
+            skill: None,
         }
     }
 

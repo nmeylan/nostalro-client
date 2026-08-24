@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::data_table::skill_name_table::{SkillNameTable, format_skill_display_name};
 use crate::entity::{EmotionState, Entity, EntityState, EntityType, ForcedAnimation};
 use crate::mob_info::MobInfo;
 use crate::movement::direction_from_positions;
@@ -187,17 +188,18 @@ impl EntityCollection {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn apply_skill_casting(
         &mut self,
         gid: u32,
         target_gid: u32,
-        skill_id: u16,
+        skill: SkillEnum,
         delay_ms: u32,
         x: i16,
         y: i16,
-        skill_name: Option<String>,
+        names: Option<&SkillNameTable>,
     ) {
-        self.show_skill_chat_bubble(gid, skill_id, skill_name);
+        self.show_skill_chat_bubble(gid, skill, names);
         let target_pos = if target_gid != 0 {
             self.entities
                 .get(&target_gid)
@@ -216,9 +218,9 @@ impl EntityCollection {
             }
             let duration = delay_ms as f32 / 1000.0;
             if duration > 0.0 {
-                entity.enter_casting(duration, skill_id);
+                entity.enter_casting(duration, skill);
             } else {
-                entity.enter_skill_exec(0.3, skill_id, 1);
+                entity.enter_skill_exec(0.3, skill, 1);
             }
         }
     }
@@ -227,7 +229,7 @@ impl EntityCollection {
         &mut self,
         gid: u32,
         face_gid: Option<u32>,
-        skill_id: u16,
+        skill: SkillEnum,
         duration_secs: f32,
     ) {
         let face_pos =
@@ -239,14 +241,12 @@ impl EntityCollection {
                     entity.set_facing(dir);
                 }
             }
-            entity.enter_casting(duration_secs, skill_id);
+            entity.enter_casting(duration_secs, skill);
         }
     }
 
-    pub fn apply_skill_no_damage(&mut self, skill_id: u16, src_gid: u32, target_gid: u32) {
-        if skill_id == SkillEnum::TkRun.id() as u16
-            && !self.entities.get(&src_gid).is_some_and(|e| e.is_running)
-        {
+    pub fn apply_skill_no_damage(&mut self, skill: SkillEnum, src_gid: u32, target_gid: u32) {
+        if skill == SkillEnum::TkRun && !self.entities.get(&src_gid).is_some_and(|e| e.is_running) {
             return;
         }
         let target_pos = self
@@ -260,9 +260,9 @@ impl EntityCollection {
                     entity.set_facing(dir);
                 }
             }
-            let pose = skill_pose(skill_id);
+            let pose = skill_pose(skill);
             let duration = pose.map_or(NO_DAMAGE_SKILL_EXEC_SECS, |p| p.hold_secs);
-            entity.enter_skill_exec(duration, skill_id, 1);
+            entity.enter_skill_exec(duration, skill, 1);
             if let Some(pose) = pose {
                 entity.forced_animation = Some(ForcedAnimation::held_for(
                     pose.action,
@@ -273,9 +273,14 @@ impl EntityCollection {
         }
     }
 
-    pub fn show_skill_chat_bubble(&mut self, gid: u32, skill_id: u16, skill_name: Option<String>) {
+    pub fn show_skill_chat_bubble(
+        &mut self,
+        gid: u32,
+        skill: SkillEnum,
+        names: Option<&SkillNameTable>,
+    ) {
         if matches!(
-            SkillEnum::from_id(skill_id as u32),
+            skill,
             SkillEnum::StChasewalk
                 | SkillEnum::DcScream
                 | SkillEnum::BaFrostjoker
@@ -283,13 +288,13 @@ impl EntityCollection {
         ) {
             return;
         }
-        if let Some(name) = skill_name
-            && self
-                .entities
-                .get(&gid)
-                .is_some_and(|e| e.entity_type != EntityType::Monster)
+        if self
+            .entities
+            .get(&gid)
+            .is_some_and(|e| e.entity_type != EntityType::Monster)
         {
-            self.set_chat_bubble(gid, format!("{} !!", name));
+            let name = format_skill_display_name(&skill, names);
+            self.set_chat_bubble(gid, format!("{name} !!"));
         }
     }
 
@@ -319,13 +324,13 @@ impl EntityCollection {
         }
     }
 
-    pub fn apply_ground_skill(&mut self, skill_id: u16, src_gid: u32, x: i16, y: i16) {
+    pub fn apply_ground_skill(&mut self, skill: SkillEnum, src_gid: u32, x: i16, y: i16) {
         if let Some(entity) = self.entities.get_mut(&src_gid) {
             let sp = entity.movement.cell_position();
             if let Some(dir) = direction_from_positions(sp.0, sp.1, x as u16, y as u16) {
                 entity.set_facing(dir);
             }
-            entity.enter_skill_exec(GROUND_SKILL_EXEC_SECS, skill_id, 1);
+            entity.enter_skill_exec(GROUND_SKILL_EXEC_SECS, skill, 1);
         }
     }
 
@@ -339,7 +344,7 @@ impl EntityCollection {
             entity.state = EntityState::Standing;
             entity.state_timer = 0.0;
             entity.clear_cast();
-            entity.active_skill_id = None;
+            entity.active_skill = None;
         }
     }
 
@@ -532,7 +537,7 @@ mod tests {
     fn skill_cast_cancel_resets_casting_state() {
         let mut col = EntityCollection::new();
         let mut entity = make_entity(100);
-        entity.enter_casting(2.0, 42);
+        entity.enter_casting(2.0, SkillEnum::MgFirebolt);
         assert_eq!(entity.state, EntityState::Casting);
         col.insert(entity);
 
@@ -540,7 +545,7 @@ mod tests {
         let e = col.get(100).unwrap();
         assert_eq!(e.state, EntityState::Standing);
         assert_eq!(e.state_timer, 0.0);
-        assert!(e.active_skill_id.is_none());
+        assert!(e.active_skill.is_none());
     }
 
     #[test]
@@ -567,7 +572,7 @@ mod tests {
         let mut col = EntityCollection::new();
         col.set_player_id(100);
         let mut entity = make_entity(100);
-        entity.enter_casting(1.5, 10);
+        entity.enter_casting(1.5, SkillEnum::MgSight);
         col.insert(entity);
 
         col.apply_skill_cast_cancel(0);
@@ -601,13 +606,13 @@ mod tests {
         col.insert(make_entity_at(100, 10, 10));
         col.insert(make_entity_at(200, 10, 15));
 
-        col.apply_autocounter_channel(100, Some(200), 61, 1.5);
+        col.apply_autocounter_channel(100, Some(200), SkillEnum::KnAutocounter, 1.5);
 
         let e = col.get(100).unwrap();
         assert_eq!(e.state, EntityState::Casting);
         assert_eq!(e.state_timer, 1.5);
         assert_eq!(e.cast_total_duration, 1.5);
-        assert_eq!(e.active_skill_id, Some(61));
+        assert_eq!(e.active_skill, Some(SkillEnum::KnAutocounter));
         assert_eq!(
             e.direction,
             direction_from_positions(10, 10, 10, 15).unwrap()
@@ -615,8 +620,7 @@ mod tests {
 
         let mut character = Character::default();
         character.skills.set_skills(vec![SkillData {
-            id: 61,
-            name: "KN_AUTOCOUNTER".to_string(),
+            skill: SkillEnum::KnAutocounter,
             level: 3,
             selected_level: 3,
             sp_cost: 0,
@@ -713,7 +717,7 @@ mod tests {
             200,
         ));
 
-        col.apply_skill_no_damage(10, 1, 2);
+        col.apply_skill_no_damage(SkillEnum::MgSight, 1, 2);
         let e = col.get(1).unwrap();
         assert_eq!(e.direction, 6);
         assert_eq!(e.state, EntityState::SkillExec);
@@ -721,7 +725,7 @@ mod tests {
 
     #[test]
     fn run_toggle_plays_motion_on_start_but_not_when_stopping() {
-        let run_id = SkillEnum::TkRun.id() as u16;
+        let run = SkillEnum::TkRun;
 
         // Start: the EFST_RUN change already flipped is_running on, so the skill
         // packet plays the run motion.
@@ -729,7 +733,7 @@ mod tests {
         let mut starter = make_entity(1);
         starter.is_running = true;
         col.insert(starter);
-        col.apply_skill_no_damage(run_id, 1, 0);
+        col.apply_skill_no_damage(run, 1, 0);
         assert_eq!(col.get(1).unwrap().state, EntityState::SkillExec);
 
         // Stop: is_running already flipped off, so the skill packet is ignored
@@ -738,7 +742,7 @@ mod tests {
         let mut runner = make_entity(1);
         runner.state = EntityState::Standing;
         col.insert(runner);
-        col.apply_skill_no_damage(run_id, 1, 0);
+        col.apply_skill_no_damage(run, 1, 0);
         assert_eq!(col.get(1).unwrap().state, EntityState::Standing);
     }
 
@@ -746,7 +750,7 @@ mod tests {
     fn prepare_kick_freezes_the_caster_on_its_stance_frame() {
         let mut col = EntityCollection::new();
         col.insert(make_entity(1));
-        col.apply_skill_no_damage(SkillEnum::TkReadyturn.id() as u16, 1, 0);
+        col.apply_skill_no_damage(SkillEnum::TkReadyturn, 1, 0);
 
         let e = col.get(1).unwrap();
         assert_eq!(e.state, EntityState::SkillExec);
@@ -760,41 +764,41 @@ mod tests {
 
         // A skill without a stance leaves the body animating.
         col.insert(make_entity(2));
-        col.apply_skill_no_damage(SkillEnum::AlHeal.id() as u16, 2, 0);
+        col.apply_skill_no_damage(SkillEnum::AlHeal, 2, 0);
         assert!(col.get(2).unwrap().forced_animation.is_none());
     }
 
     #[test]
     fn skill_name_is_shouted_unless_the_skill_is_silent() {
+        let mut names = HashMap::new();
+        names.insert("TK_READYSTORM".to_string(), "Tornado Stance".to_string());
+        let names = SkillNameTable::from_entries(names);
+
         let mut col = EntityCollection::new();
         col.insert(make_entity(1));
 
-        col.show_skill_chat_bubble(
-            1,
-            SkillEnum::TkReadystorm.id() as u16,
-            Some("Tornado Stance".to_string()),
-        );
+        col.show_skill_chat_bubble(1, SkillEnum::TkReadystorm, Some(&names));
         assert_eq!(
             col.get(1).unwrap().chat_bubble.as_ref().unwrap().message,
             "Tornado Stance !!"
         );
 
+        // A skill the table does not name falls back to its internal id.
         col.get_mut(1).unwrap().chat_bubble = None;
-        col.show_skill_chat_bubble(
-            1,
-            SkillEnum::StChasewalk.id() as u16,
-            Some("Chase Walk".to_string()),
+        col.show_skill_chat_bubble(1, SkillEnum::AlHeal, Some(&names));
+        assert_eq!(
+            col.get(1).unwrap().chat_bubble.as_ref().unwrap().message,
+            "AL_HEAL !!"
         );
+
+        col.get_mut(1).unwrap().chat_bubble = None;
+        col.show_skill_chat_bubble(1, SkillEnum::StChasewalk, Some(&names));
         assert!(col.get(1).unwrap().chat_bubble.is_none());
 
         let mut monster = make_entity(2);
         monster.entity_type = EntityType::Monster;
         col.insert(monster);
-        col.show_skill_chat_bubble(
-            2,
-            SkillEnum::NpcDarkstrike.id() as u16,
-            Some("Dark Strike".to_string()),
-        );
+        col.show_skill_chat_bubble(2, SkillEnum::NpcDarkstrike, Some(&names));
         assert!(col.get(2).unwrap().chat_bubble.is_none());
     }
 
@@ -804,20 +808,20 @@ mod tests {
 
         let mut col = EntityCollection::new();
         col.insert(make_entity(1));
-        col.show_skill_chat_bubble(1, SkillEnum::AlHeal.id() as u16, Some("Heal".to_string()));
+        col.show_skill_chat_bubble(1, SkillEnum::AlHeal, None);
         assert!(col.get(1).unwrap().chat_bubble.is_some());
 
         col.get_mut(1).unwrap().effect_state = OPTION_CLOAK;
         col.clear_hidden_chat_bubble(1);
         assert!(col.get(1).unwrap().chat_bubble.is_none());
 
-        col.show_skill_chat_bubble(1, SkillEnum::AlHeal.id() as u16, Some("Heal".to_string()));
+        col.show_skill_chat_bubble(1, SkillEnum::AlHeal, None);
         assert!(col.get(1).unwrap().chat_bubble.is_none());
 
         col.insert(make_entity(2));
         col.set_player_id(2);
         col.get_mut(2).unwrap().effect_state = OPTION_HIDE;
-        col.show_skill_chat_bubble(2, SkillEnum::AlHeal.id() as u16, Some("Heal".to_string()));
+        col.show_skill_chat_bubble(2, SkillEnum::AlHeal, None);
         assert!(col.get(2).unwrap().chat_bubble.is_some());
         col.clear_hidden_chat_bubble(2);
         assert!(col.get(2).unwrap().chat_bubble.is_some());

@@ -31,7 +31,7 @@ impl App {
                 self.game.session.map_properties = MapProperties::default();
                 self.game.combat.damage_numbers.combat_hidden = false;
                 self.game.pending_casts.pending_skill_target = None;
-                self.game.pending_casts.pending_skill_id = None;
+                self.game.pending_casts.pending_skill = None;
                 self.game.pending_casts.pending_skill_level = None;
                 self.game.pending_casts.pending_skill_unit_cast = None;
                 self.game.pending_casts.pending_companion_patrol = None;

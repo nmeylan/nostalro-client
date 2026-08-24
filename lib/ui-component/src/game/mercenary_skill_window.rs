@@ -7,8 +7,8 @@ use crate::helper::window_chrome::{
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::MercenaryState;
 use ragnarok_game::data_table::DataTable;
-use ragnarok_game::event::GameEvent;
 use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
+use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -169,7 +169,7 @@ impl MercenarySkillWindow {
             });
 
             let name_x = icon_x + ICON_SIZE + 8.0;
-            let display_name = format_skill_display_name(&skill.name, data.skill_name.as_ref());
+            let display_name = format_skill_display_name(&skill.skill, data.skill_name.as_ref());
             ui.text(name_x, row_y + 14.0, &display_name, tc);
             ui.text(name_x, row_y + 28.0, &format!("Lv : {}", skill.level), tc);
             ui.text_right(
@@ -182,13 +182,13 @@ impl MercenarySkillWindow {
             if row_resp.double_clicked() {
                 events.push(GameEvent::RequestCompanionUseSkill {
                     is_mercenary: true,
-                    skill_id: skill.id,
+                    skill: skill.skill,
                     level: skill.level,
                 });
             } else if row_resp.clicked() {
                 ui.drag_source(
                     MERCENARY_SKILL_WINDOW_ID,
-                    skill.id as usize,
+                    skill.skill.id() as usize,
                     Some(skill.icon_path()),
                     (ICON_SIZE, ICON_SIZE),
                 );
@@ -221,7 +221,7 @@ impl MercenarySkillWindow {
         {
             events.push(GameEvent::RequestCompanionUseSkill {
                 is_mercenary: true,
-                skill_id: skill.id,
+                skill: skill.skill,
                 level: skill.level,
             });
         }

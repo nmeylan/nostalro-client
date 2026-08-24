@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 pub use models::enums::skill::SkillTargetType;
-use models::enums::skill_enums::SkillEnum;
+pub use models::enums::skill_enums::SkillEnum;
 
 /// Player-facing message for a skill-use failure `cause` (`USESKILL_FAIL_*`), or
 /// `None` when no message should be shown. Cause 0 (`USESKILL_FAIL_LEVEL`) is the
@@ -32,8 +32,13 @@ pub fn skill_failure_message(cause: u8) -> Option<&'static str> {
 
 /// Ground skills whose cast carries a written message: the client collects the text
 /// itself and sends it with the placement, so the server has nothing to prompt for.
-pub fn skill_needs_talkbox(skill_id: u16) -> bool {
-    skill_id == SkillEnum::HtTalkiebox.id() as u16 || skill_id == SkillEnum::RgGraffiti.id() as u16
+pub fn skill_needs_talkbox(skill: SkillEnum) -> bool {
+    matches!(skill, SkillEnum::HtTalkiebox | SkillEnum::RgGraffiti)
+}
+
+/// The skill window / hotkey icon for `skill`, named after its internal id.
+pub fn skill_icon_path(skill: SkillEnum) -> String {
+    ragnarok_resources::ui::item::icon(&skill.to_name().to_lowercase())
 }
 
 pub const TALKBOX_MESSAGE_MAX_LEN: usize = 79;
@@ -41,8 +46,11 @@ pub const TALKBOX_MESSAGE_MAX_LEN: usize = 79;
 /// The destination to answer a Teleport warp list with, when the list is the
 /// single `Random` entry a level 1 cast produces. A level 2 cast adds the save
 /// point, and any longer list has a real choice in it, so both return `None`.
-pub fn teleport_lvl1_destination<'a>(skill_id: u16, destinations: &'a [String]) -> Option<&'a str> {
-    if skill_id != SkillEnum::AlTeleport.id() as u16 {
+pub fn teleport_lvl1_destination<'a>(
+    skill: SkillEnum,
+    destinations: &'a [String],
+) -> Option<&'a str> {
+    if skill != SkillEnum::AlTeleport {
         return None;
     }
     let [only] = destinations else {
@@ -53,8 +61,7 @@ pub fn teleport_lvl1_destination<'a>(skill_id: u16, destinations: &'a [String]) 
 }
 
 pub struct SkillData {
-    pub id: u16,
-    pub name: String,
+    pub skill: SkillEnum,
     pub level: i16,
     pub selected_level: i16,
     pub sp_cost: i16,
@@ -65,7 +72,7 @@ pub struct SkillData {
 
 impl SkillData {
     pub fn icon_path(&self) -> String {
-        ragnarok_resources::ui::item::icon(&self.name.to_lowercase())
+        skill_icon_path(self.skill)
     }
 
     pub fn use_level(&self) -> i16 {
@@ -92,9 +99,8 @@ impl SkillData {
 /// Cast metadata for a skill granted by a consumable, learned from
 /// ZC_AUTORUN_SKILL rather than from the character's skill list. Kept apart from
 /// [`SkillList`] so it never shows up in the skill window.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ItemSkill {
-    pub name: String,
     pub level: i16,
     pub sp_cost: i16,
     pub attack_range: i16,
@@ -103,16 +109,16 @@ pub struct ItemSkill {
 
 #[derive(Default)]
 pub struct ItemSkills {
-    skills: HashMap<u16, ItemSkill>,
+    skills: HashMap<u32, ItemSkill>,
 }
 
 impl ItemSkills {
-    pub fn insert(&mut self, id: u16, skill: ItemSkill) {
-        self.skills.insert(id, skill);
+    pub fn insert(&mut self, skill: SkillEnum, granted: ItemSkill) {
+        self.skills.insert(skill.id(), granted);
     }
 
-    pub fn get(&self, id: u16) -> Option<&ItemSkill> {
-        self.skills.get(&id)
+    pub fn get(&self, skill: SkillEnum) -> Option<&ItemSkill> {
+        self.skills.get(&skill.id())
     }
 
     pub fn clear(&mut self) {
@@ -166,13 +172,13 @@ impl SkillList {
 
     pub fn update_skill(
         &mut self,
-        id: u16,
+        id: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
         upgradable: bool,
     ) {
-        if let Some(skill) = self.skills.iter_mut().find(|s| s.id == id) {
+        if let Some(skill) = self.skills.iter_mut().find(|s| s.skill == id) {
             skill.level = level;
             skill.sp_cost = sp_cost;
             skill.attack_range = attack_range;
@@ -188,7 +194,7 @@ impl SkillList {
     }
 
     pub fn add_skill(&mut self, skill: SkillData) {
-        if let Some(existing) = self.skills.iter_mut().find(|s| s.id == skill.id) {
+        if let Some(existing) = self.skills.iter_mut().find(|s| s.skill == skill.skill) {
             existing.level = skill.level;
             existing.sp_cost = skill.sp_cost;
             existing.attack_range = skill.attack_range;
@@ -210,44 +216,38 @@ impl SkillList {
         self.skills = skills
             .into_iter()
             .map(|s| SkillData {
-                id: s.id,
+                skill: s.skill,
                 selected_level: s.level,
                 level: s.level,
                 sp_cost: s.sp_cost,
                 attack_range: s.attack_range,
                 upgradable: s.upgradable,
                 skill_target_type: s.skill_target_type,
-                name: s.name,
             })
             .collect();
         self.skills.iter().map(|s| s.icon_path()).collect()
     }
 
     pub fn apply_skill_added(&mut self, skill: crate::event::SkillInfo) -> String {
-        let icon_path = ragnarok_resources::ui::item::icon(&skill.name.to_lowercase());
+        let icon_path = skill_icon_path(skill.skill);
         self.add_skill(SkillData {
-            id: skill.id,
+            skill: skill.skill,
             selected_level: skill.level,
             level: skill.level,
             sp_cost: skill.sp_cost,
             attack_range: skill.attack_range,
             upgradable: skill.upgradable,
             skill_target_type: skill.skill_target_type,
-            name: skill.name,
         });
         icon_path
     }
 
-    pub fn get_skill(&self, id: u16) -> Option<&SkillData> {
-        self.skills.iter().find(|s| s.id == id)
+    pub fn get_skill(&self, id: SkillEnum) -> Option<&SkillData> {
+        self.skills.iter().find(|s| s.skill == id)
     }
 
-    pub fn get_skill_mut(&mut self, id: u16) -> Option<&mut SkillData> {
-        self.skills.iter_mut().find(|s| s.id == id)
-    }
-
-    pub fn get_skill_by_name(&self, name: &str) -> Option<&SkillData> {
-        self.skills.iter().find(|s| s.name == name)
+    pub fn get_skill_mut(&mut self, id: SkillEnum) -> Option<&mut SkillData> {
+        self.skills.iter_mut().find(|s| s.skill == id)
     }
 
     pub fn skills(&self) -> &[SkillData] {
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn only_a_lone_random_entry_on_teleport_is_answered_automatically() {
-        let teleport = SkillEnum::AlTeleport.id() as u16;
+        let teleport = SkillEnum::AlTeleport;
         let random = || vec!["Random.gat".to_string()];
 
         assert_eq!(
@@ -276,15 +276,14 @@ mod tests {
             None
         );
         assert_eq!(
-            teleport_lvl1_destination(SkillEnum::AlWarp.id() as u16, &random()),
+            teleport_lvl1_destination(SkillEnum::AlWarp, &random()),
             None
         );
     }
 
-    fn make_skill(id: u16, name: &str, level: i16) -> SkillData {
+    fn make_skill(skill: SkillEnum, level: i16) -> SkillData {
         SkillData {
-            id,
-            name: name.to_string(),
+            skill,
             level,
             selected_level: level,
             sp_cost: 10,
@@ -298,21 +297,20 @@ mod tests {
     fn set_and_query_skills() {
         let mut list = SkillList::new();
         list.set_skills(vec![
-            make_skill(1, "SM_SWORD", 10),
-            make_skill(5, "SM_BASH", 5),
+            make_skill(SkillEnum::SmSword, 10),
+            make_skill(SkillEnum::SmBash, 5),
         ]);
         assert_eq!(list.skills().len(), 2);
-        assert_eq!(list.get_skill(5).unwrap().level, 5);
-        assert_eq!(list.get_skill_by_name("SM_SWORD").unwrap().id, 1);
-        assert!(list.get_skill(99).is_none());
+        assert_eq!(list.get_skill(SkillEnum::SmBash).unwrap().level, 5);
+        assert!(list.get_skill(SkillEnum::AlHeal).is_none());
     }
 
     #[test]
     fn update_skill_modifies_existing() {
         let mut list = SkillList::new();
-        list.set_skills(vec![make_skill(5, "SM_BASH", 5)]);
-        list.update_skill(5, 6, 15, 1, true);
-        let skill = list.get_skill(5).unwrap();
+        list.set_skills(vec![make_skill(SkillEnum::SmBash, 5)]);
+        list.update_skill(SkillEnum::SmBash, 6, 15, 1, true);
+        let skill = list.get_skill(SkillEnum::SmBash).unwrap();
         assert_eq!(skill.level, 6);
         assert_eq!(skill.sp_cost, 15);
     }
@@ -320,12 +318,12 @@ mod tests {
     #[test]
     fn add_skill_inserts_or_updates() {
         let mut list = SkillList::new();
-        list.add_skill(make_skill(5, "SM_BASH", 5));
+        list.add_skill(make_skill(SkillEnum::SmBash, 5));
         assert_eq!(list.skills().len(), 1);
-        list.add_skill(make_skill(5, "SM_BASH", 7));
+        list.add_skill(make_skill(SkillEnum::SmBash, 7));
         assert_eq!(list.skills().len(), 1);
-        assert_eq!(list.get_skill(5).unwrap().level, 7);
-        list.add_skill(make_skill(10, "SM_MAGNUM", 3));
+        assert_eq!(list.get_skill(SkillEnum::SmBash).unwrap().level, 7);
+        list.add_skill(make_skill(SkillEnum::SmMagnum, 3));
         assert_eq!(list.skills().len(), 2);
     }
 
@@ -359,19 +357,19 @@ mod tests {
 
     #[test]
     fn selected_level_defaults_to_learned() {
-        let skill = make_skill(1, "SM_BASH", 10);
+        let skill = make_skill(SkillEnum::SmBash, 10);
         assert_eq!(skill.use_level(), 10);
     }
 
     #[test]
     fn use_level_zero_for_unlearned() {
-        let skill = make_skill(1, "SM_BASH", 0);
+        let skill = make_skill(SkillEnum::SmBash, 0);
         assert_eq!(skill.use_level(), 0);
     }
 
     #[test]
     fn decrement_and_increment_use_level() {
-        let mut skill = make_skill(1, "SM_BASH", 5);
+        let mut skill = make_skill(SkillEnum::SmBash, 5);
         assert_eq!(skill.use_level(), 5);
         skill.decrement_use_level();
         assert_eq!(skill.use_level(), 4);
@@ -391,20 +389,20 @@ mod tests {
     #[test]
     fn update_skill_clamps_selected_level() {
         let mut list = SkillList::new();
-        let mut skill = make_skill(5, "SM_BASH", 10);
+        let mut skill = make_skill(SkillEnum::SmBash, 10);
         skill.selected_level = 8;
         list.set_skills(vec![skill]);
-        list.update_skill(5, 5, 15, 1, true);
-        assert_eq!(list.get_skill(5).unwrap().selected_level, 5);
+        list.update_skill(SkillEnum::SmBash, 5, 15, 1, true);
+        assert_eq!(list.get_skill(SkillEnum::SmBash).unwrap().selected_level, 5);
     }
 
     #[test]
     fn add_skill_clamps_selected_level_on_update() {
         let mut list = SkillList::new();
-        let mut skill = make_skill(5, "SM_BASH", 10);
+        let mut skill = make_skill(SkillEnum::SmBash, 10);
         skill.selected_level = 8;
         list.set_skills(vec![skill]);
-        list.add_skill(make_skill(5, "SM_BASH", 3));
-        assert_eq!(list.get_skill(5).unwrap().selected_level, 3);
+        list.add_skill(make_skill(SkillEnum::SmBash, 3));
+        assert_eq!(list.get_skill(SkillEnum::SmBash).unwrap().selected_level, 3);
     }
 }

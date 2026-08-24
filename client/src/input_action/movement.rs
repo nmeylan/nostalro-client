@@ -32,7 +32,7 @@ impl App {
             .game
             .character
             .skills
-            .get_skill(SkillEnum::RgTunneldrive.id() as u16)
+            .get_skill(SkillEnum::RgTunneldrive)
             .is_some();
         hide_blocks_move(effect_state, knows_tunnel_drive)
     }

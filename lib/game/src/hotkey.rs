@@ -1,11 +1,13 @@
+use models::enums::skill_enums::SkillEnum;
+
 pub const HOTKEY_ROWS: usize = 4;
 pub const HOTKEY_COLS: usize = 9;
 pub const HOTKEY_TOTAL: usize = HOTKEY_ROWS * HOTKEY_COLS;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HotkeySlotContent {
     Empty,
-    Skill { skill_id: u16, level: i16 },
+    Skill { skill: SkillEnum, level: i16 },
     Item { item_id: u16 },
 }
 
@@ -34,7 +36,7 @@ impl HotkeyBar {
         for (i, &(is_skill, id, count)) in keys.iter().take(HOTKEY_TOTAL).enumerate() {
             self.slots[i] = if is_skill != 0 && id != 0 {
                 HotkeySlotContent::Skill {
-                    skill_id: id as u16,
+                    skill: SkillEnum::from_id(id),
                     level: count,
                 }
             } else if id != 0 {
@@ -89,7 +91,7 @@ impl HotkeyBar {
         self.battle_mode = enabled;
     }
 
-    /// Realigns slots holding `skill_id` after the server changed its learned
+    /// Realigns slots holding `skill` after the server changed its learned
     /// level, returning the indexes that moved so the caller can persist them.
     ///
     /// A one-level gain carries along the slots that sat at the old learned
@@ -98,26 +100,26 @@ impl HotkeyBar {
     /// (reset, unlearn) only pulls slots back down to what is still castable.
     pub fn apply_skill_level_change(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         before_level: i16,
         new_level: i16,
     ) -> Vec<usize> {
         let mut changed = Vec::new();
         for index in 0..HOTKEY_TOTAL {
             let HotkeySlotContent::Skill {
-                skill_id: id,
+                skill: slot_skill,
                 level,
             } = self.slots[index]
             else {
                 continue;
             };
-            if id != skill_id {
+            if slot_skill != skill {
                 continue;
             }
             if new_level == before_level + 1 {
                 if level == before_level {
                     self.slots[index] = HotkeySlotContent::Skill {
-                        skill_id,
+                        skill,
                         level: new_level,
                     };
                     changed.push(index);
@@ -127,7 +129,7 @@ impl HotkeyBar {
                     HotkeySlotContent::Empty
                 } else {
                     HotkeySlotContent::Skill {
-                        skill_id,
+                        skill,
                         level: new_level,
                     }
                 };
@@ -140,7 +142,7 @@ impl HotkeyBar {
     pub fn to_server_format(&self, index: usize) -> (i8, u32, i16) {
         match self.get_slot(index) {
             HotkeySlotContent::Empty => (0, 0, 0),
-            HotkeySlotContent::Skill { skill_id, level } => (1, skill_id as u32, level),
+            HotkeySlotContent::Skill { skill, level } => (1, skill.id(), level),
             HotkeySlotContent::Item { item_id } => (0, item_id as u32, 0),
         }
     }
@@ -168,7 +170,7 @@ mod tests {
         assert_eq!(
             bar.get_slot(0),
             HotkeySlotContent::Skill {
-                skill_id: 28,
+                skill: SkillEnum::AlHeal,
                 level: 5
             }
         );
@@ -177,7 +179,7 @@ mod tests {
         assert_eq!(
             bar.get_slot(3),
             HotkeySlotContent::Skill {
-                skill_id: 10,
+                skill: SkillEnum::MgSight,
                 level: 3
             }
         );
@@ -205,14 +207,14 @@ mod tests {
         bar.set_slot(
             5,
             HotkeySlotContent::Skill {
-                skill_id: 28,
+                skill: SkillEnum::AlHeal,
                 level: 10,
             },
         );
         assert_eq!(
             bar.get_slot(5),
             HotkeySlotContent::Skill {
-                skill_id: 28,
+                skill: SkillEnum::AlHeal,
                 level: 10
             }
         );
@@ -234,19 +236,28 @@ mod tests {
             (0, 501, 0), // an item
         ]);
 
-        assert_eq!(bar.apply_skill_level_change(5, 5, 6), vec![0]);
+        assert_eq!(
+            bar.apply_skill_level_change(SkillEnum::SmBash, 5, 6),
+            vec![0]
+        );
         assert_eq!(bar.to_server_format(0), (1, 5, 6));
         assert_eq!(bar.to_server_format(1), (1, 5, 2));
         assert_eq!(bar.to_server_format(2), (1, 10, 5));
         assert_eq!(bar.to_server_format(3), (0, 501, 0));
 
         // A reset pulls every slot back to what is still castable.
-        assert_eq!(bar.apply_skill_level_change(5, 6, 1), vec![0, 1]);
+        assert_eq!(
+            bar.apply_skill_level_change(SkillEnum::SmBash, 6, 1),
+            vec![0, 1]
+        );
         assert_eq!(bar.to_server_format(0), (1, 5, 1));
         assert_eq!(bar.to_server_format(1), (1, 5, 1));
 
         // Unlearning empties them.
-        assert_eq!(bar.apply_skill_level_change(5, 1, 0), vec![0, 1]);
+        assert_eq!(
+            bar.apply_skill_level_change(SkillEnum::SmBash, 1, 0),
+            vec![0, 1]
+        );
         assert_eq!(bar.get_slot(0), HotkeySlotContent::Empty);
         assert_eq!(bar.get_slot(1), HotkeySlotContent::Empty);
         assert_eq!(bar.to_server_format(2), (1, 10, 5));
@@ -258,7 +269,7 @@ mod tests {
         bar.set_slot(
             0,
             HotkeySlotContent::Skill {
-                skill_id: 28,
+                skill: SkillEnum::AlHeal,
                 level: 5,
             },
         );

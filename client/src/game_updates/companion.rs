@@ -5,6 +5,7 @@ use ragnarok_ai::{AiParams, TacticTable};
 use ragnarok_game::companion::ai::{ActorView, AiContext, AiIntent, Motion};
 use ragnarok_game::entity::{EntityState, EntityType};
 use ragnarok_game::event::SkillInfo;
+use ragnarok_game::skill::SkillEnum;
 use ragnarok_game::sprite_path::{homunculus_type_index, mercenary_type_index};
 use ragnarok_network::{
     build_companion_attack_packet, build_companion_move_packet,
@@ -298,7 +299,7 @@ impl App {
                         "companion {gid} skill_object intent: skill={skill_id} lvl={level} target={target_gid}"
                     );
                     self.channel.send_packet(build_use_skill_packet(
-                        skill_id,
+                        SkillEnum::from_id(skill_id as u32),
                         level as i16,
                         target_gid,
                         pv,
@@ -311,7 +312,7 @@ impl App {
                     y,
                 } => {
                     self.channel.send_packet(build_use_skill_to_ground_packet(
-                        skill_id,
+                        SkillEnum::from_id(skill_id as u32),
                         level as i16,
                         x as i16,
                         y as i16,
@@ -447,7 +448,7 @@ fn companion_skills(skills: &[SkillInfo]) -> Vec<ragnarok_ai::CompanionSkill> {
     skills
         .iter()
         .map(|s| ragnarok_ai::CompanionSkill {
-            id: s.id,
+            id: s.skill.id() as u16,
             level: s.level.max(0) as u8,
             sp_cost: s.sp_cost.max(0) as u16,
             range: s.attack_range as i32,
@@ -458,7 +459,7 @@ fn companion_skills(skills: &[SkillInfo]) -> Vec<ragnarok_ai::CompanionSkill> {
 fn skill_range(skills: &[SkillInfo], id: u16) -> i32 {
     skills
         .iter()
-        .find(|s| s.id == id)
+        .find(|s| s.skill.id() as u16 == id)
         .map(|s| s.attack_range as i32)
         .unwrap_or(9)
 }

@@ -355,7 +355,6 @@ impl App {
     }
 
     fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
-        use models::enums::skill_enums::SkillEnum;
         use ragnarok_game::effect::casting_skill;
         if let Some(bar) = &self.game.session.progress_bar
             && let Some(entry) = render_list
@@ -376,8 +375,8 @@ impl App {
                 && let Some(entity) = self.game.world.entities.get(entry.id)
                 && let Some(progress) = entity.cast_progress()
                 && !entity
-                    .active_skill_id
-                    .is_some_and(|id| casting_skill(SkillEnum::from_id(id as u32)).hide_cast_bar)
+                    .active_skill
+                    .is_some_and(|skill| casting_skill(skill).hide_cast_bar)
             {
                 let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
                 render_bar(
@@ -701,17 +700,15 @@ impl App {
             &mut calls,
         );
 
-        let skill_id = pending.skill_id();
-        if let Some(internal_name) = self.game.resolve_cast_skill_name(skill_id) {
-            let display_name = format_skill_display_name(
-                internal_name,
-                self.game.data_table.skill_name.as_ref(),
-            );
+        let skill = pending.skill();
+        if self.game.resolve_cast_skill(skill).is_some() {
+            let display_name =
+                format_skill_display_name(&skill, self.game.data_table.skill_name.as_ref());
             let level = pending.level();
             let banner_text = if level > 0 {
-                format!("{}(Lv {})", display_name, level)
+                format!("{display_name}(Lv {level})")
             } else {
-                display_name
+                display_name.to_string()
             };
             let padding = 4.0;
             let line_h = renderer.font_atlas.line_height;

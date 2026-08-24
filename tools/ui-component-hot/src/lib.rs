@@ -31,7 +31,7 @@ use ragnarok_game::npc_shop::{NpcShopMode, ShopBuyItem, ShopSellItem};
 use ragnarok_game::party::{Party, PartyMember};
 use ragnarok_game::pet::PetState;
 use ragnarok_game::quest::{Quest, QuestLog, QuestObjective};
-use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::skill::{SkillEnum, SkillTargetType};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
 use ragnarok_ui::text_input::TextInput;
@@ -429,9 +429,8 @@ enum State {
 }
 
 fn demo_mercenary_skills() -> Vec<SkillInfo> {
-    let skill = |id, name: &str, level, sp_cost| SkillInfo {
-        id,
-        name: name.to_string(),
+    let skill = |skill, level, sp_cost| SkillInfo {
+        skill,
         level,
         sp_cost,
         attack_range: 1,
@@ -439,10 +438,10 @@ fn demo_mercenary_skills() -> Vec<SkillInfo> {
         skill_target_type: SkillTargetType::Target,
     };
     vec![
-        skill(7, "MG_MAGNUMBREAK", 5, 30),
-        skill(56, "KN_BRANDISHSPEAR", 5, 12),
-        skill(410, "MER_REGAIN", 1, 10),
-        skill(6, "SM_PROVOKE", 5, 8),
+        skill(SkillEnum::SmMagnum, 5, 30),
+        skill(SkillEnum::KnBrandishspear, 5, 12),
+        skill(SkillEnum::MerRegain, 1, 10),
+        skill(SkillEnum::SmProvoke, 5, 8),
     ]
 }
 
@@ -1336,15 +1335,14 @@ fn create_single(name: &str) -> State {
             }
         }
         "skill_tree" => {
-            use ragnarok_game::skill::{SkillData, SkillTargetType};
+            use ragnarok_game::skill::{SkillData, SkillEnum, SkillTargetType};
 
             let mut character = Character::new();
             character.skill_point = 5;
             character.skills.open();
             character.skills.set_skills(vec![
                 SkillData {
-                    id: 1,
-                    name: "SM_SWORD".into(),
+                    skill: SkillEnum::SmSword,
                     level: 10,
                     selected_level: 10,
                     sp_cost: 0,
@@ -1353,8 +1351,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Passive,
                 },
                 SkillData {
-                    id: 2,
-                    name: "SM_RECOVERY".into(),
+                    skill: SkillEnum::SmRecovery,
                     level: 5,
                     selected_level: 5,
                     sp_cost: 0,
@@ -1363,8 +1360,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Passive,
                 },
                 SkillData {
-                    id: 3,
-                    name: "SM_BASH".into(),
+                    skill: SkillEnum::SmBash,
                     level: 5,
                     selected_level: 5,
                     sp_cost: 8,
@@ -1373,8 +1369,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Target,
                 },
                 SkillData {
-                    id: 4,
-                    name: "SM_PROVOKE".into(),
+                    skill: SkillEnum::SmProvoke,
                     level: 3,
                     selected_level: 3,
                     sp_cost: 4,
@@ -1383,8 +1378,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Target,
                 },
                 SkillData {
-                    id: 5,
-                    name: "SM_ENDURE".into(),
+                    skill: SkillEnum::SmEndure,
                     level: 0,
                     selected_level: 0,
                     sp_cost: 10,
@@ -1550,7 +1544,7 @@ fn create_single(name: &str) -> State {
         }
         "hotkey_bar" => {
             use ragnarok_game::hotkey::HotkeySlotContent;
-            use ragnarok_game::skill::{SkillData, SkillTargetType};
+            use ragnarok_game::skill::{SkillData, SkillEnum, SkillTargetType};
 
             let mut character = Character::new();
 
@@ -1563,8 +1557,7 @@ fn create_single(name: &str) -> State {
             character.skills.open();
             character.skills.set_skills(vec![
                 SkillData {
-                    id: 43,
-                    name: "AC_OWL".into(),
+                    skill: SkillEnum::AcOwl,
                     level: 10,
                     selected_level: 10,
                     sp_cost: 0,
@@ -1573,8 +1566,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Passive,
                 },
                 SkillData {
-                    id: 44,
-                    name: "AC_VULTURE".into(),
+                    skill: SkillEnum::AcVulture,
                     level: 10,
                     selected_level: 10,
                     sp_cost: 0,
@@ -1583,8 +1575,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Passive,
                 },
                 SkillData {
-                    id: 45,
-                    name: "AC_CONCENTRATION".into(),
+                    skill: SkillEnum::AcConcentration,
                     level: 10,
                     selected_level: 10,
                     sp_cost: 15,
@@ -1593,8 +1584,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Ground,
                 },
                 SkillData {
-                    id: 46,
-                    name: "AC_DOUBLE".into(),
+                    skill: SkillEnum::AcDouble,
                     level: 10,
                     selected_level: 10,
                     sp_cost: 12,
@@ -1603,8 +1593,7 @@ fn create_single(name: &str) -> State {
                     skill_target_type: SkillTargetType::Target,
                 },
                 SkillData {
-                    id: 47,
-                    name: "AC_SHOWER".into(),
+                    skill: SkillEnum::AcShower,
                     level: 10,
                     selected_level: 10,
                     sp_cost: 15,
@@ -1617,7 +1606,7 @@ fn create_single(name: &str) -> State {
             character.hotkeys.set_slot(
                 0,
                 HotkeySlotContent::Skill {
-                    skill_id: 46,
+                    skill: SkillEnum::AcDouble,
                     level: 10,
                 },
             );
@@ -1953,28 +1942,28 @@ fn create_single(name: &str) -> State {
             guild.skill_point = 2;
             guild.skills = vec![
                 GuildSkill {
-                    skid: 10000,
-                    name: "GD_APPROVAL".to_string(),
+                    skill: SkillEnum::GdApproval,
                     level: 1,
+                    sp_cost: 0,
+                    attack_range: 0,
                     upgradable: false,
                     passive: true,
-                    ..Default::default()
                 },
                 GuildSkill {
-                    skid: 10014,
-                    name: "GD_GUARDUP".to_string(),
+                    skill: SkillEnum::GdGuardup,
                     level: 0,
+                    sp_cost: 0,
+                    attack_range: 0,
                     upgradable: true,
                     passive: false,
-                    ..Default::default()
                 },
                 GuildSkill {
-                    skid: 10005,
-                    name: "GD_EXTENSION".to_string(),
+                    skill: SkillEnum::GdExtension,
                     level: 2,
+                    sp_cost: 0,
+                    attack_range: 0,
                     upgradable: true,
                     passive: true,
-                    ..Default::default()
                 },
             ];
             guild.ban_list = vec![

@@ -12,6 +12,7 @@ use crate::show_digit::ShowDigitMode;
 use crate::targeting::MapProperties;
 use models::enums::action::ActionType;
 use models::enums::skill::SkillTargetType;
+use models::enums::skill_enums::SkillEnum;
 use models::enums::vanish::VanishType;
 
 #[derive(Debug)]
@@ -329,30 +330,29 @@ pub enum GameEvent {
     SkillCasting {
         gid: u32,
         target_gid: u32,
-        skill_id: u16,
+        skill: SkillEnum,
         property: u32,
         delay_ms: u32,
         x: i16,
         y: i16,
-        skill_name: Option<String>,
     },
     SkillCastCancel {
         gid: u32,
     },
     SkillFailed {
-        skill_id: u16,
+        skill: SkillEnum,
         cause: u8,
     },
     ActionFailure,
     SkillPostDelay {
-        skill_id: u16,
+        skill: SkillEnum,
         delay_ms: u32,
     },
     AfterCastDelay {
         delay_ms: u32,
     },
     SkillDamage {
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         target_gid: u32,
         damage: i32,
@@ -364,7 +364,7 @@ pub enum GameEvent {
         start_time: u32,
     },
     SkillNoDamage {
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         target_gid: u32,
         /// The packet's skill-level field. For AL_HEAL this carries the heal
@@ -372,7 +372,7 @@ pub enum GameEvent {
         level: i16,
     },
     GroundSkill {
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         level: i16,
         x: i16,
@@ -484,11 +484,11 @@ pub enum GameEvent {
         choice: u8,
     },
     WarpList {
-        skill_id: u16,
+        skill: SkillEnum,
         destinations: Vec<String>,
     },
     RequestSelectWarppoint {
-        skill_id: u16,
+        skill: SkillEnum,
         map_name: String,
     },
     RequestNpcInputNumber {
@@ -894,7 +894,7 @@ pub enum GameEvent {
         skills: Vec<SkillInfo>,
     },
     SkillUpdated {
-        id: u16,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
@@ -904,7 +904,7 @@ pub enum GameEvent {
         skill: SkillInfo,
     },
     RequestSkillLevelUp {
-        skill_id: u16,
+        skill: SkillEnum,
     },
     RequestStatChange {
         status_id: u16,
@@ -921,20 +921,19 @@ pub enum GameEvent {
         count: i16,
     },
     RequestUseSkill {
-        skill_id: u16,
+        skill: SkillEnum,
         level: i16,
     },
     RequestCompanionUseSkill {
         is_mercenary: bool,
-        skill_id: u16,
+        skill: SkillEnum,
         level: i16,
     },
     /// A skill granted by a consumable, to be armed exactly like a click in the
     /// skill window. The cast metadata rides along because the player has not
     /// learned the skill and so it is absent from the skill list.
     AutoCastSkill {
-        skill_id: u16,
-        name: String,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
@@ -1368,7 +1367,7 @@ pub enum GameEvent {
         positions: Vec<GuildPosition>,
     },
     RequestUpgradeGuildSkill {
-        skid: u16,
+        skill: SkillEnum,
     },
     RequestGuildInvite {
         target_aid: u32,
@@ -1384,7 +1383,7 @@ pub enum GameEvent {
         relation: i32,
     },
     ConfirmedSkillTalkbox {
-        skill_id: u16,
+        skill: SkillEnum,
         level: i16,
         x: i16,
         y: i16,
@@ -1476,10 +1475,10 @@ pub enum GameEvent {
         cards: [u16; 4],
     },
     AutoSpellList {
-        skill_ids: Vec<i32>,
+        skills: Vec<SkillEnum>,
     },
     RequestSelectAutoSpell {
-        skill_id: i32,
+        skill: Option<SkillEnum>,
     },
 
     // --- Vending ---
@@ -1558,7 +1557,7 @@ pub enum GameEvent {
         skills: Vec<SkillInfo>,
     },
     HomunSkillUpdate {
-        id: u16,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
@@ -1568,7 +1567,7 @@ pub enum GameEvent {
         skills: Vec<SkillInfo>,
     },
     MercenarySkillUpdate {
-        id: u16,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
@@ -1987,8 +1986,7 @@ pub struct FriendData {
 
 #[derive(Debug, Clone)]
 pub struct SkillInfo {
-    pub id: u16,
-    pub name: String,
+    pub skill: SkillEnum,
     pub level: i16,
     pub sp_cost: i16,
     pub attack_range: i16,
@@ -1998,7 +1996,7 @@ pub struct SkillInfo {
 
 impl SkillInfo {
     pub fn icon_path(&self) -> String {
-        ragnarok_resources::ui::item::icon(&self.name.to_lowercase())
+        crate::skill::skill_icon_path(self.skill)
     }
 }
 

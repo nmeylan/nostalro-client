@@ -6,8 +6,8 @@ use crate::helper::window_chrome::{
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::HomunculusState;
 use ragnarok_game::data_table::DataTable;
-use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
+use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
@@ -170,7 +170,7 @@ impl HomunSkillWindow {
             });
 
             let name_x = icon_x + ICON_SIZE + 8.0;
-            let display_name = format_skill_display_name(&skill.name, data.skill_name.as_ref());
+            let display_name = format_skill_display_name(&skill.skill, data.skill_name.as_ref());
             ui.text(name_x, row_y + 14.0, &display_name, tc);
             ui.text(name_x, row_y + 28.0, &format!("Lv : {}", skill.level), tc);
 
@@ -182,7 +182,7 @@ impl HomunSkillWindow {
                 let btn_id = WidgetId(SKILL_LEVELUP_BASE_ID + idx as u32);
                 let btn_rect = Rect::new(btn_x, btn_y, lup_w, lup_h);
                 if ui.button(btn_id, btn_rect, &LEVELUP_BTN, "+").clicked() {
-                    events.push(GameEvent::RequestSkillLevelUp { skill_id: skill.id });
+                    events.push(GameEvent::RequestSkillLevelUp { skill: skill.skill });
                 }
                 sp_right = btn_x - 4.0;
             }
@@ -196,13 +196,13 @@ impl HomunSkillWindow {
             if row_resp.double_clicked() {
                 events.push(GameEvent::RequestCompanionUseSkill {
                     is_mercenary: false,
-                    skill_id: skill.id,
+                    skill: skill.skill,
                     level: skill.level,
                 });
             } else if row_resp.clicked() {
                 ui.drag_source(
                     HOMUN_SKILL_WINDOW_ID,
-                    skill.id as usize,
+                    skill.skill.id() as usize,
                     Some(skill.icon_path()),
                     (ICON_SIZE, ICON_SIZE),
                 );
@@ -240,7 +240,7 @@ impl HomunSkillWindow {
         {
             events.push(GameEvent::RequestCompanionUseSkill {
                 is_mercenary: false,
-                skill_id: skill.id,
+                skill: skill.skill,
                 level: skill.level,
             });
         }
@@ -323,7 +323,8 @@ pub(crate) fn draw_companion_skill_tooltip(
     anchor_x: f32,
     anchor_y: f32,
 ) {
-    let display_name = format_skill_display_name(&skill.name, data.skill_name.as_ref());
+    let display_name =
+        format_skill_display_name(&skill.skill, data.skill_name.as_ref()).to_string();
     let mut lines = vec![display_name];
 
     let type_str = match skill.skill_target_type {
@@ -342,7 +343,7 @@ pub(crate) fn draw_companion_skill_tooltip(
     if let Some(desc_lines) = data
         .skill_description
         .as_ref()
-        .and_then(|t| t.get_description(&skill.name))
+        .and_then(|t| t.get_description(skill.skill))
     {
         for line in desc_lines {
             lines.push(line.clone());

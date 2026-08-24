@@ -113,19 +113,6 @@ pub fn merc_skill_base(skill: SkillEnum) -> SkillEnum {
     }
 }
 
-/// Id-based [`merc_skill_base`] for callers that hold a raw skill id. Only the
-/// contiguous mercenary id block is resolved (every id in it is defined);
-/// everything else passes through untouched, so unknown ids never reach the
-/// panicking `SkillEnum::from_id`.
-pub fn merc_skill_base_id(skill_id: u16) -> u16 {
-    let merc_range = SkillEnum::MsBash.id()..=SkillEnum::MerInvincibleoff2.id();
-    if merc_range.contains(&(skill_id as u32)) {
-        merc_skill_base(SkillEnum::from_id(skill_id as u32)).id() as u16
-    } else {
-        skill_id
-    }
-}
-
 pub fn is_ground_cast(skill: SkillEnum) -> bool {
     let skill = merc_skill_base(skill);
     use SkillEnum as S;
@@ -1138,14 +1125,8 @@ mod tests {
         // Support buffs have no dedicated effect in the original game.
         assert_eq!(merc_skill_base(S::MerQuicken), S::MerQuicken);
         assert!(caster_skill_effects(S::MerQuicken).cast.is_empty());
-        assert_eq!(
-            merc_skill_base_id(S::MaDouble.id() as u16),
-            S::AcDouble.id() as u16
-        );
-        assert_eq!(
-            merc_skill_base_id(S::SmBash.id() as u16),
-            S::SmBash.id() as u16
-        );
+        assert_eq!(merc_skill_base(S::MaDouble), S::AcDouble);
+        assert_eq!(merc_skill_base(S::SmBash), S::SmBash);
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use models::enums::skill_enums::SkillEnum;
 use std::time::{Duration, Instant};
 
 pub const GUILD_PERM_INVITE: i32 = 0x001;
@@ -102,10 +103,9 @@ pub struct GuildPosition {
     pub pay_rate: i32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GuildSkill {
-    pub skid: u16,
-    pub name: String,
+    pub skill: SkillEnum,
     pub level: i16,
     pub sp_cost: i16,
     pub attack_range: i16,

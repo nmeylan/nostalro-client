@@ -420,7 +420,7 @@ impl App {
                     self.windows.npc_dialog.dialog.show_menu(npc_id, items);
                 }
                 GameEvent::WarpList {
-                    skill_id,
+                    skill,
                     destinations,
                 } => {
                     let auto_destination = self
@@ -430,18 +430,18 @@ impl App {
                         .al_teleport
                         .skip_lvl1_menu
                         .then(|| {
-                            teleport_lvl1_destination(skill_id, &destinations).map(str::to_string)
+                            teleport_lvl1_destination(skill, &destinations).map(str::to_string)
                         })
                         .flatten();
                     match auto_destination {
                         Some(map_name) => {
                             self.channel.send_packet(build_select_warppoint_packet(
-                                skill_id,
+                                skill,
                                 &map_name,
                                 self.active_packetver,
                             ));
                         }
-                        None => self.windows.warp_list_window.open(skill_id, destinations),
+                        None => self.windows.warp_list_window.open(skill, destinations),
                     }
                 }
                 GameEvent::NpcInputNumber { npc_id } => {
@@ -1021,49 +1021,47 @@ impl App {
                 GameEvent::SkillCasting {
                     gid,
                     target_gid,
-                    skill_id,
+                    skill,
                     property,
                     delay_ms,
                     x,
                     y,
-                    skill_name,
                 } => {
-                    if autocounter::is_kn_autocounter(skill_id)
+                    if autocounter::is_kn_autocounter(skill)
                         && self.game.world.entities.player_id() == Some(gid)
                     {
                         self.start_autocounter_channel(gid);
                     } else {
-                        let display_name = self.skill_display_name(&skill_name.unwrap_or_default());
                         self.game.world.entities.apply_skill_casting(
                             gid,
                             target_gid,
-                            skill_id,
+                            skill,
                             delay_ms,
                             x,
                             y,
-                            display_name,
+                            self.game.data_table.skill_name.as_ref(),
                         );
-                        self.spawn_skill_begin_cast(skill_id, gid, property, delay_ms);
-                        self.spawn_cast_mark(skill_id, gid, target_gid, x, y, delay_ms);
+                        self.spawn_skill_begin_cast(skill, gid, property, delay_ms);
+                        self.spawn_cast_mark(skill, gid, target_gid, x, y, delay_ms);
                     }
                 }
                 GameEvent::SkillListReceived { skills } => {
                     self.handle_skill_list_received(skills);
                 }
                 GameEvent::SkillUpdated {
-                    id,
+                    skill,
                     level,
                     sp_cost,
                     attack_range,
                     upgradable,
                 } => {
-                    self.handle_skill_updated(id, level, sp_cost, attack_range, upgradable);
+                    self.handle_skill_updated(skill, level, sp_cost, attack_range, upgradable);
                 }
                 GameEvent::SkillAdded { skill } => {
                     self.handle_skill_added(skill);
                 }
                 GameEvent::SkillDamage {
-                    skill_id,
+                    skill,
                     src_gid,
                     target_gid,
                     damage,
@@ -1075,7 +1073,7 @@ impl App {
                     start_time,
                 } => {
                     self.handle_skill_damage(
-                        skill_id,
+                        skill,
                         src_gid,
                         target_gid,
                         damage,
@@ -1088,57 +1086,53 @@ impl App {
                     );
                 }
                 GameEvent::SkillNoDamage {
-                    skill_id,
+                    skill,
                     src_gid,
                     target_gid,
                     level,
                 } => {
-                    if autocounter::is_kn_autocounter(skill_id)
+                    if autocounter::is_kn_autocounter(skill)
                         && self.game.world.entities.player_id() == Some(src_gid)
                     {
                         self.start_autocounter_channel(src_gid);
                     } else {
-                        if SkillEnum::from_id(skill_id as u32) != SkillEnum::MgSrecovery {
-                            let display_name = self.skill_display_name_by_id(skill_id);
+                        if skill != SkillEnum::MgSrecovery {
                             self.game.world.entities.show_skill_chat_bubble(
                                 src_gid,
-                                skill_id,
-                                display_name,
+                                skill,
+                                self.game.data_table.skill_name.as_ref(),
                             );
                         }
                         self.game
                             .world
                             .entities
-                            .apply_skill_no_damage(skill_id, src_gid, target_gid);
-                        self.spawn_skill_no_damage_effects(skill_id, src_gid, target_gid, level);
+                            .apply_skill_no_damage(skill, src_gid, target_gid);
+                        self.spawn_skill_no_damage_effects(skill, src_gid, target_gid, level);
                     }
                 }
                 GameEvent::GroundSkill {
-                    skill_id,
+                    skill,
                     src_gid,
                     level,
                     x,
                     y,
                 } => {
-                    let display_name = self.skill_display_name_by_id(skill_id);
                     self.game.world.entities.show_skill_chat_bubble(
                         src_gid,
-                        skill_id,
-                        display_name,
+                        skill,
+                        self.game.data_table.skill_name.as_ref(),
                     );
                     self.game
                         .world
                         .entities
-                        .apply_ground_skill(skill_id, src_gid, x, y);
-                    self.spawn_ground_skill_effects(skill_id, src_gid, level, x, y);
-                    if SkillEnum::from_id(skill_id as u32) == SkillEnum::AcShower {
+                        .apply_ground_skill(skill, src_gid, x, y);
+                    self.spawn_ground_skill_effects(skill, src_gid, level, x, y);
+                    if skill == SkillEnum::AcShower {
                         self.spawn_arrow_shower(src_gid, x, y);
                     }
                     let falcon_target = if self.game.sprite_caches.falcons.contains_key(&src_gid)
-                        && matches!(
-                            SkillEnum::from_id(skill_id as u32),
-                            SkillEnum::HtDetecting | SkillEnum::SnSight
-                        ) {
+                        && matches!(skill, SkillEnum::HtDetecting | SkillEnum::SnSight)
+                    {
                         match (
                             self.game.session.map_coords.as_ref(),
                             self.game.session.gat.as_ref(),
@@ -1205,13 +1199,13 @@ impl App {
                     self.game.world.entities.apply_skill_cast_cancel(gid);
                     self.clear_cast_mark(gid);
                 }
-                GameEvent::SkillFailed { skill_id, cause } => {
-                    self.handle_skill_failed(skill_id, cause);
+                GameEvent::SkillFailed { skill, cause } => {
+                    self.handle_skill_failed(skill, cause);
                 }
-                GameEvent::SkillPostDelay { skill_id, delay_ms } => {
+                GameEvent::SkillPostDelay { skill, delay_ms } => {
                     let now = self.start_time.elapsed().as_secs_f32();
                     self.game.character.cooldowns.set_skill_cooldown(
-                        skill_id,
+                        skill,
                         delay_ms as f32 / 1000.0,
                         now,
                     );
@@ -1479,16 +1473,14 @@ impl App {
                 }
 
                 GameEvent::AutoCastSkill {
-                    skill_id,
-                    name,
+                    skill,
                     level,
                     sp_cost,
                     attack_range,
                     skill_target_type,
                 } => {
                     self.handle_auto_cast_skill(
-                        skill_id,
-                        name,
+                        skill,
                         level,
                         sp_cost,
                         attack_range,
@@ -1504,8 +1496,8 @@ impl App {
                 GameEvent::MakingArrowList { item_ids } => {
                     self.handle_making_arrow_list(item_ids);
                 }
-                GameEvent::AutoSpellList { skill_ids } => {
-                    self.handle_auto_spell_list(skill_ids);
+                GameEvent::AutoSpellList { skills } => {
+                    self.handle_auto_spell_list(skills);
                 }
                 GameEvent::WeaponRefineList { items } => {
                     self.handle_weapon_refine_list(items);
@@ -1632,26 +1624,26 @@ impl App {
                     self.handle_homun_skill_list(skills);
                 }
                 GameEvent::HomunSkillUpdate {
-                    id,
+                    skill,
                     level,
                     sp_cost,
                     attack_range,
                     upgradable,
                 } => {
-                    self.handle_homun_skill_update(id, level, sp_cost, attack_range, upgradable);
+                    self.handle_homun_skill_update(skill, level, sp_cost, attack_range, upgradable);
                 }
                 GameEvent::MercenarySkillList { skills } => {
                     self.handle_mercenary_skill_list(skills);
                 }
                 GameEvent::MercenarySkillUpdate {
-                    id,
+                    skill,
                     level,
                     sp_cost,
                     attack_range,
                     upgradable,
                 } => {
                     self.handle_mercenary_skill_update(
-                        id,
+                        skill,
                         level,
                         sp_cost,
                         attack_range,
@@ -2073,9 +2065,9 @@ impl App {
                     ];
                     self.windows.context_menu.open_at(x, y, items);
                 }
-                GameEvent::RequestSelectWarppoint { skill_id, map_name } => {
+                GameEvent::RequestSelectWarppoint { skill, map_name } => {
                     self.channel.send_packet(build_select_warppoint_packet(
-                        skill_id,
+                        skill,
                         &map_name,
                         self.active_packetver,
                     ));
@@ -2376,9 +2368,9 @@ impl App {
                 GameEvent::ToggleCart => {
                     self.game.character.cart.toggle();
                 }
-                GameEvent::RequestSkillLevelUp { skill_id } => {
+                GameEvent::RequestSkillLevelUp { skill } => {
                     self.channel
-                        .send_packet(build_upgrade_skill_packet(skill_id, self.active_packetver));
+                        .send_packet(build_upgrade_skill_packet(skill, self.active_packetver));
                 }
                 GameEvent::RequestStatChange { status_id, amount } => {
                     self.channel.send_packet(build_stat_change_packet(
@@ -2426,11 +2418,10 @@ impl App {
                     }
                 }
                 GameEvent::RequestHomunRest => {
-                    let skill_id = SkillEnum::AmRest.id() as u16;
-                    if !self.skill_on_cooldown(skill_id) {
+                    if !self.skill_on_cooldown(SkillEnum::AmRest) {
                         let target_id = self.game.world.entities.player_id().unwrap_or(0);
                         self.channel.send_packet(build_use_skill_packet(
-                            skill_id,
+                            SkillEnum::AmRest,
                             1,
                             target_id,
                             self.active_packetver,
@@ -2539,15 +2530,15 @@ impl App {
                         self.active_packetver,
                     ));
                 }
-                GameEvent::RequestUseSkill { skill_id, level } => {
-                    self.handle_request_use_skill(skill_id, level);
+                GameEvent::RequestUseSkill { skill, level } => {
+                    self.handle_request_use_skill(skill, level);
                 }
                 GameEvent::RequestCompanionUseSkill {
                     is_mercenary,
-                    skill_id,
+                    skill,
                     level,
                 } => {
-                    self.handle_request_companion_use_skill(is_mercenary, skill_id, level);
+                    self.handle_request_companion_use_skill(is_mercenary, skill, level);
                 }
                 GameEvent::RequestPickupItem { id } => {
                     self.channel
@@ -2604,11 +2595,9 @@ impl App {
                         self.active_packetver,
                     ));
                 }
-                GameEvent::RequestSelectAutoSpell { skill_id } => {
-                    self.channel.send_packet(build_select_autospell_packet(
-                        skill_id,
-                        self.active_packetver,
-                    ));
+                GameEvent::RequestSelectAutoSpell { skill } => {
+                    self.channel
+                        .send_packet(build_select_autospell_packet(skill, self.active_packetver));
                 }
                 GameEvent::RequestOpenStore { shop_name, items } => {
                     self.channel.send_packet(build_req_openstore2_packet(
@@ -2944,7 +2933,7 @@ impl App {
                         });
                 }
                 GameEvent::ConfirmedSkillTalkbox {
-                    skill_id,
+                    skill,
                     level,
                     x,
                     y,
@@ -2952,7 +2941,7 @@ impl App {
                 } => {
                     self.channel.send_packet(
                         ragnarok_network::build_use_skill_to_ground_with_talkbox_packet(
-                            skill_id,
+                            skill,
                             level,
                             x,
                             y,
@@ -3017,9 +3006,9 @@ impl App {
                             self.active_packetver,
                         ));
                 }
-                GameEvent::RequestUpgradeGuildSkill { skid } => {
+                GameEvent::RequestUpgradeGuildSkill { skill } => {
                     self.channel
-                        .send_packet(build_upgrade_skill_packet(skid, self.active_packetver));
+                        .send_packet(build_upgrade_skill_packet(skill, self.active_packetver));
                 }
                 GameEvent::RequestGuildInvite { target_aid } => {
                     let (my_aid, my_gid) = self.local_aid_gid();

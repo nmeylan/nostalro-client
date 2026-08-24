@@ -164,7 +164,7 @@ pub fn route_escape(
     }
     if game.pending_casts.pending_skill_target.is_some() {
         game.pending_casts.pending_skill_target = None;
-        game.pending_casts.pending_skill_id = None;
+        game.pending_casts.pending_skill = None;
         game.pending_casts.pending_skill_level = None;
         game.pending_casts.pending_skill_unit_cast = None;
         return events;
@@ -309,6 +309,7 @@ mod tests {
     use ragnarok_game::friends::FriendList;
     use ragnarok_game::pet::PetState;
     use ragnarok_game::quest::QuestLog;
+    use ragnarok_game::skill::SkillEnum;
     use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
@@ -480,7 +481,9 @@ mod tests {
         assert!(!harness.press_enter_reaches_chat(&mut windows, &mut state));
 
         windows.confirm_dialog.dismiss();
-        windows.warp_list_window.open(26, vec!["Random".into()]);
+        windows
+            .warp_list_window
+            .open(SkillEnum::AlWarp, vec!["Random".into()]);
         assert!(!harness.press_enter_reaches_chat(&mut windows, &mut state));
     }
 
@@ -491,7 +494,7 @@ mod tests {
         let mut harness = Harness::new();
         open_three(&mut windows, &mut state);
         harness.pending_casts.pending_skill_target = Some(PendingSkillTarget::Ground {
-            skill_id: 27,
+            skill: SkillEnum::AlTeleport,
             level: 3,
         });
 

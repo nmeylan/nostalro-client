@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
 
@@ -24,8 +25,8 @@ impl SkillDescriptionTable {
         Self { entries }
     }
 
-    pub fn get_description(&self, internal_name: &str) -> Option<&[String]> {
-        self.entries.get(internal_name).map(|v| v.as_slice())
+    pub fn get_description(&self, skill: SkillEnum) -> Option<&[String]> {
+        self.entries.get(skill.to_name()).map(|v| v.as_slice())
     }
 }
 
@@ -45,9 +46,9 @@ mod tests {
         );
         let table = SkillDescriptionTable::from_entries(entries);
 
-        let desc = table.get_description("SM_BASH").unwrap();
+        let desc = table.get_description(SkillEnum::SmBash).unwrap();
         assert_eq!(desc.len(), 2);
         assert_eq!(desc[0], "Hits a single target.");
-        assert!(table.get_description("MISSING").is_none());
+        assert!(table.get_description(SkillEnum::AlHeal).is_none());
     }
 }

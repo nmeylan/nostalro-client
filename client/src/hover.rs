@@ -141,12 +141,12 @@ impl App {
                 &self.game.pending_casts.pending_skill_target
             {
                 hover.hovered_skill_unit_id = self.hovered_trap(hovered_cell);
-            } else if let Some(PendingSkillTarget::Entity { skill_id, .. }) =
+            } else if let Some(PendingSkillTarget::Entity { skill, .. }) =
                 &self.game.pending_casts.pending_skill_target
             {
                 let class = self
                     .game
-                    .resolve_cast_skill(*skill_id)
+                    .resolve_cast_skill(*skill)
                     .map(|(target_type, _)| skill_target_class(target_type))
                     .unwrap_or(TargetClass::Offensive);
                 hover.hovered_entity_id =

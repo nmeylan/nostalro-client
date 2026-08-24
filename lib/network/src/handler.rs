@@ -1105,35 +1105,31 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck2>() {
-        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillCasting {
             gid: p.aid,
             target_gid: p.target_id,
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             property: p.property,
             delay_ms: p.delay_time,
             x: p.x_pos,
             y: p.y_pos,
-            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcUseskillAck>() {
-        let name = SkillEnum::from_id(p.skid as u32).to_name().to_string();
         return vec![GameEvent::SkillCasting {
             gid: p.aid,
             target_gid: p.target_id,
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             property: p.property,
             delay_ms: p.delay_time,
             x: p.x_pos,
             y: p.y_pos,
-            skill_name: Some(name),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckTouseskill>() {
         if !p.result {
             return vec![GameEvent::SkillFailed {
-                skill_id: p.skid,
+                skill: SkillEnum::from_id(p.skid as u32),
                 cause: p.cause,
             }];
         }
@@ -1141,7 +1137,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillPostdelay>() {
         return vec![GameEvent::SkillPostDelay {
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             delay_ms: p.delay_tm,
         }];
     }
@@ -1195,7 +1191,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill>() {
         return vec![GameEvent::SkillDamage {
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             src_gid: p.aid,
             target_gid: p.target_id,
             damage: p.damage as i32,
@@ -1209,7 +1205,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifySkill2>() {
         return vec![GameEvent::SkillDamage {
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             src_gid: p.aid,
             target_gid: p.target_id,
             damage: p.damage,
@@ -1341,7 +1337,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcUseSkill>() {
         if p.result {
             return vec![GameEvent::SkillNoDamage {
-                skill_id: p.skid,
+                skill: SkillEnum::from_id(p.skid as u32),
                 src_gid: p.src_aid,
                 target_gid: p.target_aid,
                 level: p.level,
@@ -1351,7 +1347,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyGroundskill>() {
         return vec![GameEvent::GroundSkill {
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             src_gid: p.aid,
             level: p.level,
             x: p.x_pos,
@@ -1802,8 +1798,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         let skills = parse_skill_info_list(&p.skill_list)
             .into_iter()
             .map(|s| GuildSkill {
-                skid: s.id,
-                name: s.name,
+                skill: s.skill,
                 level: s.level,
                 sp_cost: s.sp_cost,
                 attack_range: s.attack_range,
@@ -2053,7 +2048,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             return vec![];
         }
         return vec![GameEvent::WarpList {
-            skill_id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             destinations,
         }];
     }
@@ -2769,27 +2764,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillinfoList>() {
-        let skills = p
-            .skill_list
-            .iter()
-            .map(|s| {
-                let name: String = s.skill_name.iter().take_while(|c| **c != '\0').collect();
-                SkillInfo {
-                    id: s.skid as u16,
-                    name,
-                    level: s.level,
-                    sp_cost: s.spcost,
-                    attack_range: s.attack_range,
-                    upgradable: s.upgradable != 0,
-                    skill_target_type: SkillTargetType::from_value(s.atype as usize),
-                }
-            })
-            .collect();
-        return vec![GameEvent::SkillListReceived { skills }];
+        return vec![GameEvent::SkillListReceived {
+            skills: parse_skill_info_list(&p.skill_list),
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillinfoUpdate>() {
         return vec![GameEvent::SkillUpdated {
-            id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             level: p.level,
             sp_cost: p.spcost,
             attack_range: p.attack_range,
@@ -2798,7 +2779,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcSkillinfoUpdate2>() {
         return vec![GameEvent::SkillUpdated {
-            id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             level: p.level,
             sp_cost: p.spcost,
             attack_range: p.attack_range,
@@ -2806,16 +2787,9 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAddSkill>() {
-        let name: String = p
-            .data
-            .skill_name
-            .iter()
-            .take_while(|c| **c != '\0')
-            .collect();
         return vec![GameEvent::SkillAdded {
             skill: SkillInfo {
-                id: p.data.skid as u16,
-                name,
+                skill: SkillEnum::from_id(p.data.skid as u32),
                 level: p.data.level,
                 sp_cost: p.data.spcost,
                 attack_range: p.data.attack_range,
@@ -2858,15 +2832,8 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcAutorunSkill>() {
-        let name: String = p
-            .data
-            .skill_name
-            .iter()
-            .take_while(|c| **c != '\0')
-            .collect();
         return vec![GameEvent::AutoCastSkill {
-            skill_id: p.data.skid as u16,
-            name,
+            skill: SkillEnum::from_id(p.data.skid as u32),
             level: p.data.level,
             sp_cost: p.data.spcost,
             attack_range: p.data.attack_range,
@@ -2919,8 +2886,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAutospelllist>() {
-        let skill_ids = p.skid.iter().copied().filter(|&s| s != 0).collect();
-        return vec![GameEvent::AutoSpellList { skill_ids }];
+        let skills = p
+            .skid
+            .iter()
+            .filter(|&&s| s != 0)
+            .map(|&s| SkillEnum::from_id(s as u32))
+            .collect();
+        return vec![GameEvent::AutoSpellList { skills }];
     }
 
     if let Some(p) = any.downcast_ref::<PacketZcOpenstore>() {
@@ -3111,7 +3083,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcHoskillinfoUpdate>() {
         return vec![GameEvent::HomunSkillUpdate {
-            id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             level: p.level,
             sp_cost: p.spcost,
             attack_range: p.attack_range,
@@ -3125,7 +3097,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     }
     if let Some(p) = any.downcast_ref::<PacketZcMerSkillinfoUpdate>() {
         return vec![GameEvent::MercenarySkillUpdate {
-            id: p.skid,
+            skill: SkillEnum::from_id(p.skid as u32),
             level: p.level,
             sp_cost: p.spcost,
             attack_range: p.attack_range,
@@ -3342,17 +3314,13 @@ fn parse_ranking(name_raw: &[u8], point_raw: &[u8]) -> Vec<(String, i32)> {
 
 fn parse_skill_info_list(list: &[packets::packets::SKILLINFO]) -> Vec<SkillInfo> {
     list.iter()
-        .map(|s| {
-            let name: String = s.skill_name.iter().take_while(|c| **c != '\0').collect();
-            SkillInfo {
-                id: s.skid as u16,
-                name,
-                level: s.level,
-                sp_cost: s.spcost,
-                attack_range: s.attack_range,
-                upgradable: s.upgradable != 0,
-                skill_target_type: SkillTargetType::from_value(s.atype as usize),
-            }
+        .map(|s| SkillInfo {
+            skill: SkillEnum::from_id(s.skid as u32),
+            level: s.level,
+            sp_cost: s.spcost,
+            attack_range: s.attack_range,
+            upgradable: s.upgradable != 0,
+            skill_target_type: SkillTargetType::from_value(s.atype as usize),
         })
         .collect()
 }
@@ -3374,6 +3342,64 @@ fn refine_row_from(info: &RepairitemInfo) -> ragnarok_game::event::RefineItemRow
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The wire carries a skill name we deliberately ignore: the id alone must
+    /// resolve the skill, and the display name must come out of the GRF table.
+    #[test]
+    fn a_skill_list_packet_lands_in_the_skill_list_and_renders_its_table_name() {
+        use ragnarok_game::data_table::skill_name_table::{
+            SkillNameTable, format_skill_display_name,
+        };
+        use ragnarok_game::skill::SkillList;
+
+        let packetver = 20120307;
+        let mut wire = vec![0x01u8, 0x0f, 0x00, 0x00];
+        for (skid, level, spcost, atype) in [
+            (SkillEnum::McMammonite.id() as i16, 5i16, 20i16, 1i32),
+            (SkillEnum::McDiscount.id() as i16, 10, 0, 0),
+        ] {
+            let mut row = Vec::new();
+            row.extend_from_slice(&skid.to_le_bytes());
+            row.extend_from_slice(&atype.to_le_bytes());
+            row.extend_from_slice(&level.to_le_bytes());
+            row.extend_from_slice(&spcost.to_le_bytes());
+            row.extend_from_slice(&1i16.to_le_bytes());
+            row.extend_from_slice(&[0u8; 24]);
+            row.push(1);
+            assert_eq!(row.len(), 37);
+            wire.extend_from_slice(&row);
+        }
+        let len = wire.len() as i16;
+        wire[2..4].copy_from_slice(&len.to_le_bytes());
+
+        let pkt = PacketZcSkillinfoList::from(&wire, packetver);
+        let events = dispatch_packet(&pkt, packetver);
+        let GameEvent::SkillListReceived { skills } = &events[0] else {
+            panic!("expected SkillListReceived, got {events:?}");
+        };
+
+        let mut list = SkillList::new();
+        let icons = list.apply_skill_list(skills.clone());
+        assert!(icons[0].ends_with("/item/mc_mammonite.bmp"), "{}", icons[0]);
+
+        let mammonite = list.get_skill(SkillEnum::McMammonite).expect("learned");
+        assert_eq!((mammonite.level, mammonite.sp_cost), (5, 20));
+        assert_eq!(mammonite.skill_target_type, SkillTargetType::from_value(1));
+
+        let mut entries = std::collections::HashMap::new();
+        entries.insert("MC_MAMMONITE".to_string(), "Mammonite".to_string());
+        let names = SkillNameTable::from_entries(entries);
+        assert_eq!(
+            format_skill_display_name(&mammonite.skill, Some(&names)),
+            "Mammonite"
+        );
+        // Absent from the table: the internal id is what shows.
+        let discount = list.get_skill(SkillEnum::McDiscount).expect("learned");
+        assert_eq!(
+            format_skill_display_name(&discount.skill, Some(&names)),
+            "MC_DISCOUNT"
+        );
+    }
 
     #[test]
     fn dispatch_unknown_packet_returns_empty() {
@@ -4313,7 +4339,15 @@ mod tests {
         let pkt = PacketZcAutospelllist::from(&wire, packetver);
         let events = dispatch_packet(&pkt, packetver);
         match &events[0] {
-            GameEvent::AutoSpellList { skill_ids } => assert_eq!(skill_ids, &vec![11, 14, 19, 20]),
+            GameEvent::AutoSpellList { skills } => assert_eq!(
+                skills,
+                &vec![
+                    SkillEnum::MgNapalmbeat,
+                    SkillEnum::MgColdbolt,
+                    SkillEnum::MgFirebolt,
+                    SkillEnum::MgLightningbolt,
+                ]
+            ),
             other => panic!("expected AutoSpellList, got {other:?}"),
         }
     }
@@ -5182,21 +5216,19 @@ mod tests {
             GameEvent::SkillCasting {
                 gid,
                 target_gid,
-                skill_id,
+                skill,
                 property,
                 delay_ms,
                 x,
                 y,
-                skill_name,
             } => {
                 assert_eq!(*gid, 150000);
                 assert_eq!(*target_gid, 200000);
-                assert_eq!(*skill_id, 10);
+                assert_eq!(*skill, SkillEnum::MgSight);
                 assert_eq!(*property, 0);
                 assert_eq!(*delay_ms, 2000);
                 assert_eq!(*x, 0);
                 assert_eq!(*y, 0);
-                assert_eq!(skill_name.as_deref(), Some("MG_SIGHT"));
             }
             other => panic!("expected SkillCasting, got {other:?}"),
         }
@@ -5236,22 +5268,17 @@ mod tests {
         pkt.data.atype = SkillTargetType::Friend.value() as i32;
         pkt.data.spcost = 60;
         pkt.data.attack_range = 9;
-        for (i, c) in "ALL_RESURRECTION".chars().enumerate() {
-            pkt.data.skill_name[i] = c;
-        }
         let result = dispatch_packet(&pkt, packetver);
         assert_eq!(result.len(), 1);
         match &result[0] {
             GameEvent::AutoCastSkill {
-                skill_id,
-                name,
+                skill,
                 level,
                 sp_cost,
                 attack_range,
                 skill_target_type,
             } => {
-                assert_eq!(*skill_id, SkillEnum::AllResurrection.id() as u16);
-                assert_eq!(name, "ALL_RESURRECTION");
+                assert_eq!(*skill, SkillEnum::AllResurrection);
                 assert_eq!(*level, 1);
                 assert_eq!(*sp_cost, 60);
                 assert_eq!(*attack_range, 9);

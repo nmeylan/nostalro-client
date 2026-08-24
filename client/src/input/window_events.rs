@@ -128,7 +128,7 @@ impl App {
                         self.input.right_press_entity = self.game.hover.hovered_player_id;
                         self.input.right_press_target = self.game.hover.target_id();
                         self.game.pending_casts.pending_skill_target = None;
-                        self.game.pending_casts.pending_skill_id = None;
+                        self.game.pending_casts.pending_skill = None;
                         self.game.pending_casts.pending_skill_level = None;
                         self.game.pending_casts.pending_companion_patrol = None;
                         self.game.companions.capture_targeting = false;
@@ -458,7 +458,7 @@ impl App {
                 .game
                 .character
                 .skills
-                .get_skill(SkillEnum::SgDevil.id() as u16)
+                .get_skill(SkillEnum::SgDevil)
                 .is_none_or(|skill| skill.level <= 0)
     }
 

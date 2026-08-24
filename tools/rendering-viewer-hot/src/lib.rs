@@ -8,6 +8,7 @@ use ragnarok_game::damage_number::{
 };
 use ragnarok_game::entity::facing_degrees_for;
 use ragnarok_game::scheduled_hit::{DOUBLE_ATTACK_TERM, ScheduledHit as GameHit, Swing};
+use ragnarok_game::skill::SkillEnum;
 
 struct ScheduledHit {
     delay: f32,
@@ -54,7 +55,7 @@ impl State {
                 self.damage_numbers.emit(
                     1,
                     facing_degrees_for(self.direction),
-                    &GameHit::single(self.damage_value, 0, false),
+                    &GameHit::single(self.damage_value, None, false),
                     false,
                     false,
                 );
@@ -63,7 +64,7 @@ impl State {
                 self.damage_numbers.emit(
                     2,
                     facing_degrees_for(self.direction),
-                    &GameHit::single(self.damage_value, 1, false),
+                    &GameHit::single(self.damage_value, Some(SkillEnum::SmBash), false),
                     false,
                     false,
                 );
@@ -72,7 +73,7 @@ impl State {
                 self.damage_numbers.emit(
                     3,
                     facing_degrees_for(self.direction),
-                    &GameHit::single(self.damage_value, 0, true),
+                    &GameHit::single(self.damage_value, None, true),
                     false,
                     false,
                 );
@@ -81,7 +82,7 @@ impl State {
                 self.damage_numbers.emit(
                     4,
                     facing_degrees_for(self.direction),
-                    &GameHit::single(self.damage_value, 0, false),
+                    &GameHit::single(self.damage_value, None, false),
                     true,
                     false,
                 );
@@ -93,7 +94,13 @@ impl State {
                     self.scheduled_hits.push(ScheduledHit {
                         delay: delay * i as f32,
                         entity_id: 5,
-                        hit: GameHit::multi_hit(per_hit, self.damage_value, 1, i, i == 2),
+                        hit: GameHit::multi_hit(
+                            per_hit,
+                            self.damage_value,
+                            Some(SkillEnum::SmBash),
+                            i,
+                            i == 2,
+                        ),
                         is_player_target: false,
                     });
                 }
@@ -105,7 +112,7 @@ impl State {
                     self.scheduled_hits.push(ScheduledHit {
                         delay: delay * i as f32,
                         entity_id: 6,
-                        hit: GameHit::multi_hit(per_hit, self.damage_value, 0, i, i == 2),
+                        hit: GameHit::multi_hit(per_hit, self.damage_value, None, i, i == 2),
                         is_player_target: false,
                     });
                 }
@@ -124,7 +131,7 @@ impl State {
                 self.damage_numbers.emit(
                     8,
                     facing_degrees_for(self.direction),
-                    &GameHit::single(0, 0, false),
+                    &GameHit::single(0, None, false),
                     false,
                     true,
                 );
@@ -140,7 +147,7 @@ impl State {
             10 => {
                 let per_hit = self.damage_value / 3;
                 for i in 0..3u16 {
-                    let mut hit = GameHit::multi_hit(per_hit, self.damage_value, 0, i, i == 2);
+                    let mut hit = GameHit::multi_hit(per_hit, self.damage_value, None, i, i == 2);
                     hit.is_critical = true;
                     self.scheduled_hits.push(ScheduledHit {
                         delay: DOUBLE_ATTACK_TERM * i as f32,

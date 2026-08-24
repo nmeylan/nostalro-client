@@ -1,3 +1,4 @@
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::act::ActFile;
 use ragnarok_formats::gat::GatFile;
 use serde::{Deserialize, Serialize};
@@ -20,19 +21,19 @@ pub enum CursorType {
     Lock = 10,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PendingSkillTarget {
-    Entity { skill_id: u16, level: i16 },
-    Ground { skill_id: u16, level: i16 },
-    SkillUnit { skill_id: u16, level: i16 },
+    Entity { skill: SkillEnum, level: i16 },
+    Ground { skill: SkillEnum, level: i16 },
+    SkillUnit { skill: SkillEnum, level: i16 },
 }
 
 impl PendingSkillTarget {
-    pub fn skill_id(&self) -> u16 {
+    pub fn skill(&self) -> SkillEnum {
         match self {
-            Self::Entity { skill_id, .. }
-            | Self::Ground { skill_id, .. }
-            | Self::SkillUnit { skill_id, .. } => *skill_id,
+            Self::Entity { skill, .. }
+            | Self::Ground { skill, .. }
+            | Self::SkillUnit { skill, .. } => *skill,
         }
     }
 
@@ -48,10 +49,10 @@ impl PendingSkillTarget {
 /// A companion skill awaiting its target click. Unlike [`PendingSkillTarget`],
 /// resolving this issues an AI order to the companion (which moves itself into
 /// range and casts) rather than casting from the player.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PendingCompanionSkill {
     pub is_mercenary: bool,
-    pub skill_id: u16,
+    pub skill: SkillEnum,
     pub level: i16,
     pub target: CompanionSkillTarget,
 }

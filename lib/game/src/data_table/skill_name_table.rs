@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
 
@@ -9,23 +10,15 @@ pub struct SkillNameTable {
     entries: HashMap<String, String>,
 }
 
-/// Human-facing skill label for every UI surface (skill tree, hotkey tooltip,
-/// cast bubble, companion skill lists, …).
-///
-/// Prefers the GRF `skillnametable` entry. Underscores in either the table
-/// display string or the internal fallback id are turned into spaces so callers
-/// never render raw ids like `MC_MAMMONITE`.
-pub fn format_skill_display_name(
-    internal_name: &str,
-    table: Option<&SkillNameTable>,
-) -> String {
-    table
-        .map(|t| t.get_display_name_or_internal(internal_name))
-        .unwrap_or_else(|| normalize_skill_label(internal_name))
-}
-
-fn normalize_skill_label(name: &str) -> String {
-    name.replace('_', " ")
+pub fn format_skill_display_name<'a>(
+    skill: &'a SkillEnum,
+    table: Option<&'a SkillNameTable>,
+) -> &'a str {
+    let internal = skill.to_name();
+    match table {
+        Some(t) => t.display_name_or_internal(internal),
+        None => internal,
+    }
 }
 
 impl SkillNameTable {
@@ -43,15 +36,11 @@ impl SkillNameTable {
         Self { entries }
     }
 
-    pub fn get_display_name(&self, internal_name: &str) -> Option<&str> {
-        self.entries.get(internal_name).map(|s| s.as_str())
-    }
-
-    pub fn get_display_name_or_internal(&self, internal_name: &str) -> String {
+    pub fn display_name_or_internal<'a>(&'a self, internal_name: &'a str) -> &'a str {
         self.entries
             .get(internal_name)
-            .map(|s| normalize_skill_label(s))
-            .unwrap_or_else(|| normalize_skill_label(internal_name))
+            .map(String::as_str)
+            .unwrap_or(internal_name)
     }
 }
 
@@ -59,50 +48,28 @@ impl SkillNameTable {
 mod tests {
     use super::*;
 
-    #[test]
-    fn lookup_display_name() {
+    fn table() -> SkillNameTable {
         let mut entries = HashMap::new();
         entries.insert("SM_BASH".to_string(), "Bash".to_string());
-        entries.insert("AL_HEAL".to_string(), "Heal".to_string());
-        entries.insert(
-            "AC_CONCENTRATION".to_string(),
-            "Improve_Concentration".to_string(),
-        );
-        let table = SkillNameTable::from_entries(entries);
-
-        assert_eq!(table.get_display_name("SM_BASH"), Some("Bash"));
-        assert_eq!(
-            table.get_display_name_or_internal("AL_HEAL"),
-            "Heal".to_string()
-        );
-        assert_eq!(
-            table.get_display_name_or_internal("UNKNOWN_SKILL"),
-            "UNKNOWN SKILL".to_string()
-        );
-        assert_eq!(
-            table.get_display_name_or_internal("AC_CONCENTRATION"),
-            "Improve Concentration".to_string()
-        );
-        assert!(table.get_display_name("MISSING").is_none());
+        entries.insert("MC_MAMMONITE".to_string(), "Mammonite".to_string());
+        SkillNameTable::from_entries(entries)
     }
 
     #[test]
-    fn format_skill_display_name_shared() {
-        let mut entries = HashMap::new();
-        entries.insert("MC_MAMMONITE".to_string(), "Mammonite".to_string());
-        let table = SkillNameTable::from_entries(entries);
+    fn display_name_falls_back_to_the_internal_id() {
+        let table = table();
 
         assert_eq!(
-            format_skill_display_name("MC_MAMMONITE", Some(&table)),
+            format_skill_display_name(&SkillEnum::McMammonite, Some(&table)),
             "Mammonite"
         );
         assert_eq!(
-            format_skill_display_name("MC_MAMMONITE", None),
-            "MC MAMMONITE"
+            format_skill_display_name(&SkillEnum::AlHeal, Some(&table)),
+            "AL_HEAL"
         );
         assert_eq!(
-            format_skill_display_name("SM_BASH", Some(&table)),
-            "SM BASH"
+            format_skill_display_name(&SkillEnum::SmBash, None),
+            "SM_BASH"
         );
     }
 }

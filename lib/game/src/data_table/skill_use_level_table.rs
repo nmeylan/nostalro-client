@@ -41,13 +41,14 @@ impl SkillUseLevelTable {
         self.forced.insert(skill.to_name().to_string());
     }
 
-    pub fn supports_level_select(&self, skill_name: &str) -> bool {
-        self.sp_per_level.contains_key(skill_name) || self.forced.contains(skill_name)
+    pub fn supports_level_select(&self, skill: SkillEnum) -> bool {
+        let name = skill.to_name();
+        self.sp_per_level.contains_key(name) || self.forced.contains(name)
     }
 
-    pub fn sp_at_level(&self, skill_name: &str, level: i16) -> Option<i16> {
+    pub fn sp_at_level(&self, skill: SkillEnum, level: i16) -> Option<i16> {
         self.sp_per_level
-            .get(skill_name)
+            .get(skill.to_name())
             .and_then(|v| v.get((level - 1).max(0) as usize))
             .copied()
     }
@@ -66,23 +67,23 @@ mod tests {
         );
         let table = SkillUseLevelTable::from_entries(entries);
 
-        assert!(table.supports_level_select("SM_BASH"));
-        assert!(!table.supports_level_select("SM_SWORD"));
-        assert_eq!(table.sp_at_level("SM_BASH", 1), Some(8));
-        assert_eq!(table.sp_at_level("SM_BASH", 6), Some(15));
-        assert_eq!(table.sp_at_level("SM_BASH", 11), None);
-        assert_eq!(table.sp_at_level("MISSING", 1), None);
+        assert!(table.supports_level_select(SkillEnum::SmBash));
+        assert!(!table.supports_level_select(SkillEnum::SmSword));
+        assert_eq!(table.sp_at_level(SkillEnum::SmBash, 1), Some(8));
+        assert_eq!(table.sp_at_level(SkillEnum::SmBash, 6), Some(15));
+        assert_eq!(table.sp_at_level(SkillEnum::SmBash, 11), None);
+        assert_eq!(table.sp_at_level(SkillEnum::SmSword, 1), None);
     }
 
     #[test]
     fn forcing_a_skill_adds_level_select_without_a_per_level_sp_column() {
         let mut table = SkillUseLevelTable::from_entries(HashMap::new());
-        assert!(!table.supports_level_select("AL_TELEPORT"));
+        assert!(!table.supports_level_select(SkillEnum::AlTeleport));
 
         table.force_level_select(SkillEnum::AlTeleport);
 
-        assert!(table.supports_level_select("AL_TELEPORT"));
-        assert!(!table.supports_level_select("AL_WARP"));
-        assert_eq!(table.sp_at_level("AL_TELEPORT", 1), None);
+        assert!(table.supports_level_select(SkillEnum::AlTeleport));
+        assert!(!table.supports_level_select(SkillEnum::AlWarp));
+        assert_eq!(table.sp_at_level(SkillEnum::AlTeleport, 1), None);
     }
 }

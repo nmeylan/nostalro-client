@@ -577,7 +577,7 @@ impl DamageNumberManager {
         attacker_is_player: bool,
     ) {
         let is_multi_hit = matches!(hit.message, DamageMessage::AttackedMultiHit { .. });
-        let is_skill = hit.skill_id > 0;
+        let is_skill = hit.skill.is_some();
 
         if hit.damage < 0 {
             return;
@@ -669,6 +669,7 @@ pub const MSG_FRAME_LUCKY: usize = 5;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use models::enums::skill_enums::SkillEnum;
 
     #[test]
     fn digits_decomposition() {
@@ -765,7 +766,7 @@ mod tests {
 
     #[test]
     fn a_single_skill_hit_is_white_on_a_monster_and_red_on_a_player() {
-        let hit = ScheduledHit::single(100, 17, false);
+        let hit = ScheduledHit::single(100, Some(SkillEnum::MgFirebolt), false);
 
         let mut player = DamageNumberManager::new();
         player.emit(1, 0.0, &hit, true, false);
@@ -784,7 +785,7 @@ mod tests {
             "only criticals and multi-hit totals are yellow"
         );
 
-        let weapon_hit = ScheduledHit::single(100, 0, false);
+        let weapon_hit = ScheduledHit::single(100, None, false);
         let mut plain = DamageNumberManager::new();
         plain.emit(1, 0.0, &weapon_hit, false, false);
         let blow = plain.numbers.last().unwrap();
@@ -798,14 +799,14 @@ mod tests {
         mgr.emit(
             1,
             0.0,
-            &ScheduledHit::multi_hit(0, 0, 10, 0, false),
+            &ScheduledHit::multi_hit(0, 0, Some(SkillEnum::MgSight), 0, false),
             false,
             false,
         );
         mgr.emit(
             1,
             0.0,
-            &ScheduledHit::multi_hit(0, 0, 10, 1, true),
+            &ScheduledHit::multi_hit(0, 0, Some(SkillEnum::MgSight), 1, true),
             false,
             false,
         );
@@ -815,7 +816,7 @@ mod tests {
 
     #[test]
     fn a_players_miss_is_red_a_monsters_stays_white() {
-        let miss = ScheduledHit::single(0, 0, false);
+        let miss = ScheduledHit::single(0, None, false);
 
         let mut by_player = DamageNumberManager::new();
         by_player.emit(1, 0.0, &miss, false, true);
@@ -958,10 +959,16 @@ mod tests {
         let mut mgr = DamageNumberManager::new();
         mgr.combat_hidden = true;
 
-        mgr.emit(1, 0.0, &ScheduledHit::single(100, 0, false), false, false);
+        mgr.emit(
+            1,
+            0.0,
+            &ScheduledHit::single(100, None, false),
+            false,
+            false,
+        );
         assert!(mgr.numbers.is_empty());
 
-        mgr.emit(1, 0.0, &ScheduledHit::single(0, 0, false), false, false);
+        mgr.emit(1, 0.0, &ScheduledHit::single(0, None, false), false, false);
         assert_eq!(
             mgr.numbers.last().unwrap().number_type,
             DamageNumberType::Miss
@@ -976,7 +983,13 @@ mod tests {
 
         mgr.combat_hidden = false;
         let before = mgr.numbers.len();
-        mgr.emit(1, 0.0, &ScheduledHit::single(100, 0, false), false, false);
+        mgr.emit(
+            1,
+            0.0,
+            &ScheduledHit::single(100, None, false),
+            false,
+            false,
+        );
         assert_eq!(mgr.numbers.len(), before + 1);
     }
 
@@ -987,7 +1000,7 @@ mod tests {
             mgr.emit(
                 1,
                 0.0,
-                &ScheduledHit::multi_hit(30, 90, 17, index, last),
+                &ScheduledHit::multi_hit(30, 90, Some(SkillEnum::MgFirebolt), index, last),
                 false,
                 false,
             );
@@ -1040,13 +1053,13 @@ mod tests {
     #[test]
     fn a_critical_burst_backs_its_total_with_a_smaller_plate() {
         let mut mgr = DamageNumberManager::new();
-        let mut crit = ScheduledHit::multi_hit(50, 100, 0, 1, true);
+        let mut crit = ScheduledHit::multi_hit(50, 100, None, 1, true);
         crit.is_critical = true;
         mgr.emit(1, 0.0, &crit, false, false);
         mgr.emit(
             2,
             0.0,
-            &ScheduledHit::multi_hit(50, 100, 0, 1, true),
+            &ScheduledHit::multi_hit(50, 100, None, 1, true),
             false,
             false,
         );

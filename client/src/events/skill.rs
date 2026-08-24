@@ -4,7 +4,6 @@ use models::enums::EnumWithStringValue;
 use models::enums::action::ActionType;
 use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
-use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use models::enums::weapon::WeaponType;
 use ragnarok_game::autocounter;
 use ragnarok_game::cast_scope::CastScope;
@@ -54,44 +53,44 @@ impl App {
         self.preload_item_icons(icon_paths);
     }
 
-    pub(super) fn handle_skill_added(&mut self, skill: ragnarok_game::event::SkillInfo) {
-        let (id, level) = (skill.id, skill.level);
-        let before_level = self.skill_level(id);
-        let icon_path = self.game.character.skills.apply_skill_added(skill);
+    pub(super) fn handle_skill_added(&mut self, info: ragnarok_game::event::SkillInfo) {
+        let (skill, level) = (info.skill, info.level);
+        let before_level = self.skill_level(skill);
+        let icon_path = self.game.character.skills.apply_skill_added(info);
         self.preload_item_icons(vec![icon_path]);
-        self.sync_hotkey_skill_level(id, before_level, level);
+        self.sync_hotkey_skill_level(skill, before_level, level);
     }
 
     pub(super) fn handle_skill_updated(
         &mut self,
-        id: u16,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
         upgradable: bool,
     ) {
-        let before_level = self.skill_level(id);
+        let before_level = self.skill_level(skill);
         self.game
             .character
             .skills
-            .update_skill(id, level, sp_cost, attack_range, upgradable);
-        self.sync_hotkey_skill_level(id, before_level, level);
+            .update_skill(skill, level, sp_cost, attack_range, upgradable);
+        self.sync_hotkey_skill_level(skill, before_level, level);
     }
 
-    fn skill_level(&self, id: u16) -> i16 {
+    fn skill_level(&self, skill: SkillEnum) -> i16 {
         self.game
             .character
             .skills
-            .get_skill(id)
+            .get_skill(skill)
             .map_or(0, |s| s.level)
     }
 
-    fn sync_hotkey_skill_level(&mut self, id: u16, before_level: i16, level: i16) {
-        let changed = self
-            .game
-            .character
-            .hotkeys
-            .apply_skill_level_change(id, before_level, level);
+    fn sync_hotkey_skill_level(&mut self, skill: SkillEnum, before_level: i16, level: i16) {
+        let changed =
+            self.game
+                .character
+                .hotkeys
+                .apply_skill_level_change(skill, before_level, level);
         for index in changed {
             let (is_skill, id, count) = self.game.character.hotkeys.to_server_format(index);
             self.channel.send_packet(build_shortcut_key_change_packet(
@@ -104,21 +103,10 @@ impl App {
         }
     }
 
-    pub(super) fn skill_display_name(&self, internal_name: &str) -> Option<String> {
-        Some(format_skill_display_name(
-            internal_name,
-            self.game.data_table.skill_name.as_ref(),
-        ))
-    }
-
-    pub(super) fn skill_display_name_by_id(&self, skill_id: u16) -> Option<String> {
-        self.skill_display_name(SkillEnum::from_id(skill_id as u32).to_name())
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(super) fn handle_skill_damage(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         target_gid: u32,
         damage: i32,
@@ -156,16 +144,16 @@ impl App {
             ActionType::AttackCritical | ActionType::AttackMultipleCritical
         );
         tracing::info!(
-            "SkillDamage: skill_id={skill_id}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
+            "SkillDamage: skill={skill:?}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
         );
 
-        let display_name = self.skill_display_name_by_id(skill_id);
-        self.game
-            .world
-            .entities
-            .show_skill_chat_bubble(src_gid, skill_id, display_name);
+        self.game.world.entities.show_skill_chat_bubble(
+            src_gid,
+            skill,
+            self.game.data_table.skill_name.as_ref(),
+        );
 
-        if let Some(wav) = skill_projectile_sound(SkillEnum::from_id(skill_id as u32)) {
+        if let Some(wav) = skill_projectile_sound(skill) {
             self.sound_queue.ui(wav);
         }
 
@@ -173,10 +161,7 @@ impl App {
         // Falcon Assault. Auto Blitz Beat arrives through this same packet, so it
         // is covered without extra wiring.
         if self.game.sprite_caches.falcons.contains_key(&src_gid)
-            && matches!(
-                SkillEnum::from_id(skill_id as u32),
-                SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
-            )
+            && matches!(skill, SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault)
             && let Some(target) = self.entity_world_pos(target_gid)
         {
             self.start_falcon_flight(src_gid, target);
@@ -202,7 +187,7 @@ impl App {
                 }
             }
             let duration = ((attack_mt as f32 / 1000.0) - age).max(0.3);
-            entity.enter_skill_exec(duration, skill_id, effective_count);
+            entity.enter_skill_exec(duration, skill, effective_count);
             caster_anim = Some((duration, entity.action_index(), entity.direction));
         }
 
@@ -222,8 +207,8 @@ impl App {
             let weapon = caster.weapon;
             // Arrow Shower rains its own nine-arrow fan off the ground packet,
             // so the per-target arrow would double up on it.
-            let fires_arrow = SkillEnum::from_id(skill_id as u32) != SkillEnum::AcShower
-                && match skill_motion_type(skill_id) {
+            let fires_arrow = skill != SkillEnum::AcShower
+                && match skill_motion_type(skill) {
                     SkillMotionType::Attack => weapon == Some(WeaponType::Bow),
                     SkillMotionType::Attack2 => matches!(
                         weapon,
@@ -275,18 +260,15 @@ impl App {
         // itself is the projectile, so hold the hit until the bird reaches the
         // target (the falcon flight was launched at the top of this handler).
         let falcon_flight = if self.game.sprite_caches.falcons.contains_key(&src_gid)
-            && matches!(
-                SkillEnum::from_id(skill_id as u32),
-                SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault
-            ) {
+            && matches!(skill, SkillEnum::HtBlitzbeat | SkillEnum::SnFalconassault)
+        {
             crate::sprite::falcon::FALCON_FLIGHT_OUT_SECS
         } else {
             0.0
         };
         let flight =
-            Self::skill_projectile_flight_secs(skill_id, projectile_distance).max(falcon_flight);
-        let hit_extra_delay =
-            target_skill_effects(SkillEnum::from_id(skill_id as u32)).hit_extra_delay_secs;
+            Self::skill_projectile_flight_secs(skill, projectile_distance).max(falcon_flight);
+        let hit_extra_delay = target_skill_effects(skill).hit_extra_delay_secs;
         let hit_delay = anim_hit.max(flight) + hit_extra_delay;
 
         let double_attack_term = 0.2;
@@ -298,7 +280,7 @@ impl App {
                     damage: per_hit_damage,
                     fire_at: hit_time,
                     attacker_gid: src_gid,
-                    skill_id,
+                    skill: Some(skill),
                     is_last_hit: i == effective_count - 1,
                     is_critical,
                     hit_index: i,
@@ -311,23 +293,17 @@ impl App {
         // `ZC_USESKILL_ACK` for every skill use (even instant ones), so it
         // already fired from `spawn_skill_begin_cast` at cast start. Firing it
         // again at the damage moment would double the cast circle.
-        self.spawn_skill_attack_effect(
-            skill_id,
-            src_gid,
-            target_gid,
-            effective_count,
-            level,
-            damage,
-        );
+        self.spawn_skill_attack_effect(skill, src_gid, target_gid, effective_count, level, damage);
 
         // The hit spark is NOT spawned here: it must land with the damage, one
         // per hit, at each scheduled hit's fire time (a ranged skill's spark
         // would otherwise flash before the projectile reaches the target). The
         // derivation runs in `process_scheduled_hits` instead.
 
-        let replays_caster = skill_id == SkillEnum::AsSonicblow.id() as u16
-            || skill_id == SkillEnum::ChChaincrush.id() as u16
-            || skill_id == SkillEnum::CgArrowvulcan.id() as u16;
+        let replays_caster = matches!(
+            skill,
+            SkillEnum::AsSonicblow | SkillEnum::ChChaincrush | SkillEnum::CgArrowvulcan
+        );
         tracing::info!(
             "SkillDamage replay check: replays_caster={replays_caster}, effective_count={effective_count}"
         );
@@ -335,7 +311,7 @@ impl App {
             if let Some(caster) = self.game.world.entities.get_mut(src_gid) {
                 for i in 1..effective_count {
                     let hit_time = local_now + anim_hit + (i as f32 * double_attack_term);
-                    caster.pending_attack_replays.push((hit_time, skill_id));
+                    caster.pending_attack_replays.push((hit_time, skill));
                 }
                 tracing::info!(
                     "Scheduled {} caster replays for entity {src_gid}",
@@ -359,15 +335,13 @@ impl App {
     /// scheduled-hit timeline (`process_scheduled_hits`), not here.
     fn spawn_skill_attack_effect(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         target_gid: u32,
         count: u16,
         level: i16,
         damage: i32,
     ) {
-        let skill = SkillEnum::from_id(skill_id as u32);
-
         // AL_HEAL is dual-natured: cast on the living it restores HP and plays the
         // green heal from the no-damage path; cast on undead/demon it deals damage
         // and arrives here on the damage packet, where the original game plays the
@@ -502,8 +476,7 @@ impl App {
     /// caster-released `cast` (Shield Boomerang, Grimtooth), `on_target` and
     /// `before_hit` (the longest wins). Fixed-speed projectiles scale with
     /// distance; fixed-frame ones ignore it. `0.0` if no timed projectile.
-    fn skill_projectile_flight_secs(skill_id: u16, distance_units: f32) -> f32 {
-        let skill = SkillEnum::from_id(skill_id as u32);
+    fn skill_projectile_flight_secs(skill: SkillEnum, distance_units: f32) -> f32 {
         let t = target_skill_effects(skill);
         caster_skill_effects(skill)
             .cast
@@ -561,12 +534,11 @@ impl App {
     /// time, so a zero duration renders nothing.
     pub(super) fn spawn_skill_begin_cast(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         caster_gid: u32,
         property: u32,
         cast_ms: u32,
     ) {
-        let skill = SkillEnum::from_id(skill_id as u32);
         let casting = casting_skill(skill);
         let hide_aura = casting.hide_cast_aura;
         for e in casting.begin {
@@ -605,7 +577,7 @@ impl App {
     /// marks nothing.
     pub(super) fn spawn_cast_mark(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         caster_gid: u32,
         target_gid: u32,
         x: i16,
@@ -635,7 +607,7 @@ impl App {
             return;
         }
         let scope = CastScope::new(
-            skill_id,
+            skill,
             x as u16,
             y as u16,
             self.is_hostile_caster(caster_gid),
@@ -702,12 +674,11 @@ impl App {
     /// projectile path is wired separately in B5.
     pub(super) fn spawn_skill_no_damage_effects(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         target_gid: u32,
         level: i16,
     ) {
-        let skill = SkillEnum::from_id(skill_id as u32);
         // A thrown bottle (Potion Pitcher, Berserk Pitcher) travels the
         // caster→target line rather than sitting on the caster, matching the
         // original's launch-from-caster + reposition-to-target.
@@ -855,7 +826,6 @@ impl App {
     }
 
     pub(crate) fn start_autocounter_channel(&mut self, gid: u32) {
-        let skill_id = SkillEnum::KnAutocounter.id() as u16;
         let is_player = self.game.world.entities.player_id() == Some(gid);
         let attack_target = if is_player {
             self.game.combat.attack_target_id.take()
@@ -871,7 +841,7 @@ impl App {
         self.game.world.entities.apply_autocounter_channel(
             gid,
             params.face,
-            skill_id,
+            SkillEnum::KnAutocounter,
             params.duration,
         );
         if is_player
@@ -906,13 +876,12 @@ impl App {
 
     pub(super) fn spawn_ground_skill_effects(
         &mut self,
-        skill_id: u16,
+        skill: SkillEnum,
         src_gid: u32,
         level: i16,
         x: i16,
         y: i16,
     ) {
-        let skill = SkillEnum::from_id(skill_id as u32);
         let effects = ground_placed_effect(skill, level);
         if effects.is_empty() {
             return;
@@ -949,17 +918,17 @@ impl App {
     /// A (global or per-skill) cooldown is still running, so the skill cannot
     /// be cast yet. Targeting mode is still entered on cooldown so the cursor
     /// keeps showing the skill ring; only the actual cast is suppressed.
-    pub(crate) fn skill_on_cooldown(&self, skill_id: u16) -> bool {
+    pub(crate) fn skill_on_cooldown(&self, skill: SkillEnum) -> bool {
         let now = self.start_time.elapsed().as_secs_f32();
-        self.game.character.cooldowns.is_on_cooldown(skill_id, now)
+        self.game.character.cooldowns.is_on_cooldown(skill, now)
     }
 
-    pub(super) fn handle_skill_failed(&mut self, skill_id: u16, cause: u8) {
+    pub(super) fn handle_skill_failed(&mut self, skill: SkillEnum, cause: u8) {
         self.game.pending_casts.pending_skill_target = None;
-        self.game.pending_casts.pending_skill_id = None;
+        self.game.pending_casts.pending_skill = None;
         self.game.pending_casts.pending_skill_level = None;
         let msg = ragnarok_game::skill::skill_failure_message(cause).unwrap_or("Skill failed.");
-        tracing::info!("Skill {skill_id} failed (cause: {cause}): {msg}");
+        tracing::info!("Skill {skill:?} failed (cause: {cause}): {msg}");
         self.windows.chat_window.add_error(msg.to_string());
     }
 }
@@ -1055,44 +1024,42 @@ impl App {
         }
     }
 
-    pub(super) fn handle_request_use_skill(&mut self, skill_id: u16, level: i16) {
-        self.request_use_skill(skill_id, level, true);
+    pub(super) fn handle_request_use_skill(&mut self, skill: SkillEnum, level: i16) {
+        self.request_use_skill(skill, level, true);
     }
 
     /// A skill the server told us to run comes from an item, not from the skill
     /// bar, so the caster's own cooldown never gates it — a second Fly Wing has
     /// to fire while the first teleport's after-cast delay is still ticking.
-    pub(super) fn handle_item_use_skill(&mut self, skill_id: u16, level: i16) {
-        self.request_use_skill(skill_id, level, false);
+    pub(super) fn handle_item_use_skill(&mut self, skill: SkillEnum, level: i16) {
+        self.request_use_skill(skill, level, false);
     }
 
-    fn request_use_skill(&mut self, skill_id: u16, level: i16, respect_cooldown: bool) {
-        if self.player_hidden() && !hide_allows_skill(skill_id) {
+    fn request_use_skill(&mut self, skill: SkillEnum, level: i16, respect_cooldown: bool) {
+        if self.player_hidden() && !hide_allows_skill(skill) {
             return;
         }
-        if skill_id == SkillEnum::McChangecart.id() as u16 {
+        if skill == SkillEnum::McChangecart {
             if self.game.character.cart_design.is_some() {
                 self.preload_cart_previews(&[1, 2, 3, 4, 5]);
                 self.windows.cart_select_window.open();
             }
             return;
         }
-        if skill_id == SkillEnum::AcMakingarrow.id() as u16
-            || skill_id == SkillEnum::SaCreatecon.id() as u16
-        {
-            self.game.pending_casts.pending_list_skill = Some(skill_id);
+        if matches!(skill, SkillEnum::AcMakingarrow | SkillEnum::SaCreatecon) {
+            self.game.pending_casts.pending_list_skill = Some(skill);
         }
         let skill_target_type = self
             .game
-            .resolve_cast_skill(skill_id)
+            .resolve_cast_skill(skill)
             .map(|(target_type, _)| target_type)
             .unwrap_or(SkillTargetType::Target);
         match skill_target_type {
             SkillTargetType::MySelf => {
-                if !respect_cooldown || !self.skill_on_cooldown(skill_id) {
+                if !respect_cooldown || !self.skill_on_cooldown(skill) {
                     let target_id = self.game.world.entities.player_id().unwrap_or(0);
                     self.channel.send_packet(build_use_skill_packet(
-                        skill_id,
+                        skill,
                         level,
                         target_id,
                         self.active_packetver,
@@ -1101,21 +1068,21 @@ impl App {
             }
             SkillTargetType::Target | SkillTargetType::Friend => {
                 self.game.pending_casts.pending_skill_target =
-                    Some(PendingSkillTarget::Entity { skill_id, level });
-                self.game.pending_casts.pending_skill_id = Some(skill_id);
+                    Some(PendingSkillTarget::Entity { skill, level });
+                self.game.pending_casts.pending_skill = Some(skill);
                 self.game.pending_casts.pending_skill_level = Some(level);
             }
             SkillTargetType::Ground => {
                 self.game.pending_casts.pending_skill_target =
-                    Some(PendingSkillTarget::Ground { skill_id, level });
+                    Some(PendingSkillTarget::Ground { skill, level });
             }
             SkillTargetType::Trap => {
                 self.game.pending_casts.pending_skill_target =
-                    Some(PendingSkillTarget::SkillUnit { skill_id, level });
+                    Some(PendingSkillTarget::SkillUnit { skill, level });
             }
             _ => {
                 tracing::debug!(
-                    "Skill target type {:?} not yet supported for skill {skill_id}",
+                    "Skill target type {:?} not yet supported for skill {skill:?}",
                     skill_target_type
                 );
             }

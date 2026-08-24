@@ -1109,7 +1109,7 @@ impl App {
             .game
             .character
             .skills
-            .get_skill(SkillEnum::SgDevil.id() as u16)
+            .get_skill(SkillEnum::SgDevil)
             .map(|skill| skill.level)
             .unwrap_or(0);
         let Some(overlay) = u8::try_from(level).ok().and_then(devil_blind_effect) else {

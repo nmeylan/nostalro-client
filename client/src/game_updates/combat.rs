@@ -22,7 +22,7 @@ impl App {
         self.game.combat.attack_request_cooldown =
             (self.game.combat.attack_request_cooldown - delta).max(0.0);
 
-        if self.game.pending_casts.pending_skill_id.is_some() {
+        if self.game.pending_casts.pending_skill.is_some() {
             return;
         }
 
@@ -142,18 +142,18 @@ impl App {
     }
 
     pub(crate) fn check_pending_skill(&mut self) {
-        let (skill_id, level) = match (
-            self.game.pending_casts.pending_skill_id,
+        let (skill, level) = match (
+            self.game.pending_casts.pending_skill,
             self.game.pending_casts.pending_skill_level,
         ) {
-            (Some(sid), Some(lvl)) => (sid, lvl),
+            (Some(skill), Some(lvl)) => (skill, lvl),
             _ => return,
         };
 
         let target_id = match self.game.combat.attack_target_id {
             Some(id) => id,
             None => {
-                self.game.pending_casts.pending_skill_id = None;
+                self.game.pending_casts.pending_skill = None;
                 self.game.pending_casts.pending_skill_level = None;
                 return;
             }
@@ -166,7 +166,7 @@ impl App {
             .get(target_id)
             .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
         if !target_alive {
-            self.game.pending_casts.pending_skill_id = None;
+            self.game.pending_casts.pending_skill = None;
             self.game.pending_casts.pending_skill_level = None;
             self.game.combat.attack_target_id = None;
             return;
@@ -201,7 +201,7 @@ impl App {
 
         let skill_range = self
             .game
-            .resolve_cast_skill(skill_id)
+            .resolve_cast_skill(skill)
             .map(|(_, range)| range as i32)
             .unwrap_or(1);
         let dx = (px as i32 - target_pos.0 as i32).abs();
@@ -219,16 +219,16 @@ impl App {
             if let Some(player) = self.game.world.entities.player_mut() {
                 player.movement.stop();
             }
-            if self.skill_on_cooldown(skill_id) {
+            if self.skill_on_cooldown(skill) {
                 return;
             }
             self.channel.send_packet(build_use_skill_packet(
-                skill_id,
+                skill,
                 level,
                 target_id,
                 self.active_packetver,
             ));
-            self.game.pending_casts.pending_skill_id = None;
+            self.game.pending_casts.pending_skill = None;
             self.game.pending_casts.pending_skill_level = None;
             self.game.combat.attack_target_id = None;
         } else {
@@ -243,7 +243,7 @@ impl App {
     }
 
     pub(crate) fn check_pending_ground_skill(&mut self) {
-        let (skill_id, level, x, y) = match self.game.pending_casts.pending_ground_cast {
+        let (skill, level, x, y) = match self.game.pending_casts.pending_ground_cast {
             Some(v) => v,
             None => return,
         };
@@ -270,7 +270,7 @@ impl App {
 
         let skill_range = self
             .game
-            .resolve_cast_skill(skill_id)
+            .resolve_cast_skill(skill)
             .map(|(_, range)| range as i32)
             .unwrap_or(1);
 
@@ -287,10 +287,10 @@ impl App {
             if let Some(player) = self.game.world.entities.player_mut() {
                 player.movement.stop();
             }
-            if self.skill_on_cooldown(skill_id) {
+            if self.skill_on_cooldown(skill) {
                 return;
             }
-            self.cast_on_ground(skill_id, level, x, y);
+            self.cast_on_ground(skill, level, x, y);
             self.game.pending_casts.pending_ground_cast = None;
         } else {
             self.try_move_toward(x as i32, y as i32, px, py, skill_range);
@@ -298,7 +298,7 @@ impl App {
     }
 
     pub(crate) fn check_pending_skill_unit_cast(&mut self) {
-        let (skill_id, level, unit_id) = match self.game.pending_casts.pending_skill_unit_cast {
+        let (skill, level, unit_id) = match self.game.pending_casts.pending_skill_unit_cast {
             Some(v) => v,
             None => return,
         };
@@ -330,7 +330,7 @@ impl App {
 
         let skill_range = self
             .game
-            .resolve_cast_skill(skill_id)
+            .resolve_cast_skill(skill)
             .map(|(_, range)| range as i32)
             .unwrap_or(1);
 
@@ -347,11 +347,11 @@ impl App {
             if let Some(player) = self.game.world.entities.player_mut() {
                 player.movement.stop();
             }
-            if self.skill_on_cooldown(skill_id) {
+            if self.skill_on_cooldown(skill) {
                 return;
             }
             self.channel.send_packet(build_use_skill_packet(
-                skill_id,
+                skill,
                 level,
                 unit_id,
                 self.active_packetver,
@@ -364,14 +364,13 @@ impl App {
 
     /// Places a ground skill, first collecting the message for the skills that write
     /// one onto the unit.
-    pub(crate) fn cast_on_ground(&mut self, skill_id: u16, level: i16, x: i16, y: i16) {
-        if skill_needs_talkbox(skill_id) {
-            self.windows.skill_talkbox_dialog =
-                Some(SkillTalkboxDialog::new(skill_id, level, x, y));
+    pub(crate) fn cast_on_ground(&mut self, skill: SkillEnum, level: i16, x: i16, y: i16) {
+        if skill_needs_talkbox(skill) {
+            self.windows.skill_talkbox_dialog = Some(SkillTalkboxDialog::new(skill, level, x, y));
             return;
         }
         self.channel.send_packet(build_use_skill_to_ground_packet(
-            skill_id,
+            skill,
             level,
             x,
             y,
@@ -432,7 +431,7 @@ impl App {
                 self.emit_damage_number(entity_id, &hit);
                 self.spawn_hit_effect(entity_id, &hit);
                 if hit.damage > 0 && hit.attacker_gid != entity_id {
-                    self.queue_hit_sound(entity_id, hit.attacker_gid, hit.skill_id != 0);
+                    self.queue_hit_sound(entity_id, hit.attacker_gid, hit.skill.is_some());
                 }
 
                 if matches!(
@@ -440,8 +439,10 @@ impl App {
                     DamageMessage::Attacked | DamageMessage::AttackedMultiHit { .. }
                 ) && hit.damage > 0
                 {
-                    let is_sonic_or_chain = hit.skill_id == SkillEnum::AsSonicblow.id() as u16
-                        || hit.skill_id == SkillEnum::MoChaincombo.id() as u16;
+                    let is_sonic_or_chain = matches!(
+                        hit.skill,
+                        Some(SkillEnum::AsSonicblow | SkillEnum::MoChaincombo)
+                    );
                     let hurt_secs = self
                         .game
                         .world
@@ -476,19 +477,17 @@ impl App {
     pub(crate) fn process_caster_replays(&mut self) {
         let now = self.start_time.elapsed().as_secs_f32();
         for entity in self.game.world.entities.iter_mut() {
-            let mut replay_skill_id = None;
+            let mut replay_skill = None;
             let before_count = entity.pending_attack_replays.len();
-            entity
-                .pending_attack_replays
-                .retain(|&(fire_at, skill_id)| {
-                    if now >= fire_at {
-                        replay_skill_id = Some(skill_id);
-                        false
-                    } else {
-                        true
-                    }
-                });
-            if let Some(skill_id) = replay_skill_id {
+            entity.pending_attack_replays.retain(|&(fire_at, skill)| {
+                if now >= fire_at {
+                    replay_skill = Some(skill);
+                    false
+                } else {
+                    true
+                }
+            });
+            if let Some(skill) = replay_skill {
                 let after_count = entity.pending_attack_replays.len();
                 tracing::info!(
                     "Caster replay fired for entity {}: state={:?}, drained {} replays, {} remaining",
@@ -497,7 +496,7 @@ impl App {
                     before_count - after_count,
                     after_count
                 );
-                entity.enter_attack_replay(skill_id);
+                entity.enter_attack_replay(skill);
             }
         }
     }
@@ -506,7 +505,7 @@ impl App {
         if hit.damage <= 0 {
             return;
         }
-        let skill = (hit.skill_id != 0).then(|| SkillEnum::from_id(hit.skill_id as u32));
+        let skill = hit.skill;
         let attacker_job = self
             .game
             .world

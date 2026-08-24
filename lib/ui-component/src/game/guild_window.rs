@@ -11,6 +11,7 @@ use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::guild::{GUILD_PERM_EXPEL, GUILD_PERM_INVITE, Guild, GuildPosition};
 use ragnarok_game::job_class::job_class_name;
+use ragnarok_game::skill::{SkillEnum, skill_icon_path};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, TextInputBg, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -176,7 +177,7 @@ pub struct GuildWindow {
     last_notice: (String, String),
     pos_edits: Vec<PosEdit>,
     pos_dirty: bool,
-    skill_pending: Vec<(u16, i16)>,
+    skill_pending: Vec<(SkillEnum, i16)>,
     member_head_slots: Vec<(u32, [f32; 2])>,
     head_insert_index: Option<usize>,
     open_member_dropdown: Option<u32>,
@@ -1142,12 +1143,12 @@ impl GuildWindow {
             let pending = self
                 .skill_pending
                 .iter()
-                .find(|(id, _)| *id == s.skid)
+                .find(|(skill, _)| *skill == s.skill)
                 .map(|(_, n)| *n)
                 .unwrap_or(0);
             let shown_level = s.level + pending;
 
-            let icon_path = ragnarok_resources::ui::item::icon(&s.name.to_lowercase());
+            let icon_path = skill_icon_path(s.skill);
             let dim = shown_level <= 0;
             let alpha = if dim { 0.5 } else { 1.0 };
             let (v, i) = draw::quad_vertices(x + 15.0, row_y, 24.0, 24.0, [alpha; 4]);
@@ -1158,7 +1159,7 @@ impl GuildWindow {
             });
 
             let name_color = if dim { OFFLINE_COLOR } else { TEXT };
-            let display = format_skill_display_name(&s.name, data.skill_name.as_ref());
+            let display = format_skill_display_name(&s.skill, data.skill_name.as_ref());
             ui.text(x + 45.0, row_y + 12.0, &display, name_color);
             ui.text(
                 x + 45.0,
@@ -1179,7 +1180,7 @@ impl GuildWindow {
                     ui.any_interactive_hovered = true;
                 }
                 if up.clicked() {
-                    self.adjust_pending(s.skid, 1);
+                    self.adjust_pending(s.skill, 1);
                 }
             }
         }
@@ -1199,9 +1200,9 @@ impl GuildWindow {
                 ui.any_interactive_hovered = true;
             }
             if apply.clicked() {
-                for (skid, n) in self.skill_pending.drain(..) {
+                for (skill, n) in self.skill_pending.drain(..) {
                     for _ in 0..n {
-                        events.push(GameEvent::RequestUpgradeGuildSkill { skid });
+                        events.push(GameEvent::RequestUpgradeGuildSkill { skill });
                     }
                 }
             }
@@ -1217,14 +1218,14 @@ impl GuildWindow {
         events
     }
 
-    fn adjust_pending(&mut self, skid: u16, delta: i16) {
-        if let Some(entry) = self.skill_pending.iter_mut().find(|(id, _)| *id == skid) {
+    fn adjust_pending(&mut self, skill: SkillEnum, delta: i16) {
+        if let Some(entry) = self.skill_pending.iter_mut().find(|(s, _)| *s == skill) {
             entry.1 += delta;
             if entry.1 <= 0 {
-                self.skill_pending.retain(|(id, _)| *id != skid);
+                self.skill_pending.retain(|(s, _)| *s != skill);
             }
         } else if delta > 0 {
-            self.skill_pending.push((skid, delta));
+            self.skill_pending.push((skill, delta));
         }
     }
 
@@ -1436,12 +1437,12 @@ mod tests {
         guild.master_name = "Me".to_string();
         guild.skill_point = 1;
         guild.skills = vec![ragnarok_game::guild::GuildSkill {
-            skid: 10000,
-            name: "GD_APPROVAL".to_string(),
+            skill: SkillEnum::GdApproval,
             level: 0,
+            sp_cost: 0,
+            attack_range: 0,
             upgradable: true,
             passive: true,
-            ..Default::default()
         }];
         let mut character = Character::new();
         character.name = "Me".to_string();
@@ -1460,7 +1461,7 @@ mod tests {
         build_ctx.guild = Some(&guild);
         build_ctx.local_gid = 1;
         win.build(&mut ui, &mut build_ctx);
-        assert_eq!(win.skill_pending, vec![(10000, 1)]);
+        assert_eq!(win.skill_pending, vec![(SkillEnum::GdApproval, 1)]);
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = win_x + WIN_W - 100.0 + 21.0;
@@ -1473,9 +1474,12 @@ mod tests {
         let events = win.build(&mut ui, &mut build_ctx);
 
         assert!(
-            events
-                .iter()
-                .any(|e| matches!(e, GameEvent::RequestUpgradeGuildSkill { skid: 10000 })),
+            events.iter().any(|e| matches!(
+                e,
+                GameEvent::RequestUpgradeGuildSkill {
+                    skill: SkillEnum::GdApproval
+                }
+            )),
             "expected upgrade event, got {events:?}"
         );
     }

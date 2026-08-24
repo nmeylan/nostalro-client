@@ -2,7 +2,7 @@ use crate::App;
 use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::cursor::{CompanionSkillTarget, PendingCompanionSkill};
 use ragnarok_game::event::{HomunculusProperty, MercenaryInfo, SkillInfo};
-use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::skill::{SkillEnum, SkillTargetType};
 
 /// e_hom_state2: SP_ACK carries the companion GID, SP_INTIMATE / SP_HUNGRY update those meters.
 const HOM_STATE_ACK: i8 = 0;
@@ -176,14 +176,21 @@ impl App {
 
     pub(super) fn handle_homun_skill_update(
         &mut self,
-        id: u16,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
         upgradable: bool,
     ) {
         if let Some(h) = &mut self.game.companions.homunculus {
-            update_skill(&mut h.skills, id, level, sp_cost, attack_range, upgradable);
+            update_skill(
+                &mut h.skills,
+                skill,
+                level,
+                sp_cost,
+                attack_range,
+                upgradable,
+            );
         }
     }
 
@@ -197,27 +204,34 @@ impl App {
 
     pub(super) fn handle_mercenary_skill_update(
         &mut self,
-        id: u16,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
         upgradable: bool,
     ) {
         if let Some(m) = &mut self.game.companions.mercenary {
-            update_skill(&mut m.skills, id, level, sp_cost, attack_range, upgradable);
+            update_skill(
+                &mut m.skills,
+                skill,
+                level,
+                sp_cost,
+                attack_range,
+                upgradable,
+            );
         }
     }
 }
 
 fn update_skill(
     skills: &mut Vec<SkillInfo>,
-    id: u16,
+    skill: SkillEnum,
     level: i16,
     sp_cost: i16,
     attack_range: i16,
     upgradable: bool,
 ) {
-    if let Some(s) = skills.iter_mut().find(|s| s.id == id) {
+    if let Some(s) = skills.iter_mut().find(|s| s.skill == skill) {
         s.level = level;
         s.sp_cost = sp_cost;
         s.attack_range = attack_range;
@@ -229,7 +243,7 @@ impl App {
     pub(super) fn handle_request_companion_use_skill(
         &mut self,
         is_mercenary: bool,
-        skill_id: u16,
+        skill: SkillEnum,
         level: i16,
     ) {
         let companion = if is_mercenary {
@@ -251,17 +265,17 @@ impl App {
         };
         let target_type = skills
             .iter()
-            .find(|s| s.id == skill_id)
+            .find(|s| s.skill == skill)
             .map(|s| s.skill_target_type)
             .unwrap_or(SkillTargetType::Target);
         tracing::info!(
-            "RequestCompanionUseSkill: merc={is_mercenary} skill={skill_id} gid={gid} target_type={target_type:?}"
+            "RequestCompanionUseSkill: merc={is_mercenary} skill={skill:?} gid={gid} target_type={target_type:?}"
         );
         match target_type {
             SkillTargetType::Target | SkillTargetType::Friend => {
                 self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                     is_mercenary,
-                    skill_id,
+                    skill,
                     level,
                     target: CompanionSkillTarget::Entity,
                 });
@@ -269,7 +283,7 @@ impl App {
             SkillTargetType::Ground => {
                 self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                     is_mercenary,
-                    skill_id,
+                    skill,
                     level,
                     target: CompanionSkillTarget::Ground,
                 });
@@ -277,7 +291,7 @@ impl App {
             SkillTargetType::Trap => {
                 self.game.pending_casts.pending_companion_skill = Some(PendingCompanionSkill {
                     is_mercenary,
-                    skill_id,
+                    skill,
                     level,
                     target: CompanionSkillTarget::SkillUnit,
                 });
@@ -286,7 +300,7 @@ impl App {
                 self.push_owner_command_to(
                     is_mercenary,
                     ragnarok_game::companion::OwnerCommand::skill_object(
-                        skill_id,
+                        skill.id() as u16,
                         level as u8,
                         gid,
                     ),

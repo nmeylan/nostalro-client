@@ -1,9 +1,9 @@
 use crate::App;
-use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use models::enums::skill_enums::SkillEnum;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::{RefineItemRow, VendorItem};
-use ragnarok_game::skill::{ItemSkill, SkillTargetType};
+use ragnarok_game::skill::{ItemSkill, SkillTargetType, skill_icon_path};
 use ragnarok_ui_component::game::item_list_selection_window::{ListContext, ListRow};
 
 impl App {
@@ -34,7 +34,7 @@ impl App {
             item_id,
             refine: 0,
             cards: [0; 4],
-            skill_id: 0,
+            skill: None,
         }
     }
 
@@ -52,7 +52,7 @@ impl App {
             item_id: r.item_id,
             refine: r.refine,
             cards: r.cards,
-            skill_id: 0,
+            skill: None,
         }
     }
 
@@ -72,7 +72,7 @@ impl App {
                     item_id: item.map(|it| it.item_id).unwrap_or(0),
                     refine: 0,
                     cards: [0; 4],
-                    skill_id: 0,
+                    skill: None,
                 }
             })
             .collect();
@@ -100,34 +100,26 @@ impl App {
 
     pub(crate) fn handle_auto_cast_skill(
         &mut self,
-        skill_id: u16,
-        name: String,
+        skill: SkillEnum,
         level: i16,
         sp_cost: i16,
         attack_range: i16,
         skill_target_type: SkillTargetType,
     ) {
-        let name = if name.is_empty() {
-            SkillEnum::from_id(skill_id as u32).to_name().to_string()
-        } else {
-            name
-        };
         self.game.character.item_skills.insert(
-            skill_id,
+            skill,
             ItemSkill {
-                name,
                 level,
                 sp_cost,
                 attack_range,
                 skill_target_type,
             },
         );
-        self.handle_item_use_skill(skill_id, level);
+        self.handle_item_use_skill(skill, level);
     }
 
     pub(crate) fn handle_making_arrow_list(&mut self, item_ids: Vec<u16>) {
-        let converter =
-            self.game.pending_casts.pending_list_skill == Some(SkillEnum::SaCreatecon.id() as u16);
+        let converter = self.game.pending_casts.pending_list_skill == Some(SkillEnum::SaCreatecon);
         self.game.pending_casts.pending_list_skill = None;
         let rows: Vec<ListRow> = item_ids.iter().map(|&id| self.simple_row(id)).collect();
         let (title, context) = if converter {
@@ -140,29 +132,21 @@ impl App {
             .open(title, context, rows);
     }
 
-    pub(crate) fn handle_auto_spell_list(&mut self, skill_ids: Vec<i32>) {
-        let rows: Vec<ListRow> = skill_ids
+    pub(crate) fn handle_auto_spell_list(&mut self, skills: Vec<SkillEnum>) {
+        let rows: Vec<ListRow> = skills
             .iter()
-            .map(|&id| {
-                let skill = self.game.character.skills.get_skill(id as u16);
-                let (name, icon) = match skill {
-                    Some(s) => {
-                        let display = format_skill_display_name(
-                            &s.name,
-                            self.game.data_table.skill_name.as_ref(),
-                        );
-                        (display, Some(s.icon_path()))
-                    }
-                    None => (format!("Skill #{id}"), None),
-                };
+            .map(|&skill| {
+                let name =
+                    format_skill_display_name(&skill, self.game.data_table.skill_name.as_ref())
+                        .to_string();
                 ListRow {
                     name,
-                    icon,
+                    icon: Some(skill_icon_path(skill)),
                     index: 0,
                     item_id: 0,
                     refine: 0,
                     cards: [0; 4],
-                    skill_id: id,
+                    skill: Some(skill),
                 }
             })
             .collect();

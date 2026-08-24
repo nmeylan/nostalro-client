@@ -80,7 +80,12 @@ impl App {
                     if let Some((cx, cy)) = self.hovered_cell() {
                         self.push_owner_command_to(
                             pending.is_mercenary,
-                            OwnerCommand::skill_area(pending.skill_id, pending.level as u8, cx, cy),
+                            OwnerCommand::skill_area(
+                                pending.skill.id() as u16,
+                                pending.level as u8,
+                                cx,
+                                cy,
+                            ),
                             reserved,
                         );
                     }
@@ -90,7 +95,11 @@ impl App {
             if let Some(target) = target {
                 self.push_owner_command_to(
                     pending.is_mercenary,
-                    OwnerCommand::skill_object(pending.skill_id, pending.level as u8, target),
+                    OwnerCommand::skill_object(
+                        pending.skill.id() as u16,
+                        pending.level as u8,
+                        target,
+                    ),
                     reserved,
                 );
             }
@@ -100,24 +109,24 @@ impl App {
             return;
         }
         if let Some(pending) = self.game.pending_casts.pending_skill_target {
-            if self.player_hidden() && !hide_allows_skill(pending.skill_id()) {
+            if self.player_hidden() && !hide_allows_skill(pending.skill()) {
                 self.game.pending_casts.pending_skill_target = None;
                 return;
             }
-            if self.skill_on_cooldown(pending.skill_id()) {
+            if self.skill_on_cooldown(pending.skill()) {
                 return;
             }
             self.game.pending_casts.pending_skill_target = None;
             let mut skill_cast = false;
             match pending {
-                PendingSkillTarget::Entity { skill_id, level } => {
+                PendingSkillTarget::Entity { skill, level } => {
                     let class = self
                         .game
-                        .resolve_cast_skill(skill_id)
+                        .resolve_cast_skill(skill)
                         .map(|(target_type, _)| skill_target_class(target_type))
                         .unwrap_or(TargetClass::Offensive);
                     let player_id = self.game.world.entities.player_id();
-                    let potion_pitcher = skill_id == SkillEnum::AmPotionpitcher.id() as u16;
+                    let potion_pitcher = skill == SkillEnum::AmPotionpitcher;
                     let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
                         self.game.world.entities.get(id).is_some_and(|e| {
                             skill_target_allowed(
@@ -149,7 +158,7 @@ impl App {
                             .unwrap_or((0, 0));
                         let skill_range = self
                             .game
-                            .resolve_cast_skill(skill_id)
+                            .resolve_cast_skill(skill)
                             .map(|(_, range)| range as i32)
                             .unwrap_or(1);
                         let dx = (px as i32 - target_pos.0 as i32).abs();
@@ -157,12 +166,12 @@ impl App {
                         let dist = dx.max(dy);
                         if dist <= skill_range {
                             self.channel.send_packet(build_use_skill_packet(
-                                skill_id,
+                                skill,
                                 level,
                                 entity_id,
                                 self.active_packetver,
                             ));
-                            if skill_id == SkillEnum::BsRepairweapon.id() as u16 {
+                            if skill == SkillEnum::BsRepairweapon {
                                 self.game.pending_casts.pending_repair_target = Some(entity_id);
                             }
                             skill_cast = true;
@@ -170,14 +179,14 @@ impl App {
                             let dest_x = target_pos.0 as i32;
                             let dest_y = target_pos.1 as i32;
                             if self.try_move_toward(dest_x, dest_y, px, py, skill_range) {
-                                self.game.pending_casts.pending_skill_id = Some(skill_id);
+                                self.game.pending_casts.pending_skill = Some(skill);
                                 self.game.pending_casts.pending_skill_level = Some(level);
                                 self.game.combat.attack_target_id = Some(entity_id);
                             }
                         }
                     }
                 }
-                PendingSkillTarget::SkillUnit { skill_id, level } => {
+                PendingSkillTarget::SkillUnit { skill, level } => {
                     if let Some(unit_id) = self.game.hover.hovered_skill_unit_id
                         && let Some(cell) = self.game.world.trap_units.get(&unit_id).map(|t| t.cell)
                     {
@@ -190,27 +199,27 @@ impl App {
                             .unwrap_or((0, 0));
                         let skill_range = self
                             .game
-                            .resolve_cast_skill(skill_id)
+                            .resolve_cast_skill(skill)
                             .map(|(_, range)| range as i32)
                             .unwrap_or(1);
                         let dx = (px as i32 - cell.0 as i32).abs();
                         let dy = (py as i32 - cell.1 as i32).abs();
                         if dx.max(dy) <= skill_range {
                             self.channel.send_packet(build_use_skill_packet(
-                                skill_id,
+                                skill,
                                 level,
                                 unit_id,
                                 self.active_packetver,
                             ));
                         } else {
                             self.game.pending_casts.pending_skill_unit_cast =
-                                Some((skill_id, level, unit_id));
+                                Some((skill, level, unit_id));
                             self.try_move_toward(cell.0 as i32, cell.1 as i32, px, py, skill_range);
                         }
                         skill_cast = true;
                     }
                 }
-                PendingSkillTarget::Ground { skill_id, level } => {
+                PendingSkillTarget::Ground { skill, level } => {
                     if let Some((cx, cy)) = self.hovered_cell() {
                         let (px, py) = self
                             .game
@@ -221,16 +230,16 @@ impl App {
                             .unwrap_or((0, 0));
                         let skill_range = self
                             .game
-                            .resolve_cast_skill(skill_id)
+                            .resolve_cast_skill(skill)
                             .map(|(_, range)| range as i32)
                             .unwrap_or(1);
                         let dx = (px as i32 - cx as i32).abs();
                         let dy = (py as i32 - cy as i32).abs();
                         if dx.max(dy) <= skill_range {
-                            self.cast_on_ground(skill_id, level, cx as i16, cy as i16);
+                            self.cast_on_ground(skill, level, cx as i16, cy as i16);
                         } else {
                             self.game.pending_casts.pending_ground_cast =
-                                Some((skill_id, level, cx as i16, cy as i16));
+                                Some((skill, level, cx as i16, cy as i16));
                             self.try_move_toward(cx as i32, cy as i32, px, py, skill_range);
                         }
                     }

@@ -1,4 +1,5 @@
 use crate::session::Session;
+use models::enums::skill_enums::SkillEnum;
 use packets::packets::*;
 
 pub fn build_login_packet(username: &str, password: &str, packetver: u32) -> Vec<u8> {
@@ -277,8 +278,14 @@ mod tests {
     /// server reads it from.
     #[test]
     fn talkbox_ground_cast_carries_its_message() {
-        let raw =
-            build_use_skill_to_ground_with_talkbox_packet(220, 1, 155, 182, "hi there", 20111102);
+        let raw = build_use_skill_to_ground_with_talkbox_packet(
+            SkillEnum::RgGraffiti,
+            1,
+            155,
+            182,
+            "hi there",
+            20111102,
+        );
         assert_eq!(raw.len(), 90);
         assert_eq!(&raw[..2], &[0xad, 0x08]);
 
@@ -287,7 +294,7 @@ mod tests {
             .as_any()
             .downcast_ref::<PacketCzUseSkillTogroundWithtalkbox>()
             .expect("expected PacketCzUseSkillTogroundWithtalkbox");
-        assert_eq!(pkt.skid, 220);
+        assert_eq!(pkt.skid, SkillEnum::RgGraffiti.id() as u16);
         assert_eq!(pkt.selected_level, 1);
         assert_eq!((pkt.x_pos, pkt.y_pos), (155, 182));
         let message: String = pkt.contents.iter().take_while(|c| **c != '\0').collect();
@@ -908,9 +915,9 @@ pub fn build_change_cart_packet(num: i16, packetver: u32) -> Vec<u8> {
     pkt.raw
 }
 
-pub fn build_upgrade_skill_packet(skill_id: u16, packetver: u32) -> Vec<u8> {
+pub fn build_upgrade_skill_packet(skill: SkillEnum, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzUpgradeSkilllevel::new(packetver);
-    pkt.set_skid(skill_id);
+    pkt.set_skid(skill.id() as u16);
     pkt.fill_raw();
     pkt.raw
 }
@@ -958,21 +965,21 @@ pub fn build_card_composition_packet(card_index: u16, equip_index: u16, packetve
 }
 
 pub fn build_use_skill_packet(
-    skill_id: u16,
+    skill: SkillEnum,
     level: i16,
     target_id: u32,
     packetver: u32,
 ) -> Vec<u8> {
     let mut pkt = PacketCzUseSkill::new(packetver);
     pkt.set_selected_level(level);
-    pkt.set_skid(skill_id);
+    pkt.set_skid(skill.id() as u16);
     pkt.set_target_id(target_id);
     pkt.fill_raw_with_packetver(Some(packetver));
     pkt.raw
 }
 
 pub fn build_use_skill_to_ground_packet(
-    skill_id: u16,
+    skill: SkillEnum,
     level: i16,
     x: i16,
     y: i16,
@@ -980,7 +987,7 @@ pub fn build_use_skill_to_ground_packet(
 ) -> Vec<u8> {
     let mut pkt = PacketCzUseSkillToground::new(packetver);
     pkt.set_selected_level(level);
-    pkt.set_skid(skill_id);
+    pkt.set_skid(skill.id() as u16);
     pkt.set_x_pos(x);
     pkt.set_y_pos(y);
     pkt.fill_raw_with_packetver(Some(packetver));
@@ -988,7 +995,7 @@ pub fn build_use_skill_to_ground_packet(
 }
 
 pub fn build_use_skill_to_ground_with_talkbox_packet(
-    skill_id: u16,
+    skill: SkillEnum,
     level: i16,
     x: i16,
     y: i16,
@@ -997,7 +1004,7 @@ pub fn build_use_skill_to_ground_with_talkbox_packet(
 ) -> Vec<u8> {
     let mut pkt = PacketCzUseSkillTogroundWithtalkbox::new(packetver);
     pkt.set_selected_level(level);
-    pkt.set_skid(skill_id);
+    pkt.set_skid(skill.id() as u16);
     pkt.set_x_pos(x);
     pkt.set_y_pos(y);
     let mut bytes = [0u8; 80];
@@ -1009,9 +1016,9 @@ pub fn build_use_skill_to_ground_with_talkbox_packet(
     pkt.raw
 }
 
-pub fn build_select_warppoint_packet(skill_id: u16, map_name: &str, packetver: u32) -> Vec<u8> {
+pub fn build_select_warppoint_packet(skill: SkillEnum, map_name: &str, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzSelectWarppoint::new(packetver);
-    pkt.set_skid(skill_id);
+    pkt.set_skid(skill.id() as u16);
     let mut bytes = [0u8; 16];
     let src = map_name.as_bytes();
     let n = src.len().min(15);
@@ -1278,9 +1285,10 @@ pub fn build_req_itemrepair_packet(
     pkt.raw
 }
 
-pub fn build_select_autospell_packet(skill_id: i32, packetver: u32) -> Vec<u8> {
+/// `None` is the list's cancel, which the server reads as skill id 0.
+pub fn build_select_autospell_packet(skill: Option<SkillEnum>, packetver: u32) -> Vec<u8> {
     let mut pkt = PacketCzSelectautospell::new(packetver);
-    pkt.set_skid(skill_id);
+    pkt.set_skid(skill.map_or(0, |s| s.id() as i32));
     pkt.fill_raw();
     pkt.raw
 }

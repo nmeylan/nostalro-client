@@ -2,6 +2,7 @@ use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
 use models::enums::client_effect_icon::ClientEffectIcon;
 use models::enums::item::ItemType;
+use models::enums::skill_enums::SkillEnum;
 use models::enums::weapon::WeaponType;
 use ragnarok_formats::act::{ActFile, SpriteActionType, SpriteAnimationState};
 
@@ -306,10 +307,10 @@ pub struct Entity {
     pub animation: SpriteAnimationState,
     pub emotion: Option<EmotionState>,
     pub chat_bubble: Option<ChatBubbleState>,
-    pub active_skill_id: Option<u16>,
+    pub active_skill: Option<SkillEnum>,
     pub skill_hit_count: u16,
     pub scheduled_hits: ScheduledHitQueue,
-    pub pending_attack_replays: Vec<(f32, u16)>,
+    pub pending_attack_replays: Vec<(f32, SkillEnum)>,
     pub fade: Option<EntityFade>,
     pub pending_death: bool,
     pub just_spawned: bool,
@@ -439,7 +440,7 @@ impl Entity {
             animation: SpriteAnimationState::new(direction),
             emotion: None,
             chat_bubble: None,
-            active_skill_id: None,
+            active_skill: None,
             skill_hit_count: 0,
             scheduled_hits: ScheduledHitQueue::new(),
             pending_attack_replays: Vec::new(),
@@ -590,7 +591,7 @@ impl Entity {
             self.state_timer -= dt;
             if self.state_timer <= 0.0 {
                 self.state_timer = 0.0;
-                self.active_skill_id = None;
+                self.active_skill = None;
                 match self.state {
                     EntityState::Attacking | EntityState::Hurt | EntityState::Casting
                         if matches!(
@@ -669,13 +670,13 @@ impl Entity {
         self.animation_duration = Some(duration_secs);
     }
 
-    pub fn enter_attack_replay(&mut self, skill_id: u16) {
+    pub fn enter_attack_replay(&mut self, skill: SkillEnum) {
         if self.state == EntityState::Dead {
             return;
         }
         self.state = EntityState::SkillExec;
         self.state_timer = ATTACK_REPLAY_SECS;
-        self.active_skill_id = Some(skill_id);
+        self.active_skill = Some(skill);
         self.animation_duration = Some(ATTACK_REPLAY_SECS);
     }
 
@@ -701,7 +702,7 @@ impl Entity {
             && anim_finished
     }
 
-    pub fn enter_casting(&mut self, duration_secs: f32, skill_id: u16) {
+    pub fn enter_casting(&mut self, duration_secs: f32, skill: SkillEnum) {
         if self.state == EntityState::Dead {
             return;
         }
@@ -710,7 +711,7 @@ impl Entity {
         self.state_timer = duration_secs;
         self.cast_remaining = duration_secs;
         self.cast_total_duration = duration_secs;
-        self.active_skill_id = Some(skill_id);
+        self.active_skill = Some(skill);
     }
 
     pub fn clear_cast(&mut self) {
@@ -723,14 +724,14 @@ impl Entity {
             .then(|| 1.0 - (self.cast_remaining / self.cast_total_duration))
     }
 
-    pub fn enter_skill_exec(&mut self, duration_secs: f32, skill_id: u16, hit_count: u16) {
+    pub fn enter_skill_exec(&mut self, duration_secs: f32, skill: SkillEnum, hit_count: u16) {
         if self.state == EntityState::Dead {
             return;
         }
         self.state = EntityState::SkillExec;
         self.state_timer = duration_secs;
         self.animation_duration = Some(duration_secs);
-        self.active_skill_id = Some(skill_id);
+        self.active_skill = Some(skill);
         self.skill_hit_count = hit_count;
     }
 
@@ -938,10 +939,10 @@ impl Entity {
 
     pub fn skill_exec_start_frame(&self) -> usize {
         use crate::skill_action::{SkillMotionType, skill_motion_type, skill_pose};
-        match self.active_skill_id {
-            Some(id) => match skill_motion_type(id) {
+        match self.active_skill {
+            Some(skill) => match skill_motion_type(skill) {
                 SkillMotionType::Skill | SkillMotionType::Sing | SkillMotionType::Dance => 1,
-                SkillMotionType::Pose => skill_pose(id).map_or(0, |p| p.frame),
+                SkillMotionType::Pose => skill_pose(skill).map_or(0, |p| p.frame),
                 _ => 0,
             },
             None => 1,
@@ -950,12 +951,12 @@ impl Entity {
 
     fn skill_exec_action_index(&self) -> usize {
         use crate::skill_action::{SkillMotionType, skill_motion_type, skill_pose};
-        let skill_id = match self.active_skill_id {
-            Some(id) => id,
+        let skill = match self.active_skill {
+            Some(skill) => skill,
             None => return 12,
         };
-        match skill_motion_type(skill_id) {
-            SkillMotionType::Pose => skill_pose(skill_id).map_or(0, |p| p.action),
+        match skill_motion_type(skill) {
+            SkillMotionType::Pose => skill_pose(skill).map_or(0, |p| p.action),
             SkillMotionType::Attack => self.attack_action_for_weapon(),
             SkillMotionType::Throw => 5,
             SkillMotionType::Attack2 => 10,
@@ -1355,7 +1356,7 @@ mod tests {
             200,
         );
         e.state = EntityState::Standing;
-        let mut hit = ScheduledHit::single(50, 17, false);
+        let mut hit = ScheduledHit::single(50, Some(SkillEnum::MgFirebolt), false);
         hit.fire_at = 10.0;
         e.scheduled_hits.push(hit);
 
@@ -1505,13 +1506,13 @@ mod tests {
         e.enter_attack(1.0, 1.0);
         assert_eq!(e.state, EntityState::Dead);
 
-        e.enter_skill_exec(1.0, 0, 1);
+        e.enter_skill_exec(1.0, SkillEnum::SmBash, 1);
         assert_eq!(e.state, EntityState::Dead);
 
         e.enter_pickup(Some(1.0));
         assert_eq!(e.state, EntityState::Dead);
 
-        e.enter_casting(1.0, 0);
+        e.enter_casting(1.0, SkillEnum::SmBash);
         assert_eq!(e.state, EntityState::Dead);
 
         e.update_state(1.0);
@@ -1548,12 +1549,12 @@ mod tests {
         assert_eq!(monster.state, EntityState::Hurt);
 
         let mut casting = make_entity();
-        casting.enter_casting(2.0, 0);
+        casting.enter_casting(2.0, SkillEnum::SmBash);
         casting.enter_hurt(0.5, None);
         assert_eq!(casting.state, EntityState::Hurt);
 
         let mut skilling = make_entity();
-        skilling.enter_skill_exec(1.0, 0, 1);
+        skilling.enter_skill_exec(1.0, SkillEnum::SmBash, 1);
         skilling.enter_hurt(0.5, None);
         assert_eq!(skilling.state, EntityState::Hurt);
     }
@@ -1657,7 +1658,7 @@ mod tests {
     #[test]
     fn casting_uses_action_index_12_for_player() {
         let mut e = make_entity();
-        e.enter_casting(2.0, 0);
+        e.enter_casting(2.0, SkillEnum::SmBash);
         assert_eq!(e.state, EntityState::Casting);
         assert_eq!(e.action_index(), 12);
     }
@@ -1665,7 +1666,7 @@ mod tests {
     #[test]
     fn casting_counts_down_to_the_combat_stance() {
         let mut e = make_entity();
-        e.enter_casting(1.0, 0);
+        e.enter_casting(1.0, SkillEnum::SmBash);
         assert_eq!(e.state, EntityState::Casting);
 
         e.update_state(0.5);
@@ -1685,7 +1686,7 @@ mod tests {
         e.movement.start_move(path, 0.0);
         assert!(e.movement.is_moving());
 
-        e.enter_casting(2.0, 0);
+        e.enter_casting(2.0, SkillEnum::SmBash);
         assert!(!e.movement.is_moving());
         assert_eq!(e.cast_total_duration, 2.0);
     }
@@ -1693,7 +1694,7 @@ mod tests {
     #[test]
     fn walking_away_mid_cast_keeps_the_cast_running() {
         let mut e = make_entity();
-        e.enter_casting(1.0, 0);
+        e.enter_casting(1.0, SkillEnum::SmBash);
 
         e.begin_move(
             vec![
@@ -1765,7 +1766,7 @@ mod tests {
     #[test]
     fn a_multi_hit_replay_restarts_the_swing_parked_on_its_last_frame() {
         use models::enums::skill_enums::SkillEnum;
-        let sonic_blow = SkillEnum::AsSonicblow.id() as u16;
+        let sonic_blow = SkillEnum::AsSonicblow;
         let mut e = make_entity();
 
         e.enter_skill_exec(0.5, sonic_blow, 8);
@@ -1790,7 +1791,7 @@ mod tests {
 
         let filler_attack1 = make_body_act(5, &[5]);
         let mut bare = make_entity();
-        bare.enter_skill_exec(0.5, SkillEnum::SmBash.id() as u16, 1);
+        bare.enter_skill_exec(0.5, SkillEnum::SmBash, 1);
         bare.animation_duration.take();
         let pose = bare.resolved_action_index(&filler_attack1);
         assert_eq!((bare.action_index(), pose), (5, 10));
@@ -1803,7 +1804,7 @@ mod tests {
     #[test]
     fn skill_exec_expires_to_standing_for_player() {
         let mut e = make_entity();
-        e.enter_skill_exec(0.5, 0, 1);
+        e.enter_skill_exec(0.5, SkillEnum::AlHeal, 1);
         assert_eq!(e.state, EntityState::SkillExec);
         assert_eq!(e.action_index(), 12);
 

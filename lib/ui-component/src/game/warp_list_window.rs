@@ -1,5 +1,6 @@
 use crate::Window;
 use ragnarok_game::event::GameEvent;
+use ragnarok_game::skill::SkillEnum;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
@@ -53,7 +54,7 @@ fn display_name(raw: &str) -> String {
 pub struct WarpListWindow {
     has_grf_textures: bool,
     open: bool,
-    skill_id: u16,
+    skill: Option<SkillEnum>,
     destinations: Vec<Destination>,
     selected_index: usize,
     btn_size: (f32, f32),
@@ -71,8 +72,8 @@ impl WarpListWindow {
         self.open
     }
 
-    pub fn open(&mut self, skill_id: u16, destinations: Vec<String>) {
-        self.skill_id = skill_id;
+    pub fn open(&mut self, skill: SkillEnum, destinations: Vec<String>) {
+        self.skill = Some(skill);
         self.destinations = destinations
             .into_iter()
             .map(|raw| {
@@ -85,9 +86,10 @@ impl WarpListWindow {
     }
 
     fn confirm(&mut self, events: &mut Vec<GameEvent>) {
-        if let Some(dest) = self.destinations.get(self.selected_index) {
+        if let (Some(skill), Some(dest)) = (self.skill, self.destinations.get(self.selected_index))
+        {
             events.push(GameEvent::RequestSelectWarppoint {
-                skill_id: self.skill_id,
+                skill,
                 map_name: dest.raw.clone(),
             });
         }
@@ -95,10 +97,12 @@ impl WarpListWindow {
     }
 
     pub fn cancel(&mut self, events: &mut Vec<GameEvent>) {
-        events.push(GameEvent::RequestSelectWarppoint {
-            skill_id: self.skill_id,
-            map_name: "cancel".to_string(),
-        });
+        if let Some(skill) = self.skill {
+            events.push(GameEvent::RequestSelectWarppoint {
+                skill,
+                map_name: "cancel".to_string(),
+            });
+        }
         self.close();
     }
 
@@ -276,7 +280,10 @@ mod tests {
     #[test]
     fn enter_confirms_selected_destination_with_raw_name() {
         let mut win = WarpListWindow::new();
-        win.open(26, vec!["Random".into(), "prontera.gat".into()]);
+        win.open(
+            SkillEnum::AlWarp,
+            vec!["Random".into(), "prontera.gat".into()],
+        );
         assert!(win.is_open());
         win.selected_index = 1;
 
@@ -289,14 +296,14 @@ mod tests {
         assert!(!win.is_open());
         assert!(events.iter().any(|e| matches!(
             e,
-            GameEvent::RequestSelectWarppoint { skill_id: 26, map_name } if map_name == "prontera.gat"
+            GameEvent::RequestSelectWarppoint { skill: SkillEnum::AlWarp, map_name } if map_name == "prontera.gat"
         )));
     }
 
     #[test]
     fn escape_sends_cancel() {
         let mut win = WarpListWindow::new();
-        win.open(27, vec!["Random".into()]);
+        win.open(SkillEnum::AlTeleport, vec!["Random".into()]);
 
         let mut events = Vec::new();
         win.cancel(&mut events);

@@ -43,7 +43,7 @@ impl App {
             .game
             .pending_casts
             .pending_skill_target
-            .is_some_and(|pending| pending.skill_id() == SkillEnum::AmPotionpitcher.id() as u16);
+            .is_some_and(|pending| pending.skill() == SkillEnum::AmPotionpitcher);
 
         let (target, entry) = if let Some(id) = self.game.hover.hovered_entity_id {
             let entity = self.game.world.entities.get(id)?;

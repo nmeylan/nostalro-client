@@ -1,5 +1,5 @@
 use models::enums::skill_enums::SkillEnum;
-use ragnarok_effects::merc_skill_base_id;
+use ragnarok_effects::merc_skill_base;
 use ragnarok_formats::act::SpriteActionType;
 
 /// Who owns a skill, derived purely from its id. Mercenary and homunculus skills
@@ -13,8 +13,8 @@ pub enum SkillCaster {
     Homunculus,
 }
 
-pub fn skill_caster(skill_id: u16) -> SkillCaster {
-    let id = skill_id as u32;
+pub fn skill_caster(skill: SkillEnum) -> SkillCaster {
+    let id = skill.id();
     if (SkillEnum::HlifHeal.id()..=SkillEnum::MhVolcanicAsh.id()).contains(&id) {
         SkillCaster::Homunculus
     } else if (SkillEnum::MsBash.id()..=SkillEnum::MerInvincibleoff2.id()).contains(&id) {
@@ -58,162 +58,133 @@ const fn stance(action: SpriteActionType, frame: usize) -> SkillPose {
 }
 
 /// The taekwon kick stances, which pose the body instead of animating it.
-pub fn skill_pose(skill_id: u16) -> Option<SkillPose> {
-    let id = merc_skill_base_id(skill_id);
+pub fn skill_pose(skill: SkillEnum) -> Option<SkillPose> {
+    use SkillEnum as S;
     use SpriteActionType::{Pickup, Skill};
 
-    if id == SkillEnum::TkReadystorm.id() as u16 {
-        Some(stance(Skill, 0))
-    } else if id == SkillEnum::TkReadydown.id() as u16 {
-        Some(stance(Skill, 2))
-    } else if id == SkillEnum::TkReadyturn.id() as u16 {
-        Some(stance(Skill, 3))
-    } else if id == SkillEnum::TkReadycounter.id() as u16 {
-        Some(stance(Skill, 4))
-    } else if id == SkillEnum::TkDodge.id() as u16 {
-        Some(stance(Pickup, 1))
-    } else {
-        None
+    match merc_skill_base(skill) {
+        S::TkReadystorm => Some(stance(Skill, 0)),
+        S::TkReadydown => Some(stance(Skill, 2)),
+        S::TkReadyturn => Some(stance(Skill, 3)),
+        S::TkReadycounter => Some(stance(Skill, 4)),
+        S::TkDodge => Some(stance(Pickup, 1)),
+        _ => None,
     }
 }
 
-pub fn skill_motion_type(skill_id: u16) -> SkillMotionType {
+pub fn skill_motion_type(skill: SkillEnum) -> SkillMotionType {
+    use SkillEnum as S;
     use SkillMotionType::*;
 
-    let id = merc_skill_base_id(skill_id);
-    if skill_pose(id).is_some() {
+    let skill = merc_skill_base(skill);
+    if skill_pose(skill).is_some() {
         return Pose;
     }
-    if id == SkillEnum::SmBash.id() as u16
-        || id == SkillEnum::SmMagnum.id() as u16
-        || id == SkillEnum::McMammonite.id() as u16
-        || id == SkillEnum::AcDouble.id() as u16
-        || id == SkillEnum::AcShower.id() as u16
-        || id == SkillEnum::AcChargearrow.id() as u16
-        || id == SkillEnum::KnPierce.id() as u16
-        || id == SkillEnum::KnBrandishspear.id() as u16
-        || id == SkillEnum::KnSpearstab.id() as u16
-        || id == SkillEnum::KnBowlingbash.id() as u16
-        || id == SkillEnum::KnAutocounter.id() as u16
-        || id == SkillEnum::KnChargeatk.id() as u16
-        || id == SkillEnum::BsSkintemper.id() as u16
-        || id == SkillEnum::BsHammerfall.id() as u16
-        || id == SkillEnum::HtPower.id() as u16
-        || id == SkillEnum::HtPhantasmic.id() as u16
-        || id == SkillEnum::CrHolycross.id() as u16
-        || id == SkillEnum::RgBackstap.id() as u16
-        || id == SkillEnum::RgRaid.id() as u16
-        || id == SkillEnum::RgIntimidate.id() as u16
-        || id == SkillEnum::RgCloseconfine.id() as u16
-        || id == SkillEnum::AsSonicblow.id() as u16
-        || id == SkillEnum::MoInvestigate.id() as u16
-        || id == SkillEnum::MoFingeroffensive.id() as u16
-        || id == SkillEnum::MoTripleattack.id() as u16
-        || id == SkillEnum::PaPressure.id() as u16
-        || id == SkillEnum::PaSacrifice.id() as u16
-        || id == SkillEnum::ChPalmstrike.id() as u16
-        || id == SkillEnum::ChChaincrush.id() as u16
-        || id == SkillEnum::AscBreaker.id() as u16
-        || id == SkillEnum::AscMeteorassault.id() as u16
-        || id == SkillEnum::HwMagicpower.id() as u16
-        || id == SkillEnum::SnSharpshooting.id() as u16
-        || id == SkillEnum::LkSpiralpierce.id() as u16
-        || id == SkillEnum::LkHeadcrush.id() as u16
-        || id == SkillEnum::LkJointbeat.id() as u16
-    {
-        return Attack;
-    }
+    match skill {
+        S::SmBash
+        | S::SmMagnum
+        | S::McMammonite
+        | S::AcDouble
+        | S::AcShower
+        | S::AcChargearrow
+        | S::KnPierce
+        | S::KnBrandishspear
+        | S::KnSpearstab
+        | S::KnBowlingbash
+        | S::KnAutocounter
+        | S::KnChargeatk
+        | S::BsSkintemper
+        | S::BsHammerfall
+        | S::HtPower
+        | S::HtPhantasmic
+        | S::CrHolycross
+        | S::RgBackstap
+        | S::RgRaid
+        | S::RgIntimidate
+        | S::RgCloseconfine
+        | S::AsSonicblow
+        | S::MoInvestigate
+        | S::MoFingeroffensive
+        | S::MoTripleattack
+        | S::PaPressure
+        | S::PaSacrifice
+        | S::ChPalmstrike
+        | S::ChChaincrush
+        | S::AscBreaker
+        | S::AscMeteorassault
+        | S::HwMagicpower
+        | S::SnSharpshooting
+        | S::LkSpiralpierce
+        | S::LkHeadcrush
+        | S::LkJointbeat => Attack,
 
-    if id == SkillEnum::BaMusicalstrike.id() as u16
-        || id == SkillEnum::DcThrowarrow.id() as u16
-        || id == SkillEnum::CgArrowvulcan.id() as u16
-    {
-        return Attack2;
-    }
+        S::BaMusicalstrike | S::DcThrowarrow | S::CgArrowvulcan => Attack2,
 
-    if id == SkillEnum::KnSpearboomerang.id() as u16
-        || id == SkillEnum::CrShieldcharge.id() as u16
-        || id == SkillEnum::CrShieldboomerang.id() as u16
-        || id == SkillEnum::PaShieldchain.id() as u16
-        || id == SkillEnum::AmPotionpitcher.id() as u16
-        || id == SkillEnum::AmAcidterror.id() as u16
-        || id == SkillEnum::AmDemonstration.id() as u16
-        || id == SkillEnum::AmCannibalize.id() as u16
-        || id == SkillEnum::TfThrowstone.id() as u16
-        || id == SkillEnum::TfSprinklesand.id() as u16
-        || id == SkillEnum::AsVenomknife.id() as u16
-    {
-        return Throw;
-    }
+        S::KnSpearboomerang
+        | S::CrShieldcharge
+        | S::CrShieldboomerang
+        | S::PaShieldchain
+        | S::AmPotionpitcher
+        | S::AmAcidterror
+        | S::AmDemonstration
+        | S::AmCannibalize
+        | S::TfThrowstone
+        | S::TfSprinklesand
+        | S::AsVenomknife => Throw,
 
-    if id == SkillEnum::HtSkidtrap.id() as u16
-        || id == SkillEnum::HtLandmine.id() as u16
-        || id == SkillEnum::HtAnklesnare.id() as u16
-        || id == SkillEnum::HtShockwave.id() as u16
-        || id == SkillEnum::HtSandman.id() as u16
-        || id == SkillEnum::HtFlasher.id() as u16
-        || id == SkillEnum::HtFreezingtrap.id() as u16
-        || id == SkillEnum::HtBlastmine.id() as u16
-        || id == SkillEnum::HtClaymoretrap.id() as u16
-        || id == SkillEnum::HtRemovetrap.id() as u16
-        || id == SkillEnum::HtTalkiebox.id() as u16
-        || id == SkillEnum::BsGreed.id() as u16
-    {
-        return Pickup;
-    }
+        S::HtSkidtrap
+        | S::HtLandmine
+        | S::HtAnklesnare
+        | S::HtShockwave
+        | S::HtSandman
+        | S::HtFlasher
+        | S::HtFreezingtrap
+        | S::HtBlastmine
+        | S::HtClaymoretrap
+        | S::HtRemovetrap
+        | S::HtTalkiebox
+        | S::BsGreed => Pickup,
 
-    if id == SkillEnum::BaAppleidun.id() as u16
-        || id == SkillEnum::BaDissonance.id() as u16
-        || id == SkillEnum::BaWhistle.id() as u16
-        || id == SkillEnum::BaAssassincross.id() as u16
-        || id == SkillEnum::BaPoembragi.id() as u16
-    {
-        return Sing;
-    }
+        S::BaAppleidun | S::BaDissonance | S::BaWhistle | S::BaAssassincross | S::BaPoembragi => {
+            Sing
+        }
 
-    if id == SkillEnum::DcWinkcharm.id() as u16
-        || id == SkillEnum::DcFortunekiss.id() as u16
-        || id == SkillEnum::DcUglydance.id() as u16
-        || id == SkillEnum::DcHumming.id() as u16
-        || id == SkillEnum::DcDontforgetme.id() as u16
-        || id == SkillEnum::DcServiceforyou.id() as u16
-        || id == SkillEnum::BdLullaby.id() as u16
-        || id == SkillEnum::BdRichmankim.id() as u16
-        || id == SkillEnum::BdEternalchaos.id() as u16
-        || id == SkillEnum::BdDrumbattlefield.id() as u16
-        || id == SkillEnum::BdSiegfried.id() as u16
-        || id == SkillEnum::CgHermode.id() as u16
-        || id == SkillEnum::BdRingnibelungen.id() as u16
-        || id == SkillEnum::BdRokisweil.id() as u16
-        || id == SkillEnum::BdIntoabyss.id() as u16
-        || id == SkillEnum::CgMoonlit.id() as u16
-        || id == SkillEnum::CgMarionette.id() as u16
-    {
-        return Dance;
-    }
+        S::DcWinkcharm
+        | S::DcFortunekiss
+        | S::DcUglydance
+        | S::DcHumming
+        | S::DcDontforgetme
+        | S::DcServiceforyou
+        | S::BdLullaby
+        | S::BdRichmankim
+        | S::BdEternalchaos
+        | S::BdDrumbattlefield
+        | S::BdSiegfried
+        | S::CgHermode
+        | S::BdRingnibelungen
+        | S::BdRokisweil
+        | S::BdIntoabyss
+        | S::CgMoonlit
+        | S::CgMarionette => Dance,
 
-    if id == SkillEnum::AlIncagi.id() as u16
-        || id == SkillEnum::CrAutoguard.id() as u16
-        || id == SkillEnum::CrReflectshield.id() as u16
-        || id == SkillEnum::CrDefender.id() as u16
-        || id == SkillEnum::MoSteelbody.id() as u16
-        || id == SkillEnum::MoBladestop.id() as u16
-        || id == SkillEnum::BdAdaptation.id() as u16
-        || id == SkillEnum::LkParrying.id() as u16
-        || id == SkillEnum::PaGospel.id() as u16
-        || id == SkillEnum::SnSight.id() as u16
-        || id == SkillEnum::WsMeltdown.id() as u16
-        || id == SkillEnum::WsCartboost.id() as u16
-        || id == SkillEnum::ChSoulcollect.id() as u16
-    {
-        return Stand;
-    }
+        S::AlIncagi
+        | S::CrAutoguard
+        | S::CrReflectshield
+        | S::CrDefender
+        | S::MoSteelbody
+        | S::MoBladestop
+        | S::BdAdaptation
+        | S::LkParrying
+        | S::PaGospel
+        | S::SnSight
+        | S::WsMeltdown
+        | S::WsCartboost
+        | S::ChSoulcollect => Stand,
 
-    if id == SkillEnum::TkRun.id() as u16 {
-        return Walk;
-    }
+        S::TkRun => Walk,
 
-    Skill
+        _ => Skill,
+    }
 }
 
 #[cfg(test)]
@@ -223,19 +194,19 @@ mod tests {
     #[test]
     fn attack_skills_return_attack() {
         assert_eq!(
-            skill_motion_type(SkillEnum::SmBash.id() as u16),
+            skill_motion_type(SkillEnum::SmBash),
             SkillMotionType::Attack
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::AcDouble.id() as u16),
+            skill_motion_type(SkillEnum::AcDouble),
             SkillMotionType::Attack
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::AsSonicblow.id() as u16),
+            skill_motion_type(SkillEnum::AsSonicblow),
             SkillMotionType::Attack
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::LkSpiralpierce.id() as u16),
+            skill_motion_type(SkillEnum::LkSpiralpierce),
             SkillMotionType::Attack
         );
     }
@@ -243,11 +214,11 @@ mod tests {
     #[test]
     fn bard_musical_strike_returns_attack2() {
         assert_eq!(
-            skill_motion_type(SkillEnum::BaMusicalstrike.id() as u16),
+            skill_motion_type(SkillEnum::BaMusicalstrike),
             SkillMotionType::Attack2
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::CgArrowvulcan.id() as u16),
+            skill_motion_type(SkillEnum::CgArrowvulcan),
             SkillMotionType::Attack2
         );
     }
@@ -255,11 +226,11 @@ mod tests {
     #[test]
     fn throw_skills_return_throw() {
         assert_eq!(
-            skill_motion_type(SkillEnum::KnSpearboomerang.id() as u16),
+            skill_motion_type(SkillEnum::KnSpearboomerang),
             SkillMotionType::Throw
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::TfThrowstone.id() as u16),
+            skill_motion_type(SkillEnum::TfThrowstone),
             SkillMotionType::Throw
         );
     }
@@ -267,11 +238,11 @@ mod tests {
     #[test]
     fn trap_skills_return_pickup() {
         assert_eq!(
-            skill_motion_type(SkillEnum::HtLandmine.id() as u16),
+            skill_motion_type(SkillEnum::HtLandmine),
             SkillMotionType::Pickup
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::HtAnklesnare.id() as u16),
+            skill_motion_type(SkillEnum::HtAnklesnare),
             SkillMotionType::Pickup
         );
     }
@@ -279,11 +250,11 @@ mod tests {
     #[test]
     fn bard_songs_return_sing() {
         assert_eq!(
-            skill_motion_type(SkillEnum::BaPoembragi.id() as u16),
+            skill_motion_type(SkillEnum::BaPoembragi),
             SkillMotionType::Sing
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::BaAppleidun.id() as u16),
+            skill_motion_type(SkillEnum::BaAppleidun),
             SkillMotionType::Sing
         );
     }
@@ -291,11 +262,11 @@ mod tests {
     #[test]
     fn dancer_skills_return_dance() {
         assert_eq!(
-            skill_motion_type(SkillEnum::DcFortunekiss.id() as u16),
+            skill_motion_type(SkillEnum::DcFortunekiss),
             SkillMotionType::Dance
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::BdLullaby.id() as u16),
+            skill_motion_type(SkillEnum::BdLullaby),
             SkillMotionType::Dance
         );
     }
@@ -303,11 +274,11 @@ mod tests {
     #[test]
     fn stand_skills_return_stand() {
         assert_eq!(
-            skill_motion_type(SkillEnum::CrAutoguard.id() as u16),
+            skill_motion_type(SkillEnum::CrAutoguard),
             SkillMotionType::Stand
         );
         assert_eq!(
-            skill_motion_type(SkillEnum::LkParrying.id() as u16),
+            skill_motion_type(SkillEnum::LkParrying),
             SkillMotionType::Stand
         );
     }
@@ -321,23 +292,14 @@ mod tests {
             (SkillEnum::TkReadycounter, 12, 4),
             (SkillEnum::TkDodge, 3, 1),
         ] {
-            let id = s.id() as u16;
-            assert_eq!(skill_motion_type(id), SkillMotionType::Pose, "{s:?}");
-            let pose = skill_pose(id).expect("{s:?} poses");
+            assert_eq!(skill_motion_type(s), SkillMotionType::Pose, "{s:?}");
+            let pose = skill_pose(s).expect("{s:?} poses");
             assert_eq!((pose.action, pose.frame), (action, frame), "{s:?}");
             assert_eq!(pose.hold_secs, 2.0, "{s:?}");
         }
         // Running plays the walk motion, not an idle stand or a cast.
-        assert_eq!(
-            skill_motion_type(SkillEnum::TkRun.id() as u16),
-            SkillMotionType::Walk
-        );
-        assert!(skill_pose(SkillEnum::TkRun.id() as u16).is_none());
-    }
-
-    #[test]
-    fn unknown_skill_defaults_to_skill() {
-        assert_eq!(skill_motion_type(9999), SkillMotionType::Skill);
+        assert_eq!(skill_motion_type(SkillEnum::TkRun), SkillMotionType::Walk);
+        assert!(skill_pose(SkillEnum::TkRun).is_none());
     }
 
     #[test]
@@ -348,22 +310,19 @@ mod tests {
             SkillEnum::MaChargearrow,
         ] {
             assert_eq!(
-                skill_motion_type(s.id() as u16),
+                skill_motion_type(s),
                 SkillMotionType::Attack,
                 "{s:?} should animate as a ranged attack"
             );
         }
         assert_eq!(
-            skill_motion_type(SkillEnum::MerQuicken.id() as u16),
+            skill_motion_type(SkillEnum::MerQuicken),
             SkillMotionType::Skill
         );
     }
 
     #[test]
     fn heal_defaults_to_skill() {
-        assert_eq!(
-            skill_motion_type(SkillEnum::AlHeal.id() as u16),
-            SkillMotionType::Skill
-        );
+        assert_eq!(skill_motion_type(SkillEnum::AlHeal), SkillMotionType::Skill);
     }
 }

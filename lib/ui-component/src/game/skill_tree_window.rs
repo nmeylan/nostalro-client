@@ -1,5 +1,5 @@
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::skill::{SkillEnum, SkillTargetType};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -10,8 +10,8 @@ use crate::helper::window_chrome::{
     FOOTER_TEX, TITLEBAR_TEX, draw_container, draw_footer, draw_sys_button, draw_titlebar,
     text_color,
 };
-use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use crate::{BuildCtx, InGameWindow, Window};
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 
 pub const SKILL_WINDOW_ID: WidgetId = WidgetId(1200);
 const SKILL_CLOSE_BTN_ID: WidgetId = WidgetId(1201);
@@ -214,19 +214,19 @@ impl InGameWindow for SkillTreeWindow {
 
         let skill_area_w = WIN_W - SCROLLBAR_W - PAD_X * 2.0 - 1.0;
 
-        let visible_skill_ids: Vec<u16> = character
+        let visible_skills: Vec<SkillEnum> = character
             .skills
             .skills()
             .iter()
             .skip(self.scroll_offset)
             .take(VISIBLE_ROWS)
-            .map(|s| s.id)
+            .map(|s| s.skill)
             .collect();
 
-        let mut level_changes: Vec<(u16, bool)> = Vec::new();
+        let mut level_changes: Vec<(SkillEnum, bool)> = Vec::new();
 
-        for (vis_i, &skill_id) in visible_skill_ids.iter().enumerate() {
-            let skill = character.skills.get_skill(skill_id).unwrap();
+        for (vis_i, &visible_skill) in visible_skills.iter().enumerate() {
+            let skill = character.skills.get_skill(visible_skill).unwrap();
             let row_y = content_y + vis_i as f32 * ROW_H;
             let entry_id = WidgetId(SKILL_ENTRY_BASE_ID + vis_i as u32);
 
@@ -274,10 +274,7 @@ impl InGameWindow for SkillTreeWindow {
                 texture: TextureRef::Named(icon_path),
             });
 
-            let display_name = format_skill_display_name(
-                &skill.name,
-                data.skill_name.as_ref(),
-            );
+            let display_name = format_skill_display_name(&skill.skill, data.skill_name.as_ref());
             let name_x = icon_x + ICON_SIZE + 6.0;
             let name_y = row_y + 14.0;
             ui.text(name_x, name_y, &display_name, tc);
@@ -289,7 +286,7 @@ impl InGameWindow for SkillTreeWindow {
                 && data
                     .skill_use_level
                     .as_ref()
-                    .is_some_and(|t| t.supports_level_select(&skill.name));
+                    .is_some_and(|t| t.supports_level_select(skill.skill));
 
             if is_level_selectable {
                 let selected = skill.use_level();
@@ -315,7 +312,7 @@ impl InGameWindow for SkillTreeWindow {
                     ui.text(name_x, level_y, "<", c);
                 }
                 if left_resp.clicked() {
-                    level_changes.push((skill_id, false));
+                    level_changes.push((visible_skill, false));
                 }
 
                 let text_x = name_x + ARW_SIZE + 2.0;
@@ -342,7 +339,7 @@ impl InGameWindow for SkillTreeWindow {
                     ui.text(right_x, level_y, ">", c);
                 }
                 if right_resp.clicked() {
-                    level_changes.push((skill_id, true));
+                    level_changes.push((visible_skill, true));
                 }
                 pointer_on_row_widget |= left_resp.hovered() || right_resp.hovered();
             } else {
@@ -358,7 +355,7 @@ impl InGameWindow for SkillTreeWindow {
                 let sp = data
                     .skill_use_level
                     .as_ref()
-                    .and_then(|t| t.sp_at_level(&skill.name, skill.use_level()))
+                    .and_then(|t| t.sp_at_level(skill.skill, skill.use_level()))
                     .unwrap_or(skill.sp_cost);
                 let type_text = format!("Sp : {}", sp);
                 ui.text(type_x, type_y, &type_text, tc);
@@ -376,7 +373,7 @@ impl InGameWindow for SkillTreeWindow {
                 let btn_resp = ui.button(btn_id, btn_rect, &LEVELUP_BTN, "+");
 
                 if btn_resp.clicked() {
-                    events.push(GameEvent::RequestSkillLevelUp { skill_id: skill.id });
+                    events.push(GameEvent::RequestSkillLevelUp { skill: skill.skill });
                 }
                 pointer_on_row_widget |= btn_resp.hovered();
             }
@@ -387,13 +384,13 @@ impl InGameWindow for SkillTreeWindow {
             {
                 if row_resp.double_clicked() {
                     events.push(GameEvent::RequestUseSkill {
-                        skill_id: skill.id,
+                        skill: skill.skill,
                         level: skill.use_level(),
                     });
                 } else if row_resp.clicked() {
                     ui.drag_source(
                         SKILL_WINDOW_ID,
-                        skill.id as usize,
+                        skill.skill.id() as usize,
                         Some(skill.icon_path()),
                         (ICON_SIZE, ICON_SIZE),
                     );
@@ -401,7 +398,7 @@ impl InGameWindow for SkillTreeWindow {
             }
 
             if row_resp.hovered() {
-                let mut tooltip_lines = vec![display_name.clone()];
+                let mut tooltip_lines = vec![display_name.to_owned()];
 
                 let type_str = match skill.skill_target_type {
                     SkillTargetType::Passive => "Passive",
@@ -420,7 +417,7 @@ impl InGameWindow for SkillTreeWindow {
                 if let Some(desc_lines) = data
                     .skill_description
                     .as_ref()
-                    .and_then(|t| t.get_description(&skill.name))
+                    .and_then(|t| t.get_description(skill.skill))
                 {
                     for line in desc_lines {
                         tooltip_lines.push(line.clone());
@@ -475,8 +472,8 @@ impl InGameWindow for SkillTreeWindow {
             }
         }
 
-        for (skill_id, is_increment) in level_changes {
-            if let Some(skill) = character.skills.get_skill_mut(skill_id) {
+        for (changed, is_increment) in level_changes {
+            if let Some(skill) = character.skills.get_skill_mut(changed) {
                 if is_increment {
                     skill.increment_use_level();
                 } else {
@@ -524,8 +521,7 @@ mod tests {
         let mut character = Character::new();
         character.skill_point = 5;
         character.skills.set_skills(vec![SkillData {
-            id: 5,
-            name: "SM_BASH".to_string(),
+            skill: SkillEnum::SmBash,
             level: 3,
             selected_level: 3,
             sp_cost: 8,
@@ -563,7 +559,9 @@ mod tests {
         assert!(
             matches!(
                 events.as_slice(),
-                [GameEvent::RequestSkillLevelUp { skill_id: 5 }]
+                [GameEvent::RequestSkillLevelUp {
+                    skill: SkillEnum::SmBash
+                }]
             ),
             "expected a single level-up request, got {events:?}"
         );
