@@ -14,6 +14,8 @@ See [TODO](docs/TODO.md) 100% completed and [Features.md](Features.md).
 
 Architecture is documented in [docs/internal/architecture.md](docs/internal/architecture.md) and [docs/internal/rendering.md](docs/internal/rendering.md).
 
+Profiling and stress testing are documented in [docs/profiling.md](docs/profiling.md).
+
 # Why yet another client?
 I wanted to run the game as it was in 2005~2008, but the original client from that period does not handle high dpi screens well. It is also painful to find the right game resources and the right exe diff to make it work with a server.
 
