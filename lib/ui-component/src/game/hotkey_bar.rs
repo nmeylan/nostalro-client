@@ -6,6 +6,7 @@ use crate::game::equipment_window::EQ_WINDOW_ID;
 use crate::helper::window_chrome::{draw_sys_button, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
+use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
@@ -516,14 +517,20 @@ impl InGameWindow for HotkeyBarWindow {
                         HotkeySlotContent::Skill { skill_id, level } => character
                             .skills
                             .get_skill(skill_id)
-                            .map(|s| s.name.clone())
+                            .map(|s| s.name.as_str())
                             .or_else(|| {
                                 self.companion_skills
                                     .iter()
                                     .find(|s| s.id == skill_id)
-                                    .map(|s| s.name.clone())
+                                    .map(|s| s.name.as_str())
                             })
-                            .map(|name| format!("{name} Lv.{level}")),
+                            .map(|name| {
+                                let display = format_skill_display_name(
+                                    name,
+                                    data.skill_name.as_ref(),
+                                );
+                                format!("{display} Lv.{level}")
+                            }),
                         HotkeySlotContent::Item { item_id } => {
                             let slot_count_table = data.item_slot_count.as_ref();
                             let card_name_table = data.card_name.as_ref();
