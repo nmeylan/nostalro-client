@@ -210,7 +210,7 @@ impl Camera {
 
     pub fn apply_drag(&mut self, dx: f32, dy: f32, control: CameraControl) {
         if !control.alt && !control.shift {
-            self.rotate(dx * YAW_DRAG_DEG_PER_PIXEL, control);
+            self.rotate(-dx * YAW_DRAG_DEG_PER_PIXEL, control);
         }
         if !control.alt && control.shift {
             self.adjust_pitch(dy * PITCH_DRAG_DEG_PER_PIXEL, control);
@@ -509,6 +509,15 @@ mod tests {
         let eye90 = camera.eye();
         assert!((eye90.x - eye0.x).abs() > 50.0);
         assert!((eye90.y - eye0.y).abs() < 0.01);
+
+        let mut camera = Camera::default();
+        camera.apply_drag(30.0, 0.0, CameraControl::default());
+        camera.interpolate(1.0);
+        assert!(
+            camera.eye().x < -1.0,
+            "dragging right must swing the eye toward -X, got {}",
+            camera.eye().x
+        );
     }
 
     #[test]
@@ -690,10 +699,10 @@ mod tests {
             indoor: true,
             ..Default::default()
         };
-        camera.apply_drag(500.0, 0.0, indoor);
+        camera.apply_drag(-500.0, 0.0, indoor);
         assert!((camera.dest_yaw.to_degrees() - (INDOOR_YAW_DEG + 20.0)).abs() < 1e-4);
 
-        camera.apply_drag(500.0, 0.0, CameraControl { gm: true, ..indoor });
+        camera.apply_drag(-500.0, 0.0, CameraControl { gm: true, ..indoor });
         assert!(camera.dest_yaw.to_degrees() > INDOOR_YAW_DEG + 20.0);
     }
 
@@ -775,8 +784,8 @@ mod tests {
         );
 
         camera.on_map_enter(false, outdoor_view);
-        assert!((camera.yaw.to_degrees() - 100.0).abs() < 1e-4);
-        assert!((camera.dest_yaw.to_degrees() - 100.0).abs() < 1e-4);
+        assert!((camera.yaw.to_degrees() + 100.0).abs() < 1e-4);
+        assert!((camera.dest_yaw.to_degrees() + 100.0).abs() < 1e-4);
         assert!((camera.dest_pitch - outdoor_view.pitch).abs() < 1e-4);
         assert!((camera.dest_distance - outdoor_view.distance).abs() < 1e-4);
         assert!(
