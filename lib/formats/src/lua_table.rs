@@ -147,7 +147,7 @@ pub fn parse_skill_name_table(data: &[u8]) -> HashMap<String, String> {
             let name = parts[0].trim();
             let display = parts[1].trim();
             if !name.is_empty() && !display.is_empty() {
-                map.insert(name.to_string(), display.to_string());
+                map.insert(name.to_string(), display.replace("_"," ").to_string());
             }
         }
     }
