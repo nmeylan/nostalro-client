@@ -114,7 +114,7 @@ The remaining fields (`window_state`, `keybindings`, `shortcut_commands`, `emoti
 With `data/data.grf` in place and a server running:
 
 ```bash
-cargo run --bin ragnarok-client
+cargo run --bin ragnarok-client --release
 ```
 
 The client reads `config.json` from the current directory, so run it from the repository root.
@@ -184,10 +184,10 @@ Browse and preview SPR/ACT sprites from a GRF. Needs a GRF only.
 
 ```bash
 # Open with a GRF file picker (scans the current directory for .grf files)
-cargo run --bin sprite-viewer
+cargo run --bin sprite-viewer --release
 
 # Open a specific GRF
-cargo run --bin sprite-viewer -- --grf data/data.grf
+cargo run --bin sprite-viewer --release -- --grf data/data.grf
 ```
 
 ## GRF editor
@@ -202,7 +202,7 @@ Features:
 - Play a sound
 
 ```bash
-cargo run --bin ragnarok-grf-editor
+cargo run --bin ragnarok-grf-editor --release
 ```
 
 ## Effect viewer (hot reload)
@@ -217,7 +217,7 @@ tools/effect-viewer-dev.sh path/to/data.grf
 Without hot reload (no `cargo-watch`), run the viewer directly:
 
 ```bash
-cargo run --bin effect-viewer -- --grf data/data.grf
+cargo run --bin effect-viewer --release -- --grf data/data.grf
 ```
 
 ## Unified viewer (hot reload)
@@ -234,8 +234,8 @@ tools/viewer-dev.sh --map prontera --effect 42  # spawn an effect at startup
 Without hot reload (no `cargo-watch`), run the viewer directly with the same arguments:
 
 ```bash
-cargo run --bin viewer                                 # prontera, default GRF
-cargo run --bin viewer -- --map prontera --effect 42   # explicit map and effect
+cargo run --bin viewer --release                                 # prontera, default GRF
+cargo run --bin viewer --release -- --map prontera --effect 42   # explicit map and effect
 ```
 
 Controls: `B` cycles the background, right-drag orbits, scroll (or `+`/`-`) zooms, `C` resets the camera, `Space` pauses, arrow keys change action/direction, `N`/`P` cycle the effect preset and `F` replays it.
