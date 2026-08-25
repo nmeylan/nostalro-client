@@ -385,13 +385,15 @@ pub fn is_count_point_effect(id: EffectId) -> bool {
 }
 
 pub fn is_caster_link_effect(id: EffectId) -> bool {
-    matches!(id, EffectId::Soulbreaker)
+    matches!(id, EffectId::Soulbreaker | EffectId::Energydrain2)
 }
 
 pub fn is_trail_effect(id: EffectId) -> bool {
     matches!(
         id,
         EffectId::Frostdiver
+            | EffectId::Blooddrain
+            | EffectId::Energydrain
             | EffectId::Grimtooth
             | EffectId::Icewall
             | EffectId::Fireball

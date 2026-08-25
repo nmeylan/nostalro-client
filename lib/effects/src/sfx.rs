@@ -327,8 +327,6 @@ pub fn effect_sound(id: EffectId) -> Option<SfxSchedule> {
         ],
         E::Slowpoison => &[fixed_at0!("effect\\EF_PoisonAttack.wav")],
         E::Heavensdrive => &[fixed_at0!("effect\\wizard_earthspike.wav")],
-        E::Blooddrain => &[fixed_at0!("effect\\EF_SoulStrike.wav")],
-        E::Energydrain => &[fixed_at0!("effect\\EF_SoulStrike.wav")],
         E::Angelus => &[fixed_at0!("effect\\EF_Angelus.wav")],
         E::Signum => &[
             at!(Fixed("effect\\EF_Signum.wav"), &[30]),
