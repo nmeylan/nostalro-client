@@ -864,12 +864,13 @@ impl App {
 
         renderer.render(FrameInputs {
             ui_draw_calls: &draw_calls,
+            tooltip_draw_calls: &[],
             effect_sprite_batches: &frame.effect_batches,
             effect_draws: &frame.effect_draws,
             sprite_particle_records: frame.sprite_particle_records,
             sprite_batches: &[],
             silhouette_batches: &[],
-            cursor_batches: &[],
+            cursor_batches: Vec::new(),
             inline_textures: &[],
             elapsed,
             delta: elapsed,

@@ -41,11 +41,10 @@ use ragnarok_game::sprite_path::{HiddenRender, hidden_render};
 use ragnarok_network::{NetworkCommand, build_reqname_packet, network_loop};
 use ragnarok_renderer::effect::EffectHolder;
 use ragnarok_renderer::{
-    EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, UiDrawCall,
-    block_on,
+    EffectSpriteCache, GridSelectorRenderer, Renderer, SpriteVertex, StrEffectCache, block_on,
 };
 use ragnarok_ui::context::UiContext;
-use ragnarok_ui::frame::UiFrame;
+use ragnarok_ui::frame::{UiFrame, UiOutput};
 use ragnarok_ui::state::StateCache;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
 use ragnarok_ui_component::account::char_select_window::CharSelectWindow;
@@ -474,7 +473,7 @@ impl App {
         });
     }
 
-    fn build_ui(&mut self, elapsed: f32) -> (Vec<UiDrawCall>, Vec<GameEvent>, bool, bool) {
+    fn build_ui(&mut self, elapsed: f32) -> (UiOutput, Vec<GameEvent>) {
         ragnarok_profiling::profile_function!();
         let now_ms = self.start_time.elapsed().as_millis() as u64;
         if let Some(ui_ctx) = &mut self.ui_context {
@@ -503,11 +502,9 @@ impl App {
                     }
                     let events = server_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
-                    let any_hovered = ui.any_hovered;
-                    let any_interactive = ui.any_interactive_hovered;
-                    (ui.draw_calls, events, any_hovered, any_interactive)
+                    (ui.finish(), events)
                 } else {
-                    (Vec::new(), Vec::new(), false, false)
+                    (UiOutput::default(), Vec::new())
                 }
             }
             AppState::Login => {
@@ -531,11 +528,9 @@ impl App {
                     }
                     let events = self.login_window.build(&mut ui);
                     self.account_dialog.build(&mut ui);
-                    let any_hovered = ui.any_hovered;
-                    let any_interactive = ui.any_interactive_hovered;
-                    (ui.draw_calls, events, any_hovered, any_interactive)
+                    (ui.finish(), events)
                 } else {
-                    (Vec::new(), Vec::new(), false, false)
+                    (UiOutput::default(), Vec::new())
                 }
             }
             AppState::ServerSelect => {
@@ -559,11 +554,9 @@ impl App {
                     }
                     let events = server_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
-                    let any_hovered = ui.any_hovered;
-                    let any_interactive = ui.any_interactive_hovered;
-                    (ui.draw_calls, events, any_hovered, any_interactive)
+                    (ui.finish(), events)
                 } else {
-                    (Vec::new(), Vec::new(), false, false)
+                    (UiOutput::default(), Vec::new())
                 }
             }
             AppState::CharacterSelect => {
@@ -587,11 +580,9 @@ impl App {
                     }
                     let events = char_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
-                    let any_hovered = ui.any_hovered;
-                    let any_interactive = ui.any_interactive_hovered;
-                    (ui.draw_calls, events, any_hovered, any_interactive)
+                    (ui.finish(), events)
                 } else {
-                    (Vec::new(), Vec::new(), false, false)
+                    (UiOutput::default(), Vec::new())
                 }
             }
             AppState::CharacterCreate => {
@@ -615,11 +606,9 @@ impl App {
                     }
                     let events = create_win.build(&mut ui);
                     self.account_dialog.build(&mut ui);
-                    let any_hovered = ui.any_hovered;
-                    let any_interactive = ui.any_interactive_hovered;
-                    (ui.draw_calls, events, any_hovered, any_interactive)
+                    (ui.finish(), events)
                 } else {
-                    (Vec::new(), Vec::new(), false, false)
+                    (UiOutput::default(), Vec::new())
                 }
             }
             AppState::InGame => {
@@ -679,11 +668,9 @@ impl App {
                         }
                     }
 
-                    let any_hovered = ui.any_hovered;
-                    let any_interactive = ui.any_interactive_hovered;
-                    (ui.draw_calls, events, any_hovered, any_interactive)
+                    (ui.finish(), events)
                 } else {
-                    (Vec::new(), Vec::new(), false, false)
+                    (UiOutput::default(), Vec::new())
                 }
             }
         }
@@ -840,8 +827,15 @@ impl ApplicationHandler for App {
 
                 self.handle_game_events(event_loop);
 
-                let (ui_draw_calls, ui_events, ui_any_hovered, ui_any_interactive) =
-                    self.build_ui(elapsed);
+                let (
+                    UiOutput {
+                        draw_calls: ui_draw_calls,
+                        tooltip_draw_calls,
+                        any_hovered: ui_any_hovered,
+                        any_interactive_hovered: ui_any_interactive,
+                    },
+                    ui_events,
+                ) = self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
                 if let Some(dirty) = self.windows.hotkey_config_window.take_dirty_bindings() {
                     self.config.keybindings = dirty.interface;
@@ -972,6 +966,7 @@ impl ApplicationHandler for App {
                     world_overlay_calls,
                     skill_level_calls,
                     ui_draw_calls,
+                    tooltip_draw_calls,
                 );
 
                 if let Some(ui_ctx) = &mut self.ui_context {

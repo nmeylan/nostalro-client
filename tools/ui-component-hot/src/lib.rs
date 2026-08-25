@@ -3512,7 +3512,9 @@ pub unsafe extern "C" fn hot_build(state_ptr: *mut (), ui_ptr: *mut UiFrame) {
     let state = unsafe { &mut *(state_ptr as *mut State) };
     let ui = unsafe { &mut *ui_ptr };
     build_single(state, ui);
-    ui.flush_tooltips();
+    // No cursor sprite here, so the tooltip layer just goes last in the one pass.
+    let tooltips = std::mem::take(&mut ui.tooltip_draw_calls);
+    ui.draw_calls.extend(tooltips);
     let _ = ui.draw_drag_icon();
 }
 

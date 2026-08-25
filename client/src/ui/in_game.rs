@@ -215,8 +215,6 @@ pub fn build_in_game_ui(
         LevelUpClick::None => {}
     }
 
-    ui.flush_tooltips();
-
     if let Some(cancelled) = ui.draw_drag_icon() {
         if cancelled.source_id == HOTKEY_BAR_WINDOW_ID {
             if ctx.character.hotkeys.get_slot(cancelled.item_index)

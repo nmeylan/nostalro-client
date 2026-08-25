@@ -37,6 +37,16 @@ pub struct UiFrame<'a> {
     escape_consumed: bool,
 }
 
+#[derive(Default)]
+pub struct UiOutput {
+    pub draw_calls: Vec<DrawCall>,
+    /// Kept apart from `draw_calls` so it can be drawn after the cursor sprite
+    /// instead of behind it.
+    pub tooltip_draw_calls: Vec<DrawCall>,
+    pub any_hovered: bool,
+    pub any_interactive_hovered: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WidgetId(pub u32);
 
@@ -915,8 +925,13 @@ impl<'a> UiFrame<'a> {
         }
     }
 
-    pub fn flush_tooltips(&mut self) {
-        self.draw_calls.append(&mut self.tooltip_draw_calls);
+    pub fn finish(self) -> UiOutput {
+        UiOutput {
+            draw_calls: self.draw_calls,
+            tooltip_draw_calls: self.tooltip_draw_calls,
+            any_hovered: self.any_hovered,
+            any_interactive_hovered: self.any_interactive_hovered,
+        }
     }
 
     pub fn set_focus(&mut self, id: WidgetId) {

@@ -81,6 +81,7 @@ impl App {
         mut world_overlay_calls: Vec<UiDrawCall>,
         skill_level_calls: Vec<UiDrawCall>,
         ui_draw_calls: Vec<UiDrawCall>,
+        tooltip_draw_calls: Vec<UiDrawCall>,
     ) {
         ragnarok_profiling::profile_function!();
         let mut sprite_batches: Vec<SpriteBatch> = Vec::new();
@@ -1284,12 +1285,13 @@ impl App {
 
             renderer.render(FrameInputs {
                 ui_draw_calls: &all_ui_calls,
+                tooltip_draw_calls: &tooltip_draw_calls,
                 effect_sprite_batches: &frame.effect_batches,
                 effect_draws: &frame.effect_draws,
                 sprite_particle_records: frame.sprite_particle_records,
                 sprite_batches: &sprite_batches,
                 silhouette_batches: &silhouette_batches,
-                cursor_batches: &cursor_batches,
+                cursor_batches,
                 inline_textures: &inline_textures,
                 elapsed,
                 delta,

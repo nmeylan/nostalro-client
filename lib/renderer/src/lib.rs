@@ -96,12 +96,15 @@ pub struct UiDrawCall {
 
 pub struct FrameInputs<'a> {
     pub ui_draw_calls: &'a [UiDrawCall],
+    /// Appended to `cursor_batches`, so tooltips paint over the cursor sprite
+    /// instead of behind it.
+    pub tooltip_draw_calls: &'a [UiDrawCall],
     pub effect_sprite_batches: &'a [SpriteBatch<'a>],
     pub effect_draws: &'a effect::EffectDrawList,
     pub sprite_particle_records: Vec<DrawRecord<'a>>,
     pub sprite_batches: &'a [SpriteBatch<'a>],
     pub silhouette_batches: &'a [SpriteBatch<'a>],
-    pub cursor_batches: &'a [SpriteBatch<'a>],
+    pub cursor_batches: Vec<SpriteBatch<'a>>,
     pub inline_textures: &'a [&'a wgpu::BindGroup],
     pub elapsed: f32,
     /// Seconds since the previous frame. Callers that render more than once per
@@ -720,12 +723,13 @@ impl Renderer {
         }
         let FrameInputs {
             ui_draw_calls,
+            tooltip_draw_calls,
             effect_sprite_batches,
             effect_draws,
             sprite_particle_records,
             sprite_batches,
             silhouette_batches,
-            cursor_batches,
+            mut cursor_batches,
             inline_textures,
             elapsed,
             delta,
@@ -999,6 +1003,32 @@ impl Renderer {
             );
         }
 
+        cursor_batches.extend(tooltip_draw_calls.iter().map(|call| {
+            SpriteBatch {
+                vertices: call
+                    .vertices
+                    .iter()
+                    .map(|v| SpriteVertex {
+                        position: [v.position[0], v.position[1], 0.0],
+                        tex_coord: v.tex_coord,
+                        color: v.color,
+                    })
+                    .collect(),
+                indices: call.indices.clone(),
+                texture: match &call.texture {
+                    UiTextureRef::FontAtlas => &self.font_atlas_bind_group,
+                    UiTextureRef::White => &self.white_bind_group,
+                    UiTextureRef::Named(name) => self
+                        .texture_cache
+                        .get(name)
+                        .unwrap_or(&self.white_bind_group),
+                    UiTextureRef::Inline(idx) => inline_textures[*idx],
+                },
+                additive: false,
+                no_depth: false,
+            }
+        }));
+
         if !cursor_batches.is_empty() {
             ragnarok_profiling::profile_scope!("cursor");
             self.sprite_renderer.render(
@@ -1008,7 +1038,7 @@ impl Renderer {
                 &self.device.device,
                 &self.device.queue,
                 None,
-                cursor_batches,
+                &cursor_batches,
             );
         }
 

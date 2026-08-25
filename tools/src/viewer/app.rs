@@ -1183,12 +1183,13 @@ impl App {
 
         renderer.render(FrameInputs {
             ui_draw_calls: &ui_calls,
+            tooltip_draw_calls: &[],
             effect_sprite_batches: &effect_batches,
             effect_draws: &effect_draws,
             sprite_particle_records,
             sprite_batches: &sprite_batches,
             silhouette_batches: &silhouette_batches,
-            cursor_batches: &[],
+            cursor_batches: Vec::new(),
             inline_textures: &number_inline_textures,
             elapsed: dt,
             delta: dt,
