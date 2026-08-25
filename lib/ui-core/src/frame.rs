@@ -441,6 +441,13 @@ impl<'a> UiFrame<'a> {
         self.in_popup_layer = false;
     }
 
+    /// Whether the pointer belongs to the window being built: nothing above it in
+    /// the z-order and no popup layer has it.
+    pub fn pointer_available(&self) -> bool {
+        (self.in_popup_layer || !self.is_current_window_occluded())
+            && !self.pointer_blocked_by_popup()
+    }
+
     fn pointer_blocked_by_popup(&self) -> bool {
         if self.in_popup_layer {
             return false;
@@ -600,9 +607,7 @@ impl<'a> UiFrame<'a> {
 
     pub fn interact(&mut self, id: WidgetId, rect: Rect) -> Response {
         let in_rect = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y);
-        let hovered = in_rect
-            && (self.in_popup_layer || !self.is_current_window_occluded())
-            && !self.pointer_blocked_by_popup();
+        let hovered = in_rect && self.pointer_available();
         if hovered {
             self.any_hovered = true;
         }
@@ -945,9 +950,7 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn drag_handle(&mut self, id: WidgetId, rect: Rect, enabled: bool) -> DragResponse {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y)
-            && (self.in_popup_layer || !self.is_current_window_occluded())
-            && !self.pointer_blocked_by_popup();
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && self.pointer_available();
         if hovered {
             self.any_hovered = true;
             self.any_interactive_hovered = true;
@@ -1119,9 +1122,7 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn drop_zone(&mut self, rect: Rect) -> Option<(WidgetId, usize)> {
-        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y)
-            && (self.in_popup_layer || !self.is_current_window_occluded())
-            && !self.pointer_blocked_by_popup();
+        let hovered = rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) && self.pointer_available();
         let drag = self.state.get_or_default::<DragState>(DRAG_STATE_ID);
         if drag.active && !self.ctx.mouse_down && hovered {
             let result = (drag.source_id, drag.item_index);

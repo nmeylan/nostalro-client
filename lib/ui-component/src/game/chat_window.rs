@@ -1183,8 +1183,9 @@ impl InGameWindow for ChatWindow {
                 );
                 drag_area.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
             };
+            let grabbable = (in_input || in_msg_area) && ui.pointer_available();
             let state = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
-            if (in_input || in_msg_area) && ui.ctx.mouse_clicked && !state.dragging {
+            if grabbable && ui.ctx.mouse_clicked && !state.dragging {
                 state.dragging = true;
                 state.drag_offset_x = ui.ctx.mouse_x - state.pos_x;
                 state.drag_offset_y = ui.ctx.mouse_y - state.pos_y;
@@ -1506,6 +1507,50 @@ mod tests {
         let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
         assert_eq!(st.pos_x, start_x + 60.0);
         assert_eq!(st.pos_y, start_y - 30.0);
+    }
+
+    #[test]
+    fn message_area_drag_ignored_under_a_window_in_front() {
+        let atlas = FontAtlas::from_embedded(14.0, 1.0);
+        let mut chat = ChatWindow::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        let other = WidgetId(800);
+
+        let ctx = UiContext::new(800.0, 600.0);
+        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+        chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        let chat_rect = chat.bounding_rect.unwrap();
+        let other_rect = Rect::new(chat_rect.x + 200.0, chat_rect.y, 200.0, 100.0);
+        ui.enter_window(other, other_rect);
+        ui.bring_to_front(other);
+
+        let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        let (start_x, start_y) = (st.pos_x, st.pos_y);
+        let grab_x = chat_rect.x + 300.0;
+        let grab_y = chat_rect.y + 20.0;
+
+        for (x, y, clicked) in [
+            (grab_x, grab_y, true),
+            (grab_x + 60.0, grab_y - 30.0, false),
+        ] {
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_x = x;
+            ctx.mouse_y = y;
+            ctx.mouse_clicked = clicked;
+            ctx.mouse_down = true;
+            let mut ui = make_frame(&ctx, &atlas, &mut state);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+            ui.enter_window(other, other_rect);
+        }
+
+        let st = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
+        assert_eq!((st.pos_x, st.pos_y), (start_x, start_y));
     }
 
     #[test]
