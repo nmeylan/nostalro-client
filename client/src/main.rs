@@ -108,7 +108,6 @@ struct App {
     config: Config,
     saved_window_positions: HashMap<u32, [f32; 2]>,
     window_state_restored: bool,
-    window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     effect_sprites: EffectSpriteCache,
     str_effects: StrEffectCache,
@@ -148,6 +147,8 @@ struct App {
     pending_events: Vec<GameEvent>,
     window_focused: bool,
     profiler: ragnarok_profiling::Profiler,
+    /// Window must be dropped last
+    window: Option<Arc<Window>>,
 }
 
 impl App {
