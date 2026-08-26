@@ -58,6 +58,8 @@ fn apply_fog(color: vec3<f32>, view_pos: vec3<f32>) -> vec3<f32> {
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) tex_coord: vec2<f32>,
+    @location(2) floor_y: f32,
+    @location(3) phase_pos: f32,
 };
 
 struct VertexOutput {
@@ -70,13 +72,22 @@ const PI: f32 = 3.14159265;
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.tex_coord = in.tex_coord;
+
+    let cell_phase = water.wave_offset + water.wave_pitch_per_unit * in.phase_pos;
+    let cell_level = in.position.y + sin(PI / 180.0 * cell_phase) * water.wave_height;
+    if (in.floor_y <= cell_level) {
+        out.clip_position = vec4<f32>(0.0, 0.0, -1.0, 1.0);
+        out.view_pos = vec3<f32>(0.0);
+        return out;
+    }
+
     var pos = in.position;
     let phase = water.wave_offset + water.wave_pitch_per_unit * (in.position.x + in.position.z);
     pos.y += sin(PI / 180.0 * phase) * water.wave_height;
 
-    var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
-    out.tex_coord = in.tex_coord;
     let view_pos = camera.view * vec4<f32>(pos, 1.0);
     out.view_pos = view_pos.xyz;
     return out;

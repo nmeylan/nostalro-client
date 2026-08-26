@@ -11,6 +11,12 @@ use crate::texture::TextureCache;
 pub struct WaterVertex {
     pub position: [f32; 3],
     pub tex_coord: [f32; 2],
+    /// Deepest corner of the cell's floor. World Y grows downwards, so this is
+    /// the largest of the four heights.
+    pub floor_y: f32,
+    /// `x + z` at the cell's mid-diagonal, shared by all four of its vertices:
+    /// the point the wave level is sampled at to decide whether the cell is wet.
+    pub phase_pos: f32,
 }
 
 impl WaterVertex {
@@ -20,6 +26,8 @@ impl WaterVertex {
         attributes: &wgpu::vertex_attr_array![
             0 => Float32x3,
             1 => Float32x2,
+            2 => Float32,
+            3 => Float32,
         ],
     };
 }
@@ -300,22 +308,37 @@ pub fn build_water_mesh(
             let v0 = y as f32 / WATER_TEXTURE_CELLS;
             let v1 = (y + 1) as f32 / WATER_TEXTURE_CELLS;
 
+            let floor_y = cell
+                .height_sw
+                .max(cell.height_se)
+                .max(cell.height_nw)
+                .max(cell.height_ne);
+            let phase_pos = wx + wz + zoom;
+
             let base = vertices.len() as u32;
             vertices.push(WaterVertex {
                 position: [wx, water_y, wz],
                 tex_coord: [u0, v0],
+                floor_y,
+                phase_pos,
             });
             vertices.push(WaterVertex {
                 position: [wx + zoom, water_y, wz],
                 tex_coord: [u1, v0],
+                floor_y,
+                phase_pos,
             });
             vertices.push(WaterVertex {
                 position: [wx, water_y, wz + zoom],
                 tex_coord: [u0, v1],
+                floor_y,
+                phase_pos,
             });
             vertices.push(WaterVertex {
                 position: [wx + zoom, water_y, wz + zoom],
                 tex_coord: [u1, v1],
+                floor_y,
+                phase_pos,
             });
 
             indices.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 1, base + 3]);
@@ -472,6 +495,22 @@ mod tests {
         assert!((vertices[0].tex_coord[0] - 0.0).abs() < 0.01);
         let cell4_base = 4 * 4;
         assert!((vertices[cell4_base].tex_coord[0] - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn water_mesh_carries_deepest_floor_and_shared_phase_anchor() {
+        let mut gnd = make_gnd(2, 1, -5.0);
+        gnd.cells[1].height_se = 3.0;
+        let (vertices, _) = build_water_mesh(&gnd, -10.0, 1.0);
+
+        for v in &vertices[0..4] {
+            assert_eq!(v.phase_pos, 10.0);
+            assert_eq!(v.floor_y, -5.0);
+        }
+        for v in &vertices[4..8] {
+            assert_eq!(v.phase_pos, 20.0);
+            assert_eq!(v.floor_y, 3.0);
+        }
     }
 
     #[test]
