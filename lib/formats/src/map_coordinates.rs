@@ -1,5 +1,6 @@
 use crate::gat::GatFile;
 
+#[derive(Clone, Copy)]
 pub struct MapCoordinates {
     zoom: f32,
     gat_width: i32,

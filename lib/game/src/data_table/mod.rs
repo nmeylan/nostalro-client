@@ -24,6 +24,7 @@ pub mod item_description_table;
 pub mod item_name_table;
 pub mod item_resource_table;
 pub mod item_slot_count_table;
+pub mod map_cloud_table;
 pub mod map_name_table;
 pub mod map_position_table;
 pub mod msg_string_table;

@@ -250,11 +250,21 @@ pub struct EffectHolder {
     shake: ShakeController,
     afterimages: Vec<AfterimageSnapshot>,
     pending_sfx: Vec<SfxEmission>,
+    ground_sampler: Option<ragnarok_effects::effect_trait::GroundSampler>,
 }
 
 impl EffectHolder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Terrain height lookup handed to every effect built from here on. Set once
+    /// per map; effects that do not place geometry off-anchor ignore it.
+    pub fn set_ground_sampler(
+        &mut self,
+        sampler: Option<ragnarok_effects::effect_trait::GroundSampler>,
+    ) {
+        self.ground_sampler = sampler;
     }
 
     pub fn last_spawn(&self) -> Option<&SpawnOutcome> {
@@ -430,7 +440,10 @@ impl EffectHolder {
                         target_size,
                         override_duration_ms,
                     ) {
-                        Some(e) => {
+                        Some(mut e) => {
+                            if let Some(sampler) = &self.ground_sampler {
+                                e.set_ground_sampler(sampler.clone());
+                            }
                             self.last_spawn = Some(SpawnOutcome::Custom);
                             HeldPayload::Custom(e)
                         }

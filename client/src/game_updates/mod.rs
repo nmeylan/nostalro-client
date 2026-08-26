@@ -109,6 +109,11 @@ impl App {
                 .ambient_effects
                 .update(delta, &is_visible, &mut self.effect_queue);
         }
+        self.game.schedulers.map_cloud.update(
+            self.game.world.entities.player_id(),
+            self.config.show_skill_effects,
+            &mut self.effect_queue,
+        );
 
         let entities = &self.game.world.entities;
         let resolve_caster_yaw = |id: u32| {

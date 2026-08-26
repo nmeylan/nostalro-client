@@ -107,6 +107,7 @@ impl App {
                 self.game.session.gat = None;
                 self.effect_holder.clear();
                 self.effect_queue = EffectQueue::new();
+                self.game.schedulers.map_cloud.clear(&mut self.effect_queue);
                 self.game.schedulers.ambient_effects =
                     ragnarok_game::effects::AmbientEffectScheduler::empty();
                 self.game.schedulers.ambient_sounds =

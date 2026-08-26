@@ -249,7 +249,7 @@ impl Default for Config {
             window_state: HashMap::new(),
             hotkey_visible_rows: 1,
             battle_mode: false,
-            fog: false,
+            fog: true,
             fullscreen: false,
             show_skill_effects: true,
             refuse_trade: false,

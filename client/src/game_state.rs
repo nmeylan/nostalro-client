@@ -442,6 +442,7 @@ pub struct AssetHandles {
 
 pub struct Schedulers {
     pub ambient_effects: AmbientEffectScheduler,
+    pub map_cloud: ragnarok_game::map_cloud::MapCloudScheduler,
     pub ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler,
     pub repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler,
     pub day_night: DayNightState,
@@ -457,6 +458,7 @@ impl Schedulers {
     pub fn new() -> Self {
         Self {
             ambient_effects: AmbientEffectScheduler::empty(),
+            map_cloud: ragnarok_game::map_cloud::MapCloudScheduler::default(),
             ambient_sounds: ragnarok_game::sound::ambient::AmbientSoundScheduler::empty(),
             repeat_sounds: ragnarok_game::sound::repeat::RepeatSoundScheduler::new(),
             day_night: DayNightState::default(),

@@ -1,5 +1,5 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
-use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx, GroundSampler};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const SQRT2: f32 = std::f32::consts::SQRT_2;
@@ -26,6 +26,8 @@ pub enum Drift {
 pub struct CloudParams {
     pub textures: [&'static str; 3],
     pub tint: [f32; 3],
+    /// Absolute world Y of the field, except when `use_ground` is set, where it
+    /// is an offset from the terrain surface under each puff.
     pub elevation: f32,
     pub use_ground: bool,
     pub centered: bool,
@@ -35,6 +37,10 @@ pub struct CloudParams {
     pub alpha_rate: f32,
     pub ramp_frames: f32,
     pub count: u32,
+    /// World Y the player must be *above* for the field to show at all. Negative
+    /// Y is up, so the test is `player_y < gate`. Mt. Mjolnir's peak clouds are
+    /// meant to be looked down on.
+    pub altitude_gate: Option<f32>,
 }
 
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
@@ -51,8 +57,10 @@ pub const CLOUD: CloudParams = CloudParams {
     alpha_rate: 2.0,
     ramp_frames: 80.0,
     count: 160,
+    altitude_gate: Some(-152.0),
 };
 pub const CLOUD2: CloudParams = CloudParams {
+    altitude_gate: None,
     elevation: 40.0,
     centered: false,
     alpha_rate: 3.0,
@@ -60,10 +68,12 @@ pub const CLOUD2: CloudParams = CloudParams {
     ..CLOUD
 };
 pub const CLOUD3: CloudParams = CloudParams {
+    altitude_gate: None,
     elevation: 0.0,
     ..CLOUD
 };
 pub const CLOUD4: CloudParams = CloudParams {
+    altitude_gate: None,
     textures: FOG_TEX,
     tint: [252.0 / 255.0, 171.0 / 255.0, 143.0 / 255.0],
     elevation: -20.0,
@@ -77,6 +87,7 @@ pub const CLOUD4: CloudParams = CloudParams {
     ..CLOUD
 };
 pub const CLOUD5: CloudParams = CloudParams {
+    altitude_gate: None,
     elevation: 40.0,
     centered: false,
     drift: Drift::Airplane,
@@ -85,6 +96,7 @@ pub const CLOUD5: CloudParams = CloudParams {
     ..CLOUD
 };
 pub const CLOUD6: CloudParams = CloudParams {
+    altitude_gate: None,
     tint: [94.0 / 255.0, 0.0, 0.0],
     elevation: 20.0,
     drift: Drift::Isotropic(0.035),
@@ -92,6 +104,7 @@ pub const CLOUD6: CloudParams = CloudParams {
     ..CLOUD
 };
 pub const CLOUD7: CloudParams = CloudParams {
+    altitude_gate: None,
     tint: [0.0, 0.0, 0.0],
     elevation: 40.0,
     centered: false,
@@ -100,6 +113,7 @@ pub const CLOUD7: CloudParams = CloudParams {
     ..CLOUD
 };
 pub const CLOUD8: CloudParams = CloudParams {
+    altitude_gate: None,
     tint: [1.0, 180.0 / 255.0, 180.0 / 255.0],
     elevation: 40.0,
     centered: false,
@@ -145,29 +159,49 @@ pub struct CloudEffect {
     world_pos: [f32; 3],
     params: CloudParams,
     clouds: Vec<Cloud>,
+    ground: Option<GroundSampler>,
 }
 
 impl CloudEffect {
     pub fn new(world_pos: [f32; 3], params: CloudParams) -> Self {
-        let clouds = (0..params.count)
-            .map(|i| spawn_cloud(i, 0, &params, world_pos))
-            .collect();
-        Self {
+        let mut effect = Self {
             world_pos,
             params,
-            clouds,
-        }
+            clouds: Vec::new(),
+            ground: None,
+        };
+        effect.respawn_all();
+        effect
+    }
+
+    fn respawn_all(&mut self) {
+        let (params, world_pos, ground) = (self.params, self.world_pos, self.ground.as_deref());
+        self.clouds = (0..params.count)
+            .map(|i| spawn_cloud(i, 0, &params, world_pos, ground))
+            .collect();
     }
 
     fn step(&mut self, df: f32) {
         let peak = self.params.alpha_rate * self.params.ramp_frames;
+        let visible = gate_open(&self.params, self.world_pos);
+        let ground = self.ground.as_deref();
         for (i, c) in self.clouds.iter_mut().enumerate() {
             c.process += df;
             if c.process >= c.rot_start + peak {
-                *c = spawn_cloud(i as u32, c.generation + 1, &self.params, self.world_pos);
+                *c = spawn_cloud(
+                    i as u32,
+                    c.generation + 1,
+                    &self.params,
+                    self.world_pos,
+                    ground,
+                );
                 continue;
             }
-            c.alpha = cloud_alpha(&self.params, c.process, c.rot_start);
+            c.alpha = if visible {
+                cloud_alpha(&self.params, c.process, c.rot_start)
+            } else {
+                0.0
+            };
             match self.params.drift {
                 Drift::Isotropic(s) => {
                     c.pos[0] += s * c.drift_phase[0].sin() * df;
@@ -185,7 +219,17 @@ impl CloudEffect {
     }
 }
 
-fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) -> Cloud {
+fn gate_open(p: &CloudParams, world_pos: [f32; 3]) -> bool {
+    p.altitude_gate.is_none_or(|gate| world_pos[1] < gate)
+}
+
+fn spawn_cloud(
+    i: u32,
+    generation: u32,
+    p: &CloudParams,
+    world_pos: [f32; 3],
+    ground: Option<&(dyn Fn(f32, f32) -> f32 + Send + Sync)>,
+) -> Cloud {
     let s = generation.wrapping_mul(11);
     let (dx, dz) = if p.centered {
         (
@@ -199,15 +243,18 @@ fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) ->
             (hash01(i, s + 2) * 200.0 + 25.0) * sign(hash01(i, s + 9)),
         )
     };
-    let y = world_pos[1]
-        + p.elevation
-        + if p.use_ground {
-            -hash01(i, s + 3) * 5.0
-        } else {
-            hash01(i, s + 3) * 10.0
-        };
+    let (base_y, jitter) = if p.use_ground {
+        let surface = ground.map_or(world_pos[1], |h| h(world_pos[0] + dx, world_pos[2] + dz));
+        (surface, -hash01(i, s + 3) * 5.0)
+    } else {
+        (0.0, hash01(i, s + 3) * 10.0)
+    };
     Cloud {
-        pos: [world_pos[0] + dx, y, world_pos[2] + dz],
+        pos: [
+            world_pos[0] + dx,
+            base_y + p.elevation + jitter,
+            world_pos[2] + dz,
+        ],
         distance: p.size_base + hash01(i, s + 4) * p.size_rand,
         drift_phase: [
             hash01(i, s + 5) * std::f32::consts::TAU,
@@ -215,7 +262,7 @@ fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) ->
         ],
         drift_rate: [0.3 + hash01(i, s + 10) * 0.5, 0.3 + hash01(i, s + 11) * 0.5],
         breath_phase: hash01(i, s + 7) * std::f32::consts::TAU,
-        process: 0.0,
+        process: if gate_open(p, world_pos) { 0.0 } else { 300.0 },
         rot_start: 300.0 + hash01(i, s + 12) * 200.0,
         alpha: 0.0,
         generation,
@@ -225,6 +272,13 @@ fn spawn_cloud(i: u32, generation: u32, p: &CloudParams, world_pos: [f32; 3]) ->
 impl Effect for CloudEffect {
     fn set_position(&mut self, pos: [f32; 3]) {
         self.world_pos = pos;
+    }
+
+    fn set_ground_sampler(&mut self, sampler: GroundSampler) {
+        if self.params.use_ground {
+            self.ground = Some(sampler);
+            self.respawn_all();
+        }
     }
 
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
@@ -334,6 +388,78 @@ mod tests {
             [0.0, 0.0, 0.0],
             "black tint"
         );
+    }
+
+    #[test]
+    fn ground_sampler_puts_each_fog_puff_on_the_terrain_under_it() {
+        let slope: GroundSampler = std::sync::Arc::new(|x, _z| x * 0.5);
+        let mut e = CloudEffect::new([0.0, 900.0, 0.0], CLOUD4);
+        e.set_ground_sampler(slope.clone());
+        // One frame only: enough for a non-zero alpha, before drift moves a puff
+        // away from the x its height was sampled at.
+        step(&mut e, 1.0);
+
+        for p in draws(&e) {
+            let EffectPrimitiveDraw::Billboard { pos, .. } = p else {
+                unreachable!()
+            };
+            let surface = pos[0] * 0.5 + CLOUD4.elevation;
+            assert!(
+                pos[1] <= surface && pos[1] >= surface - 5.0,
+                "puff at x={} sits on its own ground, not the anchor's: y={} want {}..={}",
+                pos[0],
+                pos[1],
+                surface - 5.0,
+                surface
+            );
+        }
+    }
+
+    #[test]
+    fn variants_without_use_ground_ignore_the_sampler() {
+        let mut e = CloudEffect::new([0.0, 0.0, 0.0], CLOUD3);
+        e.set_ground_sampler(std::sync::Arc::new(|_, _| 500.0));
+        step(&mut e, CLOUD3.ramp_frames);
+        for p in draws(&e) {
+            let EffectPrimitiveDraw::Billboard { pos, .. } = p else {
+                unreachable!()
+            };
+            assert!(pos[1] < 100.0, "anchor-relative, not sampled: {}", pos[1]);
+        }
+    }
+
+    #[test]
+    fn field_sits_at_an_absolute_height_whatever_the_anchor() {
+        let mut e = CloudEffect::new([0.0, -420.0, 0.0], CLOUD2);
+        step(&mut e, CLOUD2.ramp_frames);
+        for p in draws(&e) {
+            let EffectPrimitiveDraw::Billboard { pos, .. } = p else {
+                unreachable!()
+            };
+            assert!(
+                (CLOUD2.elevation..=CLOUD2.elevation + 10.0).contains(&pos[1]),
+                "rode up with the player: {}",
+                pos[1]
+            );
+        }
+    }
+
+    #[test]
+    fn altitude_gated_field_only_shows_above_the_threshold() {
+        let gate = CLOUD.altitude_gate.unwrap();
+
+        let mut below = CloudEffect::new([0.0, gate + 10.0, 0.0], CLOUD);
+        step(&mut below, CLOUD.ramp_frames);
+        assert!(draws(&below).is_empty(), "at the foot of the mountain");
+
+        let mut above = CloudEffect::new([0.0, gate - 10.0, 0.0], CLOUD);
+        step(&mut above, CLOUD.ramp_frames);
+        assert_eq!(draws(&above).len(), CLOUD.count as usize, "on the peak");
+
+        // Ungated variants are unaffected.
+        let mut fog = CloudEffect::new([0.0, gate + 10.0, 0.0], CLOUD4);
+        step(&mut fog, CLOUD4.ramp_frames);
+        assert_eq!(draws(&fog).len(), CLOUD4.count as usize);
     }
 
     #[test]

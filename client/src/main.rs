@@ -273,12 +273,25 @@ impl App {
 
         self.windows.map_missing_window.hide();
         self.game.session.map_coords = map_data.coordinates;
+        let ground_sampler = map_data
+            .gat
+            .as_ref()
+            .zip(map_data.coordinates.as_ref())
+            .map(|(gat, coords)| ragnarok_game::map_cloud::ground_sampler(gat, coords));
         self.game.session.gat = map_data.gat;
         self.game.session.actor_lightmap = map_data.actor_lightmap;
         let was_indoor = self.game.session.camera_locked;
         self.game.session.camera_locked = map_data.indoor;
         if let Some(renderer) = &mut self.renderer {
-            renderer.clear_color = ragnarok_renderer::wgpu::Color::BLACK;
+            let [r, g, b] =
+                ragnarok_game::data_table::map_cloud_table::map_background_color(map_name)
+                    .unwrap_or([0.0, 0.0, 0.0]);
+            renderer.clear_color = ragnarok_renderer::wgpu::Color {
+                r: r as f64,
+                g: g as f64,
+                b: b as f64,
+                a: 1.0,
+            };
             let leaving = renderer.camera.saved_view();
             if was_indoor {
                 self.game.session.saved_camera_indoor = leaving;
@@ -299,6 +312,9 @@ impl App {
             .clear(&mut self.effect_queue);
         self.game.schedulers.ambient_effects =
             ragnarok_game::effects::AmbientEffectScheduler::from_rsw(&map_data.rsw, &map_data.gnd);
+        self.game.schedulers.map_cloud.clear(&mut self.effect_queue);
+        self.game.schedulers.map_cloud.set_map(map_name);
+        self.effect_holder.set_ground_sampler(ground_sampler);
         self.game.schedulers.ambient_sounds =
             ragnarok_game::sound::ambient::AmbientSoundScheduler::from_rsw(
                 &map_data.rsw,

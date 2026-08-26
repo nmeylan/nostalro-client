@@ -85,9 +85,13 @@ pub struct NumberRequest {
     pub color: [f32; 3],
 }
 
+pub type GroundSampler = std::sync::Arc<dyn Fn(f32, f32) -> f32 + Send + Sync>;
+
 pub trait Effect: Send {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus;
     fn collect_draws(&self, out: &mut EffectDrawList, ctx: &EffectRenderCtx);
+
+    fn set_ground_sampler(&mut self, _sampler: GroundSampler) {}
 
     fn is_placeholder(&self) -> bool {
         false

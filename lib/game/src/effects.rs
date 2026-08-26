@@ -78,14 +78,7 @@ impl AmbientEffectScheduler {
                     };
                     (*duration_ms, true, sz)
                 }
-                EffectSpec::SprBurst { duration_ms, .. } => {
-                    let sz = if eff.param[0] > 0.0 {
-                        eff.param[0] / 100.0
-                    } else {
-                        1.0
-                    };
-                    (*duration_ms, false, sz)
-                }
+                EffectSpec::SprBurst { duration_ms, .. } => (*duration_ms, false, 1.0),
                 EffectSpec::Str { duration_ms, .. } => (*duration_ms, false, 1.0),
                 EffectSpec::Custom => (custom_duration_ms(effect_id), false, 1.0),
                 EffectSpec::Noop => {
@@ -280,11 +273,7 @@ mod tests {
             .iter()
             .find(|r| r.effect_id == EffectId::Smoke)
             .unwrap();
-        assert_eq!(
-            smoke.size_scale,
-            Some(0.35),
-            "smoke reads param[0] as size %"
-        );
+        assert_eq!(smoke.size_scale, Some(1.0), "smoke ignores param[0]");
         assert!(reqs.iter().any(|r| r.effect_id == EffectId::Bubble));
     }
 
