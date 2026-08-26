@@ -74,6 +74,13 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(ground_texture, ground_sampler, in.tex_coord);
+
+    // It seems map makers fill the void around a map with cells whose UVs point at a
+    // colour-keyed patch, so a cell that keys out must leave the background.
+    if tex_color.a < 0.81 {
+        discard;
+    }
+
     let lightmap = textureSample(lightmap_texture, lightmap_sampler, in.lightmap_coord);
 
     let sunlight = light.diffuse_color.rgb;

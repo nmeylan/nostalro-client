@@ -95,6 +95,7 @@ struct VertexInput {
     @location(3) alpha: f32,
     @location(4) node_slot: u32,
     @location(5) lit_scale: f32,
+    @location(6) unlit: f32,
 };
 
 struct VertexOutput {
@@ -105,6 +106,7 @@ struct VertexOutput {
     @location(3) world_position: vec3<f32>,
     @location(4) view_pos: vec3<f32>,
     @location(5) lit_scale: f32,
+    @location(6) unlit: f32,
 };
 
 @vertex
@@ -121,6 +123,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.world_position = world.xyz;
     out.view_pos = (camera.view * world).xyz;
     out.lit_scale = in.lit_scale;
+    out.unlit = in.unlit;
     return out;
 }
 
@@ -134,9 +137,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let n_dot_l = max(dot(normalize(in.normal), normalize(light.light_dir.xyz)), 0.0);
     let diffuse = light.diffuse_color.rgb * n_dot_l;
-    let lighting = diffuse + light.ambient_color.rgb;
+    let shaded = (diffuse + light.ambient_color.rgb) * in.lit_scale;
+    let lighting = mix(shaded, vec3<f32>(1.0), in.unlit);
 
-    var color = tex_color.rgb * (lighting * in.lit_scale + cell_light_at(in.world_position));
+    var color = tex_color.rgb * (lighting + cell_light_at(in.world_position));
     let pl = point_light_contribution(in.world_position, normalize(in.normal));
     color += tex_color.rgb * pl;
 

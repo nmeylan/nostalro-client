@@ -18,6 +18,7 @@ pub struct ModelVertex {
     pub tex_coord: [f32; 2],
     pub alpha: f32,
     pub lit_scale: f32,
+    pub unlit: f32,
 }
 
 impl ModelVertex {
@@ -30,6 +31,7 @@ impl ModelVertex {
             2 => Float32x2,
             3 => Float32,
             4 => Float32,
+            5 => Float32,
         ],
     };
 }
@@ -393,6 +395,7 @@ pub struct AnimatedModelVertex {
     /// Index into the per-frame node matrix array.
     pub node_slot: u32,
     pub lit_scale: f32,
+    pub unlit: f32,
 }
 
 impl AnimatedModelVertex {
@@ -406,6 +409,7 @@ impl AnimatedModelVertex {
             3 => Float32,
             4 => Uint32,
             5 => Float32,
+            6 => Float32,
         ],
     };
 }
@@ -724,9 +728,21 @@ fn compile_animated_node(
     texture_quads: &mut HashMap<String, (Vec<AnimatedModelVertex>, Vec<u32>)>,
 ) {
     let normal_sign = if determinant < 0.0 { -1.0 } else { 1.0 };
-    let vert_count = node.vertices.len();
+    let local_verts: Vec<glam::Vec3> = node.vertices.iter().map(vec3_from_arr).collect();
+    let vert_count = local_verts.len();
+    let normals = corner_normals(
+        node,
+        &local_verts,
+        normal_sign,
+        rsm.shade_type == SHADE_SMOOTH,
+    );
+    let unlit = if rsm.shade_type == SHADE_NONE {
+        1.0
+    } else {
+        0.0
+    };
 
-    for face in &node.faces {
+    for (face_index, face) in node.faces.iter().enumerate() {
         let v0_idx = face.vertex_ids[0] as usize;
         let v1_idx = face.vertex_ids[1] as usize;
         let v2_idx = face.vertex_ids[2] as usize;
@@ -737,12 +753,6 @@ fn compile_animated_node(
         let tex_name = resolve_texture_name(rsm, node, face.texture_index);
         let tex_path = ragnarok_resources::texture::named(&tex_name);
 
-        let v0 = vec3_from_arr(&node.vertices[v0_idx]);
-        let v1 = vec3_from_arr(&node.vertices[v1_idx]);
-        let v2 = vec3_from_arr(&node.vertices[v2_idx]);
-        let normal = (v1 - v0).cross(v2 - v0).normalize_or_zero() * normal_sign;
-        let n = [normal.x, normal.y, normal.z];
-
         let entry = texture_quads
             .entry(tex_path)
             .or_insert_with(|| (Vec::new(), Vec::new()));
@@ -751,7 +761,8 @@ fn compile_animated_node(
         for i in 0..3 {
             let vid = face.vertex_ids[i] as usize;
             let tid = face.tex_vertex_ids[i] as usize;
-            let pos = vec3_from_arr(&node.vertices[vid]);
+            let pos = local_verts[vid];
+            let normal = normals[face_index * 3 + i];
             let (u, v) = if tid < node.tex_vertices.len() {
                 (node.tex_vertices[tid].u, node.tex_vertices[tid].v)
             } else {
@@ -760,11 +771,12 @@ fn compile_animated_node(
 
             entry.0.push(AnimatedModelVertex {
                 position: [pos.x, pos.y, pos.z],
-                normal: n,
+                normal: [normal.x, normal.y, normal.z],
                 tex_coord: [u, v],
                 alpha,
                 node_slot,
                 lit_scale: tex_vertex_lit_scale(node, tid),
+                unlit,
             });
         }
 
@@ -1094,8 +1106,19 @@ fn compile_node(
         .collect();
 
     let vert_count = world_verts.len();
+    let normals = corner_normals(
+        node,
+        &world_verts,
+        normal_sign,
+        rsm.shade_type == SHADE_SMOOTH,
+    );
+    let unlit = if rsm.shade_type == SHADE_NONE {
+        1.0
+    } else {
+        0.0
+    };
 
-    for face in &node.faces {
+    for (face_index, face) in node.faces.iter().enumerate() {
         let v0_idx = face.vertex_ids[0] as usize;
         let v1_idx = face.vertex_ids[1] as usize;
         let v2_idx = face.vertex_ids[2] as usize;
@@ -1106,15 +1129,6 @@ fn compile_node(
         let tex_name = resolve_texture_name(rsm, node, face.texture_index);
         let tex_path = ragnarok_resources::texture::named(&tex_name);
 
-        let v0 = world_verts[v0_idx];
-        let v1 = world_verts[v1_idx];
-        let v2 = world_verts[v2_idx];
-
-        let edge1 = v1 - v0;
-        let edge2 = v2 - v0;
-        let normal = edge1.cross(edge2).normalize_or_zero() * normal_sign;
-        let n = [normal.x, normal.y, normal.z];
-
         let entry = texture_quads
             .entry(tex_path)
             .or_insert_with(|| (Vec::new(), Vec::new()));
@@ -1124,6 +1138,7 @@ fn compile_node(
             let vid = face.vertex_ids[i] as usize;
             let tid = face.tex_vertex_ids[i] as usize;
             let pos = world_verts[vid];
+            let normal = normals[face_index * 3 + i];
             let (u, v) = if tid < node.tex_vertices.len() {
                 (node.tex_vertices[tid].u, node.tex_vertices[tid].v)
             } else {
@@ -1132,15 +1147,64 @@ fn compile_node(
 
             entry.0.push(ModelVertex {
                 position: [pos.x, pos.y, pos.z],
-                normal: n,
+                normal: [normal.x, normal.y, normal.z],
                 tex_coord: [u, v],
                 alpha,
                 lit_scale: tex_vertex_lit_scale(node, tid),
+                unlit,
             });
         }
 
         entry.1.extend_from_slice(&[base, base + 1, base + 2]);
     }
+}
+
+const SHADE_NONE: u32 = 0;
+const SHADE_SMOOTH: u32 = 2;
+
+/// One normal per face corner, in the space `verts` is given in. Smooth-shaded
+/// models average the faces meeting at a vertex within a smooth group; the
+/// others repeat the face normal across its three corners.
+fn corner_normals(
+    node: &RsmNode,
+    verts: &[glam::Vec3],
+    normal_sign: f32,
+    smooth: bool,
+) -> Vec<glam::Vec3> {
+    let face_normals: Vec<glam::Vec3> = node
+        .faces
+        .iter()
+        .map(|face| {
+            let ids = face.vertex_ids.map(|id| id as usize);
+            match (verts.get(ids[0]), verts.get(ids[1]), verts.get(ids[2])) {
+                (Some(v0), Some(v1), Some(v2)) => {
+                    (*v1 - *v0).cross(*v2 - *v0).normalize_or_zero() * normal_sign
+                }
+                _ => glam::Vec3::ZERO,
+            }
+        })
+        .collect();
+
+    if !smooth {
+        return face_normals.into_iter().flat_map(|n| [n; 3]).collect();
+    }
+
+    let mut sums: HashMap<(i32, usize), glam::Vec3> = HashMap::new();
+    for (face_index, face) in node.faces.iter().enumerate() {
+        for id in face.vertex_ids {
+            *sums
+                .entry((face.smooth_group, id as usize))
+                .or_insert(glam::Vec3::ZERO) += face_normals[face_index];
+        }
+    }
+
+    node.faces
+        .iter()
+        .flat_map(|face| {
+            face.vertex_ids
+                .map(|id| sums[&(face.smooth_group, id as usize)].normalize_or_zero())
+        })
+        .collect()
 }
 
 /// A texture vertex carrying a colour renders at half the lit brightness.
@@ -1428,6 +1492,130 @@ mod tests {
         assert!(
             (spun - eighth).length() < 1e-4,
             "animated child at mid-frame: {spun:?} expected {eighth:?}"
+        );
+    }
+
+    /// Two perpendicular triangles sharing the edge `(0,0,0)-(0,0,1)`.
+    fn roof_rsm(shade_type: u32, smooth_groups: [i32; 2]) -> RsmFile {
+        let face = |vertex_ids: [u16; 3], smooth_group: i32| ragnarok_formats::rsm::RsmFace {
+            vertex_ids,
+            tex_vertex_ids: [0, 0, 0],
+            texture_index: 0,
+            padding: 0,
+            two_sided: 0,
+            smooth_group,
+            extra_smooth_groups: vec![],
+        };
+
+        RsmFile {
+            version: (1, 4),
+            anim_length: 0,
+            shade_type,
+            alpha: Some(255),
+            fps: None,
+            textures: vec!["test.bmp".into()],
+            root_node_names: vec![],
+            nodes: vec![RsmNode {
+                name: "root".into(),
+                parent_name: String::new(),
+                texture_ids: vec![0],
+                texture_names: vec![],
+                local_transform: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                translation1: Some([0.0, 0.0, 0.0]),
+                translation2: [0.0, 0.0, 0.0],
+                rotation_angle: Some(0.0),
+                rotation_axis: Some([0.0, 1.0, 0.0]),
+                scale: Some([1.0, 1.0, 1.0]),
+                vertices: vec![
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                ],
+                tex_vertices: vec![],
+                faces: vec![
+                    face([0, 1, 2], smooth_groups[0]),
+                    face([0, 3, 1], smooth_groups[1]),
+                ],
+                scale_keyframes: vec![],
+                rot_keyframes: vec![],
+                translation_keyframes: vec![],
+                textures_keyframes: vec![],
+            }],
+        }
+    }
+
+    fn compile_roof(shade_type: u32, smooth_groups: [i32; 2]) -> Vec<ModelVertex> {
+        let rsm = roof_rsm(shade_type, smooth_groups);
+        let (bbox, node_matrices) = calc_bounding_box(&rsm);
+        let mut texture_quads: HashMap<String, (Vec<ModelVertex>, Vec<u32>)> = HashMap::new();
+        compile_node(
+            &rsm.nodes[0],
+            &rsm,
+            &node_matrices[0],
+            &bbox,
+            &glam::Mat4::IDENTITY,
+            true,
+            1.0,
+            &mut texture_quads,
+        );
+        texture_quads.into_values().next().unwrap().0
+    }
+
+    #[test]
+    fn gouraud_averages_normals_over_a_smooth_group() {
+        let ridge = glam::Vec3::new(1.0, 1.0, 0.0).normalize();
+
+        let shared = compile_roof(SHADE_SMOOTH, [0, 0]);
+        assert!(
+            (glam::Vec3::from(shared[0].normal) - ridge).length() < 1e-5,
+            "shared corner: {:?}",
+            shared[0].normal
+        );
+        assert!(
+            (glam::Vec3::from(shared[3].normal) - ridge).length() < 1e-5,
+            "shared corner on the other face: {:?}",
+            shared[3].normal
+        );
+        assert!(
+            (glam::Vec3::from(shared[2].normal) - glam::Vec3::Y).length() < 1e-5,
+            "corner belonging to one face only: {:?}",
+            shared[2].normal
+        );
+
+        let split = compile_roof(SHADE_SMOOTH, [0, 1]);
+        assert!(
+            (glam::Vec3::from(split[0].normal) - glam::Vec3::Y).length() < 1e-5,
+            "corner across a smooth-group boundary: {:?}",
+            split[0].normal
+        );
+        assert!(
+            (glam::Vec3::from(split[3].normal) - glam::Vec3::X).length() < 1e-5,
+            "corner across a smooth-group boundary: {:?}",
+            split[3].normal
+        );
+
+        let flat = compile_roof(1, [0, 0]);
+        assert!(
+            (glam::Vec3::from(flat[0].normal) - glam::Vec3::Y).length() < 1e-5,
+            "flat shading kept the face normal: {:?}",
+            flat[0].normal
+        );
+    }
+
+    #[test]
+    fn unshaded_models_bypass_the_scene_light() {
+        assert!(
+            compile_roof(SHADE_NONE, [0, 0])
+                .iter()
+                .all(|v| v.unlit == 1.0),
+            "shade type 0 must ignore the light"
+        );
+        assert!(
+            compile_roof(SHADE_SMOOTH, [0, 0])
+                .iter()
+                .all(|v| v.unlit == 0.0),
+            "shaded models must keep the light"
         );
     }
 
