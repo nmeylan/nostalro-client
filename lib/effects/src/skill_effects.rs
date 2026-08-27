@@ -1825,6 +1825,7 @@ mod tests {
         assert!(!is_trail_effect(EffectId::Icearrow));
     }
 
+
     #[test]
     fn every_reachable_skill_projectile_has_a_reach_time() {
         use crate::effect_queue::{is_trail_effect, trail_arrival_secs};
