@@ -249,6 +249,7 @@ impl App {
                     self.config.snap,
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
+                    self.config.custom.accessibility,
                     true,
                 );
                 self.channel.send_packet(build_lesseffect_packet(!show, pv));
@@ -268,6 +269,7 @@ impl App {
                     self.config.snap,
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
+                    self.config.custom.accessibility,
                     true,
                 );
                 let status = if fog { "ON" } else { "OFF" };
@@ -297,6 +299,7 @@ impl App {
                     self.config.snap,
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
+                    self.config.custom.accessibility,
                     true,
                 );
                 self.windows
@@ -314,6 +317,7 @@ impl App {
                     self.config.snap,
                     refuse,
                     self.config.refuse_party_invite,
+                    self.config.custom.accessibility,
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
@@ -331,6 +335,7 @@ impl App {
                     self.config.snap,
                     self.config.refuse_trade,
                     refuse,
+                    self.config.custom.accessibility,
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };

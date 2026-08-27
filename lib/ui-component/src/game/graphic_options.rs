@@ -27,6 +27,7 @@ const REFUSE_PARTY_CB_ID: WidgetId = WidgetId(4213);
 const SNAP_MONSTER_CB_ID: WidgetId = WidgetId(4214);
 const SNAP_SKILL_CB_ID: WidgetId = WidgetId(4215);
 const SNAP_ITEM_CB_ID: WidgetId = WidgetId(4216);
+const ACCESSIBILITY_CB_ID: WidgetId = WidgetId(4217);
 const UI_SCALE_OPTION_BASE: u32 = 4230;
 
 const UI_SCALE_OPTIONS: [u32; 6] = [75, 100, 125, 150, 175, 200];
@@ -38,7 +39,7 @@ const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 20.0;
 const CLOSE_SIZE: f32 = 11.0;
 const ROW_H: f32 = 22.0;
-const ROW_COUNT: f32 = 9.0;
+const ROW_COUNT: f32 = 10.0;
 const PAD: f32 = 8.0;
 const WIN_H: f32 = TITLE_H + PAD + ROW_COUNT * ROW_H + PAD;
 const CB_SIZE: f32 = 11.0;
@@ -55,6 +56,7 @@ pub struct GraphicOptionsWindow {
     snap: MouseSnapPrefs,
     refuse_trade: bool,
     refuse_party_invite: bool,
+    accessibility: bool,
     dropdown: Dropdown,
 }
 
@@ -77,6 +79,7 @@ impl GraphicOptionsWindow {
         snap: MouseSnapPrefs,
         refuse_trade: bool,
         refuse_party_invite: bool,
+        accessibility: bool,
     ) {
         self.selected_ui_scale = (0..UI_SCALE_OPTIONS.len())
             .min_by_key(|&i| (UI_SCALE_OPTIONS[i] as f32 - ui_scale_percent).abs() as u32)
@@ -88,6 +91,7 @@ impl GraphicOptionsWindow {
         self.snap = snap;
         self.refuse_trade = refuse_trade;
         self.refuse_party_invite = refuse_party_invite;
+        self.accessibility = accessibility;
     }
 
     pub fn toggle(&mut self) {
@@ -108,6 +112,7 @@ impl GraphicOptionsWindow {
             snap: self.snap,
             refuse_trade: self.refuse_trade,
             refuse_party_invite: self.refuse_party_invite,
+            accessibility: self.accessibility,
             persist: true,
         }
     }
@@ -368,6 +373,15 @@ impl InGameWindow for GraphicOptionsWindow {
             &mut self.snap.item,
         );
 
+        changed |= check_row(
+            ui,
+            9,
+            ACCESSIBILITY_CB_ID,
+            x0,
+            "Accessibility improvements",
+            &mut self.accessibility,
+        );
+
         if let Some(overlay) = dd_resp.overlay_rect {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
             if let Some(idx) =
@@ -437,6 +451,7 @@ mod tests {
             MouseSnapPrefs::default(),
             false,
             false,
+            false,
         );
         assert_eq!(win.selected_ui_scale, 1, "100% is the second option");
         win.toggle();
@@ -488,6 +503,42 @@ mod tests {
     }
 
     #[test]
+    fn bold_name_plate_checkbox_rides_the_snapshot() {
+        let mut win = GraphicOptionsWindow::new();
+        win.set_values(
+            100.0,
+            false,
+            false,
+            true,
+            DisplayOptions::default(),
+            MouseSnapPrefs::default(),
+            false,
+            false,
+            false,
+        );
+        win.toggle();
+        let mut state = StateCache::new();
+
+        let wy = (600.0 - WIN_H) / 2.0;
+        let cb_y = wy + TITLE_H + PAD + 9.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let events = build_at(
+            &mut win,
+            &mut state,
+            Some((
+                (800.0 - WIN_W) / 2.0 + 10.0 + CB_SIZE / 2.0,
+                cb_y + CB_SIZE / 2.0,
+            )),
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::GraphicsSettingsChanged { accessibility, .. } => {
+                assert!(*accessibility);
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
     fn cursor_snap_row_flips_the_monster_toggle() {
         let mut win = GraphicOptionsWindow::new();
         win.set_values(
@@ -497,6 +548,7 @@ mod tests {
             true,
             DisplayOptions::default(),
             MouseSnapPrefs::default(),
+            false,
             false,
             false,
         );

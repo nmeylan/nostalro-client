@@ -43,8 +43,47 @@ const TALKBOX_BUBBLE_LIFT: f32 = 20.0;
 const FLOOR_ITEM_NAME_COLOR: [f32; 4] = [1.0, 0.937, 0.584, 1.0];
 const FLOOR_ITEM_LABEL_DROP: f32 = 20.0;
 const FLOOR_ITEM_LABEL_TEXT_INSET: f32 = 4.0;
+const OUTLINE_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+/// At plate font size a glyph's own edge alpha is as low as 0.2, so a single ring
+/// reads grey next to the letter's vertical stems. Repeating it accumulates towards
+/// opaque black without widening the outline.
+const OUTLINE_PASSES: usize = 3;
+const OUTLINE_RING: [(f32, f32); 8] = [
+    (-1.0, 0.0),
+    (1.0, 0.0),
+    (0.0, -1.0),
+    (0.0, 1.0),
+    (-1.0, -1.0),
+    (1.0, -1.0),
+    (-1.0, 1.0),
+    (1.0, 1.0),
+];
 
 impl App {
+    fn plate_text_width(&self, text: &str, font_atlas: &ragnarok_renderer::FontAtlas) -> f32 {
+        if self.config.custom.accessibility {
+            bold_width(text, font_atlas)
+        } else {
+            font_atlas.measure_text(text)
+        }
+    }
+
+    fn build_plate_text(
+        &self,
+        text: &str,
+        x: f32,
+        y: f32,
+        color: [f32; 4],
+        font_atlas: &ragnarok_renderer::FontAtlas,
+        calls: &mut Vec<UiDrawCall>,
+    ) {
+        if self.config.custom.accessibility {
+            build_outlined_bold_text(text, x, y, color, font_atlas, calls);
+        } else {
+            build_outlined_text(text, x, y, color, font_atlas, calls);
+        }
+    }
+
     pub(crate) fn build_world_overlays(
         &self,
         render_list: &[RenderEntry],
@@ -137,11 +176,11 @@ impl App {
         if let Some(name) = &entity.name
             && !self.name_hidden(entity)
         {
-            let text_width = renderer.font_atlas.measure_text(name);
+            let text_width = self.plate_text_width(name, &renderer.font_atlas);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
             let name_y = bar_y + HP_BAR_HEIGHT + 13.0;
             let mut text_y = name_y;
-            build_outlined_text(
+            self.build_plate_text(
                 name,
                 text_x,
                 text_y,
@@ -152,11 +191,11 @@ impl App {
 
             let mut leftmost_x = text_x;
             if let Some((line, color)) = second_plate_line(entity) {
-                let line_width = renderer.font_atlas.measure_text(&line);
+                let line_width = self.plate_text_width(&line, &renderer.font_atlas);
                 let line_x = entry.screen_anchor[0] - line_width / 2.0;
                 leftmost_x = leftmost_x.min(line_x);
                 text_y += renderer.font_atlas.line_height;
-                build_outlined_text(&line, line_x, text_y, color, &renderer.font_atlas, calls);
+                self.build_plate_text(&line, line_x, text_y, color, &renderer.font_atlas, calls);
             }
 
             if entity.guild_id != 0 && entity.guild_emblem_version != 0 {
@@ -602,13 +641,13 @@ impl App {
         let Some(label) = floor_item.label(self.game.data_table.msg_string.as_ref()) else {
             return;
         };
-        let text_w = renderer.font_atlas.measure_text(&label);
+        let text_w = self.plate_text_width(&label, &renderer.font_atlas);
         let text_x = fi_entry.screen_anchor[0] - text_w / 2.0;
         let text_y = fi_entry.screen_anchor[1]
             + FLOOR_ITEM_LABEL_DROP * fi_entry.sprite_scale
             + FLOOR_ITEM_LABEL_TEXT_INSET;
 
-        build_outlined_text(
+        self.build_plate_text(
             &label,
             text_x,
             text_y,
@@ -676,7 +715,7 @@ impl App {
         let text = format!("Lv {}", pending.level());
         let text_x = mx as f32 + 20.0;
         let text_y = my as f32 + 2.0;
-        build_outlined_text(
+        self.build_plate_text(
             &text,
             text_x,
             text_y,
@@ -888,6 +927,13 @@ fn render_hp_bar(
     (center_x, y)
 }
 
+/// `thickness_px` physical pixels expressed in logical ones. Text is snapped to the
+/// physical grid, so a whole number of physical pixels is what keeps the ring the same
+/// distance out on every side; anything else rounds unevenly and tears a gap.
+fn outline_step(font_atlas: &ragnarok_renderer::FontAtlas, thickness_px: f32) -> f32 {
+    thickness_px / font_atlas.dpi_scale
+}
+
 fn build_outlined_text(
     text: &str,
     x: f32,
@@ -896,17 +942,76 @@ fn build_outlined_text(
     font_atlas: &ragnarok_renderer::FontAtlas,
     calls: &mut Vec<UiDrawCall>,
 ) {
-    let outline_color = [0.0, 0.0, 0.0, 1.0];
-    for &(dx, dy) in &[(-1.0_f32, 0.0_f32), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
-        let (verts, indices) =
-            ragnarok_ui::draw::text_vertices(text, x + dx, y + dy, outline_color, font_atlas);
-        if !verts.is_empty() {
-            calls.push(UiDrawCall {
-                vertices: verts,
-                indices,
-                texture: UiTextureRef::FontAtlas,
-            });
+    push_outlined_text(text, x, y, color, false, font_atlas, calls);
+}
+
+fn bold_text(text: &str) -> String {
+    text.chars()
+        .map(ragnarok_renderer::font_atlas::bold_char)
+        .collect()
+}
+
+fn bold_width(text: &str, font_atlas: &ragnarok_renderer::FontAtlas) -> f32 {
+    font_atlas.measure_text(&bold_text(text))
+}
+
+fn build_outlined_bold_text(
+    text: &str,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    font_atlas: &ragnarok_renderer::FontAtlas,
+    calls: &mut Vec<UiDrawCall>,
+) {
+    push_outlined_text(text, x, y, color, true, font_atlas, calls);
+}
+
+/// The ring goes down as one draw call, so the accumulation passes cost vertices rather
+/// than draws. Only the bold ring thickens with the UI scale: at a regular weight the
+/// side bearings are too narrow to hold it, and letters merge into their neighbours.
+fn push_outlined_text(
+    text: &str,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    bold: bool,
+    font_atlas: &ragnarok_renderer::FontAtlas,
+    calls: &mut Vec<UiDrawCall>,
+) {
+    let (passes, thickness_px) = if bold {
+        (OUTLINE_PASSES, font_atlas.dpi_scale.round())
+    } else {
+        (1, 1.0)
+    };
+    let text: std::borrow::Cow<str> = if bold {
+        bold_text(text).into()
+    } else {
+        text.into()
+    };
+    let text = text.as_ref();
+    let step = outline_step(font_atlas, thickness_px);
+    let mut outline_verts = Vec::new();
+    let mut outline_indices = Vec::new();
+    for _ in 0..passes {
+        for &(dx, dy) in &OUTLINE_RING {
+            let (verts, indices) = ragnarok_ui::draw::text_vertices(
+                text,
+                x + dx * step,
+                y + dy * step,
+                OUTLINE_COLOR,
+                font_atlas,
+            );
+            let base = outline_verts.len() as u32;
+            outline_verts.extend(verts);
+            outline_indices.extend(indices.into_iter().map(|i| i + base));
         }
+    }
+    if !outline_verts.is_empty() {
+        calls.push(UiDrawCall {
+            vertices: outline_verts,
+            indices: outline_indices,
+            texture: UiTextureRef::FontAtlas,
+        });
     }
     let (verts, indices) = ragnarok_ui::draw::text_vertices(text, x, y, color, font_atlas);
     if !verts.is_empty() {
@@ -988,6 +1093,46 @@ mod tests {
         for option in [OPTION_HIDE, OPTION_CLOAK, OPTION_CLOAK | OPTION_CHASEWALK] {
             member.effect_state = option;
             assert!(!persistent_bar_eligible(&member, false, true));
+        }
+    }
+
+
+    #[test]
+    fn the_accessibility_path_is_wider_and_more_heavily_outlined() {
+        let atlas = ragnarok_renderer::FontAtlas::from_embedded(14.0, 1.0);
+        assert!(bold_width("Poring", &atlas) > atlas.measure_text("Poring"));
+
+        let mut plain = Vec::new();
+        build_outlined_text("Poring", 10.0, 10.0, [1.0; 4], &atlas, &mut plain);
+        assert_eq!(plain.len(), 2, "the ring is merged into one call");
+        assert_eq!(
+            plain[0].vertices.len(),
+            plain[1].vertices.len() * OUTLINE_RING.len()
+        );
+
+        let mut bold = Vec::new();
+        build_outlined_bold_text("Poring", 10.0, 10.0, [1.0; 4], &atlas, &mut bold);
+        assert_eq!(bold.len(), 2);
+        assert_eq!(
+            bold[0].vertices.len(),
+            bold[1].vertices.len() * OUTLINE_RING.len() * OUTLINE_PASSES
+        );
+    }
+
+    #[test]
+    fn the_outline_sits_the_same_distance_above_and_below_at_any_ui_scale() {
+        for scale in [0.75_f32, 1.0, 1.25, 1.5, 2.0] {
+            let atlas = ragnarok_renderer::FontAtlas::from_embedded(14.0, scale);
+            let physical = |v: f32| (atlas.snap_to_physical(v) * scale).round();
+            for thickness_px in [1.0_f32, scale.round()] {
+                let step = outline_step(&atlas, thickness_px);
+                for y in [100.0_f32, 100.2, 100.4, 100.6, 100.8] {
+                    let above = physical(y) - physical(y - step);
+                    let below = physical(y + step) - physical(y);
+                    assert_eq!(above, thickness_px, "scale {scale}, y {y}");
+                    assert_eq!(below, thickness_px, "scale {scale}, y {y}");
+                }
+            }
         }
     }
 

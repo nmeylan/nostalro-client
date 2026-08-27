@@ -2735,6 +2735,7 @@ impl App {
                     snap,
                     refuse_trade,
                     refuse_party_invite,
+                    accessibility,
                     persist,
                 } => {
                     self.apply_graphics_settings(
@@ -2746,6 +2747,7 @@ impl App {
                         snap,
                         refuse_trade,
                         refuse_party_invite,
+                        accessibility,
                         persist,
                     );
                 }

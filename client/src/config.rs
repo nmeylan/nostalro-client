@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-const BASE_FONT_PX_HEIGHT: f32 = 14.0;
+const BASE_FONT_PX_HEIGHT: f32 = 15.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -47,6 +47,9 @@ pub struct CustomConfig {
     /// window and camera range; raise this to push fog back on a screen that
     /// shows more of the map, lower it to pull fog in. 1.0 is the original.
     pub fog_scale: f32,
+    /// Draw name plates, floor-item labels and the pending-skill level in a bold
+    /// weight with a heavier outline. The original game has one weight only.
+    pub accessibility: bool,
     pub sound: CustomSoundConfig,
     pub window: CustomWindowConfig,
     pub skill: CustomSkillConfig,
@@ -57,6 +60,7 @@ impl Default for CustomConfig {
         Self {
             boss_aura: false,
             fog_scale: 1.0,
+            accessibility: false,
             sound: CustomSoundConfig::default(),
             window: CustomWindowConfig::default(),
             skill: CustomSkillConfig::default(),

@@ -1172,6 +1172,7 @@ fn create_single(name: &str) -> State {
                 ragnarok_game::cursor::MouseSnapPrefs::default(),
                 false,
                 false,
+                false,
             );
             win.toggle();
             State::GraphicOptions {

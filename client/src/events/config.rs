@@ -38,6 +38,7 @@ impl App {
                 self.config.snap,
                 self.config.refuse_trade,
                 self.config.refuse_party_invite,
+                self.config.custom.accessibility,
             );
         }
         self.windows.graphic_options.toggle();
@@ -54,6 +55,7 @@ impl App {
         snap: crate::config::MouseSnapPrefs,
         refuse_trade: bool,
         refuse_party_invite: bool,
+        accessibility: bool,
         persist: bool,
     ) {
         let fullscreen_changed = fullscreen != self.config.fullscreen;
@@ -68,6 +70,7 @@ impl App {
         self.config.snap = snap;
         self.config.refuse_trade = refuse_trade;
         self.config.refuse_party_invite = refuse_party_invite;
+        self.config.custom.accessibility = accessibility;
         self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;
 
         if let Some(window) = &self.window {

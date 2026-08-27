@@ -1050,6 +1050,7 @@ pub enum GameEvent {
         snap: crate::cursor::MouseSnapPrefs,
         refuse_trade: bool,
         refuse_party_invite: bool,
+        accessibility: bool,
         persist: bool,
     },
     SoundEffect {
