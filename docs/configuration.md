@@ -104,16 +104,17 @@ have no toggle.
 
 Off unless opted into, so the default configuration matches the original game.
 
-| Config key | Description | Default value | Mandatory |
-| --- | --- | --- | --- |
-| `custom.boss_aura` | Green aura under boss monsters at level 99 or above. | `false` | No |
-| `custom.fog_scale` | Multiplies both fog distances, so a wider view than the original game's is not swallowed by fog. See [Fog scale](#fog-scale). | `1.0` | No |
-| `custom.sound.act_percent` | Percentage of ACT frame sounds (monster grunts, footsteps) that play. `100` plays all of them. | `100` | No |
-| `custom.sound.stereo` | Pan world sounds across the stereo field. Off keeps distance attenuation but centres everything. | `true` | No |
-| `custom.sound.play_when_unfocused` | Keep the mixer running while the window is not focused. The original game always pauses. | `false` | No |
-| `custom.window.exclude_close_via_esc` | Windows Escape must leave alone, by the names in `ESC_WINDOW_NAMES` (`client/src/ui/escape.rs`), matched case- and space-insensitively. Escape then moves on to the next window behind them. Unknown names are logged and ignored. | `[]` | No |
-| `custom.skill.al_teleport.separate_lvl` | Give Teleport a level picker in the skill tree, the way Fire Bolt has one. See [Forced level select](#forced-level-select). | `false` | No |
-| `custom.skill.al_teleport.skip_lvl1_menu` | Answer a level 1 Teleport's warp list without showing it, so the cast warps straight away. See [Skipping the level 1 warp list](#skipping-the-level-1-warp-list). | `false` | No |
+| Config key                                | Description                                                                                                                                                                                                                        | Default value | Mandatory |
+|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|-----------|
+| `custom.boss_aura`                        | Green aura under boss monsters at level 99 or above.                                                                                                                                                                               | `false`       | No        |
+| `custom.fog_scale`                        | Multiplies both fog distances, so a wider view than the original game's is not swallowed by fog. See [Fog scale](#fog-scale).                                                                                                      | `1.0`         | No        |
+| `custom.sound.act_percent`                | Percentage of ACT frame sounds (monster grunts, footsteps) that play. `100` plays all of them.                                                                                                                                     | `100`         | No        |
+| `custom.sound.stereo`                     | Pan world sounds across the stereo field. Off keeps distance attenuation but centres everything.                                                                                                                                   | `true`        | No        |
+| `custom.sound.play_when_unfocused`        | Keep the mixer running while the window is not focused. The original game always pauses.                                                                                                                                           | `false`       | No        |
+| `custom.window.exclude_close_via_esc`     | Windows Escape must leave alone, by the names in `ESC_WINDOW_NAMES` (`client/src/ui/escape.rs`), matched case- and space-insensitively. Escape then moves on to the next window behind them. Unknown names are logged and ignored. | `[]`          | No        |
+| `custom.skill.al_teleport.separate_lvl`   | Give Teleport a level picker in the skill tree, the way Fire Bolt has one. See [Forced level select](#forced-level-select).                                                                                                        | `false`       | No        |
+| `custom.skill.al_teleport.skip_lvl1_menu` | Answer a level 1 Teleport's warp list without showing it, so the cast warps straight away. See [Skipping the level 1 warp list](#skipping-the-level-1-warp-list).                                                                  | `false`       | No        |
+| `custom.accessibility`                    | Enable accessibility improvement: bold name plate on hovering item, entities, npc                                                                                                                                                  | `false`       | No        |
 
 ## Fog scale
 
