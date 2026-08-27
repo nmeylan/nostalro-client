@@ -44,7 +44,7 @@ pub const FREEZING: SparkleColumnParams = SparkleColumnParams {
 pub const WHITELIGHT: SparkleColumnParams = SparkleColumnParams {
     texture: "whitelight.tga",
     color_rgb: [80.0 / 255.0, 80.0 / 255.0, 1.00],
-    distance: 2.4,
+    distance: 1.3,
     rise_per_frame: 0.15,
     count: 16,
     spawn_jitter: 0,
