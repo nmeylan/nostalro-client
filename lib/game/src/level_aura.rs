@@ -9,6 +9,7 @@ pub fn level_aura_visible(entity_type: EntityType, base_level: i16, effect_state
         && !is_hidden(effect_state)
 }
 
+
 pub fn boss_aura_visible(
     entity_type: EntityType,
     is_boss: bool,

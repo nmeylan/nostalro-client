@@ -48,7 +48,23 @@ const LEVEL_AURA_LAYERS: &[EffectId] = &[
     EffectId::Level99,
     EffectId::Level992,
 ];
+const LEVEL_AURA_MOTES_REBIRTH: &[EffectId] = &[EffectId::Level994, EffectId::Level994];
+const LEVEL_AURA_LAYERS_REBIRTH: &[EffectId] = &[
+    EffectId::Level994,
+    EffectId::Level994,
+    EffectId::Level995,
+    EffectId::Level996,
+];
 const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Green993];
+
+fn level_aura_layers(job: JobName, show_aura: bool) -> &'static [EffectId] {
+    match (job.is_rebirth() || job.is_supernovice() || job.is_gunslinger_ninja() || job.is_taekwon(), show_aura) {
+        (true, true) => LEVEL_AURA_LAYERS_REBIRTH,
+        (true, false) => LEVEL_AURA_MOTES_REBIRTH,
+        (false, true) => LEVEL_AURA_LAYERS,
+        (false, false) => LEVEL_AURA_MOTES,
+    }
+}
 
 fn is_weather_effect(id: EffectId) -> bool {
     matches!(
@@ -1205,12 +1221,16 @@ impl App {
     }
 
     pub(crate) fn refresh_level_aura(&mut self, gid: u32) {
-        let Some((entity_type, effect_state, entity_level, alive)) = self
-            .game
-            .world
-            .entities
-            .get(gid)
-            .map(|e| (e.entity_type, e.effect_state, e.base_level, e.is_alive()))
+        let Some((entity_type, effect_state, entity_level, job, alive)) =
+            self.game.world.entities.get(gid).map(|e| {
+                (
+                    e.entity_type,
+                    e.effect_state,
+                    e.base_level,
+                    e.job,
+                    e.is_alive(),
+                )
+            })
         else {
             return;
         };
@@ -1221,13 +1241,7 @@ impl App {
         };
         let visible =
             alive && level_aura::level_aura_visible(entity_type, base_level, effect_state);
-        let want = visible.then(|| {
-            if self.config.display.show_level_aura {
-                LEVEL_AURA_LAYERS
-            } else {
-                LEVEL_AURA_MOTES
-            }
-        });
+        let want = visible.then(|| level_aura_layers(JobName::from_value(job as usize), self.config.display.show_level_aura));
         let have = self.game.effect_keys.level_aura_keys.get(&gid).copied();
         if have.map(|(_, layers)| layers) == want {
             return;
@@ -1927,6 +1941,7 @@ impl App {
 
 #[cfg(test)]
 mod tests {
+    use ragnarok_ui_component::game::levelup_notification_window::LevelUpClick::Job;
     use super::*;
 
     #[test]
@@ -1945,6 +1960,22 @@ mod tests {
         assert!(
             !is_weather_effect(EffectId::Throwitem2),
             "the fireworks item-toss is a normal one-shot, not deduped weather"
+        );
+    }
+
+    #[test]
+    fn level_aura_layers_split_by_job_and_toggle() {
+        assert_eq!(level_aura_layers(JobName::Acolyte, true), LEVEL_AURA_LAYERS);
+        assert_eq!(level_aura_layers(JobName::Alchemist, false), LEVEL_AURA_MOTES);
+        assert_eq!(level_aura_layers(JobName::AssassinCross, true), LEVEL_AURA_LAYERS_REBIRTH);
+        assert_eq!(level_aura_layers(JobName::ArcherHigh, false), LEVEL_AURA_MOTES_REBIRTH);
+        assert_eq!(
+            level_aura_layers(JobName::SuperNovice, true),
+            LEVEL_AURA_LAYERS_REBIRTH
+        );
+        assert_eq!(
+            level_aura_layers(JobName::SuperNovice, false),
+            LEVEL_AURA_MOTES_REBIRTH
         );
     }
 }
