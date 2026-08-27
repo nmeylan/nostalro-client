@@ -143,6 +143,12 @@ impl AmbientEffectScheduler {
         }
     }
 
+    pub fn forget_spawned(&mut self) {
+        for e in &mut self.emitters {
+            e.spawned = false;
+        }
+    }
+
     pub fn clear(&mut self, queue: &mut EffectQueue) {
         for e in &mut self.emitters {
             if e.spawned {

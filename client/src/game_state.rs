@@ -634,12 +634,11 @@ impl GameState {
         Some((pid, design))
     }
 
-    /// The queue and the key-maps must be wiped together: a key left behind
-    /// points into a now-empty queue and blocks the alive-gated auras from ever
-    /// re-spawning.
     pub fn reset_effects(&mut self, queue: &mut EffectQueue) {
         queue.clear();
         self.effect_keys.clear();
+        self.schedulers.map_cloud.forget_spawned();
+        self.schedulers.ambient_effects.forget_spawned();
     }
 
     pub fn new() -> Self {
@@ -1174,6 +1173,10 @@ mod effect_reset_tests {
         keys.ruwach_aura_keys.insert(1, 1);
         keys.weather_keys.insert(EffectId::Snow, 1);
 
+        game.schedulers.map_cloud.set_map("gonryun");
+        game.schedulers.map_cloud.update(Some(1), true, &mut queue);
+        queue.drain();
+
         game.reset_effects(&mut queue);
 
         assert!(queue.drain().is_empty());
@@ -1190,6 +1193,13 @@ mod effect_reset_tests {
         assert!(keys.sight_aura_keys.is_empty());
         assert!(keys.ruwach_aura_keys.is_empty());
         assert!(keys.weather_keys.is_empty());
+
+        game.schedulers.map_cloud.update(Some(1), true, &mut queue);
+        assert_eq!(
+            queue.drain().len(),
+            1,
+            "a wiped effect world respawns the cloud"
+        );
     }
 }
 

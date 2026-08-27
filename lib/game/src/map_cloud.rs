@@ -63,6 +63,10 @@ impl MapCloudScheduler {
         }
     }
 
+    pub fn forget_spawned(&mut self) {
+        self.spawned = None;
+    }
+
     pub fn clear(&mut self, queue: &mut EffectQueue) {
         self.wanted = None;
         if self.spawned.take().is_some() {
@@ -99,6 +103,25 @@ mod tests {
 
         sched.update(Some(7), true, &mut queue);
         assert_eq!(queue.drain().len(), 1, "respawned when effects come back");
+    }
+
+    #[test]
+    fn a_wiped_effect_world_puts_the_field_back_once() {
+        let mut sched = MapCloudScheduler::default();
+        let mut queue = EffectQueue::new();
+        sched.set_map("gonryun");
+        sched.update(Some(7), true, &mut queue);
+        assert_eq!(queue.drain().len(), 1);
+
+        sched.forget_spawned();
+        sched.update(Some(7), true, &mut queue);
+        assert!(queue.drain_despawns().is_empty(), "nothing left to despawn");
+        let reqs = queue.drain();
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].effect_id, EffectId::Cloud2);
+
+        sched.update(Some(7), true, &mut queue);
+        assert!(queue.drain().is_empty(), "live again, not respawned");
     }
 
     #[test]
