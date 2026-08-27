@@ -1,3 +1,5 @@
+use crate::data_table::msg_string_table::MsgStringTable;
+
 pub struct FloorItem {
     pub id: u32,
     pub item_id: u16,
@@ -22,6 +24,8 @@ const DROP_GRAVITY: f32 = 0.083;
 /// Ticks of the blink cycle, and the first tick that flashes.
 const BLINK_CYCLE_TICKS: i64 = 92;
 const BLINK_FIRST_TICK: i64 = 90;
+
+const MSI_ITEM_COUNT: u16 = 183;
 
 const TICK_MS: f32 = 24.0;
 
@@ -52,6 +56,10 @@ impl FloorItem {
     pub fn blink_active(&self, elapsed: f32) -> bool {
         let ticks = self.ticks_since_drop(elapsed) as i64;
         ticks.rem_euclid(BLINK_CYCLE_TICKS) >= BLINK_FIRST_TICK
+    }
+
+    pub fn label(&self, msg_string: Option<&MsgStringTable>) -> Option<String> {
+        msg_string?.format(MSI_ITEM_COUNT, &[&self.name, &self.count.to_string()])
     }
 }
 

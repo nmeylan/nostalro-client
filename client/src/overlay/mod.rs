@@ -38,6 +38,11 @@ const MOB_INFO_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const EMBLEM_HOVER_SIZE: f32 = 24.0;
 const EMBLEM_HEAD_SIZE: f32 = 24.0;
 const TALKBOX_BUBBLE_LIFT: f32 = 20.0;
+/// Floor-item hover label: its box's top edge sits `DROP` pixels below the item's
+/// ground anchor, scaled by perspective, and the text `INSET` pixels inside that.
+const FLOOR_ITEM_NAME_COLOR: [f32; 4] = [1.0, 0.937, 0.584, 1.0];
+const FLOOR_ITEM_LABEL_DROP: f32 = 20.0;
+const FLOOR_ITEM_LABEL_TEXT_INSET: f32 = 4.0;
 
 impl App {
     pub(crate) fn build_world_overlays(
@@ -594,43 +599,23 @@ impl App {
             None => return,
         };
 
-        let tooltip = if floor_item.count > 1 {
-            format!("{} : {} ea.", floor_item.name, floor_item.count)
-        } else {
-            floor_item.name.clone()
+        let Some(label) = floor_item.label(self.game.data_table.msg_string.as_ref()) else {
+            return;
         };
-        let text_w = renderer.font_atlas.measure_text(&tooltip);
+        let text_w = renderer.font_atlas.measure_text(&label);
         let text_x = fi_entry.screen_anchor[0] - text_w / 2.0;
-        let text_y = fi_entry.pick_bounds[1] - 5.0;
-        let padding = 3.0;
+        let text_y = fi_entry.screen_anchor[1]
+            + FLOOR_ITEM_LABEL_DROP * fi_entry.sprite_scale
+            + FLOOR_ITEM_LABEL_TEXT_INSET;
 
-        let (bg_v, bg_i) = ragnarok_ui::draw::quad_vertices(
-            text_x - padding,
-            text_y - padding - 12.0,
-            text_w + padding * 2.0,
-            12.0 + padding * 2.0,
-            [0.0, 0.0, 0.0, 0.85],
-        );
-        calls.push(UiDrawCall {
-            vertices: bg_v.to_vec(),
-            indices: bg_i.to_vec(),
-            texture: UiTextureRef::White,
-        });
-
-        let (verts, indices) = ragnarok_ui::draw::text_vertices(
-            &tooltip,
+        build_outlined_text(
+            &label,
             text_x,
             text_y,
-            [1.0, 1.0, 1.0, 1.0],
+            FLOOR_ITEM_NAME_COLOR,
             &renderer.font_atlas,
+            calls,
         );
-        if !verts.is_empty() {
-            calls.push(UiDrawCall {
-                vertices: verts,
-                indices,
-                texture: UiTextureRef::FontAtlas,
-            });
-        }
     }
 
     fn build_debug_pick_bounds(

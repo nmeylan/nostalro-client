@@ -361,7 +361,7 @@ impl InGameWindow for InventoryWindow {
                         producers,
                     );
                     let tooltip_text = if item.count > 1 {
-                        format!("{display_name} {} ea", item.count)
+                        format!("{display_name}: {} ea.", item.count)
                     } else {
                         display_name
                     };
