@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use std::ops::Index;
 use crate::data_table::skill_name_table::{SkillNameTable, format_skill_display_name};
 use crate::entity::{EmotionState, Entity, EntityState, EntityType, ForcedAnimation};
 use crate::mob_info::MobInfo;
@@ -148,7 +148,10 @@ impl EntityCollection {
     pub fn apply_entity_name_received(&mut self, gid: u32, name: String) {
         let key = self.resolve_key(gid);
         if let Some(entity) = self.entities.get_mut(&key) {
-            entity.name = Some(name);
+            entity.name = Some(match entity.entity_type {
+                EntityType::Npc => name.split_once("#").map(|r|r.0.to_owned()).unwrap_or_else(|| name),
+                _ => name
+            });
         }
     }
 
