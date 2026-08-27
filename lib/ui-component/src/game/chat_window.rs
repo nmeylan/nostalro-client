@@ -756,12 +756,6 @@ impl InGameWindow for ChatWindow {
             state.initialized = true;
         }
 
-        if ui.ctx.key_f10 {
-            let next = state.size_index + 1;
-            state.size_index = if next >= SIZE_CYCLE.len() { 0 } else { next };
-            state.msg_area_h = SIZE_CYCLE[state.size_index];
-        }
-
         let size_index = state.size_index;
         let mut msg_area_h = state.msg_area_h;
         let mut chat_w = state.chat_w;
@@ -1157,11 +1151,13 @@ impl InGameWindow for ChatWindow {
             let st = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
             st.channel_menu_open = !st.channel_menu_open;
         }
-        if self.draw_bubble(ui, SIZE_BTN_ID, height_bubble, [0.55, 0.55, 0.6, 1.0]) {
+        if self.draw_bubble(ui, SIZE_BTN_ID, height_bubble, [0.55, 0.55, 0.6, 1.0]) || ui.ctx.key_f10 {
             let st = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
             let next = st.size_index + 1;
             st.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
+            let old_h = st.msg_area_h;
             st.msg_area_h = SIZE_CYCLE[st.size_index];
+            st.pos_y -= st.msg_area_h -old_h;
         }
         self.draw_channel_menu(ui, channel_bubble);
 
@@ -1248,7 +1244,7 @@ mod tests {
     }
 
     #[test]
-    fn f10_cycles_through_all_sizes() {
+    fn f10_cycles_sizes_and_keeps_bottom_edge() {
         let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut chat = ChatWindow::new();
         let mut character = Character::new();
@@ -1260,14 +1256,16 @@ mod tests {
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
         assert_eq!(ws.size_index, DEFAULT_SIZE_INDEX);
+        let bottom = ws.pos_y + ws.msg_area_h + INPUT_H;
 
-        for expected_index in [6, 0, 1, 2, 3, 4, 5] {
+        for expected_index in [6, 1, 2, 3, 4, 5, 6] {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_f10 = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
             chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
             let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
             assert_eq!(ws.size_index, expected_index);
+            assert_eq!(ws.pos_y + ws.msg_area_h + INPUT_H, bottom);
         }
     }
 
@@ -1302,16 +1300,10 @@ mod tests {
         let data = DataTable::new();
         let mut state = StateCache::new();
 
+        chat.set_initial_size_index(0);
         let ctx = UiContext::new(800.0, 600.0);
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-
-        for _ in 0..2 {
-            let mut ctx = UiContext::new(800.0, 600.0);
-            ctx.key_f10 = true;
-            let mut ui = make_frame(&ctx, &atlas, &mut state);
-            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
-        }
 
         let ws = state.get::<ChatWindowState>(CHAT_WINDOW_ID).unwrap();
         assert_eq!(ws.size_index, 0);
@@ -1335,7 +1327,7 @@ mod tests {
         let mut ui = make_frame(&ctx, &atlas, &mut state);
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
-        for _ in 0..3 {
+        for _ in 0..2 {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.key_f10 = true;
             let mut ui = make_frame(&ctx, &atlas, &mut state);
