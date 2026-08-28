@@ -3313,20 +3313,20 @@ fn parse_ranking(name_raw: &[u8], point_raw: &[u8]) -> Vec<(String, i32)> {
 }
 
 fn parse_skill_info_list(list: &[packets::packets::SKILLINFO]) -> Vec<SkillInfo> {
-    list.iter()
-        .map(|s|
-            // if let Ok(skill) = SkillEnum::from_name(s.skid as u32) {
-
-            // }
-            SkillInfo {
-            skill: SkillEnum::from_id(s.skid as u32),
-            level: s.level,
-            sp_cost: s.spcost,
-            attack_range: s.attack_range,
-            upgradable: s.upgradable != 0,
-            skill_target_type: SkillTargetType::from_value(s.atype as usize),
-        })
-        .collect()
+    let mut skill_info = Vec::with_capacity(list.len());
+    for s in list {
+        if let Ok(skill) = SkillEnum::try_from_value(s.skid as u32) {
+            skill_info.push(SkillInfo {
+                skill,
+                level: s.level,
+                sp_cost: s.spcost,
+                attack_range: s.attack_range,
+                upgradable: s.upgradable != 0,
+                skill_target_type: SkillTargetType::from_value(s.atype as usize),
+            });
+        }
+    }
+    skill_info
 }
 
 fn refine_row_from(info: &RepairitemInfo) -> ragnarok_game::event::RefineItemRow {
