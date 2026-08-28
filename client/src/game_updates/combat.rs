@@ -36,7 +36,8 @@ impl App {
             .world
             .entities
             .get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
+            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading())
+            || self.game.world.trap_units.contains_key(&target_id);
         if !target_alive {
             self.game.combat.attack_target_id = None;
             return;
@@ -63,13 +64,7 @@ impl App {
             return;
         }
 
-        let target_pos = self
-            .game
-            .world
-            .entities
-            .get(target_id)
-            .map(|e| e.movement.cell_position())
-            .unwrap_or((0, 0));
+        let target_pos = self.attack_target_cell(target_id).unwrap_or((0, 0));
         let (px, py) = self
             .game
             .world
@@ -465,6 +460,28 @@ impl App {
                 }
             }
         }
+        self.process_skill_unit_hits(now);
+    }
+
+    fn process_skill_unit_hits(&mut self, now: f32) {
+        let unit_ids: Vec<u32> = self.game.world.skill_unit_hits.keys().copied().collect();
+        for unit_id in unit_ids {
+            let ready = match self.game.world.skill_unit_hits.get_mut(&unit_id) {
+                Some(queue) => queue.drain_ready(now),
+                None => continue,
+            };
+            for hit in ready {
+                self.emit_damage_number(unit_id, &hit);
+                self.spawn_hit_effect(unit_id, &hit);
+                if hit.damage > 0 {
+                    self.queue_hit_sound(unit_id, hit.attacker_gid, hit.skill.is_some());
+                }
+            }
+        }
+        self.game
+            .world
+            .skill_unit_hits
+            .retain(|_, queue| !queue.is_empty());
     }
 
     pub(crate) fn update_arrows(&mut self, delta: f32) {
@@ -514,7 +531,8 @@ impl App {
             .and_then(|e| JobName::try_from_value(e.job as usize).ok())
             .unwrap_or(JobName::Novice);
         let target_is_self = hit.attacker_gid == entity_id;
-        let target_pos = self.entity_world_pos(entity_id);
+        let unit_pos = self.skill_unit_world_pos(entity_id);
+        let target_pos = self.entity_world_pos(entity_id).or(unit_pos);
         let attacker_pos = self.entity_world_pos(hit.attacker_gid);
         let markers = derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self);
         if markers.spins_target
@@ -527,7 +545,10 @@ impl App {
                 (true, Some(from), Some(to)) if !target_is_self => {
                     self.effect_queue.spawn_trail(effect, from, to);
                 }
-                _ => self.effect_queue.spawn_on(effect, entity_id),
+                _ => match unit_pos {
+                    Some(pos) => self.effect_queue.spawn_at(effect, pos),
+                    None => self.effect_queue.spawn_on(effect, entity_id),
+                },
             }
         }
     }

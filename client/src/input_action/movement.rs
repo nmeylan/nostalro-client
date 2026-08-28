@@ -170,8 +170,8 @@ impl App {
         self.game.combat.attack_is_locked = locked;
         self.game.combat.attack_request_sent = false;
 
-        let target_pos = match self.game.world.entities.get(target_id) {
-            Some(e) => e.movement.cell_position(),
+        let target_pos = match self.attack_target_cell(target_id) {
+            Some(cell) => cell,
             None => return false,
         };
         let (px, py) = self

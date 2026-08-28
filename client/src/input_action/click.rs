@@ -307,6 +307,12 @@ impl App {
                 return;
             }
         }
+        if let Some(unit_id) = self.game.hover.hovered_skill_unit_id
+            && self.game.world.trap_units.contains_key(&unit_id)
+        {
+            self.initiate_attack(unit_id);
+            return;
+        }
         self.stop_attacking();
         self.game.pending_casts.pending_pickup_item_id = None;
         self.game.pending_casts.pending_ground_cast = None;

@@ -1,8 +1,8 @@
 use crate::App;
-use crate::game_state::HoverState;
+use crate::game_state::{HoverState, attackable_unit_at};
 use ragnarok_game::app_state::AppState;
 use ragnarok_game::cursor::{
-    CompanionSkillTarget, PendingSkillTarget, RenderEntry, cursor_type_for_cell,
+    CompanionSkillTarget, CursorType, PendingSkillTarget, RenderEntry, cursor_type_for_cell,
     hovered_entity_cursor_type,
 };
 use ragnarok_game::targeting::{TargetClass, skill_target_class};
@@ -162,6 +162,11 @@ impl App {
                 {
                     hover.hovered_entity_id = Some(id);
                     hover.hovered_entity_cursor = Some(cursor);
+                } else if let Some(cell) = hovered_cell
+                    && let Some(unit_id) = attackable_unit_at(&self.game.world.trap_units, cell)
+                {
+                    hover.hovered_skill_unit_id = Some(unit_id);
+                    hover.hovered_entity_cursor = Some(CursorType::Attack);
                 }
             }
         }

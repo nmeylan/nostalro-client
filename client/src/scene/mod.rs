@@ -958,11 +958,18 @@ impl App {
             let coords = self.game.session.map_coords.as_ref();
             let gat = self.game.session.gat.as_ref();
             let entities = &self.game.world.entities;
+            let units = &self.game.world.trap_units;
             let entries = build_damage_number_entries(
                 &mut self.game.combat.damage_numbers.numbers,
                 |entity_id, offset| {
                     let (camera, screen_w, screen_h) = camera?;
-                    let (cx, cy) = entities.get(entity_id)?.movement.position();
+                    let (cx, cy) = match entities.get(entity_id) {
+                        Some(entity) => entity.movement.position(),
+                        None => {
+                            let cell = units.get(&entity_id)?.cell;
+                            (cell.0 as f32, cell.1 as f32)
+                        }
+                    };
                     project_cell_offset(
                         (cx as f32, cy as f32),
                         offset,

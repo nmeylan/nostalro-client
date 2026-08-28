@@ -156,6 +156,13 @@ pub fn trap_model_name(unit_id: u8) -> Option<&'static str> {
     })
 }
 
+/// The ground units a plain attack can be swung at: the original game gives
+/// these the attack cursor and sends an ordinary attack request for them, so a
+/// trap laid by another player can be shot down.
+pub fn is_attackable_skill_unit(unit_id: u8) -> bool {
+    matches!(unit_id, UNT_ICEWALL | UNT_BLASTMINE | UNT_CLAYMORETRAP)
+}
+
 /// The one-shot burst a trap plays when a monster springs it (the trap unit
 /// becomes [`UNT_USED_TRAPS`]). Traps that only hold or teleport — Skid Trap,
 /// Ankle Snare, Land Mine, Talkie Box, Shockwave — have no trigger burst.
@@ -243,6 +250,17 @@ mod tests {
         );
         assert_eq!(trap_trigger_effect(UNT_ANKLESNARE), None);
         assert_eq!(trap_trigger_effect(UNT_SKIDTRAP), None);
+    }
+
+    #[test]
+    fn only_icewall_blastmine_and_claymore_take_a_plain_attack() {
+        assert!(is_attackable_skill_unit(UNT_ICEWALL));
+        assert!(is_attackable_skill_unit(UNT_BLASTMINE));
+        assert!(is_attackable_skill_unit(UNT_CLAYMORETRAP));
+        assert!(!is_attackable_skill_unit(UNT_ANKLESNARE));
+        assert!(!is_attackable_skill_unit(UNT_SKIDTRAP));
+        assert!(!is_attackable_skill_unit(UNT_SAFETYWALL));
+        assert!(!is_attackable_skill_unit(UNT_USED_TRAPS));
     }
 
     #[test]

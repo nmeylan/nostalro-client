@@ -530,6 +530,10 @@ impl Renderer {
         }
     }
 
+    pub fn remove_skill_unit_model(&mut self, key: u32) {
+        self.skill_unit_models.remove(&key);
+    }
+
     pub fn retain_skill_unit_models(&mut self, keep: &std::collections::HashSet<u32>) {
         self.skill_unit_models.retain(|k, _| keep.contains(k));
     }

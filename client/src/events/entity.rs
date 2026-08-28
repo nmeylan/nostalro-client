@@ -16,9 +16,9 @@ use ragnarok_game::boss_info::{BossInfoKind, BossMark, boss_info_line};
 use ragnarok_game::damage_number::{DamageNumber, DamageNumberType};
 use ragnarok_game::effect::{
     OPT3_BLADESTOP, StatusKind, StatusSound, UNT_USED_TRAPS, devil_blind_effect,
-    monster_opt3_reaction, opt3_bit_for_icon, opt3_bits, persistent_aura, player_opt3_reaction,
-    skill_unit_effect, skill_unit_entry_sound, status_reaction, status_reaction_by_efst,
-    trap_model_name, trap_trigger_effect,
+    is_attackable_skill_unit, monster_opt3_reaction, opt3_bit_for_icon, opt3_bits, persistent_aura,
+    player_opt3_reaction, skill_unit_effect, skill_unit_entry_sound, status_reaction,
+    status_reaction_by_efst, trap_model_name, trap_trigger_effect,
 };
 use ragnarok_game::entity::{ChatBubbleState, Entity, EntityState, EntityType};
 use ragnarok_game::entity_collection::GROUND_SKILL_EXEC_SECS;
@@ -404,12 +404,7 @@ impl App {
             | ActionType::AttackMultiple
             | ActionType::AttackMultipleNomotion
             | ActionType::AttackCritical => {
-                let target_pos = self
-                    .game
-                    .world
-                    .entities
-                    .get(target_gid)
-                    .map(|e| e.movement.cell_position());
+                let target_pos = self.attack_target_cell(target_gid);
                 let mut shooter_cell = None;
                 let motion_factor = ragnarok_game::entity::attack_motion_factor(attack_mt);
                 let swing_secs = self
@@ -483,6 +478,16 @@ impl App {
                 if let Some(target) = self.game.world.entities.get_mut(target_gid) {
                     for hit in swing.schedule() {
                         target.scheduled_hits.push(hit);
+                    }
+                } else if self.game.world.trap_units.contains_key(&target_gid) {
+                    let queue = self
+                        .game
+                        .world
+                        .skill_unit_hits
+                        .entry(target_gid)
+                        .or_default();
+                    for hit in swing.schedule() {
+                        queue.push(hit);
                     }
                 }
             }
@@ -619,7 +624,8 @@ impl App {
             .world
             .entities
             .get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
+            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading())
+            || self.game.world.trap_units.contains_key(&target_id);
         if !target_alive {
             self.stop_attacking();
             return;
@@ -1686,6 +1692,20 @@ impl App {
         }
     }
 
+    /// Cell of something a swing can be aimed at: an actor, or a ground skill
+    /// unit standing in for one.
+    pub(crate) fn attack_target_cell(&self, target_id: u32) -> Option<(u16, u16)> {
+        if let Some(entity) = self.game.world.entities.get(target_id) {
+            return Some(entity.movement.cell_position());
+        }
+        let cell = self.game.world.trap_units.get(&target_id)?.cell;
+        Some((cell.0.max(0) as u16, cell.1.max(0) as u16))
+    }
+
+    pub(crate) fn skill_unit_world_pos(&self, aid: u32) -> Option<[f32; 3]> {
+        self.game.world.trap_units.get(&aid).map(|unit| unit.world)
+    }
+
     pub(crate) fn entity_world_pos(&self, gid: u32) -> Option<[f32; 3]> {
         let (gat, coords) = (
             self.game.session.gat.as_ref()?,
@@ -1733,7 +1753,10 @@ impl App {
                 weapon_hit_sound(weapon, roll, is_taekwon)
             }
         };
-        if let Some(pos) = self.entity_world_pos(victim_gid) {
+        if let Some(pos) = self
+            .entity_world_pos(victim_gid)
+            .or_else(|| self.skill_unit_world_pos(victim_gid))
+        {
             self.sound_queue.world(wav, pos);
         }
     }
@@ -1799,7 +1822,7 @@ impl App {
             };
             if is_visible {
                 self.game.world.hidden_traps.remove(&aid);
-                self.game.world.trap_units.insert(aid, trap);
+                self.register_skill_unit(aid, trap);
             } else {
                 self.game.world.hidden_traps.insert(aid, trap);
             }
@@ -1808,6 +1831,16 @@ impl App {
 
         if !is_visible {
             return;
+        }
+        if is_attackable_skill_unit(unit_id) {
+            self.register_skill_unit(
+                aid,
+                TrapUnit {
+                    unit_id,
+                    world,
+                    cell: (x, y),
+                },
+            );
         }
         let Some(effect) = skill_unit_effect(unit_id) else {
             return;
@@ -1829,9 +1862,28 @@ impl App {
         self.effect_queue.spawn_at_keyed(effect, world, aid);
     }
 
+    /// Records a ground skill unit's position. A unit knocked back by an attack
+    /// is re-announced at its new cell, and the model bakes its world position
+    /// into the vertex buffer, so the old one has to go.
+    fn register_skill_unit(&mut self, aid: u32, unit: TrapUnit) {
+        let moved = self
+            .game
+            .world
+            .trap_units
+            .insert(aid, unit)
+            .is_some_and(|previous| previous.cell != unit.cell);
+        if moved && let Some(renderer) = self.renderer.as_mut() {
+            renderer.remove_skill_unit_model(aid);
+        }
+    }
+
     pub(super) fn handle_skill_unit_disappeared(&mut self, aid: u32) {
         // eprintln!("[song-unit] DISAPPEAR aid={aid}");
         self.effect_queue.despawn(aid);
+        if self.game.combat.attack_target_id == Some(aid) {
+            self.game.combat.attack_target_id = None;
+        }
+        self.game.world.skill_unit_hits.remove(&aid);
         self.game.world.trap_units.remove(&aid);
         self.game.world.hidden_traps.remove(&aid);
         self.game.world.graffiti.remove(&aid);

@@ -36,6 +36,7 @@ use ragnarok_game::pet::PetState;
 use ragnarok_game::poptip::PoptipStack;
 use ragnarok_game::progress_bar::ProgressBar;
 use ragnarok_game::quest::{QuestLog, QuestMarker};
+use ragnarok_game::scheduled_hit::ScheduledHitQueue;
 use ragnarok_game::server_time::ServerTimeClock;
 use ragnarok_game::skill::SkillTargetType;
 use ragnarok_game::targeting::MapProperties;
@@ -172,8 +173,9 @@ pub struct HoverState {
     /// Set purely so the player's own name plate shows on hover; never a click
     /// or skill target.
     pub hovered_self_id: Option<u32>,
-    /// AID of the deployed trap under the cursor, resolved only while a
-    /// trap-targeting skill is armed.
+    /// AID of the ground skill unit under the cursor: any trap while a
+    /// trap-targeting skill is armed, otherwise only one a plain attack can
+    /// hit.
     pub hovered_skill_unit_id: Option<u32>,
     pub hovered_floor_item_id: Option<u32>,
     pub hovered_chat_room: Option<u32>,
@@ -356,9 +358,13 @@ pub struct World {
     pub entities: EntityCollection,
     pub floor_items: HashMap<u32, FloorItem>,
     pub arrows: Vec<ArrowProjectile>,
-    /// Deployed, visible traps keyed by unit AID: each shows a ground model and
-    /// can fire its trigger burst.
+    /// Positioned ground skill units keyed by unit AID: the model-backed traps,
+    /// plus the model-less units a plain attack can target (Ice Wall). Only the
+    /// visible ones — hidden traps wait in `hidden_traps`.
     pub trap_units: HashMap<u32, TrapUnit>,
+    /// Blows landing on a ground skill unit, keyed by unit AID. Units have no
+    /// entity to carry the queue an actor would.
+    pub skill_unit_hits: HashMap<u32, ScheduledHitQueue>,
     /// Traps placed hidden to us (cast by others); revealed to `trap_units` when
     /// the server sends a skill-unit update (e.g. an ankle snare springs).
     pub hidden_traps: HashMap<u32, TrapUnit>,
@@ -382,6 +388,7 @@ impl World {
         self.floor_items.clear();
         self.arrows.clear();
         self.trap_units.clear();
+        self.skill_unit_hits.clear();
         self.hidden_traps.clear();
         self.freeze_shatters.clear();
         self.graffiti.clear();
@@ -395,6 +402,18 @@ pub struct TrapUnit {
     pub unit_id: u8,
     pub world: [f32; 3],
     pub cell: (i16, i16),
+}
+
+/// The unit on `cell` that a plain attack can be swung at. A unit occupies
+/// exactly one cell, so the hovered cell picks it.
+pub fn attackable_unit_at(units: &HashMap<u32, TrapUnit>, cell: (i32, i32)) -> Option<u32> {
+    units
+        .iter()
+        .find(|(_, unit)| {
+            unit.cell == (cell.0 as i16, cell.1 as i16)
+                && ragnarok_game::effect::is_attackable_skill_unit(unit.unit_id)
+        })
+        .map(|(&aid, _)| aid)
 }
 
 /// The marker a cast puts on the world while it channels: a square on the ground
@@ -1200,6 +1219,36 @@ mod effect_reset_tests {
             1,
             "a wiped effect world respawns the cloud"
         );
+    }
+}
+
+#[cfg(test)]
+mod attackable_unit_tests {
+    use super::*;
+
+    fn unit(unit_id: u8, cell: (i16, i16)) -> TrapUnit {
+        TrapUnit {
+            unit_id,
+            world: [cell.0 as f32, 0.0, cell.1 as f32],
+            cell,
+        }
+    }
+
+    #[test]
+    fn only_the_units_a_swing_can_reach_are_picked_from_the_hovered_cell() {
+        const UNT_BLASTMINE: u8 = 0x8f;
+        const UNT_ICEWALL: u8 = 0x8d;
+        const UNT_ANKLESNARE: u8 = 0x91;
+
+        let mut units = HashMap::new();
+        units.insert(1, unit(UNT_ANKLESNARE, (10, 10)));
+        units.insert(2, unit(UNT_BLASTMINE, (11, 10)));
+        units.insert(3, unit(UNT_ICEWALL, (12, 10)));
+
+        assert_eq!(attackable_unit_at(&units, (10, 10)), None);
+        assert_eq!(attackable_unit_at(&units, (11, 10)), Some(2));
+        assert_eq!(attackable_unit_at(&units, (12, 10)), Some(3));
+        assert_eq!(attackable_unit_at(&units, (11, 11)), None);
     }
 }
 
