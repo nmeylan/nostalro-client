@@ -258,8 +258,10 @@ impl PortalWindEffect {
         }
     }
 
-    fn current_frame_int(&self) -> i32 {
-        self.age_frames.floor() as i32
+    fn in_body_light_window(&self) -> bool {
+        let frame = self.age_frames.floor() as i32;
+        let (lo, hi) = self.cfg.body_light_frames;
+        frame >= lo && frame <= hi
     }
 }
 
@@ -325,15 +327,13 @@ impl Effect for PortalWindEffect {
     }
 
     fn body_tint(&self) -> Option<BodyTint> {
-        let frame = self.current_frame_int();
-        let (lo, hi) = self.cfg.body_light_frames;
-        if frame >= lo && frame <= hi {
-            Some(BodyTint {
-                rgb: self.cfg.body_light_rgb,
-            })
-        } else {
-            None
-        }
+        self.in_body_light_window().then_some(BodyTint {
+            rgb: self.cfg.body_light_rgb,
+        })
+    }
+
+    fn body_additive(&self) -> bool {
+        self.in_body_light_window()
     }
 
     fn take_sfx_request(&mut self) -> Option<&'static str> {
@@ -438,10 +438,12 @@ mod tests {
         let mut e = PortalWindEffect::new([0.0, 0.0, 0.0], PORTAL5);
         assert!(e.take_sfx_request().is_none());
         assert!(e.body_tint().is_none(), "tint inactive before frame 5");
+        assert!(!e.body_additive());
 
         step_frames(&mut e, 5);
         let tint = e.body_tint().expect("tint active at frame 5");
         assert_eq!(tint.rgb, [250, 250, 200]);
+        assert!(e.body_additive(), "body drawn additively while tinted");
 
         step_frames(&mut e, 60);
         let tint = e.body_tint().expect("tint active at frame 65");
@@ -449,6 +451,7 @@ mod tests {
 
         step_frames(&mut e, 1);
         assert!(e.body_tint().is_none(), "tint inactive after frame 65");
+        assert!(!e.body_additive());
     }
 
     #[test]
