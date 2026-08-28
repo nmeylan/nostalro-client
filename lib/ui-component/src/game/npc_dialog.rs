@@ -467,6 +467,7 @@ impl InGameWindow for NpcDialog {
 impl NpcDialog {
     fn build_menu_window(&mut self, ui: &mut UiFrame) -> Vec<GameEvent> {
         let mut events = Vec::new();
+        let mut submit = false;
         let (btn_w, btn_h) = self.btn_size;
         let menu_w = MENU_W;
         let menu_h = MENU_H;
@@ -547,8 +548,11 @@ impl NpcDialog {
                 text_color,
             );
 
-            if response.clicked() {
+            if response.clicked() || response.double_clicked() {
                 self.dialog.selected_menu_index = idx;
+            }
+            if response.double_clicked() {
+                submit = true;
             }
         }
 
@@ -588,7 +592,7 @@ impl NpcDialog {
         let cancel = ui.button(CANCEL_BTN_ID, menu_btns[0], &CANCEL_BTN, "Cancel");
         let ok = ui.button(MENU_OK_BTN_ID, menu_btns[1], &OK_BTN, "OK");
 
-        if ok.clicked() {
+        if ok.clicked() || submit {
             let choice = (self.dialog.selected_menu_index + 1) as u8;
             events.push(GameEvent::RequestNpcMenuSelect {
                 npc_id: self.dialog.npc_id,
@@ -927,6 +931,46 @@ mod tests {
             ),
             "expected a buy deal type, got {events:?}"
         );
+    }
+
+    #[test]
+    fn double_clicking_a_menu_row_selects_it_and_replies() {
+        let mut npc = NpcDialog::new();
+        npc.dialog.show_menu(100, vec!["Buy".into(), "Sell".into()]);
+
+        let mut state = StateCache::new();
+
+        let frame =
+            |state: &mut StateCache, npc: &mut NpcDialog, ctx: &mut UiContext| -> Vec<GameEvent> {
+                let mut character = Character::new();
+                let data = DataTable::new();
+                let mut ui = test_frame(ctx, state);
+                let z = ui.get_z_order();
+                ui.compute_hovered_window(&z);
+                npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+            };
+
+        let mut idle = UiContext::new(800.0, 600.0);
+        frame(&mut state, &mut npc, &mut idle);
+
+        let mut double_click = UiContext::new(800.0, 600.0);
+        double_click.mouse_x = 300.0;
+        double_click.mouse_y = 330.0;
+        double_click.mouse_clicked = true;
+        double_click.mouse_double_clicked = true;
+        let events = frame(&mut state, &mut npc, &mut double_click);
+
+        assert!(
+            matches!(
+                events.as_slice(),
+                [GameEvent::RequestNpcMenuSelect {
+                    npc_id: 100,
+                    choice: 2
+                }]
+            ),
+            "expected the second entry to be picked, got {events:?}"
+        );
+        assert!(!npc.dialog.is_open());
     }
 
     #[test]
