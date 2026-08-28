@@ -159,24 +159,17 @@ fn push_border(ui: &mut UiFrame, rect: Rect, color: [f32; 4]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn closed_window_emits_nothing_and_draws_nothing() {
         let mut win = MapMissingWindow::new();
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(events.is_empty());
         assert!(ui.draw_calls.is_empty());
@@ -188,8 +181,8 @@ mod tests {
         win.show("new_1-1".to_string());
         assert!(win.is_open());
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         win.build(&mut ui);
         assert!(!ui.draw_calls.is_empty());
     }

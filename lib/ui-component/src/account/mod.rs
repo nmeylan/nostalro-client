@@ -30,28 +30,21 @@ pub fn draw_background(ui: &mut UiFrame, texture: Option<&str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn draw_background_pushes_fullscreen_quad_or_nothing() {
-        let ctx = UiContext::new(1024.0, 768.0);
+        let mut ctx = UiContext::new(1024.0, 768.0);
         let mut state = StateCache::new();
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         draw_background(&mut ui, None);
         assert!(ui.draw_calls.is_empty());
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         draw_background(&mut ui, Some("bg.bmp"));
         assert_eq!(ui.draw_calls.len(), 1);
         match &ui.draw_calls[0].texture {

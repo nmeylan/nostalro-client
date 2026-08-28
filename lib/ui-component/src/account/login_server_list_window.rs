@@ -370,9 +370,10 @@ impl Window for LoginServerListWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
 
     fn make_servers() -> Vec<LoginServerEntry> {
         vec![
@@ -387,14 +388,6 @@ mod tests {
         ]
     }
 
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
-
     #[test]
     fn arrow_keys_navigate_and_enter_selects() {
         let mut win = LoginServerListWindow::new(make_servers());
@@ -403,13 +396,13 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_down = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         win.build(&mut ui);
         assert_eq!(win.selected_index, Some(1));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(
             events
@@ -425,7 +418,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(
             events

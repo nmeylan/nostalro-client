@@ -34,8 +34,9 @@ pub fn scrollbar(
 ) -> usize {
     let mut offset = offset.min(max_scroll);
 
-    if content_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) && ui.ctx.scroll_delta != 0.0 {
-        let delta = if ui.ctx.scroll_delta > 0.0 { -1i32 } else { 1 };
+    let scroll = ui.take_scroll(content_rect);
+    if scroll != 0.0 {
+        let delta = if scroll > 0.0 { -1i32 } else { 1 };
         offset = (offset as i32 + delta).clamp(0, max_scroll as i32) as usize;
     }
 
@@ -172,19 +173,10 @@ pub fn grf_texture_paths() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(
-        ctx: &'a UiContext,
-        atlas: &'a FontAtlas,
-        state: &'a mut StateCache,
-    ) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     fn ids() -> ScrollbarIds {
         ScrollbarIds {
@@ -196,13 +188,12 @@ mod tests {
 
     #[test]
     fn mouse_wheel_scrolls_down() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
         ctx.scroll_delta = -1.0; // scroll down
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 0, 5, 10, content, 190.0, 0.0, 200.0);
@@ -211,13 +202,12 @@ mod tests {
 
     #[test]
     fn mouse_wheel_scrolls_up() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
         ctx.scroll_delta = 1.0; // scroll up
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 5, 5, 10, content, 190.0, 0.0, 200.0);
@@ -226,10 +216,9 @@ mod tests {
 
     #[test]
     fn clamps_offset_to_max_scroll() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 20, 5, 10, content, 190.0, 0.0, 200.0);
@@ -238,13 +227,12 @@ mod tests {
 
     #[test]
     fn up_button_click_decrements() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 195.0;
         ctx.mouse_y = 5.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 5, 5, 10, content, 190.0, 0.0, 200.0);
@@ -253,13 +241,12 @@ mod tests {
 
     #[test]
     fn down_button_click_increments() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 195.0;
         ctx.mouse_y = 190.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 5, 5, 10, content, 190.0, 0.0, 200.0);
@@ -268,13 +255,12 @@ mod tests {
 
     #[test]
     fn no_scroll_past_zero() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
         ctx.scroll_delta = 1.0; // scroll up
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 0, 5, 10, content, 190.0, 0.0, 200.0);

@@ -539,9 +539,10 @@ mod tests {
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::data_table::map_position_table::MapPositionTable;
     use ragnarok_game::party::{Party, PartyMember};
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
 
     fn table() -> MapPositionTable {
         MapPositionTable::parse(
@@ -551,14 +552,6 @@ mod tests {
             )
             .as_bytes(),
         )
-    }
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
     }
 
     fn member(aid: u32, name: &str, map: &str, x: u16, y: u16) -> PartyMember {
@@ -608,7 +601,7 @@ mod tests {
         ctx.mouse_y = SCREEN_MARGIN + TITLE_H + 615.0;
         ctx.mouse_clicked = true;
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
         build_ctx.party = Some(&party);
         let events = win.build(&mut ui, &mut build_ctx);

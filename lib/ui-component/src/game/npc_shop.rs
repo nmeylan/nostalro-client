@@ -796,17 +796,10 @@ mod tests {
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
     use ragnarok_game::npc_shop::{ShopBuyItem, ShopSellItem};
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn escape_closes_shop() {
@@ -958,8 +951,8 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
@@ -998,7 +991,7 @@ mod tests {
             let mut ctx = UiContext::new(800.0, 600.0);
             ctx.mouse_x = mx;
             ctx.mouse_y = my;
-            let mut ui = make_frame(&ctx, state);
+            let mut ui = test_frame(&mut ctx, state);
             shop_ui.setup_modal(&mut ui);
             let z = ui.get_z_order();
             ui.compute_hovered_window(&z);
@@ -1070,7 +1063,7 @@ mod tests {
             ctx.mouse_x = mx;
             ctx.mouse_y = my;
             ctx.mouse_clicked = clicked;
-            let mut ui = make_frame(&ctx, state);
+            let mut ui = test_frame(&mut ctx, state);
             shop_ui.setup_modal(&mut ui);
             let z = ui.get_z_order();
             ui.compute_hovered_window(&z);
@@ -1126,7 +1119,7 @@ mod tests {
         ctx.mouse_x = 150.0;
         ctx.mouse_y = 138.0;
         ctx.mouse_right_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let events = shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(

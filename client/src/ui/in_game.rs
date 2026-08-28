@@ -306,6 +306,10 @@ pub fn build_in_game_ui(
     drop(ctx);
     update_broadcast_overlays(game, ui);
 
+    if ui.hovered_window().is_some() {
+        ui.ctx.scroll_delta = 0.0;
+    }
+
     events
 }
 

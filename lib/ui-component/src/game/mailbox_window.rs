@@ -601,16 +601,10 @@ impl MailboxWindow {
 mod tests {
     use super::*;
     use ragnarok_game::mail::MailEntry;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     fn open_inbox() -> Character {
         let mut character = Character::new();
@@ -660,7 +654,7 @@ mod tests {
         ctx.mouse_down = true;
         ctx.mouse_clicked = true;
         {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             ui.drag_source(INV_WINDOW_ID, 5, None, (24.0, 24.0));
             ui.draw_drag_icon();
         }
@@ -670,7 +664,7 @@ mod tests {
         ctx.mouse_y = 100.0;
         ctx.mouse_down = true;
         {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             ui.draw_drag_icon();
             assert!(ui.is_dragging());
         }
@@ -680,7 +674,7 @@ mod tests {
         ctx.mouse_y = slot_cy;
         ctx.mouse_down = false;
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
@@ -709,7 +703,7 @@ mod tests {
         ctx.mouse_y = 60.0 + LIST_TOP_OFF + 32.0;
         ctx.mouse_clicked = true;
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
@@ -738,7 +732,7 @@ mod tests {
         ctx.mouse_y = send_cy;
         ctx.mouse_clicked = true;
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
@@ -751,7 +745,7 @@ mod tests {
         // With a title, the first click sends and latches.
         set_input(&mut win.title_input, "Subject".into());
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert_eq!(
@@ -765,7 +759,7 @@ mod tests {
 
         // Latched: a second click does not re-send.
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(

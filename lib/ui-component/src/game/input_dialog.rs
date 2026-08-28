@@ -222,17 +222,10 @@ impl Window for InputDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     fn make_dialog(default_value: &str, show_cancel: bool) -> InputDialog {
         InputDialog::new(
@@ -254,7 +247,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         assert_eq!(dialog.build(&mut ui), InputDialogResult::Submitted);
         assert_eq!(dialog.value_str(), "5");
         assert_eq!(dialog.value_i16(), Some(5));
@@ -266,7 +259,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         assert_eq!(dialog.build(&mut ui), InputDialogResult::Cancel);
     }
 
@@ -274,8 +267,8 @@ mod tests {
     fn no_input_returns_none() {
         let mut dialog = make_dialog("10", true);
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         assert_eq!(dialog.build(&mut ui), InputDialogResult::None);
     }
 

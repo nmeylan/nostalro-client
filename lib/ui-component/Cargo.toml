@@ -11,6 +11,7 @@ ragnarok-ai = { workspace = true }
 ragnarok-renderer = { workspace = true }
 
 [dev-dependencies]
+ragnarok-ui = { workspace = true, features = ["test-support"] }
 models = { workspace = true }
 ragnarok-formats = { workspace = true }
 winit = { workspace = true }

@@ -3,6 +3,9 @@ name = "ragnarok-ui"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+test-support = []
+
 [dependencies]
 ragnarok-renderer = { workspace = true }
 ragnarok-resources = { workspace = true }

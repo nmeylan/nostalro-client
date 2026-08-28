@@ -463,17 +463,10 @@ mod tests {
     use crate::InGameWindow;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn escape_closes_an_open_menu() {
@@ -502,7 +495,7 @@ mod tests {
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(!menu.open);
     }
@@ -520,7 +513,7 @@ mod tests {
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
@@ -543,7 +536,7 @@ mod tests {
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::CharacterSelect);
@@ -560,7 +553,7 @@ mod tests {
         ctx.mouse_x = btn_x + btn_w / 2.0;
         ctx.mouse_y = btn_y + btn_h / 2.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
@@ -583,7 +576,7 @@ mod tests {
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::QuitGame);
@@ -600,7 +593,7 @@ mod tests {
         ctx.mouse_x = btn_x + btn_w / 2.0;
         ctx.mouse_y = btn_y + btn_h / 2.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.iter().any(|e| matches!(e, GameEvent::QuitGame)));
         assert!(!menu.open);
@@ -627,7 +620,7 @@ mod tests {
         ctx.mouse_x = cancel_btn_x + btn_w / 2.0;
         ctx.mouse_y = cancel_btn_y + btn_h / 2.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(events.is_empty());
         assert_eq!(menu.pending_confirm, PendingConfirm::None);
@@ -656,7 +649,7 @@ mod tests {
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events
@@ -679,7 +672,7 @@ mod tests {
         ctx.mouse_x = mx;
         ctx.mouse_y = my;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert!(
             events

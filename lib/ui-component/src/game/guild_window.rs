@@ -1373,17 +1373,10 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::guild::GuildRelation;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn right_click_alliance_row_requests_delete() {
@@ -1409,7 +1402,7 @@ mod tests {
         ctx.mouse_x = win_x + 301.0 + 168.0 / 2.0;
         ctx.mouse_y = alliance_row_y + 13.0 / 2.0;
         ctx.mouse_right_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
         build_ctx.guild = Some(&guild);
         build_ctx.local_gid = 1;
@@ -1456,7 +1449,7 @@ mod tests {
         ctx.mouse_x = win_x + WIN_W - 76.0 + 9.0;
         ctx.mouse_y = content_y + 4.0 + 4.0 + 9.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
         build_ctx.guild = Some(&guild);
         build_ctx.local_gid = 1;
@@ -1467,7 +1460,7 @@ mod tests {
         ctx.mouse_x = win_x + WIN_W - 100.0 + 21.0;
         ctx.mouse_y = content_y + CONTENT_H - 27.0 + 4.0 + 10.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
         build_ctx.guild = Some(&guild);
         build_ctx.local_gid = 1;

@@ -499,7 +499,7 @@ impl App {
         match self.game.session.app_state {
             AppState::LoginServerSelect => {
                 if let (Some(ui_ctx), Some(renderer), Some(server_win)) = (
-                    &self.ui_context,
+                    &mut self.ui_context,
                     &self.renderer,
                     &mut self.login_server_list_window,
                 ) {
@@ -524,7 +524,7 @@ impl App {
                 }
             }
             AppState::Login => {
-                if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
+                if let (Some(ui_ctx), Some(renderer)) = (&mut self.ui_context, &self.renderer) {
                     let initial_focus = match self.login_window.focus {
                         LoginFocus::Username => Some(USERNAME_ID),
                         LoginFocus::Password => Some(PASSWORD_ID),
@@ -551,7 +551,7 @@ impl App {
             }
             AppState::ServerSelect => {
                 if let (Some(ui_ctx), Some(renderer), Some(server_win)) = (
-                    &self.ui_context,
+                    &mut self.ui_context,
                     &self.renderer,
                     &mut self.server_list_window,
                 ) {
@@ -577,7 +577,7 @@ impl App {
             }
             AppState::CharacterSelect => {
                 if let (Some(ui_ctx), Some(renderer), Some(char_win)) = (
-                    &self.ui_context,
+                    &mut self.ui_context,
                     &self.renderer,
                     &mut self.char_select_window,
                 ) {
@@ -603,7 +603,7 @@ impl App {
             }
             AppState::CharacterCreate => {
                 if let (Some(ui_ctx), Some(renderer), Some(create_win)) = (
-                    &self.ui_context,
+                    &mut self.ui_context,
                     &self.renderer,
                     &mut self.char_create_window,
                 ) {
@@ -629,7 +629,7 @@ impl App {
             }
             AppState::InGame => {
                 let render_list = self.compute_render_list();
-                if let (Some(ui_ctx), Some(renderer)) = (&self.ui_context, &self.renderer) {
+                if let (Some(ui_ctx), Some(renderer)) = (&mut self.ui_context, &self.renderer) {
                     let mut ui = UiFrame::new(
                         ui_ctx,
                         &renderer.font_atlas,
@@ -833,7 +833,6 @@ impl ApplicationHandler for App {
             WindowEvent::Focused(focused) => self.handle_focus_changed(focused),
             WindowEvent::MouseInput { state, button, .. } => self.handle_mouse_input(state, button),
             WindowEvent::CursorMoved { position, .. } => self.handle_cursor_moved(position),
-            WindowEvent::MouseWheel { delta, .. } => self.handle_mouse_wheel(delta),
             WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_input(event),
             WindowEvent::ModifiersChanged(modifiers) => self.handle_modifiers_changed(modifiers),
             WindowEvent::RedrawRequested => {
@@ -853,6 +852,7 @@ impl ApplicationHandler for App {
                     ui_events,
                 ) = self.build_ui(elapsed);
                 self.input.ui_hovered = ui_any_hovered;
+                self.apply_leftover_wheel();
                 if let Some(dirty) = self.windows.hotkey_config_window.take_dirty_bindings() {
                     self.config.keybindings = dirty.interface;
                     self.config.emotion_keys = dirty.emotion;

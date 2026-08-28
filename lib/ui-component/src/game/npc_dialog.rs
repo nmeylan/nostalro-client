@@ -704,17 +704,10 @@ mod tests {
     use crate::game::minimap_window::MINIMAP_WINDOW_ID;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn enter_triggers_next() {
@@ -727,7 +720,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let events = npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(events.len(), 1);
@@ -784,8 +777,8 @@ mod tests {
         let mut character = Character::new();
         let data = DataTable::new();
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(npc.dialog.menu_scroll_offset, 0);
@@ -793,7 +786,7 @@ mod tests {
 
         let mut ctx2 = UiContext::new(800.0, 600.0);
         ctx2.key_down = true;
-        let mut ui2 = make_frame(&ctx2, &mut state);
+        let mut ui2 = test_frame(&mut ctx2, &mut state);
 
         for _ in 0..6 {
             npc.build(&mut ui2, &mut crate::BuildCtx::test(&mut character, &data));
@@ -811,8 +804,8 @@ mod tests {
         let data = DataTable::new();
         let mut state = StateCache::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
@@ -824,22 +817,22 @@ mod tests {
         press_body.mouse_y = 400.0;
         press_body.mouse_clicked = true;
         press_body.mouse_down = true;
-        let mut ui = make_frame(&press_body, &mut state);
+        let mut ui = test_frame(&mut press_body, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut drag = UiContext::new(800.0, 600.0);
         drag.mouse_x = 250.0;
         drag.mouse_y = 440.0;
         drag.mouse_down = true;
-        let mut ui = make_frame(&drag, &mut state);
+        let mut ui = test_frame(&mut drag, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
             Some(&[MENU_DEFAULT_X + 40.0, MENU_DEFAULT_Y + 40.0])
         );
 
-        let release = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&release, &mut state);
+        let mut release = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut release, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut press_row = UiContext::new(800.0, 600.0);
@@ -847,14 +840,14 @@ mod tests {
         press_row.mouse_y = 355.0;
         press_row.mouse_clicked = true;
         press_row.mouse_down = true;
-        let mut ui = make_frame(&press_row, &mut state);
+        let mut ui = test_frame(&mut press_row, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         let mut drag_row = UiContext::new(800.0, 600.0);
         drag_row.mouse_x = 400.0;
         drag_row.mouse_y = 415.0;
         drag_row.mouse_down = true;
-        let mut ui = make_frame(&drag_row, &mut state);
+        let mut ui = test_frame(&mut drag_row, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             state.extract_window_positions().get(&NPC_MENU_WINDOW_ID.0),
@@ -869,10 +862,10 @@ mod tests {
         npc.dialog.show_menu(100, vec!["Buy".into(), "Sell".into()]);
         let mut state = StateCache::new();
 
-        let frame = |state: &mut StateCache, npc: &mut NpcDialog, ctx: &UiContext| -> bool {
+        let frame = |state: &mut StateCache, npc: &mut NpcDialog, ctx: &mut UiContext| -> bool {
             let mut character = Character::new();
             let data = DataTable::new();
-            let mut ui = make_frame(ctx, state);
+            let mut ui = test_frame(ctx, state);
             let z = ui.get_z_order();
             ui.compute_hovered_window(&z);
             ui.window_at(INV_WINDOW_ID, 280.0, 240.0, 15.0, 190.0, 290.0);
@@ -884,13 +877,13 @@ mod tests {
         raise_inventory.mouse_x = 300.0;
         raise_inventory.mouse_y = 500.0;
         raise_inventory.mouse_clicked = true;
-        frame(&mut state, &mut npc, &raise_inventory);
+        frame(&mut state, &mut npc, &mut raise_inventory);
 
         let mut click_row = UiContext::new(800.0, 600.0);
         click_row.mouse_x = 300.0;
         click_row.mouse_y = 330.0;
         click_row.mouse_clicked = true;
-        let claimed = frame(&mut state, &mut npc, &click_row);
+        let claimed = frame(&mut state, &mut npc, &mut click_row);
         assert_eq!(npc.dialog.selected_menu_index, 1);
         assert!(claimed, "the menu body must claim the pointer");
     }
@@ -902,10 +895,10 @@ mod tests {
         let mut state = StateCache::new();
 
         let frame =
-            |state: &mut StateCache, npc: &mut NpcDialog, ctx: &UiContext| -> Vec<GameEvent> {
+            |state: &mut StateCache, npc: &mut NpcDialog, ctx: &mut UiContext| -> Vec<GameEvent> {
                 let mut character = Character::new();
                 let data = DataTable::new();
-                let mut ui = make_frame(ctx, state);
+                let mut ui = test_frame(ctx, state);
                 let z = ui.get_z_order();
                 ui.compute_hovered_window(&z);
                 ui.window_at(CHAT_WINDOW_ID, 560.0, 200.0, 15.0, 0.0, 400.0);
@@ -917,13 +910,13 @@ mod tests {
         raise_chat.mouse_x = 50.0;
         raise_chat.mouse_y = 550.0;
         raise_chat.mouse_clicked = true;
-        frame(&mut state, &mut npc, &raise_chat);
+        frame(&mut state, &mut npc, &mut raise_chat);
 
         let mut click_buy = UiContext::new(800.0, 600.0);
         click_buy.mouse_x = 410.0;
         click_buy.mouse_y = 500.0;
         click_buy.mouse_clicked = true;
-        let events = frame(&mut state, &mut npc, &click_buy);
+        let events = frame(&mut state, &mut npc, &mut click_buy);
         assert!(
             matches!(
                 events.as_slice(),
@@ -946,8 +939,8 @@ mod tests {
         let data = DataTable::new();
         let mut state = StateCache::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         npc.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(npc.dialog.menu_scroll_offset, 0);
 
@@ -955,15 +948,15 @@ mod tests {
         ctx2.mouse_x = 300.0;
         ctx2.mouse_y = 340.0;
         ctx2.scroll_delta = -1.0; // scroll down
-        let mut ui2 = make_frame(&ctx2, &mut state);
+        let mut ui2 = test_frame(&mut ctx2, &mut state);
         npc.build(&mut ui2, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             npc.dialog.menu_scroll_offset, 1,
             "mouse wheel should scroll down"
         );
 
-        let ctx3 = UiContext::new(800.0, 600.0);
-        let mut ui3 = make_frame(&ctx3, &mut state);
+        let mut ctx3 = UiContext::new(800.0, 600.0);
+        let mut ui3 = test_frame(&mut ctx3, &mut state);
         npc.build(&mut ui3, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(
             npc.dialog.menu_scroll_offset, 1,

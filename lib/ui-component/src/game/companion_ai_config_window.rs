@@ -1761,23 +1761,12 @@ impl Window for CompanionAiConfigWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn frame<'a>(
-        ctx: &'a UiContext,
-        atlas: &'a FontAtlas,
-        state: &'a mut StateCache,
-    ) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn tactic_enum_select_opens_then_applies_pick() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut cfg = CompanionAiConfig::default();
         let mut win = CompanionAiConfigWindow::new();
@@ -1793,7 +1782,7 @@ mod tests {
         ctx.mouse_y = box_y + 7.0;
         ctx.mouse_clicked = true;
         {
-            let mut ui = frame(&ctx, &atlas, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build_body(&mut ui, &mut cfg);
         }
         assert_eq!(win.open_enum, Some(ROW_WIDGET_BASE));
@@ -1804,7 +1793,7 @@ mod tests {
         ctx.mouse_y = box_y + 15.0 + 8.0; // first option, just below the closed box
         ctx.mouse_clicked = true;
         {
-            let mut ui = frame(&ctx, &atlas, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build_body(&mut ui, &mut cfg);
         }
         assert_eq!(i32::from(cfg.homunculus_tactics[0].basic), picked);

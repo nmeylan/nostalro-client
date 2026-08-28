@@ -137,29 +137,19 @@ mod tests {
     use super::*;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::frame::TextInputBg::Default;
-    use ragnarok_ui::state::StateCache;
 
-    fn make_frame_with_elapsed<'a>(
-        ctx: &'a UiContext,
-        state: &'a mut StateCache,
-        elapsed: f32,
-    ) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, elapsed, false, None, positions)
-    }
+    use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::TestFrame;
 
     #[test]
     fn empty_notification_no_draws() {
         let mut notif = ItemPickupNotification::new();
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = TestFrame::new().elapsed(0.0).build(&mut ctx, &mut state);
         let mut character = Character::new();
         notif.build(
             &mut ui,
@@ -173,8 +163,8 @@ mod tests {
         let mut notif = ItemPickupNotification::new();
         notif.show("Red Potion".to_string(), 5, None);
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame_with_elapsed(&ctx, &mut state, 1.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = TestFrame::new().elapsed(1.0).build(&mut ctx, &mut state);
         let mut character = Character::new();
         notif.build(
             &mut ui,
@@ -190,9 +180,9 @@ mod tests {
         notif.show("Red Potion".to_string(), 5, None);
 
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
 
-        let mut ui = make_frame_with_elapsed(&ctx, &mut state, 0.0);
+        let mut ui = TestFrame::new().elapsed(0.0).build(&mut ctx, &mut state);
         let mut character = Character::new();
         notif.build(
             &mut ui,
@@ -200,7 +190,7 @@ mod tests {
         );
         assert!(!notif.is_empty());
 
-        let mut ui = make_frame_with_elapsed(&ctx, &mut state, 5.0);
+        let mut ui = TestFrame::new().elapsed(5.0).build(&mut ctx, &mut state);
         let mut character = Character::new();
         notif.build(
             &mut ui,

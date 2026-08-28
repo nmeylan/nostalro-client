@@ -340,19 +340,12 @@ impl Window for ConfirmDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
     use std::cell::RefCell;
     use std::rc::Rc;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
 
     #[test]
     fn close_without_cancel_calls_ok() {
@@ -395,7 +388,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
         {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             dialog.build(&mut ui);
         }
         assert_eq!(*callback_result.borrow(), Some(ConfirmResult::Ok));
@@ -416,8 +409,8 @@ mod tests {
         dialog.show_message(long);
 
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         dialog.build(&mut ui);
 
         assert!(font_atlas_draw_calls(&ui) > 1);
@@ -427,8 +420,8 @@ mod tests {
     fn build_with_no_state_returns_early() {
         let mut dialog = ConfirmDialog::new();
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         dialog.build(&mut ui);
     }

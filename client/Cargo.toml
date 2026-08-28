@@ -23,5 +23,8 @@ serde_json = { workspace = true }
 winit = { workspace = true }
 tokio = { workspace = true }
 
+[dev-dependencies]
+ragnarok-ui = { workspace = true, features = ["test-support"] }
+
 [features]
 profiling = ["ragnarok-profiling/profiling", "ragnarok-profiling/puffin"]

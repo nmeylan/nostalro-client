@@ -261,20 +261,13 @@ impl Window for LoginWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::TestFrame;
 
     fn make_ctx() -> UiContext {
         UiContext::new(800.0, 600.0)
-    }
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, Some(USERNAME_ID), positions)
     }
 
     #[test]
@@ -286,11 +279,15 @@ mod tests {
 
         let mut ctx = make_ctx();
         ctx.key_tab = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = TestFrame::new()
+            .focus(USERNAME_ID)
+            .build(&mut ctx, &mut state);
         login.build(&mut ui);
         assert_eq!(login.focus, LoginFocus::Password);
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = TestFrame::new()
+            .focus(USERNAME_ID)
+            .build(&mut ctx, &mut state);
         login.build(&mut ui);
         assert_eq!(login.focus, LoginFocus::Username);
         assert_eq!(login.username.cursor_pos, 5);
@@ -305,7 +302,9 @@ mod tests {
 
         let mut ctx = make_ctx();
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = TestFrame::new()
+            .focus(USERNAME_ID)
+            .build(&mut ctx, &mut state);
         let events = login.build(&mut ui);
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -324,7 +323,9 @@ mod tests {
 
         let mut ctx = make_ctx();
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = TestFrame::new()
+            .focus(USERNAME_ID)
+            .build(&mut ctx, &mut state);
         let events = login.build(&mut ui);
         assert!(events.is_empty());
     }
@@ -345,7 +346,9 @@ mod tests {
         ctx.mouse_y = keep_y + FALLBACK_KEEP_H / 2.0;
         ctx.mouse_clicked = true;
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = TestFrame::new()
+            .focus(USERNAME_ID)
+            .build(&mut ctx, &mut state);
         login.build(&mut ui);
         assert!(login.keep_id);
     }

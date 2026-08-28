@@ -651,17 +651,10 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::quest::{QuestListEntry, QuestObjective};
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn right_click_row_requests_active_toggle() {
@@ -692,7 +685,7 @@ mod tests {
         ctx.mouse_x = TAB_STRIP_W + 40.0;
         ctx.mouse_y = 120.0 + TITLE_H + ROW_H / 2.0;
         ctx.mouse_right_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let mut build_ctx = crate::BuildCtx::test(&mut character, &data);
         build_ctx.quest_log = &log;
         let events = win.build(&mut ui, &mut build_ctx);

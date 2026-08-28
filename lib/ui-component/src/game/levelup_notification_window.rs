@@ -120,17 +120,10 @@ impl Window for LevelUpNotificationWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn clicking_base_icon_returns_base_and_dismisses() {
@@ -144,7 +137,7 @@ mod tests {
         ctx.mouse_y = 600.0 - h - BOTTOM_MARGIN + h / 2.0;
         ctx.mouse_clicked = true;
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         assert_eq!(win.build(&mut ui), LevelUpClick::Base);
         assert_eq!(win.build(&mut ui), LevelUpClick::None);
     }
@@ -167,7 +160,7 @@ mod tests {
         ctx.mouse_y = 600.0 - h - BOTTOM_MARGIN + h / 2.0;
 
         {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             ui.compute_hovered_window(&z_order);
             ui.enter_window(CHAT_ID, chat_rect);
             ui.enter_window(MINIMAP_ID, minimap_rect);
@@ -175,7 +168,7 @@ mod tests {
         }
 
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.compute_hovered_window(&z_order);
         assert_eq!(ui.hovered_window(), Some(CHAT_ID));
         ui.enter_window(CHAT_ID, chat_rect);

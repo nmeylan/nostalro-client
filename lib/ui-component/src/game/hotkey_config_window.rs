@@ -542,17 +542,10 @@ mod tests {
     use super::*;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn staged_capture_flow_across_tabs_produces_dirty_bindings_once() {
@@ -584,8 +577,8 @@ mod tests {
         assert!(win.warning.is_some());
 
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 700.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 700.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let mut character = Character::new();
         let data = DataTable::new();
         win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));

@@ -160,23 +160,13 @@ fn down_arrow(ui: &mut UiFrame, cx: f32, top: f32, color: [f32; 4]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(
-        ctx: &'a UiContext,
-        atlas: &'a FontAtlas,
-        state: &'a mut StateCache,
-    ) -> UiFrame<'a> {
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn opens_on_box_click_then_selects_option_next_frame() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let mut dd = Dropdown::default();
         let labels = ["Leader", "Officer", "Member"];
@@ -187,7 +177,7 @@ mod tests {
         ctx.mouse_x = 110.0;
         ctx.mouse_y = 105.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         dd.begin_frame();
         let resp = dd.show(
             &mut ui,
@@ -207,7 +197,7 @@ mod tests {
         ctx.mouse_x = 110.0;
         ctx.mouse_y = overlay.y + OPTION_H + 8.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         dd.begin_frame();
         let resp = dd.show(
             &mut ui,

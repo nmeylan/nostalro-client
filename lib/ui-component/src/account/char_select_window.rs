@@ -613,9 +613,10 @@ impl Window for CharSelectWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
 
     fn character(slot: i8, name: &str) -> CharacterInfo {
         CharacterInfo {
@@ -650,14 +651,6 @@ mod tests {
         }
     }
 
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
-
     #[test]
     fn arrow_keys_move_selection_across_slots() {
         let mut win = CharSelectWindow::new(vec![character(0, "Knight"), character(2, "Hunter")]);
@@ -666,7 +659,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_right = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         win.build(&mut ui);
         assert_eq!(win.selected_slot(), 1);
     }
@@ -679,7 +672,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(
             events
@@ -697,7 +690,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(
             events
@@ -712,7 +705,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui);
         }
         let (ox, oy) = win.win_origin;
@@ -720,7 +713,7 @@ mod tests {
         ctx.mouse_y = oy + SLOT_TOP + SLOT_H / 2.0;
         ctx.mouse_double_clicked = true;
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(
             events
@@ -736,7 +729,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
         assert!(
             events
@@ -768,7 +761,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
 
         assert!(events.iter().any(|e| matches!(
@@ -790,8 +783,8 @@ mod tests {
         win.open_delete_dialog(gid, 0);
         let mut state = StateCache::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         win.build(&mut ui);
 
         let insert = win.sprite_insert_index().expect("index recorded");
@@ -807,7 +800,7 @@ mod tests {
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui);
 
         assert!(events.iter().any(|e| matches!(

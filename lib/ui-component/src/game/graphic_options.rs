@@ -410,17 +410,10 @@ mod tests {
     use crate::InGameWindow;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     fn build_at(
         win: &mut GraphicOptionsWindow,
@@ -433,7 +426,7 @@ mod tests {
             ctx.mouse_y = y;
             ctx.mouse_clicked = true;
         }
-        let mut ui = make_frame(&ctx, state);
+        let mut ui = test_frame(&mut ctx, state);
         let mut character = Character::new();
         let data = DataTable::new();
         win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))

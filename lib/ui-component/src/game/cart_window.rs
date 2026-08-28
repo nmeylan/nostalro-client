@@ -438,17 +438,11 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::frame::DragState;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = Box::leak(Box::new(FontAtlas::from_embedded(14.0, 1.0)));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     fn potion(index: u16, count: i16) -> Item {
         Item {
@@ -485,7 +479,7 @@ mod tests {
         ctx.mouse_y = 157.0;
         ctx.mouse_right_clicked = true;
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
 
@@ -520,7 +514,7 @@ mod tests {
         ctx.mouse_x = 108.0;
         ctx.mouse_y = 157.0;
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(
@@ -535,7 +529,7 @@ mod tests {
         let mut ctx = UiContext::new(1024.0, 768.0);
         ctx.key_enter = true;
         let events = {
-            let mut ui = make_frame(&ctx, &mut state);
+            let mut ui = test_frame(&mut ctx, &mut state);
             win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
         };
         assert!(

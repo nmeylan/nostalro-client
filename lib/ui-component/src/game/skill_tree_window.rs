@@ -513,9 +513,9 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::skill::SkillData;
-    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
 
     fn character_with_upgradable_skill() -> Character {
         let mut character = Character::new();
@@ -539,9 +539,6 @@ mod tests {
         let mut character = character_with_upgradable_skill();
         let data = DataTable::new();
         let mut state = StateCache::new();
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
 
         let (lup_w, lup_h) = win.levelup_btn_size;
         let type_x = 400.0 + WIN_W - SCROLLBAR_W - PAD_X - 50.0;
@@ -553,7 +550,7 @@ mod tests {
         ctx.mouse_y = btn_y + lup_h / 2.0;
         ctx.mouse_clicked = true;
         ctx.mouse_double_clicked = true;
-        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, None, positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let events = win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
 
         assert!(

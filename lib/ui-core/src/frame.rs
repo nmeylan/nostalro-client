@@ -16,7 +16,7 @@ pub enum TextInputBg<'a> {
 }
 
 pub struct UiFrame<'a> {
-    pub ctx: &'a UiContext,
+    pub ctx: &'a mut UiContext,
     pub atlas: &'a FontAtlas,
     pub state: &'a mut StateCache,
     pub elapsed_secs: f32,
@@ -34,7 +34,6 @@ pub struct UiFrame<'a> {
     modal_layers: Vec<WidgetId>,
     in_popup_layer: bool,
     keyboard_blocked: bool,
-    escape_consumed: bool,
 }
 
 #[derive(Default)]
@@ -255,7 +254,7 @@ pub struct SliderResponse {
 
 impl<'a> UiFrame<'a> {
     pub fn new(
-        ctx: &'a UiContext,
+        ctx: &'a mut UiContext,
         atlas: &'a FontAtlas,
         state: &'a mut StateCache,
         elapsed_secs: f32,
@@ -285,7 +284,6 @@ impl<'a> UiFrame<'a> {
             modal_layers: Vec::new(),
             in_popup_layer: false,
             keyboard_blocked: false,
-            escape_consumed: false,
         }
     }
 
@@ -301,7 +299,7 @@ impl<'a> UiFrame<'a> {
     }
 
     pub fn escape_pressed(&self) -> bool {
-        self.ctx.key_escape && !self.keyboard_blocked && !self.escape_consumed
+        self.ctx.key_escape && !self.keyboard_blocked
     }
 
     /// Claims the Escape key for this frame. Escape has exactly one consumer:
@@ -310,7 +308,7 @@ impl<'a> UiFrame<'a> {
         if !self.escape_pressed() {
             return false;
         }
-        self.escape_consumed = true;
+        self.ctx.key_escape = false;
         true
     }
 
@@ -446,6 +444,17 @@ impl<'a> UiFrame<'a> {
     pub fn pointer_available(&self) -> bool {
         (self.in_popup_layer || !self.is_current_window_occluded())
             && !self.pointer_blocked_by_popup()
+    }
+
+    /// Claims the wheel for `rect`. Returns 0.0 when the pointer is elsewhere or
+    /// when the window being built is not the one the pointer belongs to, so a
+    /// covered window never scrolls. What is left in the context is what no
+    /// widget wanted.
+    pub fn take_scroll(&mut self, rect: Rect) -> f32 {
+        if !rect.contains(self.ctx.mouse_x, self.ctx.mouse_y) || !self.pointer_available() {
+            return 0.0;
+        }
+        std::mem::take(&mut self.ctx.scroll_delta)
     }
 
     fn pointer_blocked_by_popup(&self) -> bool {
@@ -1183,39 +1192,58 @@ mod tests {
     use super::*;
     use crate::context::UiContext;
     use crate::state::StateCache;
-    use ragnarok_renderer::font_atlas::FontAtlas;
-
-    fn make_frame<'a>(
-        ctx: &'a UiContext,
-        atlas: &'a FontAtlas,
-        state: &'a mut StateCache,
-        saved_positions: &'a HashMap<u32, [f32; 2]>,
-    ) -> UiFrame<'a> {
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, saved_positions)
-    }
+    use crate::test_support::{TestFrame, test_frame};
 
     #[test]
     fn only_the_first_caller_gets_escape() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
         let mut state = StateCache::new();
-        let positions = HashMap::new();
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         assert!(ui.escape_pressed());
         assert!(ui.take_escape());
         assert!(!ui.take_escape());
         assert!(!ui.escape_pressed());
+
+        drop(ui);
+        assert!(!ctx.key_escape);
+    }
+
+    #[test]
+    fn only_the_topmost_window_scrolls() {
+        let mut state = StateCache::new();
+        let back = WidgetId(100);
+        let front = WidgetId(200);
+        let overlap = Rect::new(100.0, 80.0, 150.0, 120.0);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
+        ui.window_at(back, 200.0, 150.0, 25.0, 50.0, 50.0);
+        ui.window_at(front, 200.0, 150.0, 25.0, 100.0, 80.0);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 150.0;
+        ctx.mouse_y = 120.0;
+        ctx.scroll_delta = 1.0;
+        let mut ui = test_frame(&mut ctx, &mut state);
+        let z = ui.get_z_order();
+        ui.compute_hovered_window(&z);
+
+        ui.window_at(back, 200.0, 150.0, 25.0, 50.0, 50.0);
+        assert_eq!(ui.take_scroll(overlap), 0.0);
+        ui.window_at(front, 200.0, 150.0, 25.0, 100.0, 80.0);
+        assert_eq!(ui.take_scroll(overlap), 1.0);
+
+        drop(ui);
+        assert_eq!(ctx.scroll_delta, 0.0);
     }
 
     #[test]
     fn window_centers_on_first_call() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let ctx = UiContext::new(800.0, 600.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         let rect = ui.window(WidgetId(999), 200.0, 100.0, 25.0);
         assert_eq!(rect.x, 300.0);
@@ -1226,9 +1254,7 @@ mod tests {
 
     #[test]
     fn window_account_locked_is_centered_and_ignores_drag() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
         let id = WidgetId(999);
 
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1237,7 +1263,7 @@ mod tests {
         ctx.mouse_y = 260.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window_account(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
 
@@ -1246,16 +1272,14 @@ mod tests {
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window_account(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
     }
 
     #[test]
     fn window_account_unlocked_is_draggable() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
         let id = WidgetId(999);
 
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1263,27 +1287,25 @@ mod tests {
         ctx.mouse_y = 260.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_account(id, 200.0, 100.0, 25.0);
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window_account(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
     }
 
     #[test]
     fn window_drag_moves_position() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
 
@@ -1292,35 +1314,33 @@ mod tests {
         ctx.mouse_y = 260.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window(id, 200.0, 100.0, 25.0);
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 400.0;
         ctx.mouse_y = 280.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (350.0, 270.0));
     }
 
     #[test]
     fn seed_window_position_places_once_and_survives_drag() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
-        let positions = HashMap::new();
 
         // Seeded position overrides the window's own default.
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.seed_window_position(id, 40.0, 60.0);
         let rect = ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
         assert_eq!((rect.x, rect.y), (40.0, 60.0));
@@ -1331,19 +1351,19 @@ mod tests {
         ctx.mouse_y = 70.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 120.0;
         ctx.mouse_y = 140.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
         assert_eq!((rect.x, rect.y), (110.0, 130.0));
 
         // A later seed must not yank it back.
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.seed_window_position(id, 40.0, 60.0);
         let rect = ui.window_at(id, 200.0, 100.0, 25.0, 0.0, 0.0);
         assert_eq!((rect.x, rect.y), (110.0, 130.0));
@@ -1351,10 +1371,8 @@ mod tests {
 
     #[test]
     fn slider_click_sets_value_and_release_flags() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(42);
-        let positions = HashMap::new();
         let rect = Rect::new(100.0, 100.0, 200.0, 20.0);
         let mut value = 0.0f32;
 
@@ -1364,29 +1382,27 @@ mod tests {
         ctx.mouse_y = 108.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let resp = ui.slider(id, rect, &mut value, 0.0, 1.0);
         assert!(resp.changed);
         assert!(!resp.released);
         assert!((value - 0.75).abs() < 0.01);
 
         // Release: not down this frame → released flag set once.
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let resp = ui.slider(id, rect, &mut value, 0.0, 1.0);
         assert!(resp.released);
     }
 
     #[test]
     fn stacked_windows_only_topmost_drags() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(1);
         let id_b = WidgetId(2);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
         ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
 
@@ -1395,7 +1411,7 @@ mod tests {
         ctx.mouse_y = 110.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
         ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
 
@@ -1403,7 +1419,7 @@ mod tests {
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 150.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect_a = ui.window_at(id_a, 200.0, 100.0, 25.0, 100.0, 100.0);
         let rect_b = ui.window_at(id_b, 200.0, 100.0, 25.0, 100.0, 100.0);
 
@@ -1413,38 +1429,34 @@ mod tests {
 
     #[test]
     fn window_restores_saved_position() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let ctx = UiContext::new(800.0, 600.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
         let mut state = StateCache::new();
-        let mut positions = HashMap::new();
-        positions.insert(999, [50.0, 75.0]);
-
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = TestFrame::new()
+            .positions(HashMap::from([(999, [50.0, 75.0])]))
+            .build(&mut ctx, &mut state);
         let rect = ui.window(WidgetId(999), 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (50.0, 75.0));
     }
 
     #[test]
     fn interact_hover_click_and_focus() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(50);
         let id_b = WidgetId(51);
         let rect_a = Rect::new(10.0, 10.0, 100.0, 30.0);
         let rect_b = Rect::new(10.0, 50.0, 100.0, 30.0);
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let r = ui.interact(id_a, rect_a);
         assert!(r.hovered());
         assert!(!r.clicked());
         assert!(!r.has_focus());
 
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let r = ui.interact(id_a, rect_a);
         assert!(r.clicked());
         assert!(r.has_focus());
@@ -1452,7 +1464,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 65.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
@@ -1461,7 +1473,7 @@ mod tests {
         assert!(!rb.clicked());
 
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(ra.has_focus()); // still on id_a until the id_b click below moves it
@@ -1472,7 +1484,7 @@ mod tests {
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 200.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let ra = ui.interact(id_a, rect_a);
         let rb = ui.interact(id_b, rect_b);
         assert!(!ra.hovered());
@@ -1483,9 +1495,7 @@ mod tests {
 
     #[test]
     fn text_input_click_focuses_then_receives_typing_next_frame() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
         let id = WidgetId(70);
         let rect = Rect::new(10.0, 10.0, 100.0, 20.0);
         let mut input = TextInput::new(24, false);
@@ -1495,7 +1505,7 @@ mod tests {
         ctx.mouse_y = 15.0;
         ctx.mouse_clicked = true;
         {
-            let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+            let mut ui = test_frame(&mut ctx, &mut state);
             let r = ui.text_input(id, rect, &mut input, TextInputBg::Default);
             assert!(r.has_focus());
         }
@@ -1503,7 +1513,7 @@ mod tests {
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.typed_chars = vec!['h', 'i'];
         {
-            let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+            let mut ui = test_frame(&mut ctx, &mut state);
             ui.text_input(id, rect, &mut input, TextInputBg::Default);
         }
         assert_eq!(input.text, "hi");
@@ -1511,13 +1521,11 @@ mod tests {
 
     #[test]
     fn window_click_outside_title_bar_does_not_drag() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id = WidgetId(999);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window(id, 200.0, 100.0, 25.0);
 
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -1525,23 +1533,21 @@ mod tests {
         ctx.mouse_y = 290.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window(id, 200.0, 100.0, 25.0);
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 500.0;
         ctx.mouse_y = 400.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window(id, 200.0, 100.0, 25.0);
         assert_eq!((rect.x, rect.y), (300.0, 250.0));
     }
 
     #[test]
     fn a_window_closed_from_its_title_bar_reopens_where_it_was() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
         let id = WidgetId(4242);
 
         let mut ctx = UiContext::new(1024.0, 768.0);
@@ -1549,13 +1555,13 @@ mod tests {
         ctx.mouse_y = 305.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id, 280.0, 200.0, 17.0, 500.0, 300.0);
 
         for down in [true, false] {
             let mut ctx = UiContext::new(1024.0, 768.0);
             ctx.mouse_down = down;
-            make_frame(&ctx, &atlas, &mut state, &positions);
+            test_frame(&mut ctx, &mut state);
         }
 
         let mut ctx = UiContext::new(1024.0, 768.0);
@@ -1563,42 +1569,38 @@ mod tests {
         ctx.mouse_y = 640.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let rect = ui.window_at(id, 280.0, 200.0, 17.0, 500.0, 300.0);
         assert_eq!((rect.x, rect.y), (500.0, 300.0));
     }
 
     #[test]
     fn any_hovered_tracks_widget_hover() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.interact(WidgetId(1), rect);
         assert!(!ui.any_hovered);
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
     }
 
     #[test]
     fn interactive_hovered_false_for_plain_interact() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.interact(WidgetId(1), rect);
         assert!(ui.any_hovered);
         assert!(!ui.any_interactive_hovered);
@@ -1606,16 +1608,14 @@ mod tests {
 
     #[test]
     fn button_fallback_draws_procedural_geometry_not_named_texture() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
         let textures = ButtonTextures {
             normal: "n",
             hover: "h",
             pressed: "p",
         };
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
 
         ui.button(
             WidgetId(1),
@@ -1641,7 +1641,6 @@ mod tests {
 
     #[test]
     fn interactive_hovered_true_for_button() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 100.0, 30.0);
         let textures = ButtonTextures {
@@ -1649,12 +1648,11 @@ mod tests {
             hover: "h",
             pressed: "p",
         };
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.button(WidgetId(1), rect, &textures, "Test");
         assert!(ui.any_hovered);
         assert!(ui.any_interactive_hovered);
@@ -1662,16 +1660,14 @@ mod tests {
 
     #[test]
     fn interactive_hovered_true_for_text_input() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let rect = Rect::new(10.0, 10.0, 200.0, 30.0);
         let mut input = TextInput::new(100, false);
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 25.0;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.text_input(WidgetId(1), rect, &mut input, TextInputBg::Default);
         assert!(ui.any_hovered);
         assert!(ui.any_interactive_hovered);
@@ -1679,18 +1675,16 @@ mod tests {
 
     #[test]
     fn drag_and_drop_lifecycle() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let source = WidgetId(10);
         let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.drag_source(source, 3, None, (24.0, 24.0));
         assert!(!ui.is_dragging());
         ui.draw_drag_icon();
@@ -1699,7 +1693,7 @@ mod tests {
         ctx.mouse_x = 60.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
@@ -1707,7 +1701,7 @@ mod tests {
         ctx.mouse_x = 300.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = false;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let result = ui.drop_zone(drop_rect);
         assert_eq!(result, Some((source, 3)));
         assert!(!ui.is_dragging());
@@ -1715,17 +1709,15 @@ mod tests {
 
     #[test]
     fn drag_cancelled_on_release_outside_drop_zone() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let source = WidgetId(10);
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.drag_source(source, 0, None, (24.0, 24.0));
         ui.draw_drag_icon();
 
@@ -1733,12 +1725,12 @@ mod tests {
         ctx.mouse_x = 60.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let cancelled = ui.draw_drag_icon();
         assert!(!ui.is_dragging());
         assert_eq!(
@@ -1752,18 +1744,16 @@ mod tests {
 
     #[test]
     fn draw_drag_icon_returns_none_when_drop_zone_consumed() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let source = WidgetId(10);
         let drop_rect = Rect::new(200.0, 0.0, 200.0, 100.0);
-        let positions = HashMap::new();
 
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.mouse_x = 50.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_clicked = true;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.drag_source(source, 5, None, (24.0, 24.0));
         ui.draw_drag_icon();
 
@@ -1771,7 +1761,7 @@ mod tests {
         ctx.mouse_x = 60.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.draw_drag_icon();
         assert!(ui.is_dragging());
 
@@ -1779,7 +1769,7 @@ mod tests {
         ctx.mouse_x = 300.0;
         ctx.mouse_y = 50.0;
         ctx.mouse_down = false;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let drop_result = ui.drop_zone(drop_rect);
         assert_eq!(drop_result, Some((source, 5)));
         let cancelled = ui.draw_drag_icon();
@@ -1788,14 +1778,12 @@ mod tests {
 
     #[test]
     fn click_on_window_brings_to_front() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(100);
         let id_b = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
         let z = ui.get_z_order();
@@ -1807,12 +1795,12 @@ mod tests {
         ctx.mouse_x = 70.0;
         ctx.mouse_y = 120.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         assert_eq!(z[0], id_b);
         assert_eq!(z[1], id_a);
@@ -1820,14 +1808,12 @@ mod tests {
 
     #[test]
     fn clicking_topmost_window_keeps_z_order() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(100);
         let id_b = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
@@ -1835,12 +1821,12 @@ mod tests {
         ctx.mouse_x = 200.0;
         ctx.mouse_y = 150.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         assert_eq!(z[0], id_a);
         assert_eq!(z[1], id_b);
@@ -1848,14 +1834,12 @@ mod tests {
 
     #[test]
     fn interact_blocked_by_overlapping_topmost_window() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(100);
         let id_b = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
@@ -1863,7 +1847,7 @@ mod tests {
         ctx.mouse_x = 150.0;
         ctx.mouse_y = 120.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         ui.compute_hovered_window(&z);
 
@@ -1888,14 +1872,12 @@ mod tests {
 
     #[test]
     fn interact_not_blocked_in_non_overlapping_area() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(100);
         let id_b = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 200.0, 80.0);
 
@@ -1903,7 +1885,7 @@ mod tests {
         ctx.mouse_x = 70.0;
         ctx.mouse_y = 120.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         ui.compute_hovered_window(&z);
 
@@ -1922,14 +1904,12 @@ mod tests {
 
     #[test]
     fn bring_to_front_blocked_when_occluded() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(100);
         let id_b = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
@@ -1937,14 +1917,14 @@ mod tests {
         ctx.mouse_x = 150.0;
         ctx.mouse_y = 120.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         ui.compute_hovered_window(&z);
         ui.window_at(id_a, 200.0, 150.0, 25.0, 50.0, 50.0);
         ui.window_at(id_b, 200.0, 150.0, 25.0, 100.0, 80.0);
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         assert_eq!(z[0], id_a);
         assert_eq!(z[1], id_b);
@@ -1952,14 +1932,12 @@ mod tests {
 
     #[test]
     fn foreground_window_wins_over_middle() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_mid = WidgetId(100);
         let id_fg = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.ensure_in_z_order(id_mid);
         ui.enter_window(id_mid, Rect::new(50.0, 50.0, 200.0, 150.0));
         ui.ensure_in_z_order_with(id_fg, WindowOrder::Foreground);
@@ -1969,7 +1947,7 @@ mod tests {
         ctx.mouse_x = 100.0;
         ctx.mouse_y = 100.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         ui.compute_hovered_window(&z);
 
@@ -1993,13 +1971,11 @@ mod tests {
 
     #[test]
     fn popup_layer_blocks_widgets_behind_but_not_its_own() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let positions = HashMap::new();
         let popup = Rect::new(100.0, 100.0, 80.0, 60.0);
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.compute_hovered_window(&[]);
         ui.begin_popup_layer(popup);
         ui.end_popup_layer();
@@ -2008,7 +1984,7 @@ mod tests {
         ctx.mouse_x = 120.0;
         ctx.mouse_y = 120.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.compute_hovered_window(&[]);
 
         let behind = ui.interact(WidgetId(1), popup);
@@ -2023,14 +1999,12 @@ mod tests {
 
     #[test]
     fn passthrough_window_does_not_block_interaction() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_win = WidgetId(100);
         let id_tooltip = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.ensure_in_z_order(id_win);
         ui.enter_window(id_win, Rect::new(50.0, 50.0, 200.0, 150.0));
         ui.ensure_in_z_order_with(id_tooltip, WindowOrder::Tooltip);
@@ -2040,7 +2014,7 @@ mod tests {
         ctx.mouse_x = 100.0;
         ctx.mouse_y = 90.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         let z = ui.get_z_order();
         ui.compute_hovered_window(&z);
 
@@ -2058,14 +2032,12 @@ mod tests {
 
     #[test]
     fn modal_blocks_all_non_modal_windows() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_bg = WidgetId(100);
         let id_modal = WidgetId(200);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.ensure_in_z_order(id_bg);
         ui.enter_window(id_bg, Rect::new(50.0, 50.0, 100.0, 100.0));
         ui.ensure_in_z_order(id_modal);
@@ -2075,7 +2047,7 @@ mod tests {
         ctx.mouse_x = 80.0;
         ctx.mouse_y = 80.0;
         ctx.mouse_clicked = true;
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.set_modal(&[id_modal]);
         let z = ui.get_z_order();
         ui.compute_hovered_window(&z);
@@ -2094,15 +2066,13 @@ mod tests {
 
     #[test]
     fn bring_to_front_respects_category_boundary() {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
         let id_a = WidgetId(100);
         let id_b = WidgetId(200);
         let id_fg = WidgetId(300);
-        let positions = HashMap::new();
 
-        let ctx = UiContext::new(800.0, 600.0);
-        let mut ui = make_frame(&ctx, &atlas, &mut state, &positions);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ctx, &mut state);
         ui.ensure_in_z_order(id_a);
         ui.ensure_in_z_order(id_b);
         ui.ensure_in_z_order_with(id_fg, WindowOrder::Foreground);

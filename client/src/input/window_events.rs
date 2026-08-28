@@ -14,7 +14,7 @@ use ragnarok_ui::context::{DOUBLE_CLICK_DISTANCE, DOUBLE_CLICK_THRESHOLD_MS};
 use ragnarok_ui_component::game::context_menu::{ContextMenuAction, ContextMenuItem};
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDelta};
+use winit::event::{ElementState, KeyEvent, Modifiers, MouseButton};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
@@ -411,19 +411,20 @@ impl App {
         }
     }
 
-    pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if self.game.session.app_state == AppState::InGame && !self.input.ui_hovered {
-            let notches = match delta {
-                MouseScrollDelta::LineDelta(_, y) => y,
-                MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 40.0,
-            };
-            if notches == 0.0 {
-                return;
-            }
-            let control = self.camera_control();
-            if let Some(renderer) = &mut self.renderer {
-                renderer.camera.apply_wheel(notches, control);
-            }
+    pub(crate) fn apply_leftover_wheel(&mut self) {
+        if self.game.session.app_state != AppState::InGame {
+            return;
+        }
+        let notches = match &mut self.ui_context {
+            Some(ctx) => std::mem::take(&mut ctx.scroll_delta),
+            None => return,
+        };
+        if notches == 0.0 {
+            return;
+        }
+        let control = self.camera_control();
+        if let Some(renderer) = &mut self.renderer {
+            renderer.camera.apply_wheel(notches, control);
         }
     }
 
@@ -668,6 +669,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use ragnarok_ui::test_support::TestFrame;
 
     #[test]
     fn resized_window_size_survives_a_config_round_trip() {
@@ -683,9 +685,7 @@ mod tests {
 
     #[test]
     fn a_window_left_closed_for_a_whole_session_still_reopens_where_it_was() {
-        use ragnarok_renderer::font_atlas::FontAtlas;
         use ragnarok_ui::context::UiContext;
-        use ragnarok_ui::frame::UiFrame;
         use ragnarok_ui::state::StateCache;
         use ragnarok_ui_component::game::inventory_window::INV_WINDOW_ID;
         use ragnarok_ui_component::game::storage_window::STORAGE_WINDOW_ID;
@@ -710,10 +710,11 @@ mod tests {
             .map(|(&id, entry)| (id, entry.position))
             .collect();
 
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
         let mut state = StateCache::new();
-        let ctx = UiContext::new(1024.0, 768.0);
-        let mut ui = UiFrame::new(&ctx, &atlas, &mut state, 0.0, false, None, &saved);
+        let mut ctx = UiContext::new(1024.0, 768.0);
+        let mut ui = TestFrame::new()
+            .positions(saved)
+            .build(&mut ctx, &mut state);
         let storage = ui.window_at(STORAGE_WINDOW_ID, 280.0, 300.0, 17.0, 320.0, 80.0);
         let inventory = ui.window_at(INV_WINDOW_ID, 280.0, 300.0, 17.0, 0.0, 0.0);
         assert_eq!((storage.x, storage.y), (500.0, 300.0));

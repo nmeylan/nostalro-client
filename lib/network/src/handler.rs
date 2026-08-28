@@ -3314,7 +3314,11 @@ fn parse_ranking(name_raw: &[u8], point_raw: &[u8]) -> Vec<(String, i32)> {
 
 fn parse_skill_info_list(list: &[packets::packets::SKILLINFO]) -> Vec<SkillInfo> {
     list.iter()
-        .map(|s| SkillInfo {
+        .map(|s|
+            // if let Ok(skill) = SkillEnum::from_name(s.skid as u32) {
+
+            // }
+            SkillInfo {
             skill: SkillEnum::from_id(s.skid as u32),
             level: s.level,
             sp_cost: s.spcost,

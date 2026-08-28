@@ -502,17 +502,10 @@ mod tests {
     use super::*;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     #[test]
     fn builds_both_phases_without_panicking() {
@@ -525,9 +518,9 @@ mod tests {
 
         let mut character = Character::new();
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
+        let mut ctx = UiContext::new(800.0, 600.0);
 
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         assert!(
             win.build(
                 &mut ui,
@@ -537,7 +530,7 @@ mod tests {
         );
 
         win.phase = Phase::Process;
-        let mut ui = make_frame(&ctx, &mut state);
+        let mut ui = test_frame(&mut ctx, &mut state);
         assert!(
             win.build(
                 &mut ui,

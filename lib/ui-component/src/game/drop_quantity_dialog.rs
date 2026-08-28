@@ -86,24 +86,17 @@ mod tests {
     use super::*;
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
-    use ragnarok_renderer::font_atlas::FontAtlas;
+
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-
-    fn make_frame<'a>(ctx: &'a UiContext, state: &'a mut StateCache) -> UiFrame<'a> {
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let atlas = Box::leak(Box::new(atlas));
-        let positions: &'static std::collections::HashMap<u32, [f32; 2]> =
-            Box::leak(Box::default());
-        UiFrame::new(ctx, atlas, state, 0.0, false, None, positions)
-    }
+    use ragnarok_ui::test_support::test_frame;
 
     fn build_dialog(
         dialog: &mut DropQuantityDialog,
-        ctx: &UiContext,
+        ctx: &mut UiContext,
         state: &mut StateCache,
     ) -> Vec<GameEvent> {
-        let mut ui = make_frame(ctx, state);
+        let mut ui = test_frame(ctx, state);
         let mut character = Character::new();
         dialog.build(
             &mut ui,
@@ -118,7 +111,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        let events = build_dialog(&mut dialog, &mut ctx, &mut state);
         assert_eq!(events.len(), 1);
         assert!(matches!(
             events[0],
@@ -133,7 +126,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        let events = build_dialog(&mut dialog, &mut ctx, &mut state);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::DialogClosed));
     }
@@ -145,7 +138,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_enter = true;
-        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        let events = build_dialog(&mut dialog, &mut ctx, &mut state);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::DialogClosed));
     }
@@ -156,7 +149,7 @@ mod tests {
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
-        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        let events = build_dialog(&mut dialog, &mut ctx, &mut state);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::DialogClosed));
     }
@@ -165,8 +158,8 @@ mod tests {
     fn no_input_returns_none() {
         let mut dialog = DropQuantityDialog::new(0, 10);
         let mut state = StateCache::new();
-        let ctx = UiContext::new(800.0, 600.0);
-        let events = build_dialog(&mut dialog, &ctx, &mut state);
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let events = build_dialog(&mut dialog, &mut ctx, &mut state);
         assert!(events.is_empty());
     }
 

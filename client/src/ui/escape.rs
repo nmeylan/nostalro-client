@@ -310,10 +310,9 @@ mod tests {
     use ragnarok_game::pet::PetState;
     use ragnarok_game::quest::QuestLog;
     use ragnarok_game::skill::SkillEnum;
-    use ragnarok_renderer::font_atlas::FontAtlas;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
-    use std::collections::HashMap;
+    use ragnarok_ui::test_support::test_frame;
 
     struct Harness {
         character: Character,
@@ -345,11 +344,9 @@ mod tests {
         }
 
         fn press_escape(&mut self, windows: &mut Windows, state: &mut StateCache) {
-            let atlas = FontAtlas::from_embedded(14.0, 1.0);
             let mut ui_ctx = UiContext::new(800.0, 600.0);
             ui_ctx.key_escape = true;
-            let positions = HashMap::new();
-            let mut ui = UiFrame::new(&ui_ctx, &atlas, state, 0.0, false, None, &positions);
+            let mut ui = test_frame(&mut ui_ctx, state);
             let mut ctx = BuildCtx {
                 character: &mut self.character,
                 data: &self.data,
@@ -385,11 +382,9 @@ mod tests {
             windows: &mut Windows,
             state: &mut StateCache,
         ) -> bool {
-            let atlas = FontAtlas::from_embedded(14.0, 1.0);
             let mut ui_ctx = UiContext::new(800.0, 600.0);
             ui_ctx.key_enter = true;
-            let positions = HashMap::new();
-            let mut ui = UiFrame::new(&ui_ctx, &atlas, state, 0.0, false, None, &positions);
+            let mut ui = test_frame(&mut ui_ctx, state);
             let ctx = BuildCtx {
                 character: &mut self.character,
                 data: &self.data,
@@ -417,10 +412,8 @@ mod tests {
         windows.status_window.open();
         windows.guild_window.open();
 
-        let atlas = FontAtlas::from_embedded(14.0, 1.0);
-        let ui_ctx = UiContext::new(800.0, 600.0);
-        let positions = HashMap::new();
-        let mut ui = UiFrame::new(&ui_ctx, &atlas, state, 0.0, false, None, &positions);
+        let mut ui_ctx = UiContext::new(800.0, 600.0);
+        let mut ui = test_frame(&mut ui_ctx, state);
         ui.ensure_in_z_order(EQ_WINDOW_ID);
         ui.ensure_in_z_order(STATUS_WINDOW_ID);
         ui.ensure_in_z_order(GUILD_WINDOW_ID);

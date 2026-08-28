@@ -1096,7 +1096,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn the_accessibility_path_is_wider_and_more_heavily_outlined() {
         let atlas = ragnarok_renderer::FontAtlas::from_embedded(14.0, 1.0);

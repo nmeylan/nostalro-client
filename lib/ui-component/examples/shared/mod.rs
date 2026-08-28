@@ -148,7 +148,7 @@ impl<F: FnMut(&mut ExampleCtx)> UiExampleApp<F> {
         positions.insert(vending_shop_window::VENDING_BUY_WINDOW_ID.0, [300.0, 470.0]);
         positions.insert(cart_window::CART_WINDOW_ID.0, [620.0, 470.0]);
         let ui = UiFrame::new(
-            &self.ui_ctx,
+            &mut self.ui_ctx,
             &gpu.font_atlas,
             &mut self.state_cache,
             elapsed,
