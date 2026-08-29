@@ -9,8 +9,8 @@ use super::effects::{
     cast_circle, chemical, chookgi, cloud_projectile, colorpaper, cone, couple_casting,
     curseattack, defender, detecting, dome_ring, dragonsmoke, endure, energy_drain, enhance, entry,
     exit as exit_effect, fireball, fireivy, firepillaron, firstaid, flasher, flowercast,
-    frost_diver, fullscreen_overlay, glasswall, glasswall2, grandcross, gravitation, ground_sample,
-    guard, gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6,
+    frost_diver, fullscreen_overlay, glasswall, glasswall2, grandcross, ground_sample, guard,
+    gumgang, gumgang2, hasteup, heal, healsp, heartcasting, heavensdrive, hit, hit2, hit5_6,
     hitdark, kouenka, light_sphere, linelink, m_ef02, magic_bolt, magnum_break, mapzone, multibody,
     napalmbeat, napalmvalcan, orbit_burst, overthrust, particle_up, peong, peong_up, pierce,
     pokjuk, portal, portal_wind, portal2, potion_berserk, potion_con, potion_pillar, pressure,
@@ -704,7 +704,6 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Colorpaper => colorpaper::TOTAL_DURATION_MS,
         EffectId::Readyportal2 => portal2::READYPORTAL2_DURATION_MS,
         EffectId::Couplecasting | EffectId::Homuncasting => couple_casting::TOTAL_DURATION_MS,
-        EffectId::Gravitation => gravitation::TOTAL_DURATION_MS,
         EffectId::WindBuff => 4294967295,
         EffectId::Wind => wind::TOTAL_DURATION_MS,
         EffectId::Bash3d
@@ -901,7 +900,8 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         | EffectId::BottomUglydance
         | EffectId::BottomVi
         | EffectId::BottomVo
-        | EffectId::BottomWhistle => 299990,
+        | EffectId::BottomWhistle
+        | EffectId::Gravitation => 299990,
         EffectId::Forestlight
         | EffectId::Forestlight2
         | EffectId::Forestlight3

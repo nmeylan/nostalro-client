@@ -140,10 +140,7 @@ pub fn make_effect(
             Box::new(effects::yupitel::YupitelEffect::new(from, to))
         }
         EffectId::Blitzbeat => Box::new(effects::blitzbeat::BlitzbeatEffect::new(anchor.point())),
-        EffectId::Waterball => {
-            let (from, to) = anchor.trail();
-            Box::new(effects::waterball::WaterballEffect::new(from, to))
-        }
+        EffectId::Waterball => Box::new(effects::waterball::WaterballEffect::new(anchor.point())),
         EffectId::Waterfall => Box::new(effects::waterfall::WaterfallEffect::new(
             anchor.point(),
             effects::waterfall::WATERFALL,

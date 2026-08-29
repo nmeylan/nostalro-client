@@ -58,7 +58,10 @@ const LEVEL_AURA_LAYERS_REBIRTH: &[EffectId] = &[
 const BOSS_AURA_LAYERS: &[EffectId] = &[EffectId::Green995, EffectId::Green996, EffectId::Green993];
 
 fn level_aura_layers(job: JobName, show_aura: bool) -> &'static [EffectId] {
-    match (job.is_rebirth() || job.is_supernovice() || job.is_gunslinger_ninja() || job.is_taekwon(), show_aura) {
+    match (
+        job.is_rebirth() || job.is_supernovice() || job.is_gunslinger_ninja() || job.is_taekwon(),
+        show_aura,
+    ) {
         (true, true) => LEVEL_AURA_LAYERS_REBIRTH,
         (true, false) => LEVEL_AURA_MOTES_REBIRTH,
         (false, true) => LEVEL_AURA_LAYERS,
@@ -314,7 +317,6 @@ impl App {
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.request_pending_death();
                 }
-                self.effect_holder.remove_entity_effects(gid);
                 self.despawn_level_aura(gid);
                 self.despawn_boss_aura(gid);
                 self.despawn_pk_rank_aura(gid);
@@ -1247,7 +1249,12 @@ impl App {
         };
         let visible =
             alive && level_aura::level_aura_visible(entity_type, base_level, effect_state);
-        let want = visible.then(|| level_aura_layers(JobName::from_value(job as usize), self.config.display.show_level_aura));
+        let want = visible.then(|| {
+            level_aura_layers(
+                JobName::from_value(job as usize),
+                self.config.display.show_level_aura,
+            )
+        });
         let have = self.game.effect_keys.level_aura_keys.get(&gid).copied();
         if have.map(|(_, layers)| layers) == want {
             return;
@@ -1993,8 +2000,8 @@ impl App {
 
 #[cfg(test)]
 mod tests {
-    use ragnarok_ui_component::game::levelup_notification_window::LevelUpClick::Job;
     use super::*;
+    use ragnarok_ui_component::game::levelup_notification_window::LevelUpClick::Job;
 
     #[test]
     fn weather_ids_dedup_but_fireworks_throw_stays_one_shot() {
@@ -2018,9 +2025,18 @@ mod tests {
     #[test]
     fn level_aura_layers_split_by_job_and_toggle() {
         assert_eq!(level_aura_layers(JobName::Acolyte, true), LEVEL_AURA_LAYERS);
-        assert_eq!(level_aura_layers(JobName::Alchemist, false), LEVEL_AURA_MOTES);
-        assert_eq!(level_aura_layers(JobName::AssassinCross, true), LEVEL_AURA_LAYERS_REBIRTH);
-        assert_eq!(level_aura_layers(JobName::ArcherHigh, false), LEVEL_AURA_MOTES_REBIRTH);
+        assert_eq!(
+            level_aura_layers(JobName::Alchemist, false),
+            LEVEL_AURA_MOTES
+        );
+        assert_eq!(
+            level_aura_layers(JobName::AssassinCross, true),
+            LEVEL_AURA_LAYERS_REBIRTH
+        );
+        assert_eq!(
+            level_aura_layers(JobName::ArcherHigh, false),
+            LEVEL_AURA_MOTES_REBIRTH
+        );
         assert_eq!(
             level_aura_layers(JobName::SuperNovice, true),
             LEVEL_AURA_LAYERS_REBIRTH

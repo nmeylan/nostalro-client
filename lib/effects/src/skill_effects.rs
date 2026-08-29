@@ -698,6 +698,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::AlHolylight => T::hit(&[E::Holyhit]),
         S::AlCure => T::on_target(&[E::Cure]),
         S::AlIncagi | S::CashIncagi => T::on_target(&[E::Incagility]),
+        S::AlDecagi => T::on_target(&[E::Decagility]),
         S::AlBlessing | S::CashBlessing => T::on_target(&[E::Blessing]),
         S::McMammonite => T::hit(&[E::Coin]),
         S::McCartrevolution => T::hit(&[E::Cartrevolution]),
@@ -1048,11 +1049,15 @@ fn generic_hit_effect(
     }
 }
 
+/// `hit_index` is the hit's position within its damage packet. The skill marker
+/// is launched once per packet: a marker like `Yufitelhit` repeats itself over
+/// its own lifetime, so one per hit would stack copies of that repeat.
 pub fn derive_hit_effect(
     skill: Option<SkillEnum>,
     is_crit: bool,
     attacker_job: JobName,
     target_is_self: bool,
+    hit_index: u16,
 ) -> HitEffects {
     if target_is_self {
         return HitEffects::default();
@@ -1061,7 +1066,11 @@ pub fn derive_hit_effect(
     let spins_target = table.contains(&EffectId::Sonicblowhit);
     HitEffects {
         generic: generic_hit_effect(skill, is_crit, attacker_job),
-        skill: if spins_target { &[] } else { table },
+        skill: if spins_target || hit_index > 0 {
+            &[]
+        } else {
+            table
+        },
         spins_target,
     }
 }
@@ -1093,7 +1102,7 @@ mod tests {
         assert!(!suppresses_visuals_on_damage(S::AllResurrection, 0));
         assert!(!suppresses_visuals_on_damage(S::PrKyrie, 1200));
 
-        let hit = derive_hit_effect(Some(S::AllResurrection), false, JobName::Priest, false);
+        let hit = derive_hit_effect(Some(S::AllResurrection), false, JobName::Priest, false, 0);
         assert_eq!(hit.generic, &[EffectId::Holyhit]);
     }
 
@@ -1618,7 +1627,7 @@ mod tests {
     }
 
     fn hit_markers(skill: Option<SkillEnum>, is_crit: bool, job: JobName) -> Vec<EffectId> {
-        derive_hit_effect(skill, is_crit, job, false)
+        derive_hit_effect(skill, is_crit, job, false, 0)
             .iter()
             .collect()
     }
@@ -1632,7 +1641,7 @@ mod tests {
         assert_eq!(hit_markers(None, true, Novice), [E::Hit2, E::Hit1]);
         assert_eq!(hit_markers(None, false, Taekwon), [E::Hitline7]);
         assert!(
-            derive_hit_effect(None, true, Novice, true).is_empty(),
+            derive_hit_effect(None, true, Novice, true, 0).is_empty(),
             "a self-inflicted hit shows no spark"
         );
 
@@ -1709,9 +1718,23 @@ mod tests {
             [E::Pierce]
         );
 
-        let sonic = derive_hit_effect(Some(S::AsSonicblow), false, JobName::Novice, false);
+        let sonic = derive_hit_effect(Some(S::AsSonicblow), false, JobName::Novice, false, 0);
         assert!(sonic.spins_target);
         assert_eq!(sonic.iter().collect::<Vec<_>>(), [E::Hit1]);
+    }
+
+    #[test]
+    fn the_skill_marker_lands_once_per_packet_while_the_spark_lands_per_hit() {
+        use EffectId as E;
+        let hit =
+            |i| derive_hit_effect(Some(SkillEnum::WzJupitel), false, JobName::Wizard, false, i);
+
+        assert_eq!(hit(0).skill, &[E::Yufitelhit]);
+        assert!(hit(1).skill.is_empty());
+        assert!(hit(11).skill.is_empty());
+        for i in [0, 1, 11] {
+            assert_eq!(hit(i).generic, &[E::Hit1], "hit {i}");
+        }
     }
 
     #[test]
@@ -1762,6 +1785,21 @@ mod tests {
         assert_eq!(
             target_skill_effects(SkillEnum::AmAcidterror).on_target,
             &[EffectId::Throwitem]
+        );
+
+        // Both agility buffs tag the target, and both still play the generic
+        // cast glyph.
+        assert_eq!(
+            target_skill_effects(SkillEnum::AlIncagi).on_target,
+            &[EffectId::Incagility]
+        );
+        assert_eq!(
+            target_skill_effects(SkillEnum::AlDecagi).on_target,
+            &[EffectId::Decagility]
+        );
+        assert_eq!(
+            begin_cast_effect(SkillEnum::AlDecagi),
+            &[EffectId::Beginspell]
         );
     }
 
@@ -1824,7 +1862,6 @@ mod tests {
         }
         assert!(!is_trail_effect(EffectId::Icearrow));
     }
-
 
     #[test]
     fn every_reachable_skill_projectile_has_a_reach_time() {

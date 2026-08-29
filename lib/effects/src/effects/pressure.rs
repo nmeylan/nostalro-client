@@ -16,22 +16,29 @@ const FPS: f32 = 60.0;
 const FRAME_DT: f32 = 1.0 / FPS;
 
 const SPIN_PER_FRAME_DEG: f32 = -15.0;
-const FALL_SPEED: f32 = 0.8;
+const FALL_SPEED: f32 = 3.0;
 const ICON_FADE_IN_PER_FRAME: f32 = 20.0 / 255.0;
 const ICON_FADE_OUT_PER_FRAME: f32 = 5.0 / 255.0;
 const ICON_FADE_IN_UNTIL: i32 = 10;
+/// Every variant holds its landed pose until this frame, then fades.
+const ICON_ACTIVE_FRAMES: i32 = 32;
 
+/// The four corners of the shockwave sit at `0.9 ×` its distance, which grows
+/// 7% a frame from `RING_START_DISTANCE`.
 const RING_GROWTH_PER_FRAME: f32 = 1.07;
-const RING_FADE_IN_FRAMES: f32 = 6.0;
+const RING_CORNER_FACTOR: f32 = 0.9;
+const RING_START_DISTANCE: f32 = 15.0;
+const RING_Y_OFFSET: f32 = -5.0;
+const RING_FADE_IN_FRAMES: f32 = 10.0;
 const RING_LIFE_FRAMES: f32 = 30.0;
-const RING_PEAK_ALPHA: f32 = 0.8;
-const RING_THICKNESS: f32 = 1.5;
+const RING_PEAK_ALPHA: f32 = 20.0 / 255.0;
 
 const MAX_TOTAL_FRAMES: f32 = 90.0;
 pub const PRESSURE_TOTAL_DURATION_MS: u32 = (MAX_TOTAL_FRAMES / FPS * 1000.0) as u32;
 
+/// The cross stops falling and the ground shakes one frame later.
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
-    crate::effect_queue::ProjectileFlight::FixedFrames(-PRESSURE.drop_y / FALL_SPEED);
+    crate::effect_queue::ProjectileFlight::FixedFrames(PRESSURE.fall_frames as f32 + 1.0);
 
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const RING_RED: [f32; 3] = [1.0, 0.0, 0.0];
@@ -45,10 +52,13 @@ pub struct PressureParams {
     /// Start height above the impact point (negative = up; −Y is up).
     pub drop_y: f32,
     pub icon_distance: f32,
-    pub ring_start_radius: f32,
+    /// How long the icon descends and spins. It stops short of the ground and
+    /// holds there until [`ICON_ACTIVE_FRAMES`] rather than landing.
+    pub fall_frames: i32,
     pub ring_texture: &'static str,
     pub ring_delay_frames: i32,
-    pub ring_blend: BlendKind,
+    /// The red potion stacks the shockwave quad on itself.
+    pub ring_draws: u32,
     pub quake: bool,
 }
 
@@ -56,36 +66,36 @@ pub const SLIM: PressureParams = PressureParams {
     icon_texture: "유저인터페이스/item/레드슬림포션.bmp",
     icon_tint: WHITE,
     ring_tint: RING_RED,
-    drop_y: -18.0,
-    icon_distance: 1.2,
-    ring_start_radius: 3.0,
+    drop_y: -80.0,
+    icon_distance: 8.0,
+    fall_frames: 24,
     ring_texture: "bbbb.bmp",
     ring_delay_frames: 16,
-    ring_blend: BlendKind::Additive,
+    ring_draws: 2,
     quake: false,
 };
 pub const SLIM2: PressureParams = PressureParams {
     icon_texture: "유저인터페이스/item/옐로우슬림포션.bmp",
     icon_tint: WHITE,
     ring_tint: RING_YELLOW,
-    drop_y: -18.0,
-    icon_distance: 1.2,
-    ring_start_radius: 3.0,
+    drop_y: -80.0,
+    icon_distance: 8.0,
+    fall_frames: 24,
     ring_texture: "bbbb.bmp",
     ring_delay_frames: 16,
-    ring_blend: BlendKind::Additive,
+    ring_draws: 1,
     quake: false,
 };
 pub const SLIM3: PressureParams = PressureParams {
     icon_texture: "유저인터페이스/item/화이트슬림포션.bmp",
     icon_tint: WHITE,
     ring_tint: WHITE,
-    drop_y: -18.0,
-    icon_distance: 1.2,
-    ring_start_radius: 3.0,
+    drop_y: -80.0,
+    icon_distance: 8.0,
+    fall_frames: 24,
     ring_texture: "bbbb.bmp",
     ring_delay_frames: 16,
-    ring_blend: BlendKind::Additive,
+    ring_draws: 1,
     quake: false,
 };
 
@@ -93,14 +103,25 @@ pub const PRESSURE: PressureParams = PressureParams {
     icon_texture: "cross_old.bmp",
     icon_tint: WHITE,
     ring_tint: WHITE,
-    drop_y: -30.0,
-    icon_distance: 4.0,
-    ring_start_radius: 4.0,
+    drop_y: -115.0,
+    icon_distance: 12.0,
+    fall_frames: 32,
     ring_texture: "explosive_1_128.bmp",
     ring_delay_frames: 28,
-    ring_blend: BlendKind::Alpha,
+    ring_draws: 1,
     quake: true,
 };
+
+struct IconGhost {
+    pos: [f32; 3],
+    spin_deg: f32,
+    alpha: f32,
+}
+
+fn start_angle_deg(impact: [f32; 3]) -> f32 {
+    let seed = impact[0].to_bits() ^ impact[2].to_bits() ^ 0x9E37_79B9;
+    ((seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223) >> 16) % 360) as f32
+}
 
 pub struct PressureEffect {
     params: PressureParams,
@@ -109,9 +130,8 @@ pub struct PressureEffect {
     icon_pos: [f32; 3],
     icon_spin_deg: f32,
     icon_alpha: f32,
-    icon_landed: bool,
     icon_done: bool,
-    icon_history: Vec<[f32; 3]>,
+    icon_history: Vec<IconGhost>,
     shake_fired: bool,
     time_accum: f32,
 }
@@ -123,9 +143,8 @@ impl PressureEffect {
             impact,
             process: 0,
             icon_pos: [impact[0], impact[1] + params.drop_y, impact[2]],
-            icon_spin_deg: 0.0,
+            icon_spin_deg: start_angle_deg(impact),
             icon_alpha: 0.0,
-            icon_landed: false,
             icon_done: false,
             icon_history: Vec::with_capacity(4),
             shake_fired: false,
@@ -144,20 +163,17 @@ impl PressureEffect {
 
     fn tick(&mut self) {
         self.process += 1;
-        self.icon_spin_deg = (self.icon_spin_deg + SPIN_PER_FRAME_DEG).rem_euclid(360.0);
 
         if !self.icon_done {
-            if !self.icon_landed {
-                self.icon_alpha = if self.process <= ICON_FADE_IN_UNTIL {
-                    (self.icon_alpha + ICON_FADE_IN_PER_FRAME).min(1.0)
-                } else {
-                    self.icon_alpha
-                };
-                // −Y is up: falling toward the impact means y increases to impact[1].
-                self.icon_pos[1] += FALL_SPEED;
-                if self.icon_pos[1] >= self.impact[1] {
-                    self.icon_pos[1] = self.impact[1];
-                    self.icon_landed = true;
+            if self.process <= ICON_FADE_IN_UNTIL {
+                self.icon_alpha = (self.icon_alpha + ICON_FADE_IN_PER_FRAME).min(1.0);
+            }
+            if self.process <= ICON_ACTIVE_FRAMES {
+                if self.process <= self.params.fall_frames {
+                    self.icon_spin_deg =
+                        (self.icon_spin_deg + SPIN_PER_FRAME_DEG).rem_euclid(360.0);
+                    // −Y is up: falling toward the impact means y increases.
+                    self.icon_pos[1] += FALL_SPEED;
                 }
             } else {
                 self.icon_alpha -= ICON_FADE_OUT_PER_FRAME;
@@ -166,14 +182,18 @@ impl PressureEffect {
                     self.icon_done = true;
                 }
             }
-            self.icon_history.push(self.icon_pos);
+            self.icon_history.push(IconGhost {
+                pos: self.icon_pos,
+                spin_deg: self.icon_spin_deg,
+                alpha: self.icon_alpha,
+            });
             if self.icon_history.len() > 4 {
                 self.icon_history.remove(0);
             }
         }
     }
 
-    fn push_icon(&self, out: &mut EffectDrawList, pos: [f32; 3], alpha: f32) {
+    fn push_icon(&self, out: &mut EffectDrawList, pos: [f32; 3], spin_deg: f32, alpha: f32) {
         if alpha <= 0.0 {
             return;
         }
@@ -183,7 +203,7 @@ impl PressureEffect {
             pos,
             size: [side, side],
             uv: UNIT_UV,
-            rotation: self.icon_spin_deg.to_radians(),
+            rotation: spin_deg.to_radians(),
             texture: self.params.icon_texture,
             color: [t[0], t[1], t[2], alpha],
             blend: BlendKind::Alpha,
@@ -207,23 +227,24 @@ impl Effect for PressureEffect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         if !self.icon_done {
-            const TRAIL_ALPHA: [f32; 3] = [0.4, 0.25, 0.1];
-            for (k, factor) in TRAIL_ALPHA.iter().enumerate() {
-                if let Some(&pos) = self
+            // The trail copies sit 100, then 25, then 25 alpha behind the icon.
+            const TRAIL_ALPHA_DROP: [f32; 3] = [100.0 / 255.0, 125.0 / 255.0, 150.0 / 255.0];
+            for (k, drop) in TRAIL_ALPHA_DROP.iter().enumerate() {
+                if let Some(ghost) = self
                     .icon_history
                     .len()
                     .checked_sub(2 + k)
                     .and_then(|i| self.icon_history.get(i))
                 {
-                    self.push_icon(out, pos, self.icon_alpha * factor);
+                    self.push_icon(out, ghost.pos, ghost.spin_deg, ghost.alpha - drop);
                 }
             }
-            self.push_icon(out, self.icon_pos, self.icon_alpha);
+            self.push_icon(out, self.icon_pos, self.icon_spin_deg, self.icon_alpha);
         }
 
         if let Some(age) = self.ring_age() {
             if age < RING_LIFE_FRAMES {
-                let radius = self.params.ring_start_radius * RING_GROWTH_PER_FRAME.powf(age);
+                let distance = RING_START_DISTANCE * RING_GROWTH_PER_FRAME.powf(age);
                 let alpha = if age < RING_FADE_IN_FRAMES {
                     RING_PEAK_ALPHA * (age / RING_FADE_IN_FRAMES)
                 } else {
@@ -232,27 +253,30 @@ impl Effect for PressureEffect {
                             - (age - RING_FADE_IN_FRAMES)
                                 / (RING_LIFE_FRAMES - RING_FADE_IN_FRAMES))
                 };
+                let r = distance * RING_CORNER_FACTOR;
+                let y = self.impact[1] + RING_Y_OFFSET;
+                let mut corners = [[0.0_f32; 3]; 4];
+                for (i, c) in corners.iter_mut().enumerate() {
+                    let (s, cs) = (i as f32 * 90.0).to_radians().sin_cos();
+                    *c = [self.impact[0] + cs * r, y, self.impact[2] + s * r];
+                }
                 let t = self.params.ring_tint;
-                out.push(EffectPrimitiveDraw::GroundDisc {
-                    center: self.impact,
-                    radius,
-                    thickness: RING_THICKNESS,
-                    rotation: 0.0,
-                    arc_angle_deg: 360.0,
-                    uv_repeat: 1.0,
-                    texture: self.params.ring_texture,
-                    color: [t[0], t[1], t[2], alpha.max(0.0)],
-                    blend: self.params.ring_blend,
-                    no_depth: false,
-                    tilt_rad: 0.0,
-                    spin_rad: 0.0,
-                });
+                for _ in 0..self.params.ring_draws {
+                    out.push(EffectPrimitiveDraw::WorldQuad {
+                        corners,
+                        uv: [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
+                        texture: self.params.ring_texture,
+                        color: [t[0], t[1], t[2], alpha.max(0.0)],
+                        blend: BlendKind::Additive,
+                        no_depth: false,
+                    });
+                }
             }
         }
     }
 
     fn take_camera_shake(&mut self) -> Option<CameraShake> {
-        if self.params.quake && !self.shake_fired && self.icon_landed {
+        if self.params.quake && !self.shake_fired && self.process > ICON_ACTIVE_FRAMES {
             self.shake_fired = true;
             Some(CameraShake {
                 amplitude: 1.5,
@@ -295,16 +319,20 @@ mod tests {
         l.primitives
     }
 
-    fn icon_y(e: &PressureEffect) -> Option<f32> {
-        list(e).iter().find_map(|p| match p {
-            EffectPrimitiveDraw::Billboard { pos, .. } => Some(pos[1]),
+    /// `(y, rotation)` of the leading icon — the trail ghosts are pushed first.
+    fn icon(e: &PressureEffect) -> Option<(f32, f32)> {
+        list(e).iter().rev().find_map(|p| match p {
+            EffectPrimitiveDraw::Billboard { pos, rotation, .. } => Some((pos[1], *rotation)),
             _ => None,
         })
     }
 
+    /// `(corner distance from the impact, alpha)` of the shockwave quad.
     fn ring(e: &PressureEffect) -> Option<(f32, f32)> {
         list(e).iter().find_map(|p| match p {
-            EffectPrimitiveDraw::GroundDisc { radius, color, .. } => Some((*radius, color[3])),
+            EffectPrimitiveDraw::WorldQuad { corners, color, .. } => {
+                Some((corners[0][0].hypot(corners[0][2]), color[3]))
+            }
             _ => None,
         })
     }
@@ -313,9 +341,9 @@ mod tests {
     fn potion_falls_toward_the_ground() {
         let mut e = PressureEffect::new([0.0, 0.0, 0.0], SLIM);
         step(&mut e, 1);
-        let y0 = icon_y(&e).expect("icon visible");
+        let (y0, _) = icon(&e).expect("icon visible");
         step(&mut e, 8);
-        let y1 = icon_y(&e).expect("icon visible");
+        let (y1, _) = icon(&e).expect("icon visible");
         assert!(y0 < 0.0, "icon starts above the impact (negative Y = up)");
         assert!(y1 > y0, "icon descends toward the impact over time");
     }
@@ -339,7 +367,7 @@ mod tests {
             let mut e = PressureEffect::new([0.0, 0.0, 0.0], params);
             step(&mut e, params.ring_delay_frames as u32 + 3);
             let has_tinted_ring = list(&e).iter().any(|p| matches!(p,
-                EffectPrimitiveDraw::GroundDisc { color, .. }
+                EffectPrimitiveDraw::WorldQuad { color, .. }
                     if color[0] == ring_tint[0] && color[1] == ring_tint[1] && color[2] == ring_tint[2]));
             assert!(has_tinted_ring, "ring carries the variant colour");
             assert!(
@@ -362,7 +390,7 @@ mod tests {
         step(&mut e, 44);
         assert!(
             list(&e).iter().any(|p| matches!(p,
-                EffectPrimitiveDraw::GroundDisc { texture, .. } if *texture == "explosive_1_128.bmp")),
+                EffectPrimitiveDraw::WorldQuad { texture, .. } if *texture == "explosive_1_128.bmp")),
             "the explosion ring expands after the delay"
         );
         assert!(
@@ -370,6 +398,16 @@ mod tests {
             "Pressure shakes the screen on landing"
         );
         assert!(e.take_camera_shake().is_none(), "the shake is a one-shot");
+        // The cross runs out of fall before it reaches the ground and fades
+        // there, well above the impact plane.
+        let (resting, spin) = icon(&e).expect("icon still fading");
+        assert!(
+            (-20.0..-18.0).contains(&resting),
+            "cross stops short of the ground: {resting}"
+        );
+        step(&mut e, 10);
+        let (_, spin_later) = icon(&e).expect("icon still fading");
+        assert_eq!(spin, spin_later, "the cross stops spinning once it lands");
     }
 
     #[test]

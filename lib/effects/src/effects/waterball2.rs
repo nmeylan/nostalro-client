@@ -27,12 +27,17 @@ const NUM_SEGMENT: usize = 12;
 const ANIM_SPEED: u32 = 4;
 const RENDER_SIZE: f32 = 0.75;
 
-/// Peak rise of the head above the base (native RO −Y = up), ~1.5 characters.
-const RISE_AMP: f32 = 9.0;
-/// Radius of the swirl helix.
-const SWIRL_RADIUS: f32 = 1.3;
-/// Helix spin — ~5–6 twists over the column's life like the braided gif.
-const SPIN_DEG_PER_FRAME: f32 = 52.0;
+/// Spawn height above the caster's feet (native RO −Y is up).
+const SPAWN_Y: f32 = -10.0;
+/// The head is pulled along its own axis by a decaying "gravity" term. Over
+/// the flight it sums to zero, so what actually carries the ball to the target
+/// is `speed`; the term itself throws the ball backwards first, then slings it
+/// forward past the caster — the lob the skill is known for.
+const GRAV_SPEED_INIT: f32 = 3.5;
+const GRAV_ACCEL: f32 = -(GRAV_SPEED_INIT / DURATION_FRAMES as f32) * 2.0;
+/// The same shape on the vertical axis, peaking about 21 units up mid-flight.
+const LATI_SPEED_INIT: f32 = -2.0;
+const LATI_ACCEL: f32 = -(LATI_SPEED_INIT / DURATION_FRAMES as f32) * 2.0;
 
 pub const TOTAL_DURATION_MS: u32 =
     ((DURATION_FRAMES + NUM_SEGMENT as u32) as f32 / FRAMES_PER_SECOND * 1000.0) as u32;
@@ -42,20 +47,11 @@ pub const TOTAL_DURATION_MS: u32 =
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::FixedFrames(DURATION_FRAMES as f32);
 
-/// Swirl + rise/sink offset from the travelling base at a given (head) frame.
-fn head_offset(frame: f32) -> [f32; 3] {
-    let t = (frame / DURATION_FRAMES as f32).clamp(0.0, 1.0);
-    // Rise up then sink back (native RO: up = −Y).
-    let y = -RISE_AMP * (std::f32::consts::PI * t).sin();
-    let a = (frame * SPIN_DEG_PER_FRAME).to_radians();
-    let (s, c) = a.sin_cos();
-    [SWIRL_RADIUS * c, y, SWIRL_RADIUS * s]
-}
-
 pub struct WaterBall2Effect {
     from: [f32; 3],
-    /// Per-frame horizontal velocity carrying the head from caster to target.
-    vel: [f32; 3],
+    /// Unit caster→target direction and the per-frame speed along it.
+    dir: [f32; 3],
+    speed: f32,
     /// History of absolute world head positions (index 0 = newest), so the
     /// braid trails behind the moving head instead of riding a fixed base.
     segments: [[f32; 3]; NUM_SEGMENT],
@@ -68,20 +64,15 @@ impl WaterBall2Effect {
         let dx = to[0] - from[0];
         let dz = to[2] - from[2];
         let dist = (dx * dx + dz * dz).sqrt();
-        // Speed = radius / duration: cover the full horizontal
-        // span across the strand's `DURATION_FRAMES` flight.
-        let vel = if dist > 0.001 {
-            [
-                dx / DURATION_FRAMES as f32,
-                0.0,
-                dz / DURATION_FRAMES as f32,
-            ]
+        let (dir, speed) = if dist > 0.001 {
+            ([dx / dist, 0.0, dz / dist], dist / DURATION_FRAMES as f32)
         } else {
-            [0.0; 3]
+            ([0.0; 3], 0.0)
         };
         let mut effect = Self {
-            from,
-            vel,
+            from: [from[0], from[1] + SPAWN_Y, from[2]],
+            dir,
+            speed,
             segments: [[0.0; 3]; NUM_SEGMENT],
             head_frame: 0,
             effect_frame: 0,
@@ -90,15 +81,16 @@ impl WaterBall2Effect {
         effect
     }
 
-    /// Absolute world position of the head at a given frame: caster→target
-    /// horizontal travel plus the swirl/rise-sink offset.
+    /// Absolute world position of the head at a given frame: the sling along
+    /// the caster→target line, plus the vertical arc.
     fn head_world(&self, frame: u32) -> [f32; 3] {
         let f = frame as f32;
-        let off = head_offset(f);
+        let along = -GRAV_ACCEL * 0.5 * f * (f + 1.0) + (self.speed - GRAV_SPEED_INIT) * f;
+        let lift = LATI_SPEED_INIT * f + LATI_ACCEL * 0.5 * f * (f - 1.0);
         [
-            self.from[0] + self.vel[0] * f + off[0],
-            self.from[1] + off[1],
-            self.from[2] + self.vel[2] * f + off[2],
+            self.from[0] + self.dir[0] * along,
+            self.from[1] + lift,
+            self.from[2] + self.dir[2] * along,
         ]
     }
 
@@ -203,21 +195,25 @@ mod tests {
     }
 
     #[test]
-    fn head_travels_horizontally_from_caster_toward_target() {
-        let mut e = WaterBall2Effect::new([0.0; 3], [40.0, 0.0, 60.0]);
-        step(&mut e, 5);
-        let early = head_xz(&e);
-        step(&mut e, 20);
-        let late = head_xz(&e);
-        // Head advances along the caster→target line (swirl radius is tiny
-        // next to the travelled span, so the trend is unambiguous).
+    fn head_slings_backwards_then_lands_on_the_target() {
+        let target = [40.0, 0.0, 60.0];
+        let dist = (40.0_f32 * 40.0 + 60.0 * 60.0).sqrt();
+        let mut e = WaterBall2Effect::new([0.0; 3], target);
+
+        // It leaves backwards before the sling turns it around.
+        step(&mut e, 10);
+        let [x, z] = head_xz(&e);
         assert!(
-            late[0] > early[0],
-            "advances along +X: {early:?} → {late:?}"
+            x < 0.0 && z < 0.0,
+            "backswing away from the target: {x},{z}"
         );
+
+        step(&mut e, 30);
+        let [x, z] = head_xz(&e);
+        let travelled = x.hypot(z);
         assert!(
-            late[1] > early[1],
-            "advances along +Z: {early:?} → {late:?}"
+            (travelled - dist).abs() < 4.0,
+            "arrives on the target: travelled {travelled} of {dist}"
         );
         assert_eq!(segs(&e).len(), NUM_SEGMENT, "strand fills to 12 segments");
     }
@@ -226,10 +222,8 @@ mod tests {
     fn static_when_no_trail_data() {
         let mut e = WaterBall2Effect::new([3.0, 0.0, 7.0], [3.0, 0.0, 7.0]);
         step(&mut e, 10);
-        // With from == to the head only swirls around the spawn point.
-        let [x, z] = head_xz(&e);
-        assert!((x - 3.0).abs() <= SWIRL_RADIUS + 1e-3);
-        assert!((z - 7.0).abs() <= SWIRL_RADIUS + 1e-3);
+        // With from == to the head only arcs up and down over the spawn point.
+        assert_eq!(head_xz(&e), [3.0, 7.0]);
     }
 
     #[test]
@@ -246,6 +240,11 @@ mod tests {
             "rises (Y more negative) {y_early} → {y_peak}"
         );
         assert!(y_late > y_peak, "sinks back {y_peak} → {y_late}");
+        // Peaks about 21 units over the spawn point, which itself sits 10 up.
+        assert!(
+            (y_peak - (SPAWN_Y - 21.0)).abs() < 1.0,
+            "arc apex: {y_peak}"
+        );
     }
 
     #[test]

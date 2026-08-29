@@ -10,8 +10,7 @@ const PULSE_SPEED_RAD_PER_S: f32 = 3.0 * std::f32::consts::PI / 180.0 * FRAMES_P
 const PULSE_MID: f32 = 0.9;
 const PULSE_HALF: f32 = 0.1;
 /// Negative Y = up; lift off ground to avoid z-fighting.
-const GROUND_LIFT: f32 = -0.3;
-const FADE_IN_FRAMES: f32 = 16.0;
+const GROUND_LIFT: f32 = -1.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct FloorAuraParams {
@@ -24,7 +23,7 @@ pub struct FloorAuraParams {
 pub const LV99_BLUE: FloorAuraParams = FloorAuraParams {
     texture: "pikapika2.bmp",
     color_rgb: [1.00, 1.00, 1.00],
-    radius: 13.0,
+    radius: 15.0,
     alpha_max: 200.0 / 255.0,
 };
 
@@ -72,11 +71,7 @@ impl Effect for FloorAuraEffect {
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let [r, g, b] = self.params.color_rgb;
-        let frame = self.age * FRAMES_PER_SECOND;
-        let alpha = self.params.alpha_max * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
-        if alpha <= 0.0 {
-            return;
-        }
+        let alpha = self.params.alpha_max;
         let y = self.world_pos[1] + GROUND_LIFT;
         for i in 0..NUM_QUADS {
             let phase = self.age * PULSE_SPEED_RAD_PER_S + i as f32 * std::f32::consts::PI;
@@ -146,8 +141,7 @@ mod tests {
     #[test]
     fn emits_two_flat_ground_quads() {
         let center = [4.0, 1.0, 6.0];
-        let mut c = FloorAuraEffect::new(center, LV99_BLUE);
-        run_to(&mut c, FADE_IN_FRAMES);
+        let c = FloorAuraEffect::new(center, LV99_BLUE);
         let prims = quads(&c);
         assert_eq!(prims.len(), NUM_QUADS);
         for p in &prims {
@@ -167,9 +161,8 @@ mod tests {
     fn quads_pulse_out_of_phase() {
         let center = [0.0, 0.0, 0.0];
         let mut c = FloorAuraEffect::new(center, LV99_BLUE);
-        run_to(&mut c, FADE_IN_FRAMES);
         let quarter = (std::f32::consts::FRAC_PI_2 / PULSE_SPEED_RAD_PER_S) * FRAMES_PER_SECOND;
-        run_to(&mut c, FADE_IN_FRAMES + quarter);
+        run_to(&mut c, quarter);
         let prims = quads(&c);
         let (r0, _) = radius_and_flat(&prims[0], center);
         let (r1, _) = radius_and_flat(&prims[1], center);

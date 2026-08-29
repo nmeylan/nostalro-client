@@ -534,7 +534,13 @@ impl App {
         let unit_pos = self.skill_unit_world_pos(entity_id);
         let target_pos = self.entity_world_pos(entity_id).or(unit_pos);
         let attacker_pos = self.entity_world_pos(hit.attacker_gid);
-        let markers = derive_hit_effect(skill, hit.is_critical, attacker_job, target_is_self);
+        let markers = derive_hit_effect(
+            skill,
+            hit.is_critical,
+            attacker_job,
+            target_is_self,
+            hit.hit_index,
+        );
         if markers.spins_target
             && let Some(entity) = self.game.world.entities.get_mut(entity_id)
         {

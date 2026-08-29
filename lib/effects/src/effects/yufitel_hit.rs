@@ -16,23 +16,22 @@ pub const TEXTURES: &[&str] = &[
 
 const FPS: f32 = 60.0;
 /// The launching effect lives 250 ticks; both quad groups are cut off with it.
-const TOTAL_FRAMES: f32 = 150.0;
+const TOTAL_FRAMES: f32 = 250.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FPS * 1000.0) as u32;
 
 const Y_OFFSET: f32 = -5.0;
 
 const BURST_PERIOD_FRAMES: f32 = 20.0;
 const BURST_LIFE_FRAMES: f32 = 10.0;
-const BURST_GROWTH_PER_FRAME: f32 = 2.5;
+const BURST_GROWTH_PER_FRAME: f32 = 5.0;
 /// The flash holds full alpha for one tick, then fades across the rest of its
 /// life.
 const BURST_FADE_START_FRAME: f32 = 1.0;
 
 const BALL_START_FRAME: f32 = 10.0;
-const BALL_SIZE: f32 = 7.5;
+const BALL_SIZE: f32 = 15.0;
 const BALL_FRAMES_PER_STEP: f32 = 1.0;
-const BALL_FADE_IN_FRAMES: f32 = 10.0;
-const BALL_FADE_OUT_FRAMES: f32 = 30.0;
+const BALL_ALPHA: f32 = 254.0 / 255.0;
 
 const UNIT_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
@@ -89,7 +88,7 @@ impl YufitelHitEffect {
     }
 
     fn burst_size(age: f32) -> f32 {
-        BURST_GROWTH_PER_FRAME * age
+        BURST_GROWTH_PER_FRAME * (age + 1.0)
     }
 
     fn burst_alpha(age: f32) -> f32 {
@@ -100,16 +99,10 @@ impl YufitelHitEffect {
     }
 
     fn ball_alpha(&self) -> f32 {
-        let t = self.age_frames - BALL_START_FRAME;
-        if t < 0.0 {
+        if self.age_frames < BALL_START_FRAME {
             return 0.0;
         }
-        let fade_out_start = TOTAL_FRAMES - BALL_FADE_OUT_FRAMES;
-        if self.age_frames >= fade_out_start {
-            ((TOTAL_FRAMES - self.age_frames) / BALL_FADE_OUT_FRAMES).clamp(0.0, 1.0)
-        } else {
-            (t / BALL_FADE_IN_FRAMES).clamp(0.0, 1.0)
-        }
+        BALL_ALPHA
     }
 
     fn ball_texture(&self) -> &'static str {
@@ -138,7 +131,7 @@ impl Effect for YufitelHitEffect {
             let size = Self::burst_size(age);
             let alpha = Self::burst_alpha(age);
             if size > 0.0 && alpha > 0.0 {
-                out.push(EffectPrimitiveDraw::Billboard {
+                out.push(EffectPrimitiveDraw::BillboardFlash {
                     pos: self.pos,
                     size: [size, size],
                     uv: UNIT_UV,
@@ -152,7 +145,7 @@ impl Effect for YufitelHitEffect {
 
         let ball_alpha = self.ball_alpha();
         if ball_alpha > 0.0 {
-            out.push(EffectPrimitiveDraw::Billboard {
+            out.push(EffectPrimitiveDraw::BillboardFlash {
                 pos: self.pos,
                 size: [BALL_SIZE, BALL_SIZE],
                 uv: UNIT_UV,
@@ -192,13 +185,13 @@ mod tests {
         list.primitives
             .iter()
             .map(|p| match p {
-                EffectPrimitiveDraw::Billboard {
+                EffectPrimitiveDraw::BillboardFlash {
                     texture,
                     size,
                     blend,
                     ..
                 } => (*texture, size[0], *blend),
-                other => panic!("expected Billboard, got {other:?}"),
+                other => panic!("expected BillboardFlash, got {other:?}"),
             })
             .collect()
     }
@@ -206,16 +199,16 @@ mod tests {
     #[test]
     fn flash_grows_alone_then_the_ball_joins_it() {
         let mut e = YufitelHitEffect::new([0.0, 0.0, 0.0], YUFITEL_HIT);
-        step(&mut e, 4.0);
-        let early = billboards(&e);
-        assert_eq!(early.len(), 1, "only the flash before frame 10");
-        assert_eq!(early[0].0, YUFITEL_HIT.burst);
-        assert_eq!(early[0].2, BlendKind::Additive);
+        let first = billboards(&e);
+        assert_eq!(first.len(), 1, "only the flash before frame 10");
+        assert_eq!(first[0].0, YUFITEL_HIT.burst);
+        assert_eq!(first[0].2, BlendKind::Additive);
+        assert_eq!(first[0].1, BURST_GROWTH_PER_FRAME, "opens already grown");
 
         // Still inside the same burst, the quad has grown.
-        step(&mut e, 4.0);
+        step(&mut e, 8.0);
         let later = billboards(&e);
-        assert!(later[0].1 > early[0].1, "{} > {}", later[0].1, early[0].1);
+        assert!(later[0].1 > first[0].1, "{} > {}", later[0].1, first[0].1);
 
         // Past frame 10 the flash is gone and the ball is up on its own.
         step(&mut e, 4.0);
@@ -223,6 +216,13 @@ mod tests {
         assert_eq!(ball.len(), 1);
         assert!(YUFITEL_HIT.ball_cycle.contains(&ball[0].0));
         assert_eq!(ball[0].1, BALL_SIZE);
+
+        assert_eq!(e.ball_alpha(), BALL_ALPHA);
+        for _ in 0..11 {
+            step(&mut e, 20.0);
+            assert_eq!(e.ball_alpha(), BALL_ALPHA, "holds until the hard cut");
+        }
+        assert_eq!(step(&mut e, 20.0), EffectStatus::Dead);
     }
 
     #[test]
@@ -235,10 +235,10 @@ mod tests {
         assert!(!list.primitives.is_empty());
         for p in &list.primitives {
             match p {
-                EffectPrimitiveDraw::Billboard { pos, .. } => {
+                EffectPrimitiveDraw::BillboardFlash { pos, .. } => {
                     assert_eq!(*pos, [12.0, 3.0 + Y_OFFSET, -4.0])
                 }
-                other => panic!("expected Billboard, got {other:?}"),
+                other => panic!("expected BillboardFlash, got {other:?}"),
             }
         }
     }

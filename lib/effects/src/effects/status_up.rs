@@ -16,8 +16,8 @@
 //!     (0.2..0.7 wu / frame in native RO -Y), tilted to lie vertical
 //!   * Decagility: accel 0.015 downward, particle starts 20 wu
 //!     above the ground, tilted the other way
-//!   * width `(random(60)+30)/10` → 3..9 wu; height 0.18
-//!     (very thin streak)
+//!   * `m_widthSize` / `m_heightSize` are *half* extents, so the streak is
+//!     `2 × (random(60)+30)/10` = 6..17.8 wu long and `2 × 0.18` wu thick
 //!   * alpha ramps in over 20 frames to max alpha 200/255, then fades out
 //!     in the last 20 frames of a 50-frame lifetime
 //!
@@ -25,7 +25,8 @@
 //! original draws it in 2D screen space; we approximate with a camera-facing
 //! world billboard at the entity, which keeps it readable on top of the
 //! streaks. It rises (or falls, for Decagility) and fades in/out across the
-//! parent's lifetime.
+//! parent's lifetime. Every label figure below is the original's screen-pixel
+//! value divided by `LABEL_PX_PER_WU`.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -42,48 +43,43 @@ pub const TEXTURES: &[&str] = &[
 ];
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-const PARENT_DURATION_FRAMES: f32 = 60.0;
+const PARENT_DURATION_FRAMES: f32 = 100.0;
 const SPAWN_PERIOD_FRAMES: u32 = 2;
 const PARTICLE_DURATION_FRAMES: f32 = 50.0;
 const PARTICLE_FADE_IN_FRAMES: f32 = 20.0;
 const PARTICLE_FADEOUT_AT: f32 = PARTICLE_DURATION_FRAMES - 20.0;
 const PARTICLE_MAX_ALPHA: f32 = 200.0 / 255.0;
-// After the ±90° tilt the cross-texture's
-// width becomes the streak's vertical extent and height
-// becomes its perpendicular thickness. The literal range
-// `(random(60)+30)/10 = 3..9` reads directly in our world units — the
-// streaks are meant to span roughly one character height, not a
-// fraction of it.
-const PARTICLE_LENGTH_MIN: f32 = 3.0;
-const PARTICLE_LENGTH_MAX: f32 = 7.0;
-const PARTICLE_THICKNESS: f32 = 0.6;
+// After the ±90° tilt the cross-texture's width becomes the streak's vertical
+// extent and its height becomes the perpendicular thickness. Both are half
+// extents in the original, while `Billboard::size` is a full extent.
+const PARTICLE_LENGTH_MIN: f32 = 6.0;
+const PARTICLE_LENGTH_MAX: f32 = 17.8;
+const PARTICLE_THICKNESS: f32 = 0.36;
 // Radius `random(7) + 2` = 2..9 wu; gif shows the streaks
 // clustered tight enough to read as one column above the entity, but
 // still wide enough to show several streaks side-by-side around it.
 const RADIUS_MIN: f32 = 2.0;
 const RADIUS_MAX: f32 = 9.0;
 
-// Center label sizing. The original uses half-extents
-// width=40 / height=20 px in screen space; at our default camera
-// distance ~5 px/wu, so 10 wu reads close to that screen
-// footprint and stays legible without going over the character.
-const LABEL_WIDTH: f32 = 10.0;
-const LABEL_HEIGHT_INC: f32 = 5.0;
-const LABEL_HEIGHT_DEC: f32 = 2.5;
+// Screen pixels per world unit used to place the 2D label in the 3D scene.
+const LABEL_PX_PER_WU: f32 = 8.0;
+// Half extents 40×20 (Incagility, Incagidex) and 40×10 (Decagility) become
+// full extents 80×40 and 80×20 screen pixels.
+const LABEL_WIDTH: f32 = 80.0 / LABEL_PX_PER_WU;
+const LABEL_HEIGHT_INC: f32 = 40.0 / LABEL_PX_PER_WU;
+const LABEL_HEIGHT_DEC: f32 = 20.0 / LABEL_PX_PER_WU;
 const LABEL_MAX_ALPHA: f32 = 200.0 / 255.0;
 const LABEL_FADE_FRAMES: f32 = 15.0;
 const LABEL_FADEOUT_AT: f32 = PARENT_DURATION_FRAMES - LABEL_FADE_FRAMES;
-// Vertical drift in world units / frame. The original's 1.5 / 1.0 px/frame
-// values map to ~0.15 / 0.10 wu/frame at the same 10 px/wu scale.
-const LABEL_RISE_SPEED: f32 = 0.15;
-const LABEL_FALL_SPEED: f32 = 0.10;
-// Decagility starts the label above the entity (the original lifts it 80
-// px → ~8 wu in world space, native RO -Y up).
-const LABEL_DEC_SPAWN_Y: f32 = -8.0;
-// Center label sits roughly at chest height above the entity origin
-// (origin is at feet) so it reads as a tag on the character, not
-// floating in the dirt.
-const LABEL_INC_SPAWN_Y: f32 = -4.0;
+// Drift is `speed` px/frame decaying by `accel = -(speed / duration)`, times
+// 1.2 for the rising variants, so the label covers 59.1 px up / 49.5 px down
+// over its life. We spread that total linearly instead of replaying the decay.
+const LABEL_RISE_SPEED: f32 = 59.1 / LABEL_PX_PER_WU / PARENT_DURATION_FRAMES;
+const LABEL_FALL_SPEED: f32 = 49.5 / LABEL_PX_PER_WU / PARENT_DURATION_FRAMES;
+// Decagility lifts the label 80 px before dropping it (native RO -Y up);
+// the rising variants start at the entity origin.
+const LABEL_DEC_SPAWN_Y: f32 = -80.0 / LABEL_PX_PER_WU;
+const LABEL_INC_SPAWN_Y: f32 = 0.0;
 
 pub const TOTAL_DURATION_MS: u32 =
     ((PARENT_DURATION_FRAMES + PARTICLE_DURATION_FRAMES) / FRAMES_PER_SECOND * 1000.0) as u32;
@@ -92,8 +88,9 @@ pub const TOTAL_DURATION_MS: u32 =
 /// `INCAGIDEX` rises and is tinted violet/pink.
 #[derive(Clone, Copy, Debug)]
 pub struct Params {
-    /// Initial Y velocity (native RO units / frame). Negative = upward.
-    pub initial_speed_per_frame: f32,
+    /// Per-particle initial Y velocity range (native RO units / frame).
+    /// Negative = upward.
+    pub initial_speed_per_frame: (f32, f32),
     /// Y acceleration (native RO units / frame²). Positive = downward.
     pub accel_per_frame: f32,
     /// Per-particle Y spawn offset (negative = above ground).
@@ -112,8 +109,8 @@ pub struct Params {
 }
 
 pub const INCAGILITY: Params = Params {
-    // Speed `(random(50)+20)/100` upward = -0.45 avg per frame.
-    initial_speed_per_frame: -0.45,
+    // Speed `(random(50)+20)/100` upward.
+    initial_speed_per_frame: (-0.69, -0.20),
     accel_per_frame: 0.0,
     spawn_y_offset: 0.0,
     tint: [1.0, 1.0, 1.0],
@@ -126,7 +123,7 @@ pub const INCAGILITY: Params = Params {
 pub const DECAGILITY: Params = Params {
     // Accel 0.015 downward; no initial speed. Particle starts
     // 20 wu above ground and falls toward it.
-    initial_speed_per_frame: 0.0,
+    initial_speed_per_frame: (0.0, 0.0),
     accel_per_frame: 0.015,
     spawn_y_offset: -20.0,
     tint: [1.0, 1.0, 1.0],
@@ -137,7 +134,7 @@ pub const DECAGILITY: Params = Params {
 };
 
 pub const INCAGIDEX: Params = Params {
-    initial_speed_per_frame: -0.45,
+    initial_speed_per_frame: (-0.69, -0.20),
     accel_per_frame: 0.0,
     spawn_y_offset: 0.0,
     // gif reference (`imgs/0-50/43.gif`) shows mauve/violet streaks
@@ -203,7 +200,7 @@ impl StatusUpEffect {
         let rng_state = 0x9E37_79B9
             ^ world_pos[0].to_bits()
             ^ world_pos[2].to_bits().rotate_left(13)
-            ^ (params.initial_speed_per_frame.to_bits()).rotate_left(7);
+            ^ (params.initial_speed_per_frame.0.to_bits()).rotate_left(7);
         Self {
             world_pos,
             params,
@@ -231,13 +228,15 @@ impl StatusUpEffect {
         let radius = RADIUS_MIN + self.lcg_float() * (RADIUS_MAX - RADIUS_MIN);
         let length =
             PARTICLE_LENGTH_MIN + self.lcg_float() * (PARTICLE_LENGTH_MAX - PARTICLE_LENGTH_MIN);
+        let (speed_lo, speed_hi) = self.params.initial_speed_per_frame;
+        let speed = speed_lo + self.lcg_float() * (speed_hi - speed_lo);
         let (sn, cs) = longitude_deg.to_radians().sin_cos();
         // A radius vector rotated about Y by `longitude`
         // expands to (radius·sin, 0, radius·cos).
         self.particles.push(Particle {
             anchor: self.world_pos,
             offset: [radius * sn, self.params.spawn_y_offset, radius * cs],
-            y_velocity_per_frame: self.params.initial_speed_per_frame,
+            y_velocity_per_frame: speed,
             length,
             age_frames: 0.0,
         });

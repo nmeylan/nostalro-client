@@ -41,8 +41,9 @@ pub const TOTAL_DURATION_MS: u32 = (DURATION_S * 1000.0) as u32;
 pub const PROJECTILE_FLIGHT: crate::effect_queue::ProjectileFlight =
     crate::effect_queue::ProjectileFlight::FixedFrames(DURATION_FRAMES);
 
-const CENTER_SIZE: [f32; 2] = [3.5, 3.5];
-const BALL_SIZE: [f32; 2] = [4.5, 4.5];
+// `m_widthSize` / `m_heightSize` are half extents; `Billboard::size` is full.
+const CENTER_SIZE: [f32; 2] = [7.0, 7.0];
+const BALL_SIZE: [f32; 2] = [9.0, 9.0];
 const CENTER_ALPHA: f32 = 170.0 / 255.0;
 const Y_OFFSET: f32 = -5.0;
 const TARGET_KILL_DISTANCE: f32 = 3.0;

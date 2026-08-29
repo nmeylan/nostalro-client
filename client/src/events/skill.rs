@@ -13,7 +13,7 @@ use ragnarok_game::effect::{
     beginspell_for_element, caster_cast_on_use, caster_skill_effects, casting_skill,
     fire_glyph_effect, ground_placed_effect, is_cast_circle, is_caster_link_effect, is_ground_cast,
     is_trail_effect, potion_throw_index, sevenwind_aura, suppresses_visuals_on_damage,
-    target_skill_effects, trail_arrival_secs,
+    target_skill_effects,
 };
 use ragnarok_game::entity::EntityType;
 use ragnarok_game::event::GameEvent;
@@ -245,17 +245,6 @@ impl App {
             DamageMessage::Attacked
         };
 
-        // A trailing projectile (Fireball, Soul Strike, …) takes time to reach
-        // the target. Hold the hit — spark, damage number and flinch — until it
-        // arrives. Fixed-speed projectiles take longer for farther targets, so
-        // the flight is measured at the actual caster→target distance.
-        let projectile_distance = self
-            .skill_trail_endpoints(src_gid, target_gid)
-            .map(|(from, to)| {
-                let (dx, dz) = (to[0] - from[0], to[2] - from[2]);
-                (dx * dx + dz * dz).sqrt()
-            })
-            .unwrap_or(0.0);
         // Blitz Beat / Falcon Assault have no flying trail effect — the falcon
         // itself is the projectile, so hold the hit until the bird reaches the
         // target (the falcon flight was launched at the top of this handler).
@@ -266,10 +255,8 @@ impl App {
         } else {
             0.0
         };
-        let flight =
-            Self::skill_projectile_flight_secs(skill, projectile_distance).max(falcon_flight);
         let hit_extra_delay = target_skill_effects(skill).hit_extra_delay_secs;
-        let hit_delay = anim_hit.max(flight) + hit_extra_delay;
+        let hit_delay = anim_hit.max(falcon_flight) + hit_extra_delay;
 
         let double_attack_term = 0.2;
         if let Some(target) = self.game.world.entities.get_mut(target_gid) {
@@ -469,22 +456,6 @@ impl App {
             return 0.5;
         }
         ragnarok_formats::act::atk_keyframe_index(act, action_idx) as f32 / motion_count as f32
-    }
-
-    /// Seconds the skill's trailing projectile takes to reach a target
-    /// `distance_units` away, taken across every slot that can launch one — the
-    /// caster-released `cast` (Shield Boomerang, Grimtooth), `on_target` and
-    /// `before_hit` (the longest wins). Fixed-speed projectiles scale with
-    /// distance; fixed-frame ones ignore it. `0.0` if no timed projectile.
-    fn skill_projectile_flight_secs(skill: SkillEnum, distance_units: f32) -> f32 {
-        let t = target_skill_effects(skill);
-        caster_skill_effects(skill)
-            .cast
-            .iter()
-            .chain(t.on_target.iter())
-            .chain(t.before_hit.iter())
-            .filter_map(|e| trail_arrival_secs(*e, distance_units))
-            .fold(0.0_f32, f32::max)
     }
 
     /// Feet-world positions of caster and target for a projectile trail. `None`

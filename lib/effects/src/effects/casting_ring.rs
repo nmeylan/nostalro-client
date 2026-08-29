@@ -5,7 +5,6 @@ const FRAMES_PER_SECOND: f32 = 60.0;
 
 const NUM_RINGS: usize = 3;
 const RING_SIDES: u32 = 20;
-const RING_ARC_DEG: f32 = 360.0;
 const RING_UV_REPEAT: f32 = 1.0;
 const RING_SPIN_BASE_DEG_PER_FRAME: f32 = 3.0;
 const FADE_IN_FRAMES: f32 = 20.0;
@@ -14,29 +13,31 @@ const FADE_IN_FRAMES: f32 = 20.0;
 pub struct CastingRingParams {
     pub texture: &'static str,
     pub color_rgb: [f32; 3],
-    pub bottom_size: f32,
-    pub top_size: f32,
-    pub height: f32,
+    /// `[bottom radius, top radius, height]` per ring.
+    pub rings: [[f32; 3]; NUM_RINGS],
+    pub arc_deg: f32,
     pub alpha_max: f32,
     pub base_alpha: f32,
 }
 
 pub const LV99: CastingRingParams = CastingRingParams {
     texture: "ring_blue.tga",
-    color_rgb: [0.55, 0.55, 1.00],
-    bottom_size: 3.9,
-    top_size: 12.5,
-    height: 12.3,
-    alpha_max: 0.47,
-    base_alpha: 0.25,
+    color_rgb: [100.0 / 255.0, 100.0 / 255.0, 1.00],
+    rings: [
+        [3.9, 12.504, 12.287],
+        [4.1, 12.456, 9.959],
+        [4.3, 12.078, 7.778],
+    ],
+    arc_deg: 315.0,
+    alpha_max: 120.0 / 255.0,
+    base_alpha: 1.0,
 };
 
 pub const GREEN995: CastingRingParams = CastingRingParams {
     texture: "ring_white.tga",
-    color_rgb: [0.14, 1.00, 0.14],
-    bottom_size: 2.5,
-    top_size: 8.0,
-    height: 14.0,
+    color_rgb: [100.0 / 255.0, 1.00, 100.0 / 255.0],
+    rings: [[2.5, 8.0, 14.0], [2.5, 8.3, 13.5], [2.5, 8.6, 13.0]],
+    arc_deg: 360.0,
     alpha_max: 0.30,
     base_alpha: 1.0,
 };
@@ -44,9 +45,8 @@ pub const GREEN995: CastingRingParams = CastingRingParams {
 pub const MAP_AURA: CastingRingParams = CastingRingParams {
     texture: "ring_blue.tga",
     color_rgb: [0.55, 0.55, 1.00],
-    bottom_size: 12.9,
-    top_size: 18.0,
-    height: 12.0,
+    rings: [[12.9, 18.0, 12.0], [12.9, 18.3, 11.5], [12.9, 18.6, 11.0]],
+    arc_deg: 360.0,
     alpha_max: 50.0 / 255.0,
     base_alpha: 1.0,
 };
@@ -54,9 +54,8 @@ pub const MAP_AURA: CastingRingParams = CastingRingParams {
 pub const BEGINSPELL8: CastingRingParams = CastingRingParams {
     texture: "ring_white.tga",
     color_rgb: [0.45, 1.00, 0.55],
-    bottom_size: 2.5,
-    top_size: 7.5,
-    height: 13.0,
+    rings: [[2.5, 7.5, 13.0], [2.5, 7.8, 12.5], [2.5, 8.1, 12.0]],
+    arc_deg: 360.0,
     alpha_max: 0.30,
     base_alpha: 1.0,
 };
@@ -101,22 +100,19 @@ impl Effect for CastingRingEffect {
             return;
         }
 
-        for i in 0..NUM_RINGS {
+        for (i, [bottom_size, top_size, height]) in self.params.rings.iter().enumerate() {
             let fi = i as f32;
-            let height = self.params.height - fi * 0.5;
-            let bottom_size = self.params.bottom_size;
-            let top_size = self.params.top_size + fi * 0.3;
             let rot_start = fi * std::f32::consts::FRAC_PI_2;
             let spin = -(frame * (RING_SPIN_BASE_DEG_PER_FRAME + fi)).to_radians();
 
             out.push(EffectPrimitiveDraw::Frustum {
                 base_alpha: self.params.base_alpha,
                 base: self.world_pos,
-                bottom_size,
-                top_size,
-                height,
+                bottom_size: *bottom_size,
+                top_size: *top_size,
+                height: *height,
                 sides: RING_SIDES,
-                arc_angle_deg: RING_ARC_DEG,
+                arc_angle_deg: self.params.arc_deg,
                 rotation: rot_start + spin,
                 uv_repeat: RING_UV_REPEAT,
                 uv_scroll: [0.0, 0.0],
@@ -189,7 +185,7 @@ mod tests {
                 top_size > bottom_size,
                 "ring should flare outward as it rises"
             );
-            assert_eq!(*arc_angle_deg, RING_ARC_DEG);
+            assert_eq!(*arc_angle_deg, LV99.arc_deg);
             assert_eq!(*blend, BlendKind::Additive);
         }
     }

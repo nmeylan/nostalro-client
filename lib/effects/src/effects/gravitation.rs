@@ -1,23 +1,32 @@
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{CameraShake, Effect, EffectRenderCtx, EffectUpdateCtx};
-
-const FRAMES_PER_SECOND: f32 = 60.0;
+use crate::effects::spike_util::{FRAMES_PER_SECOND, apex_velocity};
 
 const STONE: &str = "stone.bmp";
 const ICE: &str = "ice.tga";
 pub const TEXTURES: &[&str] = &[STONE, ICE];
 
-const WORLD_SCALE: f32 = 0.8;
+const FRAME_DT: f32 = 1.0 / FRAMES_PER_SECOND;
 
-const SPIKE_COUNT: usize = 60;
-const FIELD_RADIUS: f32 = 13.0;
+/// One effect is spawned per cell of the field, so a level-5 field is 25 of
+/// these; four shards each is already a dense wall.
+const SPIKE_COUNT: usize = 4;
+const HEIGHT: f32 = 18.0;
+const BURY_DEPTH: f32 = 10.0;
+const ALPHA: f32 = 20.0 / 255.0;
 
-const DURATION_FRAMES: f32 = 240.0;
-const FADE_IN_FRAMES: f32 = 15.0;
-const FADE_OUT_FRAMES: f32 = 30.0;
-const MAX_ALPHA: f32 = 0.22;
+const SPEED_INIT: f32 = 1.0;
+const ACCEL_INIT: f32 = 0.01;
+const RETRACT_SPEED: f32 = -1.2;
+const EXTEND_SPEED: f32 = 1.18;
+const EXTEND_ACCEL: f32 = 0.01;
+/// Three frames out, three frames back: the shards buzz in place.
+const VIBRATION_PERIOD: u32 = 6;
+/// Past this the shards stop buzzing and sink for good.
+const SETTLE_FRAME: u32 = 550;
+
 const QUAKE_AMPLITUDE: f32 = 1.0;
-pub const TOTAL_DURATION_MS: u32 = (DURATION_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+const QUAKE_DURATION_MS: u32 = 200;
 
 struct Rng(u32);
 impl Rng {
@@ -32,18 +41,47 @@ impl Rng {
 
 struct Spike {
     base: [f32; 3],
-    inward: [f32; 2],
+    axis: [f32; 3],
     size: f32,
-    height: f32,
     latitude_deg: f32,
     longitude_deg: f32,
-    pulse_phase: f32,
     texture: &'static str,
+    distance: f32,
+    speed: f32,
+    accel: f32,
+}
+
+impl Spike {
+    fn step(&mut self, frame: u32) {
+        if frame >= SETTLE_FRAME {
+            if frame == SETTLE_FRAME {
+                self.speed = RETRACT_SPEED;
+                self.accel = 0.0;
+            }
+        } else if frame % VIBRATION_PERIOD == 2 {
+            self.speed = RETRACT_SPEED;
+            self.accel = 0.0;
+        } else if frame % VIBRATION_PERIOD == 5 {
+            self.speed = EXTEND_SPEED;
+            self.accel = EXTEND_ACCEL;
+        }
+        self.speed += self.accel;
+        self.distance += self.speed;
+    }
+
+    fn position(&self) -> [f32; 3] {
+        [
+            self.base[0] + self.axis[0] * self.distance,
+            self.base[1] + self.axis[1] * self.distance,
+            self.base[2] + self.axis[2] * self.distance,
+        ]
+    }
 }
 
 pub struct GravitationEffect {
     spikes: Vec<Spike>,
-    age_frames: f32,
+    frame: u32,
+    time_accum: f32,
     shake_fired: bool,
 }
 
@@ -54,71 +92,55 @@ impl GravitationEffect {
         let mut rng = Rng(seed | 1);
         let spikes = (0..SPIKE_COUNT)
             .map(|i| {
-                let angle = rng.range(0.0, std::f32::consts::TAU);
-                let radius = FIELD_RADIUS * rng.range(0.0, 1.0).sqrt();
-                let (dx, dz) = (angle.cos(), angle.sin());
+                let size = rng.range(3.0, 3.5);
+                let longitude = rng.range(0.0, 360.0);
+                let latitude = rng.range(60.0, 100.0);
                 Spike {
-                    base: [ax + dx * radius, ay, az + dz * radius],
-                    inward: [-dx, -dz],
-                    size: rng.range(3.0, 3.5) * WORLD_SCALE,
-                    height: 18.0 * WORLD_SCALE * rng.range(0.8, 1.1),
-                    latitude_deg: rng.range(60.0, 100.0),
-                    longitude_deg: rng.range(0.0, 360.0),
-                    pulse_phase: rng.range(0.0, std::f32::consts::TAU),
+                    base: [ax, ay + BURY_DEPTH, az],
+                    axis: apex_velocity(latitude, longitude, 1.0),
+                    size,
+                    latitude_deg: latitude,
+                    longitude_deg: longitude,
                     texture: if i < SPIKE_COUNT / 2 { STONE } else { ICE },
+                    distance: 0.0,
+                    speed: SPEED_INIT,
+                    accel: ACCEL_INIT,
                 }
             })
             .collect();
         Self {
             spikes,
-            age_frames: 0.0,
+            frame: 0,
+            time_accum: 0.0,
             shake_fired: false,
-        }
-    }
-
-    fn alpha(&self) -> f32 {
-        let a = self.age_frames;
-        if a < FADE_IN_FRAMES {
-            MAX_ALPHA * (a / FADE_IN_FRAMES)
-        } else if a > DURATION_FRAMES - FADE_OUT_FRAMES {
-            MAX_ALPHA * ((DURATION_FRAMES - a) / FADE_OUT_FRAMES).max(0.0)
-        } else {
-            MAX_ALPHA
         }
     }
 }
 
 impl Effect for GravitationEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
-        self.age_frames += ctx.delta * FRAMES_PER_SECOND;
-        if self.age_frames >= DURATION_FRAMES {
-            EffectStatus::Dead
-        } else {
-            EffectStatus::Running
+        self.time_accum += ctx.delta;
+        while self.time_accum >= FRAME_DT {
+            self.time_accum -= FRAME_DT;
+            for s in &mut self.spikes {
+                s.step(self.frame);
+            }
+            self.frame += 1;
         }
+        // The field lives as long as its skill unit, which despawns the effect.
+        EffectStatus::Running
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        let alpha = self.alpha();
-        if alpha <= 0.0 {
-            return;
-        }
         for s in &self.spikes {
-            let pulse = (self.age_frames * 0.25 + s.pulse_phase).sin();
-            let reach = pulse * 1.2 * WORLD_SCALE;
-            let base = [
-                s.base[0] + s.inward[0] * reach,
-                s.base[1],
-                s.base[2] + s.inward[1] * reach,
-            ];
             out.push(EffectPrimitiveDraw::QuadHorn {
-                base,
+                base: s.position(),
                 size: s.size,
-                height: s.height,
+                height: HEIGHT,
                 tilt_x_deg: s.latitude_deg,
                 rotation_y_deg: s.longitude_deg,
                 texture: s.texture,
-                color: [1.0, 1.0, 1.0, alpha],
+                color: [1.0, 1.0, 1.0, ALPHA],
                 blend: BlendKind::Alpha,
             });
         }
@@ -129,7 +151,7 @@ impl Effect for GravitationEffect {
             self.shake_fired = true;
             Some(CameraShake {
                 amplitude: QUAKE_AMPLITUDE,
-                duration_ms: TOTAL_DURATION_MS,
+                duration_ms: QUAKE_DURATION_MS,
             })
         } else {
             None
@@ -150,12 +172,16 @@ mod tests {
         }
     }
 
-    fn step(e: &mut GravitationEffect, frames: f32) -> EffectStatus {
-        e.update(&EffectUpdateCtx {
-            delta: frames / FRAMES_PER_SECOND,
-            camera_target: None,
-            caster_yaw: None,
-        })
+    fn step(e: &mut GravitationEffect, frames: u32) -> EffectStatus {
+        let mut s = EffectStatus::Running;
+        for _ in 0..frames {
+            s = e.update(&EffectUpdateCtx {
+                delta: FRAME_DT,
+                camera_target: None,
+                caster_yaw: None,
+            });
+        }
+        s
     }
 
     fn horns(e: &GravitationEffect) -> Vec<([f32; 3], f32, &'static str)> {
@@ -177,38 +203,44 @@ mod tests {
     }
 
     #[test]
-    fn dense_field_of_stone_and_ice_shards() {
-        let mut e = GravitationEffect::new([0.0, 0.0, 0.0]);
-        step(&mut e, 8.0);
+    fn four_faint_shards_buried_at_the_cell_centre() {
+        let e = GravitationEffect::new([0.0, 0.0, 0.0]);
         let h = horns(&e);
-        assert_eq!(h.len(), SPIKE_COUNT, "full shard field");
-        assert!(
-            h.iter().any(|(_, _, t)| *t == STONE),
-            "stone shards present"
-        );
-        assert!(h.iter().any(|(_, _, t)| *t == ICE), "ice shards present");
-        let xs: Vec<f32> = h.iter().map(|(b, _, _)| b[0]).collect();
-        let spread = xs.iter().cloned().fold(f32::MIN, f32::max)
-            - xs.iter().cloned().fold(f32::MAX, f32::min);
-        assert!(spread > 4.0, "shards spread across the field: {spread}");
+        assert_eq!(h.len(), SPIKE_COUNT);
+        assert!(h.iter().any(|(_, _, t)| *t == STONE));
+        assert!(h.iter().any(|(_, _, t)| *t == ICE));
+        for (base, alpha, _) in &h {
+            assert!((alpha - ALPHA).abs() < 1e-6, "barely visible: {alpha}");
+            assert!(base[0] == 0.0 && base[2] == 0.0, "no radial scatter");
+            assert!(base[1] > 0.0, "starts below the ground: {}", base[1]);
+        }
     }
 
     #[test]
-    fn fades_in_holds_then_dies() {
+    fn shards_buzz_in_place_and_outlive_the_field() {
         let mut e = GravitationEffect::new([0.0; 3]);
-        step(&mut e, 2.0);
-        let a_early = horns(&e)[0].1;
-        step(&mut e, 20.0);
-        let a_mid = horns(&e)[0].1;
-        assert!(a_mid > a_early, "fades in: {a_early} -> {a_mid}");
-        assert_eq!(step(&mut e, DURATION_FRAMES), EffectStatus::Dead);
+        step(&mut e, 2);
+        let out = horns(&e)[0].0[1];
+        step(&mut e, 3);
+        let back = horns(&e)[0].0[1];
+        assert!(back > out, "retracts on the second half of the cycle");
+
+        // Net travel over whole cycles stays near zero — it vibrates, it does
+        // not creep away.
+        step(&mut e, 295);
+        let settled = horns(&e)[0].0[1];
+        assert!(
+            (settled - BURY_DEPTH).abs() < 4.0,
+            "still around its buried origin: {settled}"
+        );
+        assert_eq!(step(&mut e, 1), EffectStatus::Running, "never self-expires");
     }
 
     #[test]
-    fn fires_continuous_camera_shake_once() {
+    fn fires_one_short_camera_shake() {
         let mut e = GravitationEffect::new([0.0; 3]);
         let shake = e.take_camera_shake().expect("shake fires at spawn");
-        assert!(shake.amplitude > 0.0 && shake.duration_ms > 1000);
+        assert_eq!(shake.duration_ms, QUAKE_DURATION_MS);
         assert!(e.take_camera_shake().is_none(), "shake fires only once");
     }
 }

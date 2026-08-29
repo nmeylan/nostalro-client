@@ -461,7 +461,11 @@ mod tests {
         }
         let mut hp = DrainEffect::new([0.0; 3], [0.0; 3], ENERGY_DRAIN3);
         run(&mut hp, 6);
-        assert_eq!(draws(&hp).len(), 15 * NUM_SEGMENT, "3 strands x frames 0..=4");
+        assert_eq!(
+            draws(&hp).len(),
+            15 * NUM_SEGMENT,
+            "3 strands x frames 0..=4"
+        );
     }
 
     #[test]
@@ -516,8 +520,7 @@ mod tests {
         let spread = heads(&e);
         let xs = spread.iter().map(|p| p[0]);
         assert!(
-            xs.clone().fold(f32::MAX, f32::min) < -1.0
-                && xs.fold(f32::MIN, f32::max) > 1.0,
+            xs.clone().fold(f32::MAX, f32::min) < -1.0 && xs.fold(f32::MIN, f32::max) > 1.0,
             "strands spray to both sides of the caster"
         );
         assert!(e.body_tint().is_none(), "tint starts at frame 50");

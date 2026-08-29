@@ -7,10 +7,10 @@ pub const TEXTURES: &[&str] = &[STONE_TEXTURE];
 
 const GRID: i32 = 5;
 const SPIKE_COUNT: usize = (GRID * GRID) as usize;
-const GRID_STEP: f32 = 2.0;
-const SIZE_SCALE: f32 = 0.4;
-const HEIGHT_SCALE: f32 = 0.45;
-const DIST_SCALE: f32 = 0.4;
+/// One cell per blade, so the 5×5 grid covers the skill's whole splash.
+const GRID_STEP: f32 = 5.0;
+/// The blades start buried and rise out of the ground (native RO +Y is down).
+const BURY_DEPTH: f32 = 10.0;
 const SPEED_INIT: f32 = 1.0;
 const ACCEL_INIT: f32 = 0.01;
 const CHANGE_POINT_FRAME: f32 = 11.0;
@@ -56,7 +56,7 @@ impl Spike {
     }
 
     fn position(&self) -> [f32; 3] {
-        let d = self.distance * DIST_SCALE;
+        let d = self.distance;
         [
             self.base[0] + self.axis[0] * d,
             self.base[1] + self.axis[1] * d,
@@ -85,12 +85,16 @@ impl HeavensDriveEffect {
             for j in 0..GRID {
                 let off_x = (-(GRID - 1) as f32 / 2.0 + j as f32) * GRID_STEP;
                 let off_z = (-(GRID - 1) as f32 / 2.0 + i as f32) * GRID_STEP;
-                let size = (3.0 + lcg() * 0.5) * SIZE_SCALE;
-                let height = (9.0 + lcg() * 6.0) * HEIGHT_SCALE;
+                let size = 3.0 + lcg() * 0.5;
+                let height = 9.0 + lcg() * 6.0;
                 let heading = lcg() * 360.0;
                 let tilt = 80.0 + lcg() * 20.0;
                 spikes.push(Spike {
-                    base: [world_pos[0] + off_x, world_pos[1], world_pos[2] + off_z],
+                    base: [
+                        world_pos[0] + off_x,
+                        world_pos[1] + BURY_DEPTH,
+                        world_pos[2] + off_z,
+                    ],
                     axis: apex_velocity(tilt, heading, 1.0),
                     tilt_deg: tilt,
                     heading_deg: heading,
@@ -195,6 +199,17 @@ mod tests {
                 "blade inside grid footprint"
             );
         }
+        // The footprint spans the skill's whole 5-cell splash (5 wu per cell).
+        let xs: Vec<f32> = prims
+            .iter()
+            .map(|p| match p {
+                EffectPrimitiveDraw::QuadHorn { base, .. } => base[0],
+                _ => unreachable!(),
+            })
+            .collect();
+        let width = xs.iter().cloned().fold(f32::MIN, f32::max)
+            - xs.iter().cloned().fold(f32::MAX, f32::min);
+        assert!((width - 20.0).abs() < 1e-3, "5 cells wide, got {width}");
 
         let mut status = EffectStatus::Running;
         for _ in 0..(DURATION_FRAMES as i32 + 5) {
@@ -219,6 +234,10 @@ mod tests {
             caster_yaw: None,
         });
         let y_start = sample_y(&e);
+        assert!(
+            y_start > 0.0,
+            "blade starts buried below the ground: {y_start}"
+        );
 
         for _ in 0..16 {
             e.update(&EffectUpdateCtx {
