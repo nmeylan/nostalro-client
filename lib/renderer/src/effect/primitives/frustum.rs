@@ -5,8 +5,9 @@
 //! top ring, world space, up along negative local Y, tilt-about-X then
 //! yaw-about-Y into `base`), plus three extras: the ring can cover a partial
 //! `arc_angle_deg` instead of a full turn; each top-ring vertex is displaced by
-//! a `wave` term along the cone slant (`FrustumWaveMode::Sine` around the ring
-//! or `SaintBell`, a single lobe); and when `cull_back` is set, segments whose
+//! a `wave` term along the cone slant (`FrustumWaveMode::Sine` around the ring,
+//! `SaintBell`, a single lobe, or `ArcTaper`, which instead scales the slant to
+//! a half-sine across the arc); and when `cull_back` is set, segments whose
 //! outward normal faces away from the camera fade out (a view-dependent alpha
 //! computed from the eye position). The record sorts at mid-height. Uses
 //! `effect_frustum.wgsl`.
@@ -169,7 +170,6 @@ pub fn prepare_frustum_records<'tex>(
         let texture_bg = texture_lookup(texture).unwrap_or(fallback_texture);
 
         let bottom_local_y: f32 = 0.0;
-        let top_local_y_base: f32 = -*height;
         let full_span = arc_angle_deg.to_radians().clamp(0.0, std::f32::consts::TAU);
         let geom_rotation = *rotation;
         let uv_rep = *uv_repeat;
@@ -214,9 +214,15 @@ pub fn prepare_frustum_records<'tex>(
                     let bell = (local_angle * 0.5).sin();
                     *wave_amplitude * bell
                 }
+                FrustumWaveMode::ArcTaper => *wave_amplitude,
             };
-            let seg_top_size = top_size + wave * radial_unit;
-            let seg_top_local_y = top_local_y_base - wave * vert_unit;
+            let taper = match wave_mode {
+                FrustumWaveMode::ArcTaper => (std::f32::consts::PI * t).sin(),
+                _ => 1.0,
+            };
+            let slant = (tilt_len + wave) * taper;
+            let seg_top_size = bottom_size + slant * radial_unit;
+            let seg_top_local_y = -slant * vert_unit;
 
             let outward_dot_xz = cos_a * eye_xz_x + sin_a * eye_xz_z;
             let front_factor = ((outward_dot_xz / eye_xz_len) + 1.0) * 0.5;

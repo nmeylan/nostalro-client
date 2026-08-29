@@ -8,6 +8,8 @@ const RING_SIDES: u32 = 20;
 const RING_UV_REPEAT: f32 = 1.0;
 const RING_SPIN_BASE_DEG_PER_FRAME: f32 = 3.0;
 const FADE_IN_FRAMES: f32 = 20.0;
+const ALPHA_STEP_PER_FRAME: f32 = 10.0 / 255.0;
+const GROW_FRAMES: f32 = 90.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct CastingRingParams {
@@ -16,6 +18,7 @@ pub struct CastingRingParams {
     /// `[bottom radius, top radius, height]` per ring.
     pub rings: [[f32; 3]; NUM_RINGS],
     pub arc_deg: f32,
+    pub alpha_start: f32,
     pub alpha_max: f32,
     pub base_alpha: f32,
 }
@@ -29,7 +32,8 @@ pub const LV99: CastingRingParams = CastingRingParams {
         [4.3, 12.078, 7.778],
     ],
     arc_deg: 315.0,
-    alpha_max: 120.0 / 255.0,
+    alpha_start: 120.0 / 255.0,
+    alpha_max: 180.0 / 255.0,
     base_alpha: 1.0,
 };
 
@@ -38,7 +42,8 @@ pub const GREEN995: CastingRingParams = CastingRingParams {
     color_rgb: [100.0 / 255.0, 1.00, 100.0 / 255.0],
     rings: [[2.5, 8.0, 14.0], [2.5, 8.3, 13.5], [2.5, 8.6, 13.0]],
     arc_deg: 360.0,
-    alpha_max: 0.30,
+    alpha_start: 120.0 / 255.0,
+    alpha_max: 180.0 / 255.0,
     base_alpha: 1.0,
 };
 
@@ -47,6 +52,7 @@ pub const MAP_AURA: CastingRingParams = CastingRingParams {
     color_rgb: [0.55, 0.55, 1.00],
     rings: [[12.9, 18.0, 12.0], [12.9, 18.3, 11.5], [12.9, 18.6, 11.0]],
     arc_deg: 360.0,
+    alpha_start: 50.0 / 255.0,
     alpha_max: 50.0 / 255.0,
     base_alpha: 1.0,
 };
@@ -56,6 +62,7 @@ pub const BEGINSPELL8: CastingRingParams = CastingRingParams {
     color_rgb: [0.45, 1.00, 0.55],
     rings: [[2.5, 7.5, 13.0], [2.5, 7.8, 12.5], [2.5, 8.1, 12.0]],
     arc_deg: 360.0,
+    alpha_start: 0.0,
     alpha_max: 0.30,
     base_alpha: 1.0,
 };
@@ -95,22 +102,25 @@ impl Effect for CastingRingEffect {
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let [r, g, b] = self.params.color_rgb;
         let frame = self.frame();
-        let alpha = self.params.alpha_max * (frame / FADE_IN_FRAMES).clamp(0.0, 1.0);
+        let ramp = ALPHA_STEP_PER_FRAME * frame.min(FADE_IN_FRAMES);
+        let alpha = (self.params.alpha_start + ramp).min(self.params.alpha_max);
         if alpha <= 0.0 {
             return;
         }
 
+        let grow = frame.min(GROW_FRAMES).to_radians().sin();
+
         for (i, [bottom_size, top_size, height]) in self.params.rings.iter().enumerate() {
             let fi = i as f32;
             let rot_start = fi * std::f32::consts::FRAC_PI_2;
-            let spin = -(frame * (RING_SPIN_BASE_DEG_PER_FRAME + fi)).to_radians();
+            let spin = (frame * (RING_SPIN_BASE_DEG_PER_FRAME + fi)).to_radians();
 
             out.push(EffectPrimitiveDraw::Frustum {
                 base_alpha: self.params.base_alpha,
                 base: self.world_pos,
                 bottom_size: *bottom_size,
-                top_size: *top_size,
-                height: *height,
+                top_size: bottom_size + (top_size - bottom_size) * grow,
+                height: height * grow,
                 sides: RING_SIDES,
                 arc_angle_deg: self.params.arc_deg,
                 rotation: rot_start + spin,
@@ -119,7 +129,7 @@ impl Effect for CastingRingEffect {
                 wave_amplitude: 0.0,
                 wave_frequency: 1.0,
                 wave_phase: 0.0,
-                wave_mode: FrustumWaveMode::Sine,
+                wave_mode: FrustumWaveMode::ArcTaper,
                 tilt_x_rad: 0.0,
                 rotation_y_rad: 0.0,
                 cull_back: false,
@@ -206,16 +216,46 @@ mod tests {
     }
 
     #[test]
-    fn alpha_ramps_in_then_holds() {
+    fn alpha_starts_seeded_then_climbs_to_the_cap_and_holds() {
         let mut c = CastingRingEffect::new([0.0; 3], LV99);
+        let start = ring_alpha(&c);
         run_to(&mut c, 5.0);
         let early = ring_alpha(&c);
         run_to(&mut c, FADE_IN_FRAMES);
         let peak = ring_alpha(&c);
         run_to(&mut c, FADE_IN_FRAMES * 4.0);
         let held = ring_alpha(&c);
-        assert!(peak > early, "alpha ramps in ({early} → {peak})");
+        assert!((start - LV99.alpha_start).abs() < 1e-4, "visible at spawn");
+        assert!(peak > early, "alpha climbs in ({early} → {peak})");
+        assert!((peak - LV99.alpha_max).abs() < 1e-4, "clamped at the cap");
         assert!((held - peak).abs() < 1e-4, "alpha holds after ramp-in");
+    }
+
+    #[test]
+    fn rings_taper_across_the_arc_and_grow_to_full_height() {
+        let mut c = CastingRingEffect::new([0.0; 3], LV99);
+        run_to(&mut c, 30.0);
+        let early = ring_height(&c);
+        run_to(&mut c, GROW_FRAMES);
+        let full = ring_height(&c);
+        run_to(&mut c, GROW_FRAMES * 3.0);
+        let held = ring_height(&c);
+        assert!(early > 0.0 && early < full, "grows in ({early} → {full})");
+        assert!((full - LV99.rings[0][2]).abs() < 1e-3, "reaches its full rise");
+        assert!((held - full).abs() < 1e-4, "holds once grown");
+        for p in rings(&c) {
+            let EffectPrimitiveDraw::Frustum { wave_mode, .. } = p else {
+                panic!("expected Frustum");
+            };
+            assert_eq!(wave_mode, FrustumWaveMode::ArcTaper);
+        }
+    }
+
+    fn ring_height(c: &CastingRingEffect) -> f32 {
+        match &rings(c)[0] {
+            EffectPrimitiveDraw::Frustum { height, .. } => *height,
+            _ => panic!(),
+        }
     }
 
     fn ring_alpha(c: &CastingRingEffect) -> f32 {

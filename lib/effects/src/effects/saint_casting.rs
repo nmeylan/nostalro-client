@@ -226,7 +226,7 @@ impl Effect for SaintCastingEffect {
                 wave_amplitude,
                 wave_frequency: 1.0,
                 wave_phase: 0.0,
-                wave_mode: FrustumWaveMode::SaintBell,
+                wave_mode: FrustumWaveMode::ArcTaper,
                 tilt_x_rad: 0.0,
                 rotation_y_rad: 0.0,
                 // A hard back-face discard would be ideal, but our
@@ -382,7 +382,7 @@ mod tests {
         let e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
         for p in draws(&e) {
             if let EffectPrimitiveDraw::Frustum { wave_mode, .. } = p {
-                assert_eq!(wave_mode, FrustumWaveMode::SaintBell);
+                assert_eq!(wave_mode, FrustumWaveMode::ArcTaper);
             }
         }
     }

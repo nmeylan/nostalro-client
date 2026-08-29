@@ -7,6 +7,10 @@ pub enum FrustumWaveMode {
     /// Single positive lobe centred opposite the seam. `wave_amplitude` may go
     /// negative to flip the lobe inward.
     SaintBell,
+    /// The band's slant is scaled by `sin(pi * t)` across the arc, so it meets
+    /// the ground at both ends and reaches full height mid-arc. `wave_amplitude`
+    /// lengthens the slant before the taper applies.
+    ArcTaper,
 }
 
 /// Pre-classified blend mode for effect primitives.
