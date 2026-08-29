@@ -514,6 +514,7 @@ pub fn caster_skill_effects(skill: SkillEnum) -> CasterSkillEffects {
         S::WeCallpartner => C::cast(&[E::Couplecasting]),
 
         S::KnPierce => C::cast(&[E::Pierceself]),
+        S::KnSpearstab => C::cast(&[E::Spearstabself]),
         S::KnSpearboomerang => C::cast(&[E::Spearbmrself]),
         S::KnBowlingbash => C::cast(&[E::Bowlingself]),
         S::KnBrandishspear => C::cast(&[]),
@@ -707,12 +708,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::TfSprinklesand => T::on_target(&[E::Sprinklesand]),
         S::TfThrowstone => T::on_target(&[E::Throwitem3]),
 
-        S::KnPierce => T::hit(&[E::Pierce]),
-        S::KnSpearstab => T {
-            on_target: &[E::Spearstabself],
-            hit: &[E::Pierce],
-            ..Default::default()
-        },
+        S::KnPierce | S::KnSpearstab => T::hit(&[E::Pierce]),
         S::KnSpearboomerang => T {
             on_target: &[E::Spearbmr],
             hit: &[E::Hit4],
@@ -1809,7 +1805,6 @@ mod tests {
             (SkillEnum::GsFullbuster, EffectId::M02),
             (SkillEnum::GsSpreadattack, EffectId::Spreadattack),
             (SkillEnum::AsSonicblow, EffectId::Sonicblow),
-            (SkillEnum::KnSpearstab, EffectId::Spearstabself),
         ] {
             assert!(
                 target_skill_effects(skill).on_target.contains(&effect),
