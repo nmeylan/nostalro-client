@@ -184,10 +184,55 @@ struct LayerAnim {
     color: [f32; 4],
     angle: f32,
     offset: [f32; 2],
-    #[allow(dead_code)]
     blend_src: i32,
-    /// `6` (D3DBLEND_INVSRCALPHA) → alpha blend; anything else → additive.
     blend_dst: i32,
+}
+
+struct LayerBlend {
+    additive: bool,
+    use_vertex_alpha: bool,
+}
+
+const STR_ALPHA_REF: f32 = 15.0 / 255.0;
+
+/// STR keyframes carry a pair of DirectX `D3DBLEND` constants: `1` ZERO,
+/// `2` ONE, `3` SRCCOLOR, `4` INVSRCCOLOR, `5` SRCALPHA, `6` INVSRCALPHA,
+/// `7` DESTALPHA, `12` BOTHSRCALPHA; which we remap onto our two sprite
+/// pipelines. see https://github.com/ADHSoft/ro-str-viewer/blob/master/src/com/skardach/ro/graphics/BlendType.java
+fn layer_blend(blend_src: i32, blend_dst: i32) -> LayerBlend {
+    match (blend_src, blend_dst) {
+        (2, 1) => LayerBlend {
+            additive: false,
+            use_vertex_alpha: false,
+        },
+        (2, 2) => LayerBlend {
+            additive: true,
+            use_vertex_alpha: false,
+        },
+        (5, 6) | (12, _) => LayerBlend {
+            additive: false,
+            use_vertex_alpha: true,
+        },
+        _ => LayerBlend {
+            additive: true,
+            use_vertex_alpha: true,
+        },
+    }
+}
+
+/// Vertex colour for a quad, or `None` when the alpha test rejects the whole
+/// layer.
+fn layer_quad_color(anim: &LayerAnim, blend: &LayerBlend) -> Option<[f32; 4]> {
+    let alpha = (anim.color[3] / 255.0).clamp(0.0, 1.0);
+    if alpha < STR_ALPHA_REF {
+        return None;
+    }
+    Some([
+        (anim.color[0] / 255.0).clamp(0.0, 1.0),
+        (anim.color[1] / 255.0).clamp(0.0, 1.0),
+        (anim.color[2] / 255.0).clamp(0.0, 1.0),
+        if blend.use_vertex_alpha { alpha } else { 1.0 },
+    ])
 }
 
 fn str_angle_to_radians(raw: f32) -> f32 {
@@ -357,15 +402,10 @@ pub fn build_str_effect_batches<'a>(
                 continue;
             };
 
-            let color = [
-                (anim.color[0] / 255.0).clamp(0.0, 1.0),
-                (anim.color[1] / 255.0).clamp(0.0, 1.0),
-                (anim.color[2] / 255.0).clamp(0.0, 1.0),
-                (anim.color[3] / 255.0).clamp(0.0, 1.0),
-            ];
-            if color[3] < 0.01 {
+            let blend = layer_blend(anim.blend_src, anim.blend_dst);
+            let Some(color) = layer_quad_color(&anim, &blend) else {
                 continue;
-            }
+            };
 
             let angle_rad = str_angle_to_radians(anim.angle);
             let cos_a = angle_rad.cos();
@@ -401,12 +441,11 @@ pub fn build_str_effect_batches<'a>(
                 });
             }
 
-            let additive = anim.blend_dst != 6;
             batches.push(SpriteBatch {
                 vertices,
                 indices: vec![0, 1, 2, 1, 3, 2],
                 texture,
-                additive,
+                additive: blend.additive,
                 no_depth: false,
             });
         }
@@ -416,7 +455,72 @@ pub fn build_str_effect_batches<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::str_angle_to_radians;
+    use ragnarok_formats::str_effect::{EffectFrame, EffectLayer};
+
+    use super::{calculate_layer_anim, layer_blend, layer_quad_color, str_angle_to_radians};
+
+    fn source_frame(frame_index: i32, alpha: f32, blend: (i32, i32)) -> EffectFrame {
+        EffectFrame {
+            frame_index,
+            frame_type: 0,
+            offset: [320.0, 320.0],
+            tex_coords: [0.0; 8],
+            positions: [0.0; 8],
+            texture_index: 0.0,
+            animation_mode: 0,
+            delay: 0.0,
+            angle: 0.0,
+            color: [255.0, 255.0, 255.0, alpha],
+            blend_src: blend.0,
+            blend_dst: blend.1,
+            multi_texture: 0,
+        }
+    }
+
+    #[test]
+    fn opaque_layer_pins_alpha_and_drops_below_alpha_ref() {
+        let layer = EffectLayer {
+            textures: vec!["hunter_talkiebox.bmp".to_string()],
+            frames: vec![
+                source_frame(0, 255.0, (2, 1)),
+                source_frame(10, 10.0, (2, 1)),
+            ],
+        };
+
+        let anim = calculate_layer_anim(&layer, 0.0);
+        let blend = layer_blend(anim.blend_src, anim.blend_dst);
+        assert!(!blend.additive);
+        assert_eq!(layer_quad_color(&anim, &blend).unwrap()[3], 1.0);
+
+        let faded = calculate_layer_anim(&layer, 10.0);
+        let blend = layer_blend(faded.blend_src, faded.blend_dst);
+        assert!(layer_quad_color(&faded, &blend).is_none());
+    }
+
+    #[test]
+    fn alpha_weighted_layers_keep_their_vertex_alpha() {
+        let anim = calculate_layer_anim(
+            &EffectLayer {
+                textures: vec!["ring_b.bmp".to_string()],
+                frames: vec![source_frame(0, 128.0, (5, 7))],
+            },
+            0.0,
+        );
+        let blend = layer_blend(anim.blend_src, anim.blend_dst);
+        assert!(blend.additive);
+        assert!((layer_quad_color(&anim, &blend).unwrap()[3] - 128.0 / 255.0).abs() < 1e-6);
+
+        let anim = calculate_layer_anim(
+            &EffectLayer {
+                textures: vec!["alpha.bmp".to_string()],
+                frames: vec![source_frame(0, 128.0, (5, 6))],
+            },
+            0.0,
+        );
+        let blend = layer_blend(anim.blend_src, anim.blend_dst);
+        assert!(!blend.additive);
+        assert!((layer_quad_color(&anim, &blend).unwrap()[3] - 128.0 / 255.0).abs() < 1e-6);
+    }
 
     #[test]
     fn str_angle_decodes_brand_units_not_degrees() {
