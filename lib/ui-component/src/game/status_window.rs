@@ -366,7 +366,7 @@ impl InGameWindow for StatusWindow {
 
         let col1_lines: [String; 4] = [
             format!("{} {}", character.atk1, Self::fmt_signed(character.atk2)),
-            format!("{} {}", character.matk1, Self::fmt_signed(character.matk2)),
+            format!("{} {}", character.matk2, Self::fmt_signed(character.matk1)),
             format!("{}", character.hit),
             format!("{}", character.critical),
         ];
@@ -375,7 +375,7 @@ impl InGameWindow for StatusWindow {
             ui.text_right(x + COL1_RIGHT, baseline, t, tc);
         }
 
-        let aspd_disp = (200 - character.aspd / 10).max(0);
+        let aspd_disp = (200.0 - character.aspd as f32 / 10.0).max(0.0).floor() as i32;
         let col2_lines: [String; 5] = [
             format!("{} {}", character.def1, Self::fmt_signed(character.def2)),
             format!("{} {}", character.mdef1, Self::fmt_signed(character.mdef2)),
