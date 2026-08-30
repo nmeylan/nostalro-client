@@ -854,6 +854,16 @@ impl App {
                 GameEvent::ServerMsg { msg_id } => {
                     self.handle_server_msg(msg_id);
                 }
+                GameEvent::MapInfoNotice { atype } => {
+                    self.handle_map_info_notice(atype);
+                }
+                GameEvent::ServerColoredMessage {
+                    account_id,
+                    color,
+                    message,
+                } => {
+                    self.handle_server_colored_message(account_id, color, message);
+                }
                 GameEvent::UserCount { count } => {
                     self.handle_user_count(count);
                 }
@@ -1199,8 +1209,11 @@ impl App {
                     self.game.world.entities.apply_skill_cast_cancel(gid);
                     self.clear_cast_mark(gid);
                 }
-                GameEvent::SkillFailed { skill, cause } => {
-                    self.handle_skill_failed(skill, cause);
+                GameEvent::SkillFailed { skill, cause, num } => {
+                    if let Some(gid) = self.game.world.entities.player_id() {
+                        self.cancel_begin_cast_effects(gid);
+                    }
+                    self.handle_skill_failed(skill, cause, num);
                 }
                 GameEvent::SkillPostDelay { skill, delay_ms } => {
                     let now = self.start_time.elapsed().as_secs_f32();
@@ -1230,9 +1243,15 @@ impl App {
                 GameEvent::Disconnected(reason) => {
                     self.handle_disconnected(reason, event_loop);
                 }
-                GameEvent::ActionFailure => {
-                    self.game.combat.attack_target_id = None;
-                    self.game.world.entities.apply_action_failure();
+                GameEvent::ActionFailure { error_code } => {
+                    if error_code != chat::ARROWFAIL_SUCCESS {
+                        self.game.combat.attack_target_id = None;
+                        self.game.world.entities.apply_action_failure();
+                        if let Some(gid) = self.game.world.entities.player_id() {
+                            self.cancel_begin_cast_effects(gid);
+                        }
+                    }
+                    self.handle_action_failure(error_code);
                 }
 
                 GameEvent::PartyMemberList { name, members } => {

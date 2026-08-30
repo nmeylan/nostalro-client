@@ -204,6 +204,12 @@ impl EffectQueue {
         ));
     }
 
+    pub fn cancel_pending_on(&mut self, effect_id: EffectId, entity_id: u32) {
+        self.pending.retain(|r| {
+            r.effect_id != effect_id || !matches!(r.attach, Attach::Entity(id) if id == entity_id)
+        });
+    }
+
     pub fn despawn(&mut self, key: u32) {
         self.pending.retain(|r| r.key != Some(key));
         self.despawns.push(key);
@@ -236,6 +242,24 @@ mod tests {
         q.despawn(7);
         assert_eq!(q.drain_despawns(), vec![7]);
         assert!(q.drain_despawns().is_empty());
+    }
+
+    #[test]
+    fn cancel_pending_on_drops_only_that_effect_on_that_entity() {
+        let mut q = EffectQueue::new();
+        q.spawn_on(EffectId::Bash, 42);
+        q.spawn_on(EffectId::Bash, 99);
+        q.spawn_on(EffectId::Blessing, 42);
+
+        q.cancel_pending_on(EffectId::Bash, 42);
+
+        let pending = q.drain();
+        assert_eq!(pending.len(), 2);
+        assert!(
+            pending
+                .iter()
+                .all(|r| !(r.effect_id == EffectId::Bash && r.attach == Attach::Entity(42)))
+        );
     }
 
     #[test]

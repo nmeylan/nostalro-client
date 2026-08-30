@@ -3,32 +3,56 @@ use std::collections::HashMap;
 pub use models::enums::skill::SkillTargetType;
 pub use models::enums::skill_enums::SkillEnum;
 
-/// Player-facing message for a skill-use failure `cause` (`USESKILL_FAIL_*`), or
-/// `None` when no message should be shown. Cause 0 (`USESKILL_FAIL_LEVEL`) is the
-/// server's catch-all default — sent for placement failures like "trap too near"
-/// — so the original game shows nothing for it, as we do for any unmapped cause.
-pub fn skill_failure_message(cause: u8) -> Option<&'static str> {
+/// `msgstringtable` id for a skill-use failure `cause` (`USESKILL_FAIL_*`), or
+/// `None` when no message should be shown. Cause 0 reads the skill and, for
+/// Basic Skill, the `btype` sub-code to pick which requirement was not met.
+///
+/// Cause 71 is not here: its entry is a template needing the item name and
+/// amount, so the caller formats it.
+pub fn skill_failure_msg_id(cause: u8, skill: SkillEnum, btype: u16) -> Option<u16> {
     Some(match cause {
-        1 => "Not enough SP",
-        2 => "Not enough HP",
-        3 => "Insufficient materials",
-        4 => "Skill is on cooldown",
-        5 => "Not enough Zeny",
-        6 => "Cannot use with this weapon",
-        7 => "Red Gemstone required",
-        8 => "Blue Gemstone required",
-        9 => "Overweight",
-        10 => "Skill failed",
-        11 => "Cannot use on this target",
-        12 => "You cannot carry any more Ancilla",
-        13 => "Holy Water required",
-        14 => "Ancilla required",
-        16 => "Need another skill first",
-        17 => "Need a partner",
-        18 => "You are facing the wrong direction",
+        0 => match skill {
+            SkillEnum::NvBasic => match btype {
+                0 => 159,
+                1 => 160,
+                2 => 161,
+                3 => 162,
+                4 => 163,
+                5 => 164,
+                6 => 165,
+                7 => 383,
+                8 => 1304,
+                _ => return None,
+            },
+            SkillEnum::AlWarp => 214,
+            SkillEnum::TfSteal => 205,
+            SkillEnum::TfPoison => 207,
+            _ => 204,
+        },
+        1 => 202,
+        2 => 203,
+        3 => 808,
+        4 => 219,
+        5 => 233,
+        6 => 239,
+        7 => 246,
+        8 => 247,
+        9 => 580,
+        10 => 285,
+        11..=16 => 1396 + (cause as u16 - 11),
+        17..=23 => 1411 + (cause as u16 - 17),
+        24..=27 => 1425 + (cause as u16 - 24),
+        34 => 1436,
+        84 => 2466,
         _ => return None,
     })
 }
+
+pub const USESKILL_FAIL_NEED_ITEM: u8 = 71;
+
+/// Cause 71: `"[%s] required '%d' amount."`, filled with the item name and the
+/// amount the skill needs.
+pub const MSI_USESKILL_FAIL_NEED_ITEM: u16 = 1536;
 
 /// Ground skills whose cast carries a written message: the client collects the text
 /// itself and sends it with the placement, so the server has nothing to prompt for.
@@ -340,19 +364,33 @@ mod tests {
     }
 
     #[test]
-    fn skill_failure_message_returns_known_causes() {
-        assert_eq!(skill_failure_message(1), Some("Not enough SP"));
-        assert_eq!(skill_failure_message(2), Some("Not enough HP"));
-        assert_eq!(skill_failure_message(4), Some("Skill is on cooldown"));
-        assert_eq!(skill_failure_message(7), Some("Red Gemstone required"));
-        assert_eq!(skill_failure_message(16), Some("Need another skill first"));
-        assert_eq!(skill_failure_message(17), Some("Need a partner"));
-    }
+    fn skill_failure_msg_id_maps_every_reachable_cause() {
+        let basic = SkillEnum::NvBasic;
+        assert_eq!(skill_failure_msg_id(0, basic, 3), Some(162));
+        assert_eq!(skill_failure_msg_id(0, basic, 7), Some(383));
+        assert_eq!(skill_failure_msg_id(0, basic, 9), None);
+        assert_eq!(skill_failure_msg_id(0, SkillEnum::AlWarp, 0), Some(214));
+        assert_eq!(skill_failure_msg_id(0, SkillEnum::TfSteal, 0), Some(205));
+        assert_eq!(skill_failure_msg_id(0, SkillEnum::TfPoison, 0), Some(207));
+        assert_eq!(skill_failure_msg_id(0, SkillEnum::SmBash, 0), Some(204));
 
-    #[test]
-    fn skill_failure_message_catch_all_and_unknown_causes_show_nothing() {
-        assert_eq!(skill_failure_message(0), None);
-        assert_eq!(skill_failure_message(200), None);
+        assert_eq!(skill_failure_msg_id(1, SkillEnum::SmBash, 0), Some(202));
+        assert_eq!(skill_failure_msg_id(6, SkillEnum::AcDouble, 0), Some(239));
+        assert_eq!(skill_failure_msg_id(9, SkillEnum::SmBash, 0), Some(580));
+        assert_eq!(skill_failure_msg_id(10, SkillEnum::SmBash, 0), Some(285));
+
+        assert_eq!(skill_failure_msg_id(11, SkillEnum::SmBash, 0), Some(1396));
+        assert_eq!(skill_failure_msg_id(16, SkillEnum::SmBash, 0), Some(1401));
+        assert_eq!(skill_failure_msg_id(17, SkillEnum::SmBash, 0), Some(1411));
+        assert_eq!(skill_failure_msg_id(23, SkillEnum::SmBash, 0), Some(1417));
+        assert_eq!(skill_failure_msg_id(24, SkillEnum::SmBash, 0), Some(1425));
+        assert_eq!(skill_failure_msg_id(27, SkillEnum::SmBash, 0), Some(1428));
+
+        assert_eq!(skill_failure_msg_id(34, SkillEnum::SmBash, 0), Some(1436));
+        assert_eq!(skill_failure_msg_id(84, SkillEnum::SmBash, 0), Some(2466));
+
+        assert_eq!(skill_failure_msg_id(30, SkillEnum::SmBash, 0), None);
+        assert_eq!(skill_failure_msg_id(200, SkillEnum::SmBash, 0), None);
     }
 
     #[test]

@@ -20,7 +20,9 @@ use ragnarok_game::event::GameEvent;
 use ragnarok_game::job_class::job_class_name;
 use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::scheduled_hit::{DamageMessage, ScheduledHit};
-use ragnarok_game::skill::SkillTargetType;
+use ragnarok_game::skill::{
+    MSI_USESKILL_FAIL_NEED_ITEM, SkillTargetType, USESKILL_FAIL_NEED_ITEM, skill_failure_msg_id,
+};
 use ragnarok_game::skill_action::{SkillMotionType, skill_motion_type};
 use ragnarok_game::sound::tables::{
     SkillSoundPos, skill_cast_begin_sound, skill_projectile_sound, skill_use_sound,
@@ -543,6 +545,22 @@ impl App {
         self.queue_skill_sound(skill_cast_begin_sound(skill), caster_gid);
     }
 
+    pub(super) fn cancel_begin_cast_effects(&mut self, caster_gid: u32) {
+        let Some(skill) = self
+            .game
+            .world
+            .entities
+            .get(caster_gid)
+            .and_then(|e| e.active_skill)
+        else {
+            return;
+        };
+        for e in casting_skill(skill).begin {
+            self.effect_queue.cancel_pending_on(*e, caster_gid);
+            self.effect_holder.despawn_effect_on_entity(*e, caster_gid);
+        }
+    }
+
     /// What the cast marks out for as long as it runs: a reticle on the victim of
     /// a targeted cast, or a square of ground under a placed one. A self-cast
     /// marks nothing.
@@ -894,13 +912,39 @@ impl App {
         self.game.character.cooldowns.is_on_cooldown(skill, now)
     }
 
-    pub(super) fn handle_skill_failed(&mut self, skill: SkillEnum, cause: u8) {
+    pub(super) fn handle_skill_failed(&mut self, skill: SkillEnum, cause: u8, num: u32) {
         self.game.pending_casts.pending_skill_target = None;
         self.game.pending_casts.pending_skill = None;
         self.game.pending_casts.pending_skill_level = None;
-        let msg = ragnarok_game::skill::skill_failure_message(cause).unwrap_or("Skill failed.");
-        tracing::info!("Skill {skill:?} failed (cause: {cause}): {msg}");
-        self.windows.chat_window.add_error(msg.to_string());
+        let btype = (num & 0xffff) as u16;
+        let line =
+            if cause == USESKILL_FAIL_NEED_ITEM {
+                let item_id = (num >> 16) as u16;
+                let name = self
+                    .game
+                    .data_table
+                    .item_name
+                    .as_ref()
+                    .map(|t| t.get_name_or_id_for(item_id, false))
+                    .unwrap_or_else(|| format!("Item #{item_id}"));
+                self.game.data_table.msg_string.as_ref().and_then(|t| {
+                    t.format(MSI_USESKILL_FAIL_NEED_ITEM, &[&name, &btype.to_string()])
+                })
+            } else {
+                skill_failure_msg_id(cause, skill, btype).and_then(|msg_id| {
+                    self.game
+                        .data_table
+                        .msg_string
+                        .as_ref()
+                        .and_then(|t| t.get(msg_id))
+                        .map(str::to_string)
+                })
+            };
+        let Some(line) = line else {
+            tracing::debug!("Skill {skill:?} failed with unmapped cause {cause}");
+            return;
+        };
+        self.windows.chat_window.add_error(line);
     }
 }
 

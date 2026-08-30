@@ -342,8 +342,11 @@ pub enum GameEvent {
     SkillFailed {
         skill: SkillEnum,
         cause: u8,
+        num: u32,
     },
-    ActionFailure,
+    ActionFailure {
+        error_code: i16,
+    },
     SkillPostDelay {
         skill: SkillEnum,
         delay_ms: u32,
@@ -972,6 +975,14 @@ pub enum GameEvent {
     ProgressBarCancelled,
     ServerMsg {
         msg_id: u16,
+    },
+    MapInfoNotice {
+        atype: i16,
+    },
+    ServerColoredMessage {
+        account_id: u32,
+        color: u32,
+        message: String,
     },
     /// Answer to `/who`, sent to the requester alone.
     UserCount {

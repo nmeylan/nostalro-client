@@ -1131,6 +1131,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             return vec![GameEvent::SkillFailed {
                 skill: SkillEnum::from_id(p.skid as u32),
                 cause: p.cause,
+                num: p.num,
             }];
         }
         return vec![GameEvent::Acknowledged];
@@ -1329,6 +1330,16 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
     if let Some(p) = any.downcast_ref::<PacketZcAckRememberWarppoint>() {
         return vec![GameEvent::MemoResult {
             result: p.error_code,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNotifyMapinfo>() {
+        return vec![GameEvent::MapInfoNotice { atype: p.atype }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcNpcChat>() {
+        return vec![GameEvent::ServerColoredMessage {
+            account_id: p.account_id,
+            color: p.color,
+            message: raw_euc_kr(&p.msg_raw),
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcDispel>() {
@@ -2814,8 +2825,10 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
             .collect();
         return vec![GameEvent::HotkeyListReceived { slots }];
     }
-    if any.downcast_ref::<PacketZcActionFailure>().is_some() {
-        return vec![GameEvent::ActionFailure];
+    if let Some(p) = any.downcast_ref::<PacketZcActionFailure>() {
+        return vec![GameEvent::ActionFailure {
+            error_code: p.error_code,
+        }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyMapproperty>() {
         let kind = MapKind::from_property(p.atype);
@@ -5560,6 +5573,62 @@ mod tests {
         match dispatch_packet(&progress, packetver).as_slice() {
             [GameEvent::ProgressBarStarted { duration_secs }] => assert_eq!(*duration_secs, 7),
             other => panic!("expected ProgressBarStarted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn refusal_replies_carry_their_reason_to_the_game() {
+        let packetver = 20120307;
+
+        let mut mapinfo = PacketZcNotifyMapinfo::new(packetver);
+        mapinfo.set_atype(2);
+        mapinfo.fill_raw();
+        match dispatch_packet(&mapinfo, packetver).as_slice() {
+            [GameEvent::MapInfoNotice { atype }] => assert_eq!(*atype, 2),
+            other => panic!("expected MapInfoNotice, got {other:?}"),
+        }
+
+        let mut arrow = PacketZcActionFailure::new(packetver);
+        arrow.set_error_code(0);
+        arrow.fill_raw();
+        match dispatch_packet(&arrow, packetver).as_slice() {
+            [GameEvent::ActionFailure { error_code }] => assert_eq!(*error_code, 0),
+            other => panic!("expected ActionFailure, got {other:?}"),
+        }
+
+        let mut fail = PacketZcAckTouseskill::new(packetver);
+        fail.set_skid(SkillEnum::AcDouble.id() as u16);
+        fail.set_num(0x0499_0002);
+        fail.set_result(false);
+        fail.set_cause(71);
+        fail.fill_raw();
+        match dispatch_packet(&fail, packetver).as_slice() {
+            [GameEvent::SkillFailed { skill, cause, num }] => {
+                assert_eq!(
+                    (*skill, *cause, *num),
+                    (SkillEnum::AcDouble, 71, 0x0499_0002)
+                );
+            }
+            other => panic!("expected SkillFailed, got {other:?}"),
+        }
+
+        let mut npc_chat = PacketZcNpcChat::new(packetver);
+        npc_chat.set_account_id(2000000);
+        npc_chat.set_color(0x0000_00ff);
+        npc_chat.set_msg("Skill Failed.".to_string());
+        npc_chat.fill_raw();
+        match dispatch_packet(&npc_chat, packetver).as_slice() {
+            [
+                GameEvent::ServerColoredMessage {
+                    account_id,
+                    color,
+                    message,
+                },
+            ] => {
+                assert_eq!((*account_id, *color), (2000000, 0x0000_00ff));
+                assert_eq!(message, "Skill Failed.");
+            }
+            other => panic!("expected ServerColoredMessage, got {other:?}"),
         }
     }
 
