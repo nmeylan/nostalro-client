@@ -531,7 +531,6 @@ pub fn build_damage_number_quads(
             let sw = tw as f32 * zoom;
             let sh = th as f32 * zoom;
 
-            println!("{}",pitch_scale);
             let x_offset = dmg.digit_x_offsets.get(i).copied().unwrap_or(0.0) * pitch_scale * zoom;
             let x = base_x + x_offset - sw / 2.0;
             let y = base_y - sh / 2.0;
