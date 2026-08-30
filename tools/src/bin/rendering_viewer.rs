@@ -27,7 +27,7 @@ type HotCreateFn = extern "C" fn() -> *mut ();
 type HotDestroyFn = unsafe extern "C" fn(*mut ());
 type HotTriggerFn = unsafe extern "C" fn(*mut (), u8, i32, u8);
 type HotUpdateFn = unsafe extern "C" fn(*mut (), f32);
-type HotBuildFn = unsafe extern "C" fn(*mut (), *mut Vec<DamageNumberQuad>);
+type HotBuildFn = unsafe extern "C" fn(*mut (), *mut Vec<DamageNumberQuad>, f32, f32);
 type HotInitSpritesFn = unsafe extern "C" fn(
     *mut (),
     *const u8,
@@ -97,8 +97,15 @@ impl HotLib {
         unsafe { (self.trigger_fn)(self.state, scenario, damage_value, direction) };
     }
 
-    fn build(&self, out: &mut Vec<DamageNumberQuad>) {
-        unsafe { (self.build_fn)(self.state, out as *mut Vec<DamageNumberQuad>) };
+    fn build(&self, out: &mut Vec<DamageNumberQuad>, screen_w: f32, screen_h: f32) {
+        unsafe {
+            (self.build_fn)(
+                self.state,
+                out as *mut Vec<DamageNumberQuad>,
+                screen_w,
+                screen_h,
+            )
+        };
     }
 
     fn init_sprites(
@@ -447,7 +454,7 @@ impl App {
         let quads: Vec<DamageNumberQuad> = {
             let mut q = Vec::new();
             if let Some(hot) = &self.hot_lib {
-                hot.build(&mut q);
+                hot.build(&mut q, width, height);
             }
             q
         };

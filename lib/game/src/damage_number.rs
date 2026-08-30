@@ -17,6 +17,8 @@ pub enum DamageNumberType {
 }
 
 const DIGIT_SPACING: f32 = 8.0;
+const SCREEN_X_FACTOR_PER_PIXEL: f32 = 1.0 / 640.0;
+const AVG_PIXEL_RATIO_PER_PIXEL: f32 = 1.34 / 768.0;
 const FRAME_MS: f32 = 24.0; // ms per animation tick
 /// World units above the actor origin a number spawns at. Everything here is in
 /// world units, never screen pixels: one sprite pixel is only `map_zoom / 75`
@@ -360,6 +362,18 @@ pub use ragnarok_formats::damage_number::{DamageNumberQuad, TextureSource};
 /// Every retail map ships a GND zoom of 10.0.
 pub const STANDARD_MAP_ZOOM: f32 = 10.0;
 
+/// Sprite pixels of digit pitch per unit of `digit_x_offset`, for a viewport of
+/// `screen_w` x `screen_h`. Widescreen spaces the digits further apart.
+pub fn digit_pitch_scale(screen_w: f32, screen_h: f32) -> f32 {
+    if screen_h <= 0.0 {
+        return 1.0;
+    }
+    ((screen_w * SCREEN_X_FACTOR_PER_PIXEL) / (screen_h * AVG_PIXEL_RATIO_PER_PIXEL))
+        // Setting min and max otherwise on high resolution spacing is too important and on very low, digit are render over each other
+        .min(1.3)
+        .max(0.9)
+}
+
 /// Pixels per world unit implied by a sprite scale, since `sprite_scale` is
 /// `pixels_per_world_unit * map_zoom / 75`.
 pub fn pixels_per_world_unit(sprite_scale: f32, map_zoom: f32) -> f32 {
@@ -427,8 +441,10 @@ pub fn build_damage_number_quads(
     num_sizes: &[(u32, u32)],
     num_indexed_count: usize,
     msg_sizes: Option<&[(u32, u32)]>,
+    viewport: (f32, f32),
 ) -> Vec<DamageNumberQuad> {
     let mut quads = Vec::new();
+    let pitch_scale = digit_pitch_scale(viewport.0, viewport.1);
     for entry in entries {
         let dmg = &entry.data;
         let s = entry.scale;
@@ -515,7 +531,8 @@ pub fn build_damage_number_quads(
             let sw = tw as f32 * zoom;
             let sh = th as f32 * zoom;
 
-            let x_offset = dmg.digit_x_offsets.get(i).copied().unwrap_or(0.0) * zoom;
+            println!("{}",pitch_scale);
+            let x_offset = dmg.digit_x_offsets.get(i).copied().unwrap_or(0.0) * pitch_scale * zoom;
             let x = base_x + x_offset - sw / 2.0;
             let y = base_y - sh / 2.0;
 
@@ -694,6 +711,19 @@ mod tests {
         let d = DamageNumber::new(1, 123, DamageNumberType::Normal, 0.0);
         let offsets: Vec<f32> = (0..3).map(|i| d.digit_x_offset(i, 3)).collect();
         assert_eq!(offsets, vec![8.0, 0.0, -8.0]);
+    }
+
+    #[test]
+    fn digit_pitch_widens_with_the_viewport_aspect() {
+        let d = DamageNumber::new(1, 123, DamageNumberType::Normal, 0.0);
+        let pitch = |w: f32, h: f32| {
+            (d.digit_x_offset(0, 3) - d.digit_x_offset(1, 3)) * digit_pitch_scale(w, h)
+        };
+        assert!((pitch(640.0, 480.0) - pitch(1024.0, 768.0)).abs() < 1e-4);
+        assert!(pitch(1920.0, 1080.0) > pitch(1024.0, 768.0));
+        // The widest glyph in the number sprite is 10px, so a pitch below that
+        // overlaps its neighbour.
+        assert!(pitch(1920.0, 1080.0) > 10.0);
     }
 
     #[test]

@@ -995,6 +995,7 @@ impl App {
                         .damage_msg_textures
                         .as_ref()
                         .map(|t| t.sizes.as_slice()),
+                    camera.map_or((1.0, 1.0), |(_, w, h)| (w, h)),
                 );
                 ragnarok_renderer::render_damage_number_quads(
                     &quads,

@@ -287,7 +287,12 @@ pub unsafe extern "C" fn hot_init_sprites(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hot_build(state_ptr: *mut (), out_quads: *mut Vec<DamageNumberQuad>) {
+pub unsafe extern "C" fn hot_build(
+    state_ptr: *mut (),
+    out_quads: *mut Vec<DamageNumberQuad>,
+    screen_w: f32,
+    screen_h: f32,
+) {
     let state = unsafe { &*(state_ptr as *const State) };
     let out = unsafe { &mut *out_quads };
 
@@ -336,6 +341,7 @@ pub unsafe extern "C" fn hot_build(state_ptr: *mut (), out_quads: *mut Vec<Damag
         &sprites.num_sizes,
         sprites.num_indexed_count,
         msg_sizes,
+        (screen_w, screen_h),
     );
     out.extend(quads);
 }

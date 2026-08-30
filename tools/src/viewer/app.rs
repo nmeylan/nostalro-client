@@ -1171,6 +1171,7 @@ impl App {
                 &num_tex.sizes,
                 num_tex.indexed_count,
                 None,
+                (screen_w, screen_h),
             );
             ragnarok_renderer::render_damage_number_quads(
                 &quads,
