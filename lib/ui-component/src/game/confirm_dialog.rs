@@ -1,9 +1,10 @@
 use crate::Window;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 const OVERLAY_ID: WidgetId = WidgetId(410);
+const WINDOW_ID: WidgetId = WidgetId(411);
 const OK_BTN_ID: WidgetId = WidgetId(400);
 const CANCEL_BTN_ID: WidgetId = WidgetId(401);
 
@@ -163,6 +164,8 @@ impl ConfirmDialog {
         };
 
         let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
+        ui.ensure_in_z_order_with(WINDOW_ID, WindowOrder::Foreground);
+        ui.enter_window(WINDOW_ID, screen);
         ui.interact(OVERLAY_ID, screen);
         let (v, i) = draw::quad_vertices(
             0.0,

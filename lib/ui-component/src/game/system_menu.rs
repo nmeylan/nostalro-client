@@ -5,10 +5,11 @@ use super::confirm_dialog::{ConfirmDialog, ConfirmResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
-use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
+use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
 const BG_ID: WidgetId = WidgetId(510);
+const WINDOW_ID: WidgetId = WidgetId(511);
 const RESUME_ID: WidgetId = WidgetId(500);
 const OPTION_ID: WidgetId = WidgetId(501);
 const CHARSELECT_ID: WidgetId = WidgetId(502);
@@ -195,9 +196,6 @@ impl InGameWindow for SystemMenu {
             return events;
         }
 
-        let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
-        ui.interact(BG_ID, screen);
-
         if self.pending_confirm != PendingConfirm::None {
             let pending = self.pending_confirm;
             let out_param = Rc::clone(&self.confirm_dialog_out_param);
@@ -364,6 +362,13 @@ impl SystemMenu {
         }
     }
 
+    fn claim_pointer(&self, ui: &mut UiFrame, rect: Rect) {
+        ui.ensure_in_z_order_with(WINDOW_ID, WindowOrder::Foreground);
+        ui.enter_window(WINDOW_ID, rect);
+        let screen = Rect::new(0.0, 0.0, ui.ctx.screen_width, ui.ctx.screen_height);
+        ui.interact(BG_ID, screen);
+    }
+
     fn build_grf(&mut self, ui: &mut UiFrame, events: &mut Vec<GameEvent>) {
         let buttons = self.buttons();
         let n = buttons.len() as f32;
@@ -379,6 +384,8 @@ impl SystemMenu {
 
         let mx = ((ui.ctx.screen_width - menu_w) / 2.0).floor();
         let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor() + 80.0;
+
+        self.claim_pointer(ui, Rect::new(mx, my, menu_w, menu_h));
 
         let titlebar_x = mx + (menu_w - titlebar_w) / 2.0;
         let (v, i) =
@@ -420,6 +427,8 @@ impl SystemMenu {
         let menu_h = PADDING_TOP + n * FALLBACK_BTN_H + (n - 1.0) * BTN_SPACING + PADDING_BOTTOM;
         let mx = ((ui.ctx.screen_width - MENU_W) / 2.0).floor();
         let my = ((ui.ctx.screen_height - menu_h) / 2.0).floor();
+
+        self.claim_pointer(ui, Rect::new(mx, my, MENU_W, menu_h));
 
         let (v, i) = draw::quad_vertices(mx, my, MENU_W, menu_h, [0.2, 0.2, 0.28, 0.95]);
         ui.draw_calls.push(DrawCall {
@@ -464,6 +473,8 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
 
+    use crate::game::chat_window::CHAT_WINDOW_ID;
+    use crate::game::minimap_window::MINIMAP_WINDOW_ID;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
     use ragnarok_ui::test_support::test_frame;
@@ -634,6 +645,33 @@ mod tests {
         let my = ((screen_h - menu_h) / 2.0).floor();
         let btn_y = my + PADDING_TOP + idx as f32 * (FALLBACK_BTN_H + BTN_SPACING);
         (btn_x + FALLBACK_BTN_W / 2.0, btn_y + FALLBACK_BTN_H / 2.0)
+    }
+
+    #[test]
+    fn button_wins_over_a_window_drawn_behind_the_menu() {
+        let mut menu = SystemMenu::new();
+        menu.open = true;
+        let mut state = StateCache::new();
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let (mx, my) = button_center(600.0, 7, 0);
+
+        let mut frame = |clicked: bool| {
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_x = mx;
+            ctx.mouse_y = my;
+            ctx.mouse_clicked = clicked;
+            let mut ui = test_frame(&mut ctx, &mut state);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            ui.window_fixed(CHAT_WINDOW_ID, 800.0, 600.0, 0.0, 0.0);
+            ui.window_fixed(MINIMAP_WINDOW_ID, 100.0, 100.0, 700.0, 0.0);
+            menu.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        };
+
+        frame(false);
+        frame(true);
+        assert!(!menu.open);
     }
 
     #[test]
