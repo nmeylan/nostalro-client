@@ -875,6 +875,25 @@ impl<'a> UiFrame<'a> {
         self.text(x, y, &bold, color);
     }
 
+    pub fn text_with_outline(
+        &mut self,
+        x: f32,
+        y: f32,
+        content: &str,
+        color: [f32; 4],
+        outline: &draw::TextOutline,
+    ) {
+        draw::push_outlined_text(
+            content,
+            x,
+            y,
+            color,
+            outline,
+            self.atlas,
+            &mut self.draw_calls,
+        );
+    }
+
     pub fn text_with_shadow(
         &mut self,
         x: f32,

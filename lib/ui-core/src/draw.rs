@@ -615,6 +615,92 @@ pub fn word_wrap(
     lines
 }
 
+pub const OUTLINE_RING_CROSS: [(f32, f32); 4] = [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)];
+pub const OUTLINE_RING_8: [(f32, f32); 8] = [
+    (-1.0, 0.0),
+    (1.0, 0.0),
+    (0.0, -1.0),
+    (0.0, 1.0),
+    (-1.0, -1.0),
+    (1.0, -1.0),
+    (-1.0, 1.0),
+    (1.0, 1.0),
+];
+
+pub struct TextOutline {
+    pub color: [f32; 4],
+    pub ring: &'static [(f32, f32)],
+    pub passes: usize,
+    pub thickness_px: f32,
+}
+
+impl TextOutline {
+    pub fn cross(color: [f32; 4]) -> Self {
+        Self {
+            color,
+            ring: &OUTLINE_RING_CROSS,
+            passes: 1,
+            thickness_px: 1.0,
+        }
+    }
+
+    pub fn ring(color: [f32; 4]) -> Self {
+        Self {
+            color,
+            ring: &OUTLINE_RING_8,
+            passes: 1,
+            thickness_px: 1.0,
+        }
+    }
+}
+
+/// `thickness_px` physical pixels expressed in logical ones. Text is snapped to the
+/// physical grid, so a whole number of physical pixels is what keeps the ring the same
+/// distance out on every side; anything else rounds unevenly and tears a gap.
+pub fn outline_step(atlas: &FontAtlas, thickness_px: f32) -> f32 {
+    thickness_px / atlas.dpi_scale
+}
+
+/// The ring goes down as one draw call, so the accumulation passes cost vertices rather
+/// than draws.
+pub fn push_outlined_text(
+    text: &str,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    outline: &TextOutline,
+    atlas: &FontAtlas,
+    calls: &mut Vec<DrawCall>,
+) {
+    let step = outline_step(atlas, outline.thickness_px);
+    let mut outline_verts = Vec::new();
+    let mut outline_indices = Vec::new();
+    for _ in 0..outline.passes {
+        for &(dx, dy) in outline.ring {
+            let (verts, indices) =
+                text_vertices(text, x + dx * step, y + dy * step, outline.color, atlas);
+            let base = outline_verts.len() as u32;
+            outline_verts.extend(verts);
+            outline_indices.extend(indices.into_iter().map(|i| i + base));
+        }
+    }
+    if !outline_verts.is_empty() {
+        calls.push(DrawCall {
+            vertices: outline_verts,
+            indices: outline_indices,
+            texture: TextureRef::FontAtlas,
+        });
+    }
+    let (verts, indices) = text_vertices(text, x, y, color, atlas);
+    if !verts.is_empty() {
+        calls.push(DrawCall {
+            vertices: verts,
+            indices,
+            texture: TextureRef::FontAtlas,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -715,6 +801,23 @@ mod tests {
             !has(0.0, 10.0) && !has(20.0, 10.0),
             "bottom corners are rounded away"
         );
+    }
+
+    #[test]
+    fn the_outline_sits_the_same_distance_above_and_below_at_any_ui_scale() {
+        for scale in [0.75_f32, 1.0, 1.25, 1.5, 2.0] {
+            let atlas = FontAtlas::from_embedded(14.0, scale);
+            let physical = |v: f32| (atlas.snap_to_physical(v) * scale).round();
+            for thickness_px in [1.0_f32, scale.round()] {
+                let step = outline_step(&atlas, thickness_px);
+                for y in [100.0_f32, 100.2, 100.4, 100.6, 100.8] {
+                    let above = physical(y) - physical(y - step);
+                    let below = physical(y + step) - physical(y);
+                    assert_eq!(above, thickness_px, "scale {scale}, y {y}");
+                    assert_eq!(below, thickness_px, "scale {scale}, y {y}");
+                }
+            }
+        }
     }
 
     fn char_count_measure(s: &str) -> f32 {

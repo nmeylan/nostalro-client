@@ -3,6 +3,7 @@ use super::inventory_window::INV_WINDOW_ID;
 use super::mercenary_skill_window::MERCENARY_SKILL_WINDOW_ID;
 use super::skill_tree_window::SKILL_WINDOW_ID;
 use crate::game::equipment_window::EQ_WINDOW_ID;
+use crate::helper::colors;
 use crate::helper::window_chrome::{draw_sys_button, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
@@ -13,7 +14,7 @@ use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
 use ragnarok_game::skill::SkillEnum;
 use ragnarok_game::skill_action::{SkillCaster, skill_caster};
-use ragnarok_ui::draw::{self, DrawCall, TextureRef};
+use ragnarok_ui::draw::{self, DrawCall, TextOutline, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
 
@@ -27,6 +28,7 @@ const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
 const CLOSE_ON_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_ON;
 const CAT_PAW_TEX: &str = ragnarok_resources::ui::item::CAT_PAW_HAIRPIN;
 
+const COUNT_OUTLINE_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 const ICON_SIZE: f32 = 24.0;
 const SLOT_PAD_X: f32 = 16.0;
 const SLOT_PAD_Y: f32 = 5.0;
@@ -439,7 +441,17 @@ impl InGameWindow for HotkeyBarWindow {
                         let text_w = ui.atlas.measure_text(&count_text);
                         let tx = cell_rect.x + ICON_SIZE - text_w;
                         let ty = cell_y + ICON_SIZE + 2.0;
-                        ui.text(tx, ty, &count_text, label_color);
+                        if matches!(content, HotkeySlotContent::Skill { .. }) {
+                            ui.text_with_outline(
+                                tx,
+                                ty,
+                                &count_text,
+                                colors::BLACK,
+                                &TextOutline::cross(COUNT_OUTLINE_COLOR),
+                            );
+                        } else {
+                            ui.text(tx, ty, &count_text, label_color);
+                        }
                     }
 
                     if let HotkeySlotContent::Skill { skill, .. } = content
@@ -587,8 +599,9 @@ mod tests {
     use super::*;
     use models::enums::item::ItemType;
     use ragnarok_game::character::Character;
+    use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
-    use ragnarok_game::skill::SkillTargetType;
+    use ragnarok_game::skill::{SkillData, SkillTargetType};
 
     fn potion(index: u16, count: i16) -> Item {
         Item {

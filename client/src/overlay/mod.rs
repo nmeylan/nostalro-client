@@ -48,16 +48,6 @@ const OUTLINE_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 /// reads grey next to the letter's vertical stems. Repeating it accumulates towards
 /// opaque black without widening the outline.
 const OUTLINE_PASSES: usize = 3;
-const OUTLINE_RING: [(f32, f32); 8] = [
-    (-1.0, 0.0),
-    (1.0, 0.0),
-    (0.0, -1.0),
-    (0.0, 1.0),
-    (-1.0, -1.0),
-    (1.0, -1.0),
-    (-1.0, 1.0),
-    (1.0, 1.0),
-];
 
 impl App {
     fn plate_text_width(&self, text: &str, font_atlas: &ragnarok_renderer::FontAtlas) -> f32 {
@@ -927,13 +917,6 @@ fn render_hp_bar(
     (center_x, y)
 }
 
-/// `thickness_px` physical pixels expressed in logical ones. Text is snapped to the
-/// physical grid, so a whole number of physical pixels is what keeps the ring the same
-/// distance out on every side; anything else rounds unevenly and tears a gap.
-fn outline_step(font_atlas: &ragnarok_renderer::FontAtlas, thickness_px: f32) -> f32 {
-    thickness_px / font_atlas.dpi_scale
-}
-
 fn build_outlined_text(
     text: &str,
     x: f32,
@@ -942,7 +925,15 @@ fn build_outlined_text(
     font_atlas: &ragnarok_renderer::FontAtlas,
     calls: &mut Vec<UiDrawCall>,
 ) {
-    push_outlined_text(text, x, y, color, false, font_atlas, calls);
+    ragnarok_ui::draw::push_outlined_text(
+        text,
+        x,
+        y,
+        color,
+        &ragnarok_ui::draw::TextOutline::ring(OUTLINE_COLOR),
+        font_atlas,
+        calls,
+    );
 }
 
 fn bold_text(text: &str) -> String {
@@ -955,6 +946,8 @@ fn bold_width(text: &str, font_atlas: &ragnarok_renderer::FontAtlas) -> f32 {
     font_atlas.measure_text(&bold_text(text))
 }
 
+/// Only the bold ring thickens with the UI scale: at a regular weight the side bearings
+/// are too narrow to hold it, and letters merge into their neighbours.
 fn build_outlined_bold_text(
     text: &str,
     x: f32,
@@ -963,64 +956,21 @@ fn build_outlined_bold_text(
     font_atlas: &ragnarok_renderer::FontAtlas,
     calls: &mut Vec<UiDrawCall>,
 ) {
-    push_outlined_text(text, x, y, color, true, font_atlas, calls);
-}
-
-/// The ring goes down as one draw call, so the accumulation passes cost vertices rather
-/// than draws. Only the bold ring thickens with the UI scale: at a regular weight the
-/// side bearings are too narrow to hold it, and letters merge into their neighbours.
-fn push_outlined_text(
-    text: &str,
-    x: f32,
-    y: f32,
-    color: [f32; 4],
-    bold: bool,
-    font_atlas: &ragnarok_renderer::FontAtlas,
-    calls: &mut Vec<UiDrawCall>,
-) {
-    let (passes, thickness_px) = if bold {
-        (OUTLINE_PASSES, font_atlas.dpi_scale.round())
-    } else {
-        (1, 1.0)
+    let outline = ragnarok_ui::draw::TextOutline {
+        color: OUTLINE_COLOR,
+        ring: &ragnarok_ui::draw::OUTLINE_RING_8,
+        passes: OUTLINE_PASSES,
+        thickness_px: font_atlas.dpi_scale.round(),
     };
-    let text: std::borrow::Cow<str> = if bold {
-        bold_text(text).into()
-    } else {
-        text.into()
-    };
-    let text = text.as_ref();
-    let step = outline_step(font_atlas, thickness_px);
-    let mut outline_verts = Vec::new();
-    let mut outline_indices = Vec::new();
-    for _ in 0..passes {
-        for &(dx, dy) in &OUTLINE_RING {
-            let (verts, indices) = ragnarok_ui::draw::text_vertices(
-                text,
-                x + dx * step,
-                y + dy * step,
-                OUTLINE_COLOR,
-                font_atlas,
-            );
-            let base = outline_verts.len() as u32;
-            outline_verts.extend(verts);
-            outline_indices.extend(indices.into_iter().map(|i| i + base));
-        }
-    }
-    if !outline_verts.is_empty() {
-        calls.push(UiDrawCall {
-            vertices: outline_verts,
-            indices: outline_indices,
-            texture: UiTextureRef::FontAtlas,
-        });
-    }
-    let (verts, indices) = ragnarok_ui::draw::text_vertices(text, x, y, color, font_atlas);
-    if !verts.is_empty() {
-        calls.push(UiDrawCall {
-            vertices: verts,
-            indices,
-            texture: UiTextureRef::FontAtlas,
-        });
-    }
+    ragnarok_ui::draw::push_outlined_text(
+        &bold_text(text),
+        x,
+        y,
+        color,
+        &outline,
+        font_atlas,
+        calls,
+    );
 }
 
 #[cfg(test)]
@@ -1106,7 +1056,7 @@ mod tests {
         assert_eq!(plain.len(), 2, "the ring is merged into one call");
         assert_eq!(
             plain[0].vertices.len(),
-            plain[1].vertices.len() * OUTLINE_RING.len()
+            plain[1].vertices.len() * ragnarok_ui::draw::OUTLINE_RING_8.len()
         );
 
         let mut bold = Vec::new();
@@ -1114,25 +1064,8 @@ mod tests {
         assert_eq!(bold.len(), 2);
         assert_eq!(
             bold[0].vertices.len(),
-            bold[1].vertices.len() * OUTLINE_RING.len() * OUTLINE_PASSES
+            bold[1].vertices.len() * ragnarok_ui::draw::OUTLINE_RING_8.len() * OUTLINE_PASSES
         );
-    }
-
-    #[test]
-    fn the_outline_sits_the_same_distance_above_and_below_at_any_ui_scale() {
-        for scale in [0.75_f32, 1.0, 1.25, 1.5, 2.0] {
-            let atlas = ragnarok_renderer::FontAtlas::from_embedded(14.0, scale);
-            let physical = |v: f32| (atlas.snap_to_physical(v) * scale).round();
-            for thickness_px in [1.0_f32, scale.round()] {
-                let step = outline_step(&atlas, thickness_px);
-                for y in [100.0_f32, 100.2, 100.4, 100.6, 100.8] {
-                    let above = physical(y) - physical(y - step);
-                    let below = physical(y + step) - physical(y);
-                    assert_eq!(above, thickness_px, "scale {scale}, y {y}");
-                    assert_eq!(below, thickness_px, "scale {scale}, y {y}");
-                }
-            }
-        }
     }
 
     #[test]
