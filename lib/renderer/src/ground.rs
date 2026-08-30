@@ -168,7 +168,12 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
             if cell.surface_up >= 0 {
                 let surface = &gnd.surfaces[cell.surface_up as usize];
                 let tex_name = texture_name_for_surface(gnd, surface);
-                let color = bgra_to_rgba_f32(surface.color_bgra);
+                let colors = [
+                    corner_color(gnd, x, y),
+                    corner_color(gnd, x + 1, y),
+                    corner_color(gnd, x, y + 1),
+                    corner_color(gnd, x + 1, y + 1),
+                ];
 
                 let wx = x as f32 * gnd.zoom;
                 let wz = y as f32 * gnd.zoom;
@@ -190,28 +195,28 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                         normal: normals[0],
                         tex_coord: [surface.tex_u[0], surface.tex_v[0]],
                         lightmap_coord: lm_uvs[0],
-                        color,
+                        color: colors[0],
                     },
                     GroundVertex {
                         position: positions[1],
                         normal: normals[1],
                         tex_coord: [surface.tex_u[1], surface.tex_v[1]],
                         lightmap_coord: lm_uvs[1],
-                        color,
+                        color: colors[1],
                     },
                     GroundVertex {
                         position: positions[2],
                         normal: normals[2],
                         tex_coord: [surface.tex_u[2], surface.tex_v[2]],
                         lightmap_coord: lm_uvs[2],
-                        color,
+                        color: colors[2],
                     },
                     GroundVertex {
                         position: positions[3],
                         normal: normals[3],
                         tex_coord: [surface.tex_u[3], surface.tex_v[3]],
                         lightmap_coord: lm_uvs[3],
-                        color,
+                        color: colors[3],
                     },
                 ];
 
@@ -234,7 +239,8 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let next_cell = &gnd.cells[((y + 1) * gnd.width + x) as usize];
                 let surface = &gnd.surfaces[cell.surface_south as usize];
                 let tex_name = texture_name_for_surface(gnd, surface);
-                let color = bgra_to_rgba_f32(surface.color_bgra);
+                let color_west = corner_color(gnd, x, y + 1);
+                let color_east = corner_color(gnd, x + 1, y + 1);
 
                 let wx = x as f32 * gnd.zoom;
                 let wz = (y + 1) as f32 * gnd.zoom;
@@ -255,28 +261,28 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                         normal,
                         tex_coord: [surface.tex_u[0], surface.tex_v[0]],
                         lightmap_coord: lm_uvs[0],
-                        color,
+                        color: color_west,
                     },
                     GroundVertex {
                         position: positions[1],
                         normal,
                         tex_coord: [surface.tex_u[1], surface.tex_v[1]],
                         lightmap_coord: lm_uvs[1],
-                        color,
+                        color: color_east,
                     },
                     GroundVertex {
                         position: positions[2],
                         normal,
                         tex_coord: [surface.tex_u[2], surface.tex_v[2]],
                         lightmap_coord: lm_uvs[2],
-                        color,
+                        color: color_west,
                     },
                     GroundVertex {
                         position: positions[3],
                         normal,
                         tex_coord: [surface.tex_u[3], surface.tex_v[3]],
                         lightmap_coord: lm_uvs[3],
-                        color,
+                        color: color_east,
                     },
                 ];
 
@@ -299,7 +305,8 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                 let next_cell = &gnd.cells[(y * gnd.width + x + 1) as usize];
                 let surface = &gnd.surfaces[cell.surface_east as usize];
                 let tex_name = texture_name_for_surface(gnd, surface);
-                let color = bgra_to_rgba_f32(surface.color_bgra);
+                let color_north = corner_color(gnd, x + 1, y);
+                let color_south = corner_color(gnd, x + 1, y + 1);
 
                 let wx = (x + 1) as f32 * gnd.zoom;
                 let wz = y as f32 * gnd.zoom;
@@ -320,28 +327,28 @@ fn build_mesh(gnd: &GndFile, atlas_dim: u32) -> (Vec<GroundVertex>, Vec<u32>, Ve
                         normal,
                         tex_coord: [surface.tex_u[0], surface.tex_v[0]],
                         lightmap_coord: lm_uvs[0],
-                        color,
+                        color: color_north,
                     },
                     GroundVertex {
                         position: positions[1],
                         normal,
                         tex_coord: [surface.tex_u[1], surface.tex_v[1]],
                         lightmap_coord: lm_uvs[1],
-                        color,
+                        color: color_north,
                     },
                     GroundVertex {
                         position: positions[2],
                         normal,
                         tex_coord: [surface.tex_u[2], surface.tex_v[2]],
                         lightmap_coord: lm_uvs[2],
-                        color,
+                        color: color_south,
                     },
                     GroundVertex {
                         position: positions[3],
                         normal,
                         tex_coord: [surface.tex_u[3], surface.tex_v[3]],
                         lightmap_coord: lm_uvs[3],
-                        color,
+                        color: color_south,
                     },
                 ];
 
@@ -388,6 +395,22 @@ fn texture_name_for_surface(gnd: &GndFile, surface: &GndSurface) -> String {
     } else {
         String::new()
     }
+}
+
+/// A ground vertex reads the tint of the cell whose north-west corner it sits
+/// on, so the cells meeting at a corner all agree there and the tint field stays
+/// continuous. Cells off the map or without a top surface contribute black.
+/// I hope this is now correct
+fn corner_color(gnd: &GndFile, x: i32, y: i32) -> [f32; 4] {
+    if x < 0 || y < 0 || x >= gnd.width || y >= gnd.height {
+        return [0.0, 0.0, 0.0, 1.0];
+    }
+    let cell = &gnd.cells[(y * gnd.width + x) as usize];
+    if cell.surface_up < 0 {
+        return [0.0, 0.0, 0.0, 1.0];
+    }
+    let [r, g, b, _] = bgra_to_rgba_f32(gnd.surfaces[cell.surface_up as usize].color_bgra);
+    [r, g, b, 1.0]
 }
 
 fn bgra_to_rgba_f32(bgra: [u8; 4]) -> [f32; 4] {
@@ -858,6 +881,61 @@ mod tests {
         assert_eq!(uv(5)[0], 14.5 / 15.0);
         assert_eq!(uv(0)[1], 0.5 / 8.0);
         assert_eq!(uv(3)[1], 7.5 / 8.0);
+    }
+
+    #[test]
+    fn cell_tint_reaches_only_the_corner_it_owns() {
+        let surface = |color_bgra: [u8; 4]| GndSurface {
+            tex_u: [0.0, 1.0, 0.0, 1.0],
+            tex_v: [0.0, 0.0, 1.0, 1.0],
+            texture_id: 0,
+            lightmap_id: -1,
+            color_bgra,
+        };
+        let gnd = GndFile {
+            version: (1, 7),
+            width: 3,
+            height: 3,
+            zoom: 1.0,
+            textures: vec!["ground.bmp".to_string()],
+            lightmaps: Vec::new(),
+            surfaces: vec![surface([255, 255, 255, 255]), surface([0, 0, 0, 255])],
+            cells: (0..9)
+                .map(|i| GndCell {
+                    height_sw: 0.0,
+                    height_se: 0.0,
+                    height_nw: 0.0,
+                    height_ne: 0.0,
+                    surface_up: if i == 4 { 1 } else { 0 },
+                    surface_south: -1,
+                    surface_east: -1,
+                })
+                .collect(),
+        };
+
+        let (vertices, _, _) = build_mesh(&gnd, 1);
+        let color = |cell: usize, k: usize| vertices[cell * 4 + k].color;
+        let black = [0.0, 0.0, 0.0, 1.0];
+        let white = [1.0, 1.0, 1.0, 1.0];
+
+        // The tinted cell darkens its own north-west corner and nothing else,
+        // so its quad fades back to its neighbours' tint across the cell.
+        assert_eq!(color(4, 0), black);
+        assert_eq!(color(4, 1), white);
+        assert_eq!(color(4, 2), white);
+        assert_eq!(color(4, 3), white);
+
+        // The neighbour sharing that corner darkens there too, and only there.
+        assert_eq!(color(0, 3), black);
+        assert_eq!(color(0, 0), white);
+        assert_eq!(color(0, 1), white);
+        assert_eq!(color(0, 2), white);
+
+        // A cell that does not touch the corner is untouched.
+        assert_eq!(color(8, 0), white);
+
+        // Off-map corners contribute black.
+        assert_eq!(color(8, 3), black);
     }
 
     /// Two cells side by side in x, heights given as [sw, se, nw, ne].
