@@ -527,10 +527,15 @@ impl InGameWindow for EquipmentWindow {
                     clicked = true;
                 }
                 if !clicked && response.hovered() {
+                    let tooltip = if item.count > 1 {
+                        format!("{}: {} ea.", display_name, item.count)
+                    } else {
+                        draw::strip_color_codes(&display_name)
+                    };
                     ui.tooltip(
                         icon_rect.x,
                         icon_rect.y - ui.atlas.line_height - 16.0,
-                        &draw::strip_color_codes(&display_name),
+                        &tooltip,
                     );
                 }
             }
