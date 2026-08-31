@@ -42,9 +42,42 @@ impl App {
                 self.config.custom.filtering.world,
                 self.config.custom.filtering.effects,
                 self.config.custom.filtering.sprites,
+                self.config.custom.filtering.sprite_upscale,
             );
         }
         self.windows.graphic_options.toggle();
+    }
+
+    /// Re-derives the sprite upscale factor from the camera and stores it.
+    /// Returns the factor in force, which is 1 while the setting is off.
+    pub(crate) fn refresh_sprite_upscale(&self) -> u32 {
+        let Some(renderer) = self.renderer.as_ref() else {
+            return ragnarok_renderer::sprite::upscale();
+        };
+        let logical_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
+        let ratio = self.game.session.map_coords.map(|coords| {
+            ragnarok_renderer::sprite::texel_to_pixel(
+                &renderer.camera,
+                coords.zoom(),
+                renderer.dpi_scale,
+                logical_h,
+            )
+        });
+        let factor = match (self.config.custom.filtering.sprite_upscale, ratio) {
+            (true, Some(ratio)) => ratio.ceil() as u32,
+            _ => 1,
+        };
+        ragnarok_renderer::sprite::set_upscale(factor);
+        if ragnarok_profiling::debug::trace_sprite_scale() {
+            tracing::info!(
+                "[sprite-scale] texel_to_pixel={:.2} dpi={:.2} camera_distance={:.0} upscale={}",
+                ratio.unwrap_or(0.0),
+                renderer.dpi_scale,
+                renderer.camera.distance,
+                ragnarok_renderer::sprite::upscale(),
+            );
+        }
+        ragnarok_renderer::sprite::upscale()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -62,6 +95,7 @@ impl App {
         filter_world: bool,
         filter_effects: bool,
         filter_sprites: bool,
+        sprite_upscale: bool,
         persist: bool,
     ) {
         let fullscreen_changed = fullscreen != self.config.fullscreen;
@@ -70,6 +104,7 @@ impl App {
         let world_filter_changed = filter_world != self.config.custom.filtering.world;
         let effect_filter_changed = filter_effects != self.config.custom.filtering.effects;
         let sprite_filter_changed = filter_sprites != self.config.custom.filtering.sprites;
+        let upscale_changed = sprite_upscale != self.config.custom.filtering.sprite_upscale;
 
         self.config.dpi_scale = ui_scale;
         self.config.fullscreen = fullscreen;
@@ -83,6 +118,7 @@ impl App {
         self.config.custom.filtering.world = filter_world;
         self.config.custom.filtering.effects = filter_effects;
         self.config.custom.filtering.sprites = filter_sprites;
+        self.config.custom.filtering.sprite_upscale = sprite_upscale;
         self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;
 
         if let Some(window) = &self.window {
@@ -119,6 +155,9 @@ impl App {
         }
         if sprite_filter_changed {
             ragnarok_renderer::sprite::set_filtering(filter_sprites);
+        }
+        if sprite_filter_changed || upscale_changed {
+            let factor = self.refresh_sprite_upscale();
             // `load_missing_entity_sprites` rebuilds every entity but the player
             // on the next frame.
             self.game.sprite_caches.sprites.clear();
@@ -126,6 +165,16 @@ impl App {
             self.game.sprite_caches.guild_head_sprites.clear();
             if let Some(gid) = self.game.world.entities.player_id() {
                 self.reload_player_sprite(gid);
+            }
+            if upscale_changed {
+                let message = match (sprite_upscale, filter_sprites) {
+                    (true, true) => format!("Sprite upscale: {factor}x"),
+                    (true, false) => {
+                        "Sprite upscale applies once sprite filtering is on.".to_string()
+                    }
+                    (false, _) => "Sprite upscale: off".to_string(),
+                };
+                self.windows.chat_window.add_system(message);
             }
         }
         self.effect_queue.set_effects_enabled(show_skill_effects);

@@ -244,8 +244,17 @@ Measured on `검사_남.spr`, the male swordman body, 118 frames:
 That cost is paid once per sprite file per login: the sprite cache is keyed by
 path and shared between entities, and it is cleared on logout, not on map change.
 
-The factor is read at startup and applied on map entry, so a change to
-`config.json` needs a client restart.
+`Sprite upscale` is the checkbox below the filtering row in the graphic options
+window. Ticking it re-derives the factor from the current camera, reloads the
+sprites the same way the `Sprites` box does, and reports the factor it chose in
+the chat window:
+
+```text
+Sprite upscale: 2x
+```
+
+While `custom.filtering.sprites` is off the message says so instead, since there
+is nothing for the upscale to sharpen.
 
 ## Forced level select
 

@@ -1173,8 +1173,9 @@ fn create_single(name: &str) -> State {
                 false,
                 false,
                 false,
-                false,
-                false,
+                true,
+                true,
+                true,
                 false,
             );
             win.toggle();

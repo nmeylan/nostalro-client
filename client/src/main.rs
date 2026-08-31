@@ -304,30 +304,8 @@ impl App {
                 self.game.session.saved_camera_outdoor
             };
             renderer.camera.on_map_enter(map_data.indoor, restore);
-            let logical_h = renderer.device.surface_config.height as f32 / renderer.dpi_scale;
-            let ratio = map_data.coordinates.map(|coords| {
-                ragnarok_renderer::sprite::texel_to_pixel(
-                    &renderer.camera,
-                    coords.zoom(),
-                    renderer.dpi_scale,
-                    logical_h,
-                )
-            });
-            let factor = match (self.config.custom.filtering.sprite_upscale, ratio) {
-                (true, Some(ratio)) => ratio.ceil() as u32,
-                _ => 1,
-            };
-            ragnarok_renderer::sprite::set_upscale(factor);
-            if ragnarok_profiling::debug::trace_sprite_scale() {
-                tracing::info!(
-                    "[sprite-scale] texel_to_pixel={:.2} dpi={:.2} camera_distance={:.0} upscale={}",
-                    ratio.unwrap_or(0.0),
-                    renderer.dpi_scale,
-                    renderer.camera.distance,
-                    ragnarok_renderer::sprite::upscale(),
-                );
-            }
         }
+        self.refresh_sprite_upscale();
 
         self.game
             .schedulers

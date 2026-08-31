@@ -253,6 +253,7 @@ impl App {
                     self.config.custom.filtering.world,
                     self.config.custom.filtering.effects,
                     self.config.custom.filtering.sprites,
+                    self.config.custom.filtering.sprite_upscale,
                     true,
                 );
                 self.channel.send_packet(build_lesseffect_packet(!show, pv));
@@ -276,6 +277,7 @@ impl App {
                     self.config.custom.filtering.world,
                     self.config.custom.filtering.effects,
                     self.config.custom.filtering.sprites,
+                    self.config.custom.filtering.sprite_upscale,
                     true,
                 );
                 let status = if fog { "ON" } else { "OFF" };
@@ -309,6 +311,7 @@ impl App {
                     self.config.custom.filtering.world,
                     self.config.custom.filtering.effects,
                     self.config.custom.filtering.sprites,
+                    self.config.custom.filtering.sprite_upscale,
                     true,
                 );
                 self.windows
@@ -330,6 +333,7 @@ impl App {
                     self.config.custom.filtering.world,
                     self.config.custom.filtering.effects,
                     self.config.custom.filtering.sprites,
+                    self.config.custom.filtering.sprite_upscale,
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
@@ -351,6 +355,7 @@ impl App {
                     self.config.custom.filtering.world,
                     self.config.custom.filtering.effects,
                     self.config.custom.filtering.sprites,
+                    self.config.custom.filtering.sprite_upscale,
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };

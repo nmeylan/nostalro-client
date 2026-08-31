@@ -124,9 +124,11 @@ Three checkboxes on the `Texture Filtering:` row of the graphic options window
 | Effects | `custom.filtering.effects` | STR and primitive effect textures |
 | Sprites | `custom.filtering.sprites` | Players, monsters, NPCs, items |
 
-I recommended (it looks better) to also set `custom.filtering.sprites_upscale` to `true` when `custom.filtering.sprites` is true, but as it consume more vram the default is `false`.
+I recommended (it looks better) to also set `custom.filtering.sprite_upscale` to `true` when `custom.filtering.sprites` is true, but as it consume more vram the default is `false`.
 
-This cannot be change when game is running and can only be changed by editing json when game is not running.
+It has its own checkbox on the row below, `Sprite upscale`. Ticking it reloads
+the sprites at once and reports the factor it derived in the chat window, so no
+restart is needed.
 
 See [Texture filtering](docs/configuration.md#texture-filtering) and
 [Sprite upscale](docs/configuration.md#sprite-upscale) for what each value does

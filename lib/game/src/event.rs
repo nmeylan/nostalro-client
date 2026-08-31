@@ -1065,6 +1065,7 @@ pub enum GameEvent {
         filter_world: bool,
         filter_effects: bool,
         filter_sprites: bool,
+        sprite_upscale: bool,
         persist: bool,
     },
     SoundEffect {

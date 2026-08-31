@@ -31,6 +31,7 @@ const ACCESSIBILITY_CB_ID: WidgetId = WidgetId(4217);
 const FILTER_WORLD_CB_ID: WidgetId = WidgetId(4218);
 const FILTER_EFFECT_CB_ID: WidgetId = WidgetId(4219);
 const FILTER_SPRITE_CB_ID: WidgetId = WidgetId(4220);
+const SPRITE_UPSCALE_CB_ID: WidgetId = WidgetId(4221);
 const UI_SCALE_OPTION_BASE: u32 = 4230;
 
 const UI_SCALE_OPTIONS: [u32; 6] = [75, 100, 125, 150, 175, 200];
@@ -42,7 +43,7 @@ const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 20.0;
 const CLOSE_SIZE: f32 = 11.0;
 const ROW_H: f32 = 22.0;
-const ROW_COUNT: f32 = 11.0;
+const ROW_COUNT: f32 = 12.0;
 const PAD: f32 = 8.0;
 const WIN_H: f32 = TITLE_H + PAD + ROW_COUNT * ROW_H + PAD;
 const CB_SIZE: f32 = 11.0;
@@ -63,6 +64,7 @@ pub struct GraphicOptionsWindow {
     filter_world: bool,
     filter_effects: bool,
     filter_sprites: bool,
+    sprite_upscale: bool,
     dropdown: Dropdown,
 }
 
@@ -92,6 +94,7 @@ impl GraphicOptionsWindow {
         filter_world: bool,
         filter_effects: bool,
         filter_sprites: bool,
+        sprite_upscale: bool,
     ) {
         self.selected_ui_scale = (0..UI_SCALE_OPTIONS.len())
             .min_by_key(|&i| (UI_SCALE_OPTIONS[i] as f32 - ui_scale_percent).abs() as u32)
@@ -107,6 +110,7 @@ impl GraphicOptionsWindow {
         self.filter_world = filter_world;
         self.filter_effects = filter_effects;
         self.filter_sprites = filter_sprites;
+        self.sprite_upscale = sprite_upscale;
     }
 
     pub fn toggle(&mut self) {
@@ -131,6 +135,7 @@ impl GraphicOptionsWindow {
             filter_world: self.filter_world,
             filter_effects: self.filter_effects,
             filter_sprites: self.filter_sprites,
+            sprite_upscale: self.sprite_upscale,
             persist: true,
         }
     }
@@ -286,10 +291,44 @@ impl InGameWindow for GraphicOptionsWindow {
         };
 
         let x0 = win.x + 10.0;
-        changed |= check_row(ui, 1, FOG_CB_ID, x0, "Fog", &mut self.fog);
+        ui.text(x0, text_y(1), "Texture Filtering:", label_color);
+        changed |= check_row(
+            ui,
+            1,
+            FILTER_WORLD_CB_ID,
+            win.x + 92.0,
+            "Map",
+            &mut self.filter_world,
+        );
+        changed |= check_row(
+            ui,
+            1,
+            FILTER_EFFECT_CB_ID,
+            win.x + 152.0,
+            "Effects",
+            &mut self.filter_effects,
+        );
+        changed |= check_row(
+            ui,
+            1,
+            FILTER_SPRITE_CB_ID,
+            win.x + 220.0,
+            "Sprites",
+            &mut self.filter_sprites,
+        );
         changed |= check_row(
             ui,
             2,
+            SPRITE_UPSCALE_CB_ID,
+            win.x + 92.0,
+            "Sprite upscale",
+            &mut self.sprite_upscale,
+        );
+
+        changed |= check_row(ui, 3, FOG_CB_ID, x0, "Fog", &mut self.fog);
+        changed |= check_row(
+            ui,
+            4,
             EFFECTS_CB_ID,
             x0,
             "Skill effects",
@@ -297,7 +336,7 @@ impl InGameWindow for GraphicOptionsWindow {
         );
         changed |= check_row(
             ui,
-            3,
+            5,
             AURA_CB_ID,
             x0,
             "Level 99 aura",
@@ -305,7 +344,7 @@ impl InGameWindow for GraphicOptionsWindow {
         );
         changed |= check_row(
             ui,
-            4,
+            6,
             DAMAGE_CB_ID,
             x0,
             "Show other players' damage",
@@ -313,33 +352,33 @@ impl InGameWindow for GraphicOptionsWindow {
         );
         changed |= check_row(
             ui,
-            5,
+            7,
             CASTBAR_CB_ID,
             x0,
             "Show cast bars of others",
             &mut self.display.show_other_cast_bars,
         );
 
-        ui.text(x0, text_y(6), "Name plates:", label_color);
+        ui.text(x0, text_y(8), "Name plates:", label_color);
         let mut show_player = !self.display.hide_name_player;
         let mut show_monster = !self.display.hide_name_monster;
         let mut show_npc = !self.display.hide_name_npc;
         let names_changed =
             check_row(
                 ui,
-                6,
+                8,
                 NAME_PLAYER_CB_ID,
                 win.x + 92.0,
                 "Player",
                 &mut show_player,
             ) | check_row(
                 ui,
-                6,
+                8,
                 NAME_MONSTER_CB_ID,
                 win.x + 152.0,
                 "Monster",
                 &mut show_monster,
-            ) | check_row(ui, 6, NAME_NPC_CB_ID, win.x + 220.0, "NPC", &mut show_npc);
+            ) | check_row(ui, 8, NAME_NPC_CB_ID, win.x + 220.0, "NPC", &mut show_npc);
         if names_changed {
             self.display.hide_name_player = !show_player;
             self.display.hide_name_monster = !show_monster;
@@ -347,10 +386,10 @@ impl InGameWindow for GraphicOptionsWindow {
             changed = true;
         }
 
-        ui.text(x0, text_y(7), "Auto-refuse:", label_color);
+        ui.text(x0, text_y(9), "Auto-refuse:", label_color);
         changed |= check_row(
             ui,
-            7,
+            9,
             REFUSE_TRADE_CB_ID,
             win.x + 92.0,
             "Trade",
@@ -358,17 +397,17 @@ impl InGameWindow for GraphicOptionsWindow {
         );
         changed |= check_row(
             ui,
-            7,
+            9,
             REFUSE_PARTY_CB_ID,
             win.x + 152.0,
             "Party invite",
             &mut self.refuse_party_invite,
         );
 
-        ui.text(x0, text_y(8), "Cursor snap:", label_color);
+        ui.text(x0, text_y(10), "Cursor snap:", label_color);
         changed |= check_row(
             ui,
-            8,
+            10,
             SNAP_MONSTER_CB_ID,
             win.x + 92.0,
             "Monster",
@@ -376,7 +415,7 @@ impl InGameWindow for GraphicOptionsWindow {
         );
         changed |= check_row(
             ui,
-            8,
+            10,
             SNAP_SKILL_CB_ID,
             win.x + 165.0,
             "Skill",
@@ -384,7 +423,7 @@ impl InGameWindow for GraphicOptionsWindow {
         );
         changed |= check_row(
             ui,
-            8,
+            10,
             SNAP_ITEM_CB_ID,
             win.x + 220.0,
             "Item",
@@ -393,38 +432,13 @@ impl InGameWindow for GraphicOptionsWindow {
 
         changed |= check_row(
             ui,
-            9,
+            11,
             ACCESSIBILITY_CB_ID,
             x0,
             "Accessibility improvements",
             &mut self.accessibility,
         );
 
-        ui.text(x0, text_y(10), "Texture Filtering:", label_color);
-        changed |= check_row(
-            ui,
-            10,
-            FILTER_WORLD_CB_ID,
-            win.x + 92.0,
-            "Map",
-            &mut self.filter_world,
-        );
-        changed |= check_row(
-            ui,
-            10,
-            FILTER_EFFECT_CB_ID,
-            win.x + 152.0,
-            "Effects",
-            &mut self.filter_effects,
-        );
-        changed |= check_row(
-            ui,
-            10,
-            FILTER_SPRITE_CB_ID,
-            win.x + 220.0,
-            "Sprites",
-            &mut self.filter_sprites,
-        );
 
         if let Some(overlay) = dd_resp.overlay_rect {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
@@ -492,6 +506,7 @@ mod tests {
             true,
             true,
             true,
+            false,
         );
         assert_eq!(win.selected_ui_scale, 1, "100% is the second option");
         win.toggle();
@@ -507,7 +522,7 @@ mod tests {
         let events = build_at(
             &mut win,
             &mut state,
-            Some((wx + 10.0 + CB_SIZE / 2.0, cb_y(1) + CB_SIZE / 2.0)),
+            Some((wx + 10.0 + CB_SIZE / 2.0, cb_y(3) + CB_SIZE / 2.0)),
         );
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -558,12 +573,13 @@ mod tests {
             true,
             true,
             true,
+            false,
         );
         win.toggle();
         let mut state = StateCache::new();
 
         let wy = (600.0 - WIN_H) / 2.0;
-        let cb_y = wy + TITLE_H + PAD + 9.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let cb_y = wy + TITLE_H + PAD + 11.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
         let events = build_at(
             &mut win,
             &mut state,
@@ -597,12 +613,13 @@ mod tests {
             true,
             true,
             true,
+            false,
         );
         win.toggle();
         let mut state = StateCache::new();
 
         let wy = (600.0 - WIN_H) / 2.0;
-        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let cb_y = wy + TITLE_H + PAD + 1.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
         let events = build_at(
             &mut win,
             &mut state,
@@ -636,12 +653,13 @@ mod tests {
             true,
             true,
             true,
+            false,
         );
         win.toggle();
         let mut state = StateCache::new();
 
         let wy = (600.0 - WIN_H) / 2.0;
-        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let cb_y = wy + TITLE_H + PAD + 1.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
         let events = build_at(
             &mut win,
             &mut state,
@@ -680,12 +698,13 @@ mod tests {
             true,
             true,
             true,
+            false,
         );
         win.toggle();
         let mut state = StateCache::new();
 
         let wy = (600.0 - WIN_H) / 2.0;
-        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let cb_y = wy + TITLE_H + PAD + 1.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
         let events = build_at(
             &mut win,
             &mut state,
@@ -724,12 +743,13 @@ mod tests {
             true,
             true,
             true,
+            false,
         );
         win.toggle();
         let mut state = StateCache::new();
 
         let wy = (600.0 - WIN_H) / 2.0;
-        let cb_y = wy + TITLE_H + PAD + 8.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
         let events = build_at(
             &mut win,
             &mut state,

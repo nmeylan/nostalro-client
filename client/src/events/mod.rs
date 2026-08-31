@@ -2758,6 +2758,7 @@ impl App {
                     filter_world,
                     filter_effects,
                     filter_sprites,
+                    sprite_upscale,
                     persist,
                 } => {
                     self.apply_graphics_settings(
@@ -2773,6 +2774,7 @@ impl App {
                         filter_world,
                         filter_effects,
                         filter_sprites,
+                        sprite_upscale,
                         persist,
                     );
                 }
