@@ -126,7 +126,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(model_texture, model_sampler, in.tex_coord);
 
-    if tex_color.a < 0.01 {
+    if tex_color.a < 0.81 {
         discard;
     }
 

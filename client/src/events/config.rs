@@ -39,6 +39,9 @@ impl App {
                 self.config.refuse_trade,
                 self.config.refuse_party_invite,
                 self.config.custom.accessibility,
+                self.config.custom.filtering.world,
+                self.config.custom.filtering.effects,
+                self.config.custom.filtering.sprites,
             );
         }
         self.windows.graphic_options.toggle();
@@ -56,11 +59,17 @@ impl App {
         refuse_trade: bool,
         refuse_party_invite: bool,
         accessibility: bool,
+        filter_world: bool,
+        filter_effects: bool,
+        filter_sprites: bool,
         persist: bool,
     ) {
         let fullscreen_changed = fullscreen != self.config.fullscreen;
         let aura_changed = display.show_level_aura != self.config.display.show_level_aura;
         let ui_scale_changed = ui_scale != self.config.dpi_scale;
+        let world_filter_changed = filter_world != self.config.custom.filtering.world;
+        let effect_filter_changed = filter_effects != self.config.custom.filtering.effects;
+        let sprite_filter_changed = filter_sprites != self.config.custom.filtering.sprites;
 
         self.config.dpi_scale = ui_scale;
         self.config.fullscreen = fullscreen;
@@ -71,6 +80,9 @@ impl App {
         self.config.refuse_trade = refuse_trade;
         self.config.refuse_party_invite = refuse_party_invite;
         self.config.custom.accessibility = accessibility;
+        self.config.custom.filtering.world = filter_world;
+        self.config.custom.filtering.effects = filter_effects;
+        self.config.custom.filtering.sprites = filter_sprites;
         self.game.prefs.self_config.refuse_party_invite = refuse_party_invite;
 
         if let Some(window) = &self.window {
@@ -95,6 +107,26 @@ impl App {
         }
         if let Some(renderer) = &mut self.renderer {
             renderer.set_fog(if fog { self.map_fog } else { None });
+            if world_filter_changed {
+                renderer.set_world_filtering(filter_world, self.grf.as_ref());
+            }
+            if effect_filter_changed {
+                renderer.set_effect_filtering(filter_effects, self.grf.as_ref());
+            }
+        }
+        if effect_filter_changed {
+            self.str_effects.set_filtering(filter_effects);
+        }
+        if sprite_filter_changed {
+            ragnarok_renderer::sprite::set_filtering(filter_sprites);
+            // `load_missing_entity_sprites` rebuilds every entity but the player
+            // on the next frame.
+            self.game.sprite_caches.sprites.clear();
+            self.game.sprite_caches.sprite_cache.clear();
+            self.game.sprite_caches.guild_head_sprites.clear();
+            if let Some(gid) = self.game.world.entities.player_id() {
+                self.reload_player_sprite(gid);
+            }
         }
         self.effect_queue.set_effects_enabled(show_skill_effects);
         if aura_changed {

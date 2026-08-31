@@ -28,6 +28,9 @@ const SNAP_MONSTER_CB_ID: WidgetId = WidgetId(4214);
 const SNAP_SKILL_CB_ID: WidgetId = WidgetId(4215);
 const SNAP_ITEM_CB_ID: WidgetId = WidgetId(4216);
 const ACCESSIBILITY_CB_ID: WidgetId = WidgetId(4217);
+const FILTER_WORLD_CB_ID: WidgetId = WidgetId(4218);
+const FILTER_EFFECT_CB_ID: WidgetId = WidgetId(4219);
+const FILTER_SPRITE_CB_ID: WidgetId = WidgetId(4220);
 const UI_SCALE_OPTION_BASE: u32 = 4230;
 
 const UI_SCALE_OPTIONS: [u32; 6] = [75, 100, 125, 150, 175, 200];
@@ -39,7 +42,7 @@ const WIN_W: f32 = 280.0;
 const TITLE_H: f32 = 20.0;
 const CLOSE_SIZE: f32 = 11.0;
 const ROW_H: f32 = 22.0;
-const ROW_COUNT: f32 = 10.0;
+const ROW_COUNT: f32 = 11.0;
 const PAD: f32 = 8.0;
 const WIN_H: f32 = TITLE_H + PAD + ROW_COUNT * ROW_H + PAD;
 const CB_SIZE: f32 = 11.0;
@@ -57,6 +60,9 @@ pub struct GraphicOptionsWindow {
     refuse_trade: bool,
     refuse_party_invite: bool,
     accessibility: bool,
+    filter_world: bool,
+    filter_effects: bool,
+    filter_sprites: bool,
     dropdown: Dropdown,
 }
 
@@ -64,6 +70,9 @@ impl GraphicOptionsWindow {
     pub fn new() -> Self {
         Self {
             show_skill_effects: true,
+            filter_world: true,
+            filter_effects: true,
+            filter_sprites: true,
             ..Default::default()
         }
     }
@@ -80,6 +89,9 @@ impl GraphicOptionsWindow {
         refuse_trade: bool,
         refuse_party_invite: bool,
         accessibility: bool,
+        filter_world: bool,
+        filter_effects: bool,
+        filter_sprites: bool,
     ) {
         self.selected_ui_scale = (0..UI_SCALE_OPTIONS.len())
             .min_by_key(|&i| (UI_SCALE_OPTIONS[i] as f32 - ui_scale_percent).abs() as u32)
@@ -92,6 +104,9 @@ impl GraphicOptionsWindow {
         self.refuse_trade = refuse_trade;
         self.refuse_party_invite = refuse_party_invite;
         self.accessibility = accessibility;
+        self.filter_world = filter_world;
+        self.filter_effects = filter_effects;
+        self.filter_sprites = filter_sprites;
     }
 
     pub fn toggle(&mut self) {
@@ -113,6 +128,9 @@ impl GraphicOptionsWindow {
             refuse_trade: self.refuse_trade,
             refuse_party_invite: self.refuse_party_invite,
             accessibility: self.accessibility,
+            filter_world: self.filter_world,
+            filter_effects: self.filter_effects,
+            filter_sprites: self.filter_sprites,
             persist: true,
         }
     }
@@ -382,6 +400,32 @@ impl InGameWindow for GraphicOptionsWindow {
             &mut self.accessibility,
         );
 
+        ui.text(x0, text_y(10), "Texture Filtering:", label_color);
+        changed |= check_row(
+            ui,
+            10,
+            FILTER_WORLD_CB_ID,
+            win.x + 92.0,
+            "Map",
+            &mut self.filter_world,
+        );
+        changed |= check_row(
+            ui,
+            10,
+            FILTER_EFFECT_CB_ID,
+            win.x + 152.0,
+            "Effects",
+            &mut self.filter_effects,
+        );
+        changed |= check_row(
+            ui,
+            10,
+            FILTER_SPRITE_CB_ID,
+            win.x + 220.0,
+            "Sprites",
+            &mut self.filter_sprites,
+        );
+
         if let Some(overlay) = dd_resp.overlay_rect {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
             if let Some(idx) =
@@ -445,6 +489,9 @@ mod tests {
             false,
             false,
             false,
+            true,
+            true,
+            true,
         );
         assert_eq!(win.selected_ui_scale, 1, "100% is the second option");
         win.toggle();
@@ -508,6 +555,9 @@ mod tests {
             false,
             false,
             false,
+            true,
+            true,
+            true,
         );
         win.toggle();
         let mut state = StateCache::new();
@@ -532,6 +582,133 @@ mod tests {
     }
 
     #[test]
+    fn filter_map_textures_checkbox_rides_the_snapshot() {
+        let mut win = GraphicOptionsWindow::new();
+        win.set_values(
+            100.0,
+            false,
+            false,
+            true,
+            DisplayOptions::default(),
+            MouseSnapPrefs::default(),
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+        );
+        win.toggle();
+        let mut state = StateCache::new();
+
+        let wy = (600.0 - WIN_H) / 2.0;
+        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let events = build_at(
+            &mut win,
+            &mut state,
+            Some((
+                (800.0 - WIN_W) / 2.0 + 92.0 + CB_SIZE / 2.0,
+                cb_y + CB_SIZE / 2.0,
+            )),
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::GraphicsSettingsChanged { filter_world, .. } => {
+                assert!(!*filter_world, "unticking the box stops filtering the map");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn filter_effects_checkbox_rides_the_snapshot() {
+        let mut win = GraphicOptionsWindow::new();
+        win.set_values(
+            100.0,
+            false,
+            false,
+            true,
+            DisplayOptions::default(),
+            MouseSnapPrefs::default(),
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+        );
+        win.toggle();
+        let mut state = StateCache::new();
+
+        let wy = (600.0 - WIN_H) / 2.0;
+        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let events = build_at(
+            &mut win,
+            &mut state,
+            Some((
+                (800.0 - WIN_W) / 2.0 + 152.0 + CB_SIZE / 2.0,
+                cb_y + CB_SIZE / 2.0,
+            )),
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::GraphicsSettingsChanged {
+                filter_world,
+                filter_effects,
+                ..
+            } => {
+                assert!(!*filter_effects);
+                assert!(*filter_world, "the map box is untouched");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn filter_sprites_checkbox_rides_the_snapshot() {
+        let mut win = GraphicOptionsWindow::new();
+        win.set_values(
+            100.0,
+            false,
+            false,
+            true,
+            DisplayOptions::default(),
+            MouseSnapPrefs::default(),
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+        );
+        win.toggle();
+        let mut state = StateCache::new();
+
+        let wy = (600.0 - WIN_H) / 2.0;
+        let cb_y = wy + TITLE_H + PAD + 10.0 * ROW_H + (ROW_H - CB_SIZE) / 2.0 - 2.0;
+        let events = build_at(
+            &mut win,
+            &mut state,
+            Some((
+                (800.0 - WIN_W) / 2.0 + 220.0 + CB_SIZE / 2.0,
+                cb_y + CB_SIZE / 2.0,
+            )),
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            GameEvent::GraphicsSettingsChanged {
+                filter_sprites,
+                filter_effects,
+                ..
+            } => {
+                assert!(!*filter_sprites);
+                assert!(*filter_effects, "the effects box is untouched");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
     fn cursor_snap_row_flips_the_monster_toggle() {
         let mut win = GraphicOptionsWindow::new();
         win.set_values(
@@ -544,6 +721,9 @@ mod tests {
             false,
             false,
             false,
+            true,
+            true,
+            true,
         );
         win.toggle();
         let mut state = StateCache::new();

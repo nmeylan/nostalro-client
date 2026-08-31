@@ -250,6 +250,9 @@ impl App {
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
                     self.config.custom.accessibility,
+                    self.config.custom.filtering.world,
+                    self.config.custom.filtering.effects,
+                    self.config.custom.filtering.sprites,
                     true,
                 );
                 self.channel.send_packet(build_lesseffect_packet(!show, pv));
@@ -270,6 +273,9 @@ impl App {
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
                     self.config.custom.accessibility,
+                    self.config.custom.filtering.world,
+                    self.config.custom.filtering.effects,
+                    self.config.custom.filtering.sprites,
                     true,
                 );
                 let status = if fog { "ON" } else { "OFF" };
@@ -300,6 +306,9 @@ impl App {
                     self.config.refuse_trade,
                     self.config.refuse_party_invite,
                     self.config.custom.accessibility,
+                    self.config.custom.filtering.world,
+                    self.config.custom.filtering.effects,
+                    self.config.custom.filtering.sprites,
                     true,
                 );
                 self.windows
@@ -318,6 +327,9 @@ impl App {
                     refuse,
                     self.config.refuse_party_invite,
                     self.config.custom.accessibility,
+                    self.config.custom.filtering.world,
+                    self.config.custom.filtering.effects,
+                    self.config.custom.filtering.sprites,
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };
@@ -336,6 +348,9 @@ impl App {
                     self.config.refuse_trade,
                     refuse,
                     self.config.custom.accessibility,
+                    self.config.custom.filtering.world,
+                    self.config.custom.filtering.effects,
+                    self.config.custom.filtering.sprites,
                     true,
                 );
                 let status = if refuse { "ON" } else { "OFF" };

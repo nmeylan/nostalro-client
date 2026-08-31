@@ -29,6 +29,37 @@ impl SpriteVertex {
     };
 }
 
+static FILTERING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static UPSCALE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+pub fn set_filtering(on: bool) {
+    FILTERING.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whole-number enlargement applied to a sprite before upload. Clamped to 1..=4.
+pub fn set_upscale(factor: u32) {
+    UPSCALE.store(factor.clamp(1, 4), std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn upscale() -> u32 {
+    UPSCALE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// How many screen pixels one sprite texel covers at `camera`, which is the
+/// magnification an upscale has to cancel.
+pub fn texel_to_pixel(camera: &crate::camera::Camera, map_zoom: f32, dpi_scale: f32, logical_h: f32) -> f32 {
+    let t = camera.target;
+    camera.perspective_scale(t.x, t.y, t.z, logical_h) * map_zoom / 75.0 * dpi_scale
+}
+
+fn sprite_filter() -> wgpu::FilterMode {
+    if FILTERING.load(std::sync::atomic::Ordering::Relaxed) {
+        wgpu::FilterMode::Linear
+    } else {
+        wgpu::FilterMode::Nearest
+    }
+}
+
 pub struct SpriteTextures {
     pub bind_groups: Vec<wgpu::BindGroup>,
     pub sizes: Vec<(u32, u32)>,
@@ -44,6 +75,11 @@ pub fn upload_sprite_textures(
 ) -> SpriteTextures {
     let mut bind_groups = Vec::with_capacity(images.len());
     let mut sizes = Vec::with_capacity(images.len());
+    let filter = sprite_filter();
+    let upscale = match filter {
+        wgpu::FilterMode::Linear => upscale(),
+        _ => 1,
+    };
 
     for (i, img) in images.iter().enumerate() {
         let label = if i < indexed_count {
@@ -51,18 +87,34 @@ pub fn upload_sprite_textures(
         } else {
             format!("spr_rgba_{}", i - indexed_count)
         };
+        let enlarged = (upscale > 1 && img.width > 0 && img.height > 0).then(|| {
+            let buf: image::RgbaImage =
+                image::ImageBuffer::from_raw(img.width, img.height, img.data.clone())
+                    .expect("sprite buffer matches its dimensions");
+            image::imageops::resize(
+                &buf,
+                img.width * upscale,
+                img.height * upscale,
+                image::imageops::FilterType::Nearest,
+            )
+        });
+        let (data, up_w, up_h) = match &enlarged {
+            Some(up) => (up.as_raw().as_slice(), up.width(), up.height()),
+            None => (img.data.as_slice(), img.width, img.height),
+        };
         let bg = create_texture_bind_group_from_rgba(
             device,
             queue,
-            &img.data,
-            img.width,
-            img.height,
+            data,
+            up_w,
+            up_h,
             layout,
             &label,
-            wgpu::FilterMode::Nearest,
+            filter,
             wgpu::TextureFormat::Rgba8UnormSrgb,
             wgpu::AddressMode::ClampToEdge,
         );
+        // The quad is sized from `sizes`, so it stays in source texels.
         sizes.push((img.width, img.height));
         bind_groups.push(bg);
     }

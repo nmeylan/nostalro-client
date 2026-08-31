@@ -2755,6 +2755,9 @@ impl App {
                     refuse_trade,
                     refuse_party_invite,
                     accessibility,
+                    filter_world,
+                    filter_effects,
+                    filter_sprites,
                     persist,
                 } => {
                     self.apply_graphics_settings(
@@ -2767,6 +2770,9 @@ impl App {
                         refuse_trade,
                         refuse_party_invite,
                         accessibility,
+                        filter_world,
+                        filter_effects,
+                        filter_sprites,
                         persist,
                     );
                 }

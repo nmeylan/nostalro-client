@@ -6,7 +6,7 @@ use ragnarok_formats::str_effect::{EffectLayer, StrEffectFile};
 use crate::camera::Camera;
 use crate::effect_sprite::project_billboard;
 use crate::sprite::{SpriteBatch, SpriteVertex};
-use crate::texture::{TextureCache, create_texture_bind_group};
+use crate::texture::TextureCache;
 
 pub struct StrEffectEntry {
     pub str_file: StrEffectFile,
@@ -23,6 +23,7 @@ pub struct StrEffectEntry {
 /// original game's additive-blend STR effect rendering.
 pub struct StrEffectCache {
     entries: HashMap<String, StrEffectEntry>,
+    filtering: bool,
     /// Names that failed to resolve once. Re-requesting one returns `false`
     /// without retrying the load or re-emitting the warning — stress spawns and
     /// per-frame respawns of asset-missing effects would otherwise flood the log.
@@ -39,8 +40,19 @@ impl StrEffectCache {
     pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
+            filtering: true,
             missing: std::collections::HashSet::new(),
         }
+    }
+
+    /// Drops the loaded textures so the next spawn re-uploads them with the new
+    /// filter. Names that failed to resolve stay remembered.
+    pub fn set_filtering(&mut self, on: bool) {
+        if self.filtering == on {
+            return;
+        }
+        self.filtering = on;
+        self.entries.clear();
     }
 
     pub fn load(
@@ -60,7 +72,7 @@ impl StrEffectCache {
         }
         let mut last_err: Option<String> = None;
         for candidate in std::iter::once(name).chain(aliases.iter().copied()) {
-            match try_load(candidate, grf, texture_cache, device, queue) {
+            match try_load(candidate, grf, texture_cache, device, queue, self.filtering) {
                 Ok(entry) => {
                     if candidate != name && ragnarok_profiling::debug::trace_effects() {
                         tracing::info!("STR resolved via alias: {name} -> {candidate}");
@@ -92,6 +104,7 @@ fn try_load(
     texture_cache: &mut TextureCache,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    filtering: bool,
 ) -> Result<StrEffectEntry, String> {
     let str_path = ragnarok_resources::texture::effect::str_file(name);
     let str_bytes = grf
@@ -107,7 +120,7 @@ fn try_load(
         let mut bgs: Vec<Option<wgpu::BindGroup>> = Vec::with_capacity(layer.textures.len());
         for tex_name in &layer.textures {
             let tex_path = super::effect_texture_path(tex_name);
-            let bg = load_str_texture(&tex_path, grf, device, queue, layout);
+            let bg = load_str_texture(&tex_path, grf, device, queue, layout, filtering);
             bgs.push(bg);
             paths.push(tex_path);
         }
@@ -128,6 +141,7 @@ fn load_str_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
+    filtering: bool,
 ) -> Option<wgpu::BindGroup> {
     let data = match grf.read_file(path) {
         Ok(d) => d,
@@ -172,8 +186,22 @@ fn load_str_texture(
         }
     }
 
-    Some(create_texture_bind_group(
-        device, queue, &rgba, layout, path,
+    let filter = if filtering {
+        wgpu::FilterMode::Linear
+    } else {
+        wgpu::FilterMode::Nearest
+    };
+    Some(crate::texture::create_texture_bind_group_from_rgba(
+        device,
+        queue,
+        rgba.as_raw(),
+        rgba.width(),
+        rgba.height(),
+        layout,
+        path,
+        filter,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        wgpu::AddressMode::Repeat,
     ))
 }
 

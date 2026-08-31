@@ -109,6 +109,36 @@ The fields a newcomer sets by hand:
 
 The remaining fields (`window_state`, `keybindings`, `shortcut_commands`, `emotion_keys`, `display`, `last_char_slot`, and other in-game toggles) are written by the client as we play and rebind keys.
 
+# Texture filtering
+
+The original game filters every texture bilinearly and never changes that state
+while it runs. We do the same by default, and ground and model textures get a mip
+chain on top, which is what the original enables for the pass that draws them.
+Three checkboxes on the `Texture Filtering:` row of the graphic options window
+(Esc, then Graphics) turn filtering off per family, and each one is stored in
+`config.json`:
+
+| Checkbox | Config key | Covers |
+| --- | --- | --- |
+| Map | `custom.filtering.world` | Ground, models, water |
+| Effects | `custom.filtering.effects` | STR and primitive effect textures |
+| Sprites | `custom.filtering.sprites` | Players, monsters, NPCs, items |
+
+I recommended (it looks better) to also set `custom.filtering.sprites_upscale` to `true` when `custom.filtering.sprites` is true, but as it consume more vram the default is `false`.
+
+This cannot be change when game is running and can only be changed by editing json when game is not running.
+
+See [Texture filtering](docs/configuration.md#texture-filtering) and
+[Sprite upscale](docs/configuration.md#sprite-upscale) for what each value does
+and what it costs.
+
+Notes: For sprites and world I personally prefer nearest sampling, with no sprite upscale, even though it is
+a divergence from the original game. Nearest takes the colour of the single texel
+closest to the sample point, where bilinear blends the four texels around it. 
+The pixels of a sprite stay hard and its silhouette carries no dark rim, at the cost
+of aliasing once a sprite is drawn smaller than its source. 
+
+
 # Run
 
 With `data/data.grf` in place and a server running:

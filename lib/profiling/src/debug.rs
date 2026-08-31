@@ -33,12 +33,20 @@ static PACKET_TRACE: AtomicU8 = AtomicU8::new(2);
 static TRACE_EFFECTS: AtomicBool = AtomicBool::new(false);
 static TRACE_INPUT: AtomicBool = AtomicBool::new(false);
 static TRACE_TEXTURE_LOAD: AtomicBool = AtomicBool::new(false);
+static TRACE_SPRITE_SCALE: AtomicBool = AtomicBool::new(false);
 
-pub fn init(packet: PacketTrace, effects: bool, input: bool, texture_load: bool) {
+pub fn init(
+    packet: PacketTrace,
+    effects: bool,
+    input: bool,
+    texture_load: bool,
+    sprite_scale: bool,
+) {
     PACKET_TRACE.store(packet.as_u8(), Ordering::Relaxed);
     TRACE_EFFECTS.store(effects, Ordering::Relaxed);
     TRACE_INPUT.store(input, Ordering::Relaxed);
     TRACE_TEXTURE_LOAD.store(texture_load, Ordering::Relaxed);
+    TRACE_SPRITE_SCALE.store(sprite_scale, Ordering::Relaxed);
 }
 
 pub fn packet_trace() -> PacketTrace {
@@ -55,4 +63,8 @@ pub fn trace_input() -> bool {
 
 pub fn trace_texture_load() -> bool {
     TRACE_TEXTURE_LOAD.load(Ordering::Relaxed)
+}
+
+pub fn trace_sprite_scale() -> bool {
+    TRACE_SPRITE_SCALE.load(Ordering::Relaxed)
 }

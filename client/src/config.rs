@@ -35,6 +35,9 @@ pub struct DebugConfig {
     pub trace_effects: bool,
     pub trace_input: bool,
     pub trace_texture_load: bool,
+    /// Logs the sprite magnification measured on map entry, along with the
+    /// upscale factor derived from it.
+    pub trace_sprite_scale: bool,
 }
 
 /// Behaviour the original game has no counterpart for, off unless opted into.
@@ -50,6 +53,7 @@ pub struct CustomConfig {
     /// Draw name plates, floor-item labels and the pending-skill level in a bold
     /// weight with a heavier outline. The original game has one weight only.
     pub accessibility: bool,
+    pub filtering: CustomFilteringConfig,
     pub sound: CustomSoundConfig,
     pub window: CustomWindowConfig,
     pub skill: CustomSkillConfig,
@@ -61,9 +65,39 @@ impl Default for CustomConfig {
             boss_aura: false,
             fog_scale: 1.0,
             accessibility: false,
+            filtering: CustomFilteringConfig::default(),
             sound: CustomSoundConfig::default(),
             window: CustomWindowConfig::default(),
             skill: CustomSkillConfig::default(),
+        }
+    }
+}
+
+/// Texture filtering per family. The original game filters all three, so `false`
+/// is the deviation here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomFilteringConfig {
+    /// Filter ground and model textures, over a mip chain. Off point-samples them.
+    pub world: bool,
+    /// Filter effect textures, both the STR ones and the primitive ones.
+    pub effects: bool,
+    /// Filter entity sprites. Off point-samples them, which keeps every texel
+    /// hard and drops the dark rim filtering leaves on a silhouette.
+    pub sprites: bool,
+    /// Upload entity sprites enlarged, so filtering only softens a fraction of a
+    /// source texel. The factor is derived from the camera on map entry and
+    /// capped at 4; memory grows with its square. Ignored while `sprites` is off.
+    pub sprite_upscale: bool,
+}
+
+impl Default for CustomFilteringConfig {
+    fn default() -> Self {
+        Self {
+            world: true,
+            effects: true,
+            sprites: true,
+            sprite_upscale: false,
         }
     }
 }
@@ -435,6 +469,10 @@ mod tests {
         assert!(config.custom.skill.al_teleport.separate_lvl);
         assert!(!config.custom.skill.al_teleport.skip_lvl1_menu);
         assert!(!config.custom.boss_aura);
+        assert!(config.custom.filtering.world);
+        assert!(config.custom.filtering.effects);
+        assert!(config.custom.filtering.sprites);
+        assert!(!config.custom.filtering.sprite_upscale);
         assert_eq!(config.custom.fog_scale, 1.0);
 
         let json = r#"{"custom": {"fog_scale": 2.5}}"#;
@@ -454,6 +492,7 @@ mod tests {
         assert!(config.debug.trace_input);
         assert!(!config.debug.trace_effects);
         assert!(!config.debug.trace_texture_load);
+        assert!(!config.debug.trace_sprite_scale);
 
         let reparsed: Config =
             serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();

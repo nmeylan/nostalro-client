@@ -150,6 +150,9 @@ pub struct Renderer {
     fog_entry: Option<FogEntry>,
     fog_scale: f32,
     lightmap_enabled: bool,
+    filter_effects: bool,
+    /// Effect textures uploaded so far, so a filter change can rebuild them.
+    effect_textures: Vec<String>,
 }
 
 /// The view planes the fog table's `near`/`far` columns are fractions of. Not
@@ -309,6 +312,8 @@ impl Renderer {
             fog_entry: None,
             fog_scale: 1.0,
             lightmap_enabled: true,
+            filter_effects: true,
+            effect_textures: Vec::new(),
         }
     }
 
@@ -354,6 +359,42 @@ impl Renderer {
     pub fn set_fog(&mut self, fog: Option<FogEntry>) {
         self.fog_entry = fog;
         self.upload_fog();
+    }
+
+    fn effect_filter(&self) -> wgpu::FilterMode {
+        if self.filter_effects {
+            wgpu::FilterMode::Linear
+        } else {
+            wgpu::FilterMode::Nearest
+        }
+    }
+
+    /// Filters effect textures, the way the original game does. Pass the archive
+    /// to rebuild the textures already uploaded.
+    pub fn set_effect_filtering(&mut self, on: bool, grf: Option<&GrfArchive>) {
+        if self.filter_effects == on {
+            return;
+        }
+        self.filter_effects = on;
+        let Some(grf) = grf else {
+            return;
+        };
+        let paths = std::mem::take(&mut self.effect_textures);
+        for path in &paths {
+            self.texture_cache.remove(path);
+        }
+        self.preload_effect_textures(&paths, grf);
+    }
+
+    /// Filters ground and model textures, the way the original game does. Pass
+    /// the archive to rebuild the textures a loaded map already uploaded.
+    pub fn set_world_filtering(&mut self, on: bool, grf: Option<&GrfArchive>) {
+        self.texture_cache.set_world_filtering(
+            on,
+            grf,
+            &self.device.device,
+            &self.device.queue,
+        );
     }
 
     /// Multiplies both fog distances, so a wider view than the original game's
@@ -558,9 +599,11 @@ impl Renderer {
                 &self.device.queue,
                 &self.texture_cache.bind_group_layout,
                 address_mode,
+                self.effect_filter(),
             ) {
                 Some((bind_group, w, h)) => {
                     self.texture_cache.insert(path, bind_group, w, h);
+                    self.effect_textures.push(path.clone());
                     loaded.push(path);
                 }
                 None => missing.push(path),

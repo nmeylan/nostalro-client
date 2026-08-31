@@ -1062,6 +1062,9 @@ pub enum GameEvent {
         refuse_trade: bool,
         refuse_party_invite: bool,
         accessibility: bool,
+        filter_world: bool,
+        filter_effects: bool,
+        filter_sprites: bool,
         persist: bool,
     },
     SoundEffect {

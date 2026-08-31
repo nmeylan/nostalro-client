@@ -26,6 +26,15 @@
     "trace_packet": "unhandled",
     "trace_effects": false,
     "trace_input": false,
-    "trace_texture_load": false
+    "trace_texture_load": false,
+    "trace_sprite_scale": false
+  },
+  "custom": {
+    "filtering": {
+      "world": true,
+      "effects": true,
+      "sprites": true,
+      "sprite_upscale": false
+    }
   }
 }

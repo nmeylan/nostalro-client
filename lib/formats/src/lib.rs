@@ -73,7 +73,7 @@ impl From<std::io::Error> for FormatError {
 /// RO convention: magenta pixels (FF00FF) represent transparency in BMP textures.
 pub fn apply_magenta_transparency(rgba_data: &mut [u8]) {
     for pixel in rgba_data.chunks_exact_mut(4) {
-        if pixel[0] >= 0xFE && pixel[1] <= 0x01 && pixel[2] >= 0xFE {
+        if pixel[0] >= 0xF8 && pixel[1] <= 0x07 && pixel[2] >= 0xF8 {
             pixel[0] = 0;
             pixel[1] = 0;
             pixel[2] = 0;
@@ -140,6 +140,23 @@ pub(crate) fn version_at_least(version: (u8, u8), major: u8, minor: u8) -> bool 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn near_magenta_keys_out_but_neighbouring_colours_stay() {
+        let mut px = [
+            255, 0, 255, 255,
+            252, 4, 252, 255,
+            248, 7, 248, 255,
+            247, 8, 247, 255,
+            255, 0, 200, 255,
+        ];
+        apply_magenta_transparency(&mut px);
+        assert_eq!(&px[0..4], &[0, 0, 0, 0]);
+        assert_eq!(&px[4..8], &[0, 0, 0, 0]);
+        assert_eq!(&px[8..12], &[0, 0, 0, 0]);
+        assert_eq!(&px[12..16], &[247, 8, 247, 255]);
+        assert_eq!(&px[16..20], &[255, 0, 200, 255]);
+    }
 
     #[test]
     fn zlib_round_trip_small_buffer() {

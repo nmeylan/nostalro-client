@@ -1173,6 +1173,9 @@ fn create_single(name: &str) -> State {
                 false,
                 false,
                 false,
+                false,
+                false,
+                false,
             );
             win.toggle();
             State::GraphicOptions {

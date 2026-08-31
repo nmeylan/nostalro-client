@@ -10,6 +10,8 @@ pub struct TextureCache {
     sizes: HashMap<String, (u32, u32)>,
     pub bind_group_layout: wgpu::BindGroupLayout,
     dpi_scale: f32,
+    filter_world: bool,
+    world_textures: Vec<String>,
 }
 
 impl TextureCache {
@@ -41,6 +43,30 @@ impl TextureCache {
             sizes: HashMap::new(),
             bind_group_layout,
             dpi_scale,
+            filter_world: true,
+            world_textures: Vec::new(),
+        }
+    }
+
+    /// Filters ground and model textures instead of point-sampling them.
+    /// Textures already uploaded are rebuilt when a `grf` is given.
+    pub fn set_world_filtering(
+        &mut self,
+        on: bool,
+        grf: Option<&GrfArchive>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
+        if self.filter_world == on {
+            return;
+        }
+        self.filter_world = on;
+        let Some(grf) = grf else {
+            return;
+        };
+        for name in std::mem::take(&mut self.world_textures) {
+            self.remove(&name);
+            self.get_or_load(&name, grf, device, queue, false);
         }
     }
 
@@ -125,8 +151,18 @@ impl TextureCache {
                         wgpu::FilterMode::Nearest,
                         wgpu::AddressMode::ClampToEdge,
                     )
+                } else if !self.filter_world {
+                    create_texture_bind_group_filtered(
+                        device,
+                        queue,
+                        &img,
+                        &self.bind_group_layout,
+                        name,
+                        wgpu::FilterMode::Nearest,
+                        wgpu::AddressMode::Repeat,
+                    )
                 } else {
-                    create_texture_bind_group_nearest(
+                    create_world_texture_bind_group(
                         device,
                         queue,
                         &img,
@@ -137,6 +173,9 @@ impl TextureCache {
             } else {
                 create_texture_bind_group(device, queue, &img, &self.bind_group_layout, name)
             };
+            if !dpi_upscale {
+                self.world_textures.push(name.to_string());
+            }
             self.textures.insert(name.to_string(), bind_group);
             self.sizes.insert(name.to_string(), (logical_w, logical_h));
         }
@@ -149,6 +188,11 @@ impl TextureCache {
 
     pub fn texture_size(&self, name: &str) -> Option<(u32, u32)> {
         self.sizes.get(name).copied()
+    }
+
+    pub fn remove(&mut self, name: &str) {
+        self.textures.remove(name);
+        self.sizes.remove(name);
     }
 
     pub fn insert(&mut self, name: &str, bind_group: wgpu::BindGroup, width: u32, height: u32) {
@@ -197,6 +241,7 @@ pub fn load_keyed_texture(
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
     address_mode: wgpu::AddressMode,
+    filter: wgpu::FilterMode,
 ) -> Option<(wgpu::BindGroup, u32, u32)> {
     let (data, resolved_path) = read_with_ext_fallback(path, grf)?;
 
@@ -226,7 +271,7 @@ pub fn load_keyed_texture(
         h,
         layout,
         path,
-        wgpu::FilterMode::Nearest,
+        filter,
         wgpu::TextureFormat::Rgba8UnormSrgb,
         address_mode,
     );
@@ -280,22 +325,88 @@ pub fn create_texture_bind_group(
     )
 }
 
-pub fn create_texture_bind_group_nearest(
+pub fn create_world_texture_bind_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     img: &image::RgbaImage,
     layout: &wgpu::BindGroupLayout,
     label: &str,
 ) -> wgpu::BindGroup {
-    create_texture_bind_group_filtered(
-        device,
-        queue,
-        img,
+    let (width, height) = img.dimensions();
+    let mip_level_count = width.max(height).max(1).ilog2() + 1;
+
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+
+    let mut level = std::borrow::Cow::Borrowed(img);
+    for mip in 0..mip_level_count {
+        if mip > 0 {
+            let (w, h) = level.dimensions();
+            level = std::borrow::Cow::Owned(image::imageops::resize(
+                level.as_ref(),
+                (w / 2).max(1),
+                (h / 2).max(1),
+                image::imageops::FilterType::Triangle,
+            ));
+        }
+        let (w, h) = level.dimensions();
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: mip,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            level.as_raw(),
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * w),
+                rows_per_image: Some(h),
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    let view = texture.create_view(&Default::default());
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
+        ..Default::default()
+    });
+
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some(label),
         layout,
-        label,
-        wgpu::FilterMode::Nearest,
-        wgpu::AddressMode::Repeat,
-    )
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&sampler),
+            },
+        ],
+    })
 }
 
 pub fn create_texture_bind_group_clamped(

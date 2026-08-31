@@ -55,7 +55,7 @@ are lost on the next save.
 | `window_state` | Saved position, open and collapsed state per UI window. See [Window state](#window-state). | `{}` | No |
 | `display` | Name plate, damage and cast bar visibility. See [display](#display). | `{"show_other_damage": true, "show_other_cast_bars": true, "hide_name_player": false, "hide_name_monster": false, "hide_name_npc": false, "show_level_aura": true}` | No |
 | `snap` | Mouse snapping targets. See [snap](#snap). | `{"monster_no_skill": false, "monster_skill": true, "item": false}` | No |
-| `debug` | Trace toggles. See [debug](#debug). | `{"trace_packet": "none", "trace_effects": false, "trace_input": false, "trace_texture_load": false}` | No |
+| `debug` | Trace toggles. See [debug](#debug). | `{"trace_packet": "none", "trace_effects": false, "trace_input": false, "trace_texture_load": false, "trace_sprite_scale": false}` | No |
 | `custom` | Behaviour the original game has no counterpart for. See [custom](#custom). | `{"boss_aura": false, "fog_scale": 1.0, "sound": {"act_percent": 100, "stereo": true, "play_when_unfocused": false}, "window": {"exclude_close_via_esc": []}}` | No |
 
 ## Login server
@@ -99,10 +99,13 @@ have no toggle.
 | `debug.trace_effects` | Log effect creation and lifetime. | `false` | No |
 | `debug.trace_input` | Log keyboard and mouse input dispatch. | `false` | No |
 | `debug.trace_texture_load` | Log every texture load and its resolved GRF key. | `false` | No |
+| `debug.trace_sprite_scale` | On map entry, log how many screen pixels one sprite texel covers, and the upscale factor derived from it. See [Texture filtering](#texture-filtering). | `false` | No |
 
 ## custom
 
-Off unless opted into, so the default configuration matches the original game.
+The defaults match the original game. Most keys are off for that reason;
+`custom.filtering` and `custom.sound.stereo` are on, because there the original's
+behaviour is the enabled one.
 
 | Config key                                | Description                                                                                                                                                                                                                        | Default value | Mandatory |
 |-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|-----------|
@@ -115,6 +118,10 @@ Off unless opted into, so the default configuration matches the original game.
 | `custom.skill.al_teleport.separate_lvl`   | Give Teleport a level picker in the skill tree, the way Fire Bolt has one. See [Forced level select](#forced-level-select).                                                                                                        | `false`       | No        |
 | `custom.skill.al_teleport.skip_lvl1_menu` | Answer a level 1 Teleport's warp list without showing it, so the cast warps straight away. See [Skipping the level 1 warp list](#skipping-the-level-1-warp-list).                                                                  | `false`       | No        |
 | `custom.accessibility`                    | Enable accessibility improvement: bold name plate on hovering item, entities, npc                                                                                                                                                  | `false`       | No        |
+| `custom.filtering.world`                  | Filter ground and model textures, over a mip chain. Off point-samples them. See [Texture filtering](#texture-filtering).                                                                                                           | `true`        | No        |
+| `custom.filtering.effects`                | Filter effect textures, both the STR ones and the primitive ones. See [Texture filtering](#texture-filtering).                                                                                                                     | `true`        | No        |
+| `custom.filtering.sprites`                | Filter entity sprites. See [Texture filtering](#texture-filtering).                                                                                                                                                                | `true`        | No        |
+| `custom.filtering.sprite_upscale`         | Enlarge entity sprites before upload so filtering softens a fraction of a source texel. Ignored while `custom.filtering.sprites` is off. See [Sprite upscale](#sprite-upscale).                                                    | `false`       | No        |
 
 ## Fog scale
 
@@ -152,6 +159,93 @@ distances are in world units.
 The value is read once when the renderer is created. Changing the key needs a
 restart. It has no effect on maps with no fog table entry, or while `/fog` is
 off.
+
+## Texture filtering
+
+The original game sets one filter for the whole device and never changes it:
+magnification and minification are both linear. The mip filter is the only
+per-pass state, linear while the ground and model faces are drawn and off
+everywhere else. We match that by default. Each `custom.filtering` key turns
+filtering off for one family of textures, which is a deviation.
+
+The three families are also checkboxes in the graphic options window, on the
+`Texture Filtering:` row: Esc, then Graphics. A ticked box is the key set to
+`true`. A change there applies immediately and is written back to `config.json`.
+
+### custom.filtering.world
+
+| Value | Effect |
+| --- | --- |
+| `true` | Ground and model textures sample bilinearly, over a mip chain built at load time by halving the image down to 1x1. Texels left near the magenta colour key are diluted by the filter until they fail the `0.81` alpha test in `terrain.wgsl` and `model.wgsl`, so a stray keyed pixel disappears instead of showing as a magenta dot. Costs one third more texture memory and one `write_texture` call per mip level. |
+| `false` | One mip level, point sampling. Texels stay hard, including the colour-key fringes some model textures carry. |
+
+Toggling this at runtime rebuilds the world textures a loaded map already
+uploaded, which re-reads and re-decodes each of them.
+
+### custom.filtering.effects
+
+| Value | Effect |
+| --- | --- |
+| `true` | Effect textures sample bilinearly. Both effect paths agree: the primitive textures loaded through `load_keyed_texture` and the STR ones cached in `StrEffectCache`. |
+| `false` | Both paths point-sample. |
+
+Toggling this at runtime rebuilds the primitive effect textures in place and
+drops the STR cache entries, which reload when their effect next spawns.
+
+### custom.filtering.sprites
+
+| Value | Effect |
+| --- | --- |
+| `true` | Entity sprites sample bilinearly. Sprite silhouettes gain a dark rim: a transparent texel is stored as black with alpha 0, and the filter mixes that black into the edge. The original game has the same upload but draws its billboards at one texel per pixel, where a bilinear tap returns the texel unchanged. Our billboards are scaled by `perspective_scale * zoom / 75`, so they rarely land on that ratio. |
+| `false` | Entity sprites point-sample. |
+
+Toggling this at runtime reloads every player, monster and NPC, the local
+character and the guild head icons. Carts, falcons, the cursor, emotes, damage
+digits and floor items are spawned by events or loaded once, so they keep the
+filter they were uploaded with until the next login.
+
+## Sprite upscale
+
+`custom.filtering.sprite_upscale` enlarges each sprite frame before upload, with
+a nearest filter so the interior stays pixel exact. The bilinear tap then only
+softens the boundary between enlarged texels, which narrows the blurred edge and
+the dark rim to one enlarged texel. It does nothing while
+`custom.filtering.sprites` is off, since point sampling has no edge to narrow.
+
+The factor is not a setting. On map entry the client measures the magnification
+its own camera produces and rounds it up:
+
+```text
+ratio  = perspective_scale(camera.target) * map.zoom / 75 * dpi_scale
+factor = clamp(ceil(ratio), 1, 4)
+```
+
+`perspective_scale` is the function the render path itself calls, so the measured
+ratio cannot drift from what is drawn. Rounding up keeps the softened edge under
+one screen pixel. The cost of that guarantee is that a ratio of `1.05` rounds to
+`2`, which is four times the memory for a five percent overshoot.
+`debug.trace_sprite_scale` prints the measurement and the chosen factor on every
+map entry, so we can see when that happens:
+
+```text
+[sprite-scale] texel_to_pixel=1.24 dpi=1.00 camera_distance=200 upscale=2
+```
+
+Memory grows with the square of the factor and upload time grows with it as well.
+Measured on `검사_남.spr`, the male swordman body, 118 frames:
+
+| Factor | Resize time | Texture memory |
+| --- | --- | --- |
+| 1 | 0 ms | 1.23 MiB |
+| 2 | 17.2 ms | 4.93 MiB |
+| 3 | 30.8 ms | 11.09 MiB |
+| 4 | 48.0 ms | 19.72 MiB |
+
+That cost is paid once per sprite file per login: the sprite cache is keyed by
+path and shared between entities, and it is cleared on logout, not on map change.
+
+The factor is read at startup and applied on map entry, so a change to
+`config.json` needs a client restart.
 
 ## Forced level select
 
