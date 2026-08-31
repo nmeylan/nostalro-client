@@ -1,5 +1,8 @@
+use crate::key_layout::KeyLabels;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+
+pub use winit::keyboard::KeyCode as PhysicalKeyCode;
 
 pub const DOUBLE_CLICK_THRESHOLD_MS: u128 = 400;
 pub const DOUBLE_CLICK_DISTANCE: f32 = 5.0;
@@ -14,6 +17,8 @@ pub struct UiContext {
     pub mouse_down: bool,
     pub mouse_right_clicked: bool,
     pub typed_chars: Vec<char>,
+    pub pressed_codes: Vec<KeyCode>,
+    pub key_labels: KeyLabels,
     last_click_time: std::time::Instant,
     last_click_pos: (f32, f32),
     pub key_backspace: bool,
@@ -60,6 +65,8 @@ impl UiContext {
             mouse_down: false,
             mouse_right_clicked: false,
             typed_chars: Vec::new(),
+            pressed_codes: Vec::new(),
+            key_labels: KeyLabels::resolve(),
             last_click_time: std::time::Instant::now(),
             last_click_pos: (0.0, 0.0),
             now_ms: 0,
@@ -97,6 +104,7 @@ impl UiContext {
         self.mouse_double_clicked = false;
         self.mouse_right_clicked = false;
         self.typed_chars.clear();
+        self.pressed_codes.clear();
         self.key_backspace = false;
         self.key_enter = false;
         self.key_tab = false;
@@ -197,6 +205,7 @@ impl UiContext {
                     // logical key for the upper F-row, which a NamedKey match
                     // silently misses.
                     if let PhysicalKey::Code(code) = event.physical_key {
+                        self.pressed_codes.push(code);
                         match code {
                             KeyCode::F1 => self.key_f1 = true,
                             KeyCode::F2 => self.key_f2 = true,

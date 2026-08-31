@@ -14,6 +14,7 @@ use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
 use ragnarok_game::skill::SkillEnum;
 use ragnarok_game::skill_action::{SkillCaster, skill_caster};
+use ragnarok_ui::context::PhysicalKeyCode as KeyCode;
 use ragnarok_ui::draw::{self, DrawCall, TextOutline, TextureRef};
 use ragnarok_ui::frame::{UiFrame, WidgetId, WindowOrder};
 use ragnarok_ui::rect::Rect;
@@ -40,16 +41,73 @@ const CLOSE_SIZE: f32 = 12.0;
 const RESIZE_SIZE: f32 = 13.0;
 const WIN_W: f32 = SLOT_MARGIN + (SLOT_W + SLOT_MARGIN) * HOTKEY_COLS as f32;
 
-const ROW_KEYS: [[&str; 9]; 4] = [
-    ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"],
-    ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
-    ["Q", "W", "E", "R", "T", "Y", "U", "I", "O"],
-    ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+/// Physical keys, not the characters they print: a slot keeps its place on the
+/// keyboard on every layout.
+const ROW1_KEYS: [KeyCode; 9] = [
+    KeyCode::F1,
+    KeyCode::F2,
+    KeyCode::F3,
+    KeyCode::F4,
+    KeyCode::F5,
+    KeyCode::F6,
+    KeyCode::F7,
+    KeyCode::F8,
+    KeyCode::F9,
+];
+const ROW2_KEYS: [KeyCode; 9] = [
+    KeyCode::Digit1,
+    KeyCode::Digit2,
+    KeyCode::Digit3,
+    KeyCode::Digit4,
+    KeyCode::Digit5,
+    KeyCode::Digit6,
+    KeyCode::Digit7,
+    KeyCode::Digit8,
+    KeyCode::Digit9,
+];
+const ROW3_KEYS: [KeyCode; 9] = [
+    KeyCode::KeyQ,
+    KeyCode::KeyW,
+    KeyCode::KeyE,
+    KeyCode::KeyR,
+    KeyCode::KeyT,
+    KeyCode::KeyY,
+    KeyCode::KeyU,
+    KeyCode::KeyI,
+    KeyCode::KeyO,
+];
+const ROW4_KEYS: [KeyCode; 9] = [
+    KeyCode::KeyA,
+    KeyCode::KeyS,
+    KeyCode::KeyD,
+    KeyCode::KeyF,
+    KeyCode::KeyG,
+    KeyCode::KeyH,
+    KeyCode::KeyJ,
+    KeyCode::KeyK,
+    KeyCode::KeyL,
 ];
 
-const ROW2_CHARS: [char; 9] = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-const ROW3_CHARS: [char; 9] = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o'];
-const ROW4_CHARS: [char; 9] = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
+fn slot_key(slot: usize) -> Option<KeyCode> {
+    let row = match slot / HOTKEY_COLS {
+        0 => &ROW1_KEYS,
+        1 => &ROW2_KEYS,
+        2 => &ROW3_KEYS,
+        3 => &ROW4_KEYS,
+        _ => return None,
+    };
+    row.get(slot % HOTKEY_COLS).copied()
+}
+
+/// The key is shown for rows 2-4 only in battle mode: outside it, they trigger
+/// nothing.
+fn slot_tooltip(key: Option<String>, body: Option<String>) -> Option<String> {
+    match (key, body) {
+        (Some(key), Some(body)) => Some(format!("[{key}] {body}")),
+        (Some(key), None) => Some(format!("[{key}]")),
+        (None, body) => body,
+    }
+}
 
 pub struct HotkeyBarWindow {
     pub has_grf_textures: bool,
@@ -450,7 +508,7 @@ impl InGameWindow for HotkeyBarWindow {
                                 &TextOutline::cross(COUNT_OUTLINE_COLOR),
                             );
                         } else {
-                            ui.text(tx, ty, &count_text, label_color);
+                            ui.text(tx + 5.0, ty + 2.5, &count_text, label_color);
                         }
                     }
 
@@ -537,17 +595,25 @@ impl InGameWindow for HotkeyBarWindow {
                             let card_name_table = data.card_name.as_ref();
                             let producers = &character.char_names;
                             character.inventory.find_by_item_id(item_id).map(|item| {
-                                format_equipment_display_name(
+                                let name = format_equipment_display_name(
                                     item,
                                     slot_count_table,
                                     card_name_table,
                                     producers,
-                                )
+                                );
+                                if item.count > 1 {
+                                    format!("{}: {} ea.", name, item.count)
+                                } else {
+                                    name
+                                }
                             })
                         }
                         HotkeySlotContent::Empty => None,
                     };
-                    if let Some(text) = tooltip {
+                    let key = slot_key(slot_index)
+                        .filter(|_| row == 0 || character.hotkeys.battle_mode())
+                        .map(|code| ui.ctx.key_labels.display(code));
+                    if let Some(text) = slot_tooltip(key, tooltip) {
                         ui.tooltip(cell_x, cell_y - 4.0, &text);
                     }
                 }
@@ -571,18 +637,18 @@ impl InGameWindow for HotkeyBarWindow {
             }
         }
 
-        if character.hotkeys.battle_mode() && !self.chat_is_active {
-            for ch in &ui.ctx.typed_chars {
-                let lower = ch.to_ascii_lowercase();
-                if let Some(col) = ROW2_CHARS.iter().position(|&c| c == lower) {
+        let modified = ui.ctx.alt_pressed || ui.ctx.ctrl_pressed;
+        if character.hotkeys.battle_mode() && !self.chat_is_active && !modified {
+            for &code in &ui.ctx.pressed_codes {
+                if let Some(col) = ROW2_KEYS.iter().position(|&c| c == code) {
                     if visible_rows > 1 {
                         self.execute_slot(HOTKEY_COLS + col, character, &mut events);
                     }
-                } else if let Some(col) = ROW3_CHARS.iter().position(|&c| c == lower) {
+                } else if let Some(col) = ROW3_KEYS.iter().position(|&c| c == code) {
                     if visible_rows > 2 {
                         self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events);
                     }
-                } else if let Some(col) = ROW4_CHARS.iter().position(|&c| c == lower)
+                } else if let Some(col) = ROW4_KEYS.iter().position(|&c| c == code)
                     && visible_rows > 3
                 {
                     self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events);
@@ -602,6 +668,10 @@ mod tests {
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::item::Item;
     use ragnarok_game::skill::{SkillData, SkillTargetType};
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::key_layout::KeyLabels;
+    use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
 
     fn potion(index: u16, count: i16) -> Item {
         Item {
@@ -629,6 +699,71 @@ mod tests {
             upgradable: false,
             skill_target_type: SkillTargetType::Target,
         }
+    }
+
+    #[test]
+    fn slot_labels_follow_the_resolved_layout() {
+        let labels = KeyLabels::from_map(std::collections::HashMap::from([
+            (KeyCode::KeyQ, "a".to_string()),
+            (KeyCode::Digit1, "&".to_string()),
+        ]));
+
+        let row3 = slot_key(HOTKEY_COLS * 2).unwrap();
+        assert_eq!(
+            slot_tooltip(Some(labels.display(row3)), Some("Fire Bolt Lv.5".into())),
+            Some("[A] Fire Bolt Lv.5".to_string())
+        );
+
+        let row2 = slot_key(HOTKEY_COLS).unwrap();
+        assert_eq!(
+            slot_tooltip(Some(labels.display(row2)), None),
+            Some("[&]".to_string())
+        );
+
+        // Unresolved keys keep the US name of the position.
+        let row1 = slot_key(0).unwrap();
+        assert_eq!(labels.display(row1), "F1");
+        assert_eq!(
+            slot_tooltip(None, Some("Red Potion".into())),
+            Some("Red Potion".to_string())
+        );
+    }
+
+    #[test]
+    fn battle_mode_rows_trigger_on_the_physical_key() {
+        let mut bar = HotkeyBarWindow::new();
+        let mut character = Character::new();
+        character.inventory.add_item(potion(7, 3));
+        character.hotkeys.set_visible_rows(3);
+        character
+            .hotkeys
+            .set_slot(HOTKEY_COLS * 2, HotkeySlotContent::Item { item_id: 501 });
+        character.hotkeys.toggle_battle_mode();
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.pressed_codes = vec![KeyCode::KeyQ];
+        let mut ui = test_frame(&mut ctx, &mut state);
+        let events = bar.build(
+            &mut ui,
+            &mut crate::BuildCtx::test(&mut character, &DataTable::default()),
+        );
+
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestUseItem { index: 7 }]
+        ));
+
+        // Alt+Q belongs to the equipment window, not to the slot under Q.
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.pressed_codes = vec![KeyCode::KeyQ];
+        ctx.alt_pressed = true;
+        let mut ui = test_frame(&mut ctx, &mut state);
+        let events = bar.build(
+            &mut ui,
+            &mut crate::BuildCtx::test(&mut character, &DataTable::default()),
+        );
+        assert!(events.is_empty());
     }
 
     #[test]

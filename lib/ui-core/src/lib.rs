@@ -1,6 +1,7 @@
 pub mod context;
 pub mod draw;
 pub mod frame;
+pub mod key_layout;
 pub mod rect;
 pub mod state;
 #[cfg(any(test, feature = "test-support"))]

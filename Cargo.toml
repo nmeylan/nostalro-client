@@ -37,6 +37,9 @@ serde_json = "1.0"
 
 wgpu = "28"
 winit = "0.30"
+wayland-client = "0.31"
+xkbcommon-dl = "0.4"
+x11rb = "0.13"
 glam = "0.32"
 bytemuck = { version = "1.25", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga", "bmp"] }

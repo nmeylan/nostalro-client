@@ -3174,7 +3174,10 @@ dependencies = [
  "arboard",
  "ragnarok-renderer",
  "ragnarok-resources",
+ "wayland-client",
  "winit",
+ "x11rb",
+ "xkbcommon-dl",
 ]
 
 [[package]]
