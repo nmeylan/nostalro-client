@@ -12,6 +12,9 @@ pub struct TextureCache {
     dpi_scale: f32,
     filter_world: bool,
     world_textures: Vec<String>,
+    /// Ground textures, sampled without wrapping. A cell maps the whole texture,
+    /// so a repeating sampler blends the far edge in at every cell boundary.
+    ground: HashMap<String, wgpu::BindGroup>,
 }
 
 impl TextureCache {
@@ -45,6 +48,7 @@ impl TextureCache {
             dpi_scale,
             filter_world: true,
             world_textures: Vec::new(),
+            ground: HashMap::new(),
         }
     }
 
@@ -68,6 +72,10 @@ impl TextureCache {
             self.remove(&name);
             self.get_or_load(&name, grf, device, queue, false);
         }
+        for name in self.ground.keys().cloned().collect::<Vec<_>>() {
+            self.ground.remove(&name);
+            self.get_or_load_ground(&name, grf, device, queue);
+        }
     }
 
     pub fn get_or_load(
@@ -90,29 +98,7 @@ impl TextureCache {
             return self.textures.get(name);
         }
         if !self.textures.contains_key(name) {
-            let data = match grf.read_file(name) {
-                Ok(d) => d,
-                Err(e) => {
-                    tracing::warn!("Failed to load texture {name}: {e}");
-                    return None;
-                }
-            };
-            let mut img = match image::load_from_memory(&data) {
-                Ok(i) => i.to_rgba8(),
-                Err(_) => match format_from_extension(name) {
-                    Some(fmt) => match image::load_from_memory_with_format(&data, fmt) {
-                        Ok(i) => i.to_rgba8(),
-                        Err(e) => {
-                            tracing::warn!("Failed to decode texture {name}: {e}");
-                            return None;
-                        }
-                    },
-                    None => {
-                        tracing::warn!("Failed to decode texture {name}: unknown format");
-                        return None;
-                    }
-                },
-            };
+            let mut img = decode_texture(name, grf)?;
 
             let is_bmp = name.to_ascii_lowercase().ends_with(".bmp");
             if is_bmp {
@@ -168,6 +154,7 @@ impl TextureCache {
                         &img,
                         &self.bind_group_layout,
                         name,
+                        wgpu::AddressMode::Repeat,
                     )
                 }
             } else {
@@ -180,6 +167,47 @@ impl TextureCache {
             self.sizes.insert(name.to_string(), (logical_w, logical_h));
         }
         self.textures.get(name)
+    }
+
+    pub fn get_or_load_ground(
+        &mut self,
+        name: &str,
+        grf: &GrfArchive,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<&wgpu::BindGroup> {
+        if !self.ground.contains_key(name) {
+            let mut img = decode_texture(name, grf)?;
+            apply_magenta_transparency(&mut img);
+            let bind_group = if self.filter_world {
+                create_world_texture_bind_group(
+                    device,
+                    queue,
+                    &img,
+                    &self.bind_group_layout,
+                    name,
+                    wgpu::AddressMode::ClampToEdge,
+                )
+            } else {
+                create_texture_bind_group_filtered(
+                    device,
+                    queue,
+                    &img,
+                    &self.bind_group_layout,
+                    name,
+                    wgpu::FilterMode::Nearest,
+                    wgpu::AddressMode::ClampToEdge,
+                )
+            };
+            self.sizes
+                .insert(name.to_string(), (img.width(), img.height()));
+            self.ground.insert(name.to_string(), bind_group);
+        }
+        self.ground.get(name)
+    }
+
+    pub fn get_ground(&self, name: &str) -> Option<&wgpu::BindGroup> {
+        self.ground.get(name)
     }
 
     pub fn get(&self, name: &str) -> Option<&wgpu::BindGroup> {
@@ -303,6 +331,32 @@ fn format_from_extension(name: &str) -> Option<image::ImageFormat> {
     }
 }
 
+fn decode_texture(name: &str, grf: &GrfArchive) -> Option<image::RgbaImage> {
+    let data = match grf.read_file(name) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("Failed to load texture {name}: {e}");
+            return None;
+        }
+    };
+    match image::load_from_memory(&data) {
+        Ok(i) => Some(i.to_rgba8()),
+        Err(_) => match format_from_extension(name) {
+            Some(fmt) => match image::load_from_memory_with_format(&data, fmt) {
+                Ok(i) => Some(i.to_rgba8()),
+                Err(e) => {
+                    tracing::warn!("Failed to decode texture {name}: {e}");
+                    None
+                }
+            },
+            None => {
+                tracing::warn!("Failed to decode texture {name}: unknown format");
+                None
+            }
+        },
+    }
+}
+
 fn apply_magenta_transparency(img: &mut image::RgbaImage) {
     ragnarok_formats::apply_magenta_transparency(img.as_mut());
 }
@@ -325,12 +379,70 @@ pub fn create_texture_bind_group(
     )
 }
 
+/// The `0.81` cut-off the ground and model shaders discard below.
+const ALPHA_DISCARD: f32 = 0.81 * 255.0;
+
+fn scaled_alpha(alpha: u8, scale: f32) -> u8 {
+    (alpha as f32 * scale).min(255.0).round() as u8
+}
+
+/// Fraction of texels that would survive the discard test with alpha scaled.
+fn alpha_coverage(img: &image::RgbaImage, scale: f32) -> f32 {
+    let passing = img
+        .pixels()
+        .filter(|p| scaled_alpha(p.0[3], scale) as f32 >= ALPHA_DISCARD)
+        .count();
+    passing as f32 / (img.width() * img.height()).max(1) as f32
+}
+
+/// Alpha scale that brings this level's coverage back to the full-size one.
+/// Box filtering alone shrinks a cut-out at every level until thin features -
+/// a cobweb strand, a leaf edge - fail the discard test and the face vanishes
+/// once a coarse level is sampled; decimating instead just breaks them into
+/// dots. Holding coverage keeps them whole, blurrier but there.
+///
+/// Note that in original game cobweb in orcsdun01 are barely visible, below code is a divergence from OG
+fn scale_for_coverage(img: &image::RgbaImage, target: f32) -> f32 {
+    let (mut lo, mut hi) = (1.0f32, 64.0f32);
+    if alpha_coverage(img, hi) < target {
+        return hi;
+    }
+    for _ in 0..16 {
+        let mid = 0.5 * (lo + hi);
+        if alpha_coverage(img, mid) < target {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    hi
+}
+
+fn halve(img: &image::RgbaImage) -> image::RgbaImage {
+    let (w, h) = img.dimensions();
+    image::imageops::resize(
+        img,
+        (w / 2).max(1),
+        (h / 2).max(1),
+        image::imageops::FilterType::Triangle,
+    )
+}
+
+fn rescale_alpha(img: &image::RgbaImage, scale: f32) -> image::RgbaImage {
+    let mut out = img.clone();
+    for px in out.pixels_mut() {
+        px.0[3] = scaled_alpha(px.0[3], scale);
+    }
+    out
+}
+
 pub fn create_world_texture_bind_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     img: &image::RgbaImage,
     layout: &wgpu::BindGroupLayout,
     label: &str,
+    address_mode: wgpu::AddressMode,
 ) -> wgpu::BindGroup {
     let (width, height) = img.dimensions();
     let mip_level_count = width.max(height).max(1).ilog2() + 1;
@@ -350,17 +462,20 @@ pub fn create_world_texture_bind_group(
         view_formats: &[],
     });
 
-    let mut level = std::borrow::Cow::Borrowed(img);
+    let target_coverage = alpha_coverage(img, 1.0);
+    let mut raw = std::borrow::Cow::Borrowed(img);
     for mip in 0..mip_level_count {
         if mip > 0 {
-            let (w, h) = level.dimensions();
-            level = std::borrow::Cow::Owned(image::imageops::resize(
-                level.as_ref(),
-                (w / 2).max(1),
-                (h / 2).max(1),
-                image::imageops::FilterType::Triangle,
-            ));
+            raw = std::borrow::Cow::Owned(halve(raw.as_ref()));
         }
+        let level = if mip == 0 || target_coverage <= 0.0 {
+            std::borrow::Cow::Borrowed(raw.as_ref())
+        } else {
+            std::borrow::Cow::Owned(rescale_alpha(
+                raw.as_ref(),
+                scale_for_coverage(raw.as_ref(), target_coverage),
+            ))
+        };
         let (w, h) = level.dimensions();
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -385,8 +500,8 @@ pub fn create_world_texture_bind_group(
 
     let view = texture.create_view(&Default::default());
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        address_mode_u: wgpu::AddressMode::Repeat,
-        address_mode_v: wgpu::AddressMode::Repeat,
+        address_mode_u: address_mode,
+        address_mode_v: address_mode,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::MipmapFilterMode::Linear,
@@ -541,3 +656,4 @@ fn create_texture_bind_group_filtered(
         address_mode,
     )
 }
+

@@ -61,7 +61,7 @@ impl GroundRenderer {
     ) -> Self {
         for tex_name in &gnd.textures {
             let path = ragnarok_resources::texture::named(tex_name);
-            texture_cache.get_or_load(&path, grf, device, queue, false);
+            texture_cache.get_or_load_ground(&path, grf, device, queue);
         }
 
         let lightmap_bind_group = build_lightmap_atlas(
@@ -134,7 +134,7 @@ impl GroundRenderer {
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         for batch in &self.batches {
-            if let Some(tex_bg) = texture_cache.get(&batch.texture_name) {
+            if let Some(tex_bg) = texture_cache.get_ground(&batch.texture_name) {
                 let lightmap = match (self.lightmap_enabled, batch.top) {
                     (false, _) => &self.lightmap_off_bind_group,
                     (true, true) => &self.cell_lightmap_bind_group,
