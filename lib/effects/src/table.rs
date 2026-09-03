@@ -1088,7 +1088,7 @@ mod tests {
             panic!("Torch should resolve to EffectSpec::Spr");
         };
         assert_eq!(sprite, "data/sprite/이팩트/torch_01");
-        assert_eq!(duration_ms, u32::MAX);
+        assert_eq!(duration_ms, 4167);
         assert_eq!(size_scale, 1.0);
         assert_eq!(anim_speed, 1.0);
         assert!(repeat);
@@ -1599,7 +1599,7 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Angelus => 9990,
         EffectId::Smoke => 500,
         EffectId::Firefly => 2333,
-        EffectId::Torch => u32::MAX,
+        EffectId::Torch => 4167,
         EffectId::Firehit => 500,
         EffectId::Windhit => 400,
         EffectId::Poisonhit => 500,

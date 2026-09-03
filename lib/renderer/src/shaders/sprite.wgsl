@@ -66,10 +66,11 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let tex_color = textureSample(sprite_texture, sprite_sampler, in.tex_coord) * in.color;
-    if tex_color.a < 0.01 {
+    let tex = textureSample(sprite_texture, sprite_sampler, in.tex_coord);
+    if tex.a < 0.01 || in.color.a <= 0.0 {
         discard;
     }
+    let tex_color = tex * in.color;
     let lit = tex_color.rgb * sprite.world_light.rgb;
     return vec4<f32>(apply_fog(lit, in.ndc_z), tex_color.a);
 }

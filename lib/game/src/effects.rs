@@ -166,6 +166,13 @@ mod tests {
     use ragnarok_formats::rsw::{LightSettings, RswEffect, WaterSettings};
 
     fn make_rsw_with_params(effects: Vec<(u32, [f32; 3], [f32; 4])>) -> RswFile {
+        make_rsw_with_emit_speed(4.0, effects)
+    }
+
+    fn make_rsw_with_emit_speed(
+        emit_speed: f32,
+        effects: Vec<(u32, [f32; 3], [f32; 4])>,
+    ) -> RswFile {
         let objects = effects
             .into_iter()
             .map(|(t, pos, param)| {
@@ -173,7 +180,7 @@ mod tests {
                     name: String::from("test"),
                     position: pos,
                     effect_type: t,
-                    emit_speed: 4.0,
+                    emit_speed,
                     param,
                 })
             })
@@ -281,6 +288,27 @@ mod tests {
             .unwrap();
         assert_eq!(smoke.size_scale, Some(1.0), "smoke ignores param[0]");
         assert!(reqs.iter().any(|r| r.effect_id == EffectId::Bubble));
+    }
+
+    /// A torch instance lives 250 frames while the RSW asks for one every 125,
+    /// so the emitter has to keep firing for the two of them to overlap.
+    #[test]
+    fn torch_re_emits_on_the_rsw_interval() {
+        let rsw = make_rsw_with_emit_speed(125.0, vec![(47, [0.0, -2.0, 0.0], [0.6; 4])]);
+        let gnd = make_gnd();
+        let mut sched = AmbientEffectScheduler::from_rsw(&rsw, &gnd);
+
+        let mut queue = EffectQueue::new();
+        let mut emitted = 0;
+        for _ in 0..50 {
+            sched.update(0.1, &|_p| true, &mut queue);
+            emitted += queue
+                .drain()
+                .iter()
+                .filter(|r| r.effect_id == EffectId::Torch)
+                .count();
+        }
+        assert_eq!(emitted, 3, "5s at a 125-frame interval");
     }
 
     #[test]

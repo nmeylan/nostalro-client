@@ -727,6 +727,8 @@ impl ApplicationHandler for App {
         renderer.set_effect_filtering(self.config.custom.filtering.effects, None);
         self.str_effects
             .set_filtering(self.config.custom.filtering.effects);
+        self.effect_sprites
+            .set_filtering(self.config.custom.filtering.effects);
         ragnarok_renderer::sprite::set_filtering(self.config.custom.filtering.sprites);
 
         let physical_size = window.inner_size();

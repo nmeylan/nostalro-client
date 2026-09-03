@@ -152,6 +152,15 @@ impl App {
         }
         if effect_filter_changed {
             self.str_effects.set_filtering(filter_effects);
+            self.effect_sprites.set_filtering(filter_effects);
+            if let (Some(renderer), Some(grf)) = (&self.renderer, &self.grf) {
+                self.effect_sprites.reload(
+                    grf,
+                    &renderer.device.device,
+                    &renderer.device.queue,
+                    &renderer.texture_cache.bind_group_layout,
+                );
+            }
         }
         if sprite_filter_changed {
             ragnarok_renderer::sprite::set_filtering(filter_sprites);

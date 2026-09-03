@@ -9,7 +9,7 @@ use crate::camera::Camera;
 use crate::effect::queue::{BlendBucket, DrawRecord, PipelineKind, view_z};
 use crate::sprite::{
     SpriteBatch, SpriteTextures, build_clip_quad, rotate_sprite_vertices, scale_clip_vertices,
-    upload_sprite_textures,
+    upload_sprite_textures_filtered,
 };
 
 pub struct EffectSpriteEntry {
@@ -19,6 +19,7 @@ pub struct EffectSpriteEntry {
 
 pub struct EffectSpriteCache {
     entries: HashMap<String, EffectSpriteEntry>,
+    filtering: bool,
 }
 
 impl Default for EffectSpriteCache {
@@ -31,6 +32,27 @@ impl EffectSpriteCache {
     pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
+            filtering: true,
+        }
+    }
+
+    pub fn set_filtering(&mut self, on: bool) {
+        self.filtering = on;
+    }
+
+    /// Re-uploads every loaded sprite, so a filter change reaches the textures
+    /// a map already put in the cache.
+    pub fn reload(
+        &mut self,
+        grf: &GrfArchive,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: &wgpu::BindGroupLayout,
+    ) {
+        let paths: Vec<String> = self.entries.keys().cloned().collect();
+        self.entries.clear();
+        for path in &paths {
+            self.load(path, grf, device, queue, layout);
         }
     }
 
@@ -79,7 +101,20 @@ impl EffectSpriteCache {
         };
 
         let (images, indexed_count) = spr.to_rgba_images();
-        let textures = upload_sprite_textures(&images, indexed_count, device, queue, layout);
+        let filter = if self.filtering {
+            wgpu::FilterMode::Linear
+        } else {
+            wgpu::FilterMode::Nearest
+        };
+        let textures = upload_sprite_textures_filtered(
+            &images,
+            indexed_count,
+            device,
+            queue,
+            layout,
+            filter,
+            1,
+        );
         self.entries
             .insert(path.to_string(), EffectSpriteEntry { textures, act });
         true

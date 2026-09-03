@@ -73,13 +73,25 @@ pub fn upload_sprite_textures(
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
 ) -> SpriteTextures {
-    let mut bind_groups = Vec::with_capacity(images.len());
-    let mut sizes = Vec::with_capacity(images.len());
     let filter = sprite_filter();
     let upscale = match filter {
         wgpu::FilterMode::Linear => upscale(),
         _ => 1,
     };
+    upload_sprite_textures_filtered(images, indexed_count, device, queue, layout, filter, upscale)
+}
+
+pub fn upload_sprite_textures_filtered(
+    images: &[RgbaImageData],
+    indexed_count: usize,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+    filter: wgpu::FilterMode,
+    upscale: u32,
+) -> SpriteTextures {
+    let mut bind_groups = Vec::with_capacity(images.len());
+    let mut sizes = Vec::with_capacity(images.len());
 
     for (i, img) in images.iter().enumerate() {
         let label = if i < indexed_count {
