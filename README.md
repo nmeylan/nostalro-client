@@ -349,11 +349,11 @@ cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf data/model/3
 cargo run -p ragnarok-tools --bin gr2-viewer -- --grf data/data.grf data/model/3dmob/empelium90_0.gr2
 ```
 
-## GRF audit: verify and prune
+## GRF audit: verify, prune and merge
 
-Two command line tools answer the same question from opposite sides: which entries of an archive can the client actually reach? `grf-verify` lists what the client asks for and the archive does not hold. `grf-prune` lists what the archive holds and nothing asks for, and can write a smaller archive without it.
+Three command line tools answer the same question from different sides: which entries of an archive can the client actually reach? `grf-verify` lists what the client asks for and the archive does not hold. `grf-prune` lists what the archive holds and nothing asks for, and can write a smaller archive without it. `grf-merge` flattens a stack of archives into one, with the same precedence the client applies at runtime.
 
-They share one engine, `tools/src/grf_audit`. It starts from the roots, every path the client names on its own, then follows references from file to file until nothing new appears. The roots are the [`ragnarok-resources`](lib/resources/src/lib.rs) registry (every path the code states outright) plus one path per row of every data table the client reads: item resources, job and NPC identity, accessory, skill sounds, effect tables, and the map list.
+They share one engine, `tools/src/grf_audit`. It starts from the roots, every path the client names on its own, then follows references from file to file until nothing new appears. The roots are the [`ragnarok-resources`](lib/resources/src/lib.rs) registry (every path the code states outright) plus one path per row of every data table the client reads: item resources, job and NPC identity, accessory, skill sounds, effect tables, quest artwork, status icons, skill icons, `.gr2` actors, and the map list.
 
 ```mermaid
 flowchart LR
@@ -419,23 +419,26 @@ data/data.grf — 43895 entries, 1321.3MB
 
                   keep               drop
 map               1710    506.7MB       0      0.0MB  (every map is a root without --server; pass one to narrow them)
-texture          14041    425.5MB    4253    150.0MB
-model             3380     11.0MB     157      1.4MB
+texture           8132    361.2MB     875     45.9MB
+ui                9287    168.4MB       0      0.0MB  (interface artwork is named by client code and by server-sent strings, so no table walk can enumerate it)
+model             3401     12.1MB     136      0.4MB
 sprite           16683     84.0MB       0      0.0MB  (not selected)
 palette            994      0.6MB       0      0.0MB  (not selected)
 sound             2040    133.1MB       0      0.0MB  (monster and NPC sounds are chosen by the server, not by any client table we can enumerate)
-imf                 59      0.0MB      19      0.0MB
+imf                 78      0.0MB       0      0.0MB  (not selected)
 unclassified       559      8.9MB       0      0.0MB  (not understood)
 
-total: keep 1169.8MB / drop 151.5MB (11.5% smaller)
+total: keep 1275.0MB / drop 46.3MB (3.5% smaller)
 ```
 
 The tool declines to judge whatever it cannot enumerate. Each category carries a verdict on whether we trust our root set for it:
 
 | Category | Prunable |
 | --- | --- |
-| `texture`, `model`, `imf` | Always. Dropped by default. |
+| `texture`, `model` | Always. Dropped by default. |
+| `imf` | Always, but not selected by default: the whole tree is a rounding error in bytes, and a missing `.imf` silently reorders an actor's head over its body. |
 | `sprite`, `palette` | Only when the identity lua is in the archive. With the builtin job table as fallback we cannot promise the list is complete. |
+| `ui` | Never. Interface artwork is named by client code and by strings the server sends, such as the wedding illustration, so no walk of the data tables can enumerate it. |
 | `sound` | Never. Monster and NPC sounds are chosen by the server and no client table lists them. |
 | `map` | Only with `--server`. Without it every map is a root. |
 | `unclassified` | Never. |
@@ -444,10 +447,10 @@ Anything whose extension we do not model lands in `unclassified` and survives, w
 
 ```bash
 # default selection
-cargo run --release --bin grf-prune -- data/data.grf --prune texture,model,imf
+cargo run --release --bin grf-prune -- data/data.grf --prune texture,model
 
 # add sprites and palettes, which needs the identity lua in the archive
-cargo run --release --bin grf-prune -- data/data.grf --prune texture,model,imf,sprite,palette
+cargo run --release --bin grf-prune -- data/data.grf --prune texture,model,sprite,palette
 ```
 
 ### Narrowing the map list
@@ -468,8 +471,32 @@ rathena ships the full official index, which lists more maps than the archive ho
 To check that a prune removed nothing the client needs, audit the result with the same options. The reached count must not change:
 
 ```bash
-cargo run --release --bin grf-prune  -- data/data.grf --server maps.txt --prune map,texture,model,imf --write data/light.grf
+cargo run --release --bin grf-prune  -- data/data.grf --server maps.txt --prune map,texture,model --write data/light.grf
 cargo run --release --bin grf-verify -- data/light.grf --server maps.txt --quiet
+```
+
+### grf-merge
+
+The client runs off a priority ordered stack of archives: `grf_paths[0]` wins and later archives only supply what the earlier ones lack. `grf-merge` flattens that stack into one archive with the same precedence, and prunes it on the way out. Report only by default; the input archives are opened read only and are never modified.
+
+```bash
+cargo run --release --bin grf-merge -- data/data.grf data/data-2.grf
+cargo run --release --bin grf-merge -- data/data.grf data/data-2.grf --write data/merged.grf
+```
+
+It takes the same `--server`, `--prune`, `--keep` and `--list` flags as `grf-prune`, with the same category verdicts, so the two tools cannot drift on what counts as unused.
+
+```
+1. data/data.grf — 43895 entries
+2. data/data-2.grf — 35335 entries
+
+merged — 44765 entries, 1335.7MB
+34022 roots, 31544 entries reached
+15 table(s) folded across archives:
+  data/resnametable.txt (0.1MB)
+  data/idnum2itemdisplaynametable.txt (0.4MB)
+  data/questid2display.txt (1.2MB)
+  ...
 ```
 
 # Divergence from original client

@@ -32,6 +32,10 @@ name = "grf-prune"
 path = "src/bin/grf_prune.rs"
 
 [[bin]]
+name = "grf-merge"
+path = "src/bin/grf_merge.rs"
+
+[[bin]]
 name = "grf-verify"
 path = "src/bin/grf_verify.rs"
 

@@ -195,6 +195,62 @@ fn open_layered_first_archive_wins() {
 }
 
 #[test]
+fn layered_file_list_resolves_each_name_once() {
+    let primary = temp_grf_path("list_primary");
+    let overlay = temp_grf_path("list_overlay");
+    let _c1 = CleanupFile(primary.clone());
+    let _c2 = CleanupFile(overlay.clone());
+
+    write_grf(
+        &primary,
+        &[("data/shared.txt", b"primary"), ("data/a.txt", b"A")],
+    );
+    write_grf(
+        &overlay,
+        &[
+            ("data/shared.txt", b"overlay_is_longer"),
+            ("data/b.txt", b"B"),
+        ],
+    );
+
+    let grf = GrfArchive::open_layered(
+        &[
+            primary.to_string_lossy().into_owned(),
+            overlay.to_string_lossy().into_owned(),
+        ],
+        None,
+    )
+    .unwrap();
+
+    let list = grf.layered_file_list();
+    let names: Vec<&str> = list.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(names, ["data/a.txt", "data/shared.txt", "data/b.txt"]);
+
+    let shared = list.iter().find(|f| f.name == "data/shared.txt").unwrap();
+    assert_eq!(shared.uncompressed_size, b"primary".len() as u32);
+}
+
+#[test]
+fn override_wins_over_archive_and_data_dir() {
+    let primary = temp_grf_path("override_primary");
+    let dir = std::env::temp_dir().join(format!("test_grf_{}_override", std::process::id()));
+    let _c1 = CleanupFile(primary.clone());
+    let _c2 = CleanupDir(dir.clone());
+
+    write_grf(&primary, &[("data/table.txt", b"from_grf")]);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("table.txt"), b"from_disk").unwrap();
+
+    let mut grf =
+        GrfArchive::open_layered(&[primary.to_string_lossy().into_owned()], Some(&dir)).unwrap();
+    assert_eq!(grf.read_file("data/table.txt").unwrap(), b"from_disk");
+
+    grf.set_override("data/table.txt", b"merged".to_vec());
+    assert_eq!(grf.read_file("data/table.txt").unwrap(), b"merged");
+    assert!(grf.file_exists("data/table.txt"));
+}
+
+#[test]
 fn open_layered_data_dir_overrides_archives() {
     let primary = temp_grf_path("datadir_primary");
     let dir = std::env::temp_dir().join(format!("test_grf_{}_datadir", std::process::id()));

@@ -6,9 +6,12 @@ use models::enums::EnumWithNumberValue;
 use models::enums::class::JobName;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_formats::grf::GrfArchive;
+use ragnarok_formats::lua_table;
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::data_table::item_resource_table::ItemResourceTable;
 use ragnarok_game::data_table::name_table::NameTable;
+use ragnarok_game::data_table::quest_display_table::QuestDisplayTable;
+use ragnarok_game::gr2_model as gr2;
 use ragnarok_game::sound::tables;
 use ragnarok_game::sprite_path as sp;
 use ragnarok_resources as res;
@@ -22,6 +25,9 @@ const MAX_HEADGEAR_VIEW_ID: u16 = 2000;
 
 /// Highest skill id the enum knows about.
 const MAX_SKILL_ID: u32 = 1000;
+
+/// Highest EFST the status icon table has a row for; scan a little past it.
+const MAX_EFST_ID: i16 = 800;
 
 /// `SkillEnum::from_id` panics on the gaps between id ranges, so probe it and
 /// keep what comes back.
@@ -116,10 +122,11 @@ pub fn collect(
     let maps: Vec<String> = match server {
         Some(s) => s.maps.clone(),
         None => grf
-            .entry_names()
-            .filter(|n| n.to_lowercase().ends_with(".rsw"))
-            .filter_map(|n| {
-                let n = normalize(n);
+            .layered_file_list()
+            .iter()
+            .filter(|f| f.name.to_lowercase().ends_with(".rsw"))
+            .filter_map(|f| {
+                let n = normalize(&f.name);
                 let stem = n.strip_prefix("data/")?.strip_suffix(".rsw")?;
                 (!stem.contains('/')).then(|| stem.to_string())
             })
@@ -158,11 +165,68 @@ pub fn collect(
         }
     }
 
+    let quest_entries = lua_table::parse_questid2display(
+        &grf.read_file(res::table::QUEST_DISPLAY).unwrap_or_default(),
+    );
+    let quest_ids: Vec<u32> = quest_entries.keys().copied().collect();
+    let quests = QuestDisplayTable::from_entries(quest_entries);
+    for id in quest_ids {
+        need!(
+            quests.icon_texture(id),
+            Origin::Table("quest display table")
+        );
+        need!(
+            quests.image_texture(id),
+            Origin::Table("quest display table")
+        );
+    }
+    // An id the table has no row for falls back to the default artwork, which
+    // the server can put on screen for any quest it sends.
+    need!(
+        quests.icon_texture(u32::MAX),
+        Origin::Table("quest display table")
+    );
+    need!(
+        quests.image_texture(u32::MAX),
+        Origin::Table("quest display table")
+    );
+
+    for skill in all_skills() {
+        probe!(
+            ragnarok_game::skill::skill_icon_path(skill),
+            Origin::Table("skill list")
+        );
+    }
+
+    for efst in 0..=MAX_EFST_ID {
+        if let Some(info) = ragnarok_game::status_icon::status_icon_info(efst) {
+            need!(
+                res::texture::effect::named(info.icon),
+                Origin::Table("status icon table")
+            );
+        }
+    }
+
     // -- actors -------------------------------------------------------------
     let names = NameTable::load(grf);
     for job in 0..MAX_JOB_ID {
         if let Some(base) = sp::entity_sprite_base_path(&names, job) {
             need!(base, Origin::Table("job/npc identity table"));
+        }
+        if let Some(name) = names.get_name(job)
+            && gr2::is_gr2_name(name)
+        {
+            need!(
+                gr2::gr2_model_path(name),
+                Origin::Table("job/npc identity table")
+            );
+            if let Some(bone) = gr2::bone_type_from_name(name) {
+                for action in gr2::Gr2Action::ALL {
+                    if let Some(path) = gr2::animation_file_path(bone, action) {
+                        need!(path, Origin::Table("job/npc identity table"));
+                    }
+                }
+            }
         }
         // Mercenaries carry a weapon sprite and an imf keyed off their body name.
         if (sp::MERCENARY_JOB_MIN..=sp::MERCENARY_JOB_MAX).contains(&job)

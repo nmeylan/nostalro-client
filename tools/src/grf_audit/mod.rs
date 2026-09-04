@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 pub enum Category {
     Map,
     Texture,
+    Ui,
     Model,
     Sprite,
     Palette,
@@ -45,7 +46,13 @@ impl Category {
             .map(|(_, e)| e);
         let is = |exts: &[&str]| ext.is_some_and(|e| exts.contains(&e));
 
-        if rest.starts_with("texture/") && is(&["bmp", "tga", "jpg", "jpeg", "png", "gif"]) {
+        let image = is(&["bmp", "tga", "jpg", "jpeg", "png", "gif"]);
+        if image
+            && (path.starts_with(ragnarok_resources::dir::UI_TEXTURE)
+                || path.starts_with(ragnarok_resources::dir::UI_TEXTURE_EN))
+        {
+            Category::Ui
+        } else if rest.starts_with("texture/") && image {
             Category::Texture
         } else if rest.starts_with("model/") && is(&["rsm", "gr2"]) {
             Category::Model
@@ -68,6 +75,7 @@ impl Category {
         match self {
             Category::Map => "map",
             Category::Texture => "texture",
+            Category::Ui => "ui",
             Category::Model => "model",
             Category::Sprite => "sprite",
             Category::Palette => "palette",
@@ -81,6 +89,7 @@ impl Category {
         [
             Category::Map,
             Category::Texture,
+            Category::Ui,
             Category::Model,
             Category::Sprite,
             Category::Palette,
@@ -198,7 +207,7 @@ pub fn normalize(name: &str) -> String {
 
 pub fn run(grf: &GrfArchive, opts: &Options) -> Report {
     let entries: Vec<Entry> = grf
-        .file_list()
+        .layered_file_list()
         .into_iter()
         .map(|f| {
             let name = normalize(&f.name);
@@ -238,6 +247,14 @@ pub fn run(grf: &GrfArchive, opts: &Options) -> Report {
 
     let mut enumerable = BTreeMap::new();
     enumerable.insert(Category::Texture, Ok(()));
+    enumerable.insert(
+        Category::Ui,
+        Err(
+            "interface artwork is named by client code and by server-sent \
+             strings, so no table walk can enumerate it"
+                .to_string(),
+        ),
+    );
     enumerable.insert(Category::Model, Ok(()));
     enumerable.insert(Category::Imf, Ok(()));
     enumerable.insert(

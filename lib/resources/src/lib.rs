@@ -55,6 +55,8 @@ pub mod dir {
         SPRITE_SHIELD = "data/sprite/방패/";
         STR_EFFECT = "data/texture/effect/";
         TEXTURE = "data/texture/";
+        UI_TEXTURE = "data/texture/유저인터페이스/";
+        UI_TEXTURE_EN = "data/texture/userinterface/";
     }
 }
 

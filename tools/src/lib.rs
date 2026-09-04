@@ -1,6 +1,7 @@
 pub mod effect_viewer;
 pub mod gr2_viewer;
 pub mod grf_audit;
+pub mod grf_merge;
 pub mod rendering_viewer;
 pub mod rsw_viewer;
 pub mod sprite_viewer;

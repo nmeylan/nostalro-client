@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -39,6 +39,7 @@ pub struct GrfArchive {
     writable: bool,
     data_dir: Option<DataDirIndex>,
     overlays: Vec<GrfArchive>,
+    overrides: HashMap<String, Vec<u8>>,
     res_name_table: OnceLock<ResNameTable>,
 }
 
@@ -132,6 +133,7 @@ impl GrfArchive {
             writable: false,
             data_dir: None,
             overlays: Vec::new(),
+            overrides: HashMap::new(),
             res_name_table: OnceLock::new(),
         })
     }
@@ -187,6 +189,7 @@ impl GrfArchive {
             writable: true,
             data_dir: None,
             overlays: Vec::new(),
+            overrides: HashMap::new(),
             res_name_table: OnceLock::new(),
         })
     }
@@ -222,6 +225,7 @@ impl GrfArchive {
             writable: true,
             data_dir: None,
             overlays: Vec::new(),
+            overrides: HashMap::new(),
             res_name_table: OnceLock::new(),
         })
     }
@@ -267,7 +271,21 @@ impl GrfArchive {
         })
     }
 
+    /// Replaces what `read_file` returns for `name`, ahead of `data_dir` and
+    /// every layer. `grf-merge` installs the tables it merged across layers
+    /// here so the reachability walk sees the merged rows.
+    pub fn set_override(&mut self, name: &str, data: Vec<u8>) {
+        self.overrides
+            .insert(name.to_lowercase().replace('\\', "/"), data);
+    }
+
     fn read_file_direct(&self, name: &str) -> Result<Vec<u8>, FormatError> {
+        if !self.overrides.is_empty()
+            && let Some(data) = self.overrides.get(&name.to_lowercase().replace('\\', "/"))
+        {
+            return Ok(data.clone());
+        }
+
         if let Some(path) = self.data_dir.as_ref().and_then(|d| d.lookup(name)) {
             return std::fs::read(path).map_err(FormatError::Io);
         }
@@ -437,7 +455,8 @@ impl GrfArchive {
             return true;
         }
         let name_lower = name.to_lowercase().replace('\\', "/");
-        self.entries.contains_key(&name_lower)
+        self.overrides.contains_key(&name_lower)
+            || self.entries.contains_key(&name_lower)
             || self
                 .overlays
                 .iter()
@@ -484,6 +503,33 @@ impl GrfArchive {
             })
             .collect();
         list.sort_by(|a, b| a.name.cmp(&b.name));
+        list
+    }
+
+    /// Every name in the layer stack, listed once and resolved the way
+    /// `read_file` resolves it: a name several archives carry is reported with
+    /// the sizes of the earliest one that has it. Ordered by layer, then name.
+    /// `data_dir` and overrides are not listed.
+    pub fn layered_file_list(&self) -> Vec<GrfFileInfo> {
+        let mut seen: HashSet<&str> = HashSet::new();
+        let mut list = Vec::new();
+        for layer in std::iter::once(self).chain(self.overlays.iter()) {
+            let mut names: Vec<&String> = layer.entries.keys().collect();
+            names.sort();
+            for name in names {
+                if !seen.insert(name.as_str()) {
+                    continue;
+                }
+                let entry = &layer.entries[name];
+                list.push(GrfFileInfo {
+                    name: name.clone(),
+                    compressed_size: entry.compressed_size,
+                    compressed_size_aligned: entry.compressed_size_aligned,
+                    uncompressed_size: entry.uncompressed_size,
+                    flags: entry.flags,
+                });
+            }
+        }
         list
     }
 
