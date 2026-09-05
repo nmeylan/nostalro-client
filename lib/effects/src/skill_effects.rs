@@ -226,13 +226,20 @@ pub fn begin_cast_effect(skill: SkillEnum) -> &'static [EffectId] {
     use EffectId as E;
     use SkillEnum as S;
     match skill {
-        S::AcDouble
-        | S::McMammonite
-        | S::HtPower
-        | S::HtPhantasmic
+        S::HtPhantasmic
         | S::AmSpheremine
         | S::HwMagicpower
-        | S::SmBash => &[E::Bash],
+        | S::HtBlitzbeat
+        | S::BaMusicalstrike
+        | S::DcThrowarrow
+        | S::SnFalconassault
+        | S::AmDemonstration
+        | S::RgStripweapon
+        | S::RgStripshield
+        | S::RgStriparmor
+        | S::RgStriphelm => &[E::Bash],
+
+        S::StChasewalk => &[E::Castspin],
 
         S::MgNapalmbeat
         | S::MgSoulstrike
@@ -430,7 +437,22 @@ pub fn fire_glyph_effect(skill: SkillEnum) -> &'static [EffectId] {
     use SkillEnum as S;
     match skill {
         S::KnBrandishspear => &[E::Brandish2],
-        S::AcChargearrow => &[E::Bash],
+        S::AcChargearrow
+        | S::SmBash
+        | S::AcDouble
+        | S::McMammonite
+        | S::HtPower
+        | S::TfPoison
+        | S::HtLandmine
+        | S::HtFreezingtrap
+        | S::HtBlastmine
+        | S::HtClaymoretrap
+        | S::NpcSmoking
+        | S::NpcBlooddrain
+        | S::NpcEnergydrain
+        | S::NpcDarkbreath
+        | S::SaInstantdeath
+        | S::SaComa => &[E::Bash],
         _ => &[],
     }
 }
@@ -669,10 +691,16 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             hit_extra_delay_secs: 20.0 / 60.0,
             ..Default::default()
         },
-        S::SmProvoke => T::on_target(&[E::Provoke]),
-        S::MgNapalmbeat => T::on_target(&[E::Hit2]),
+        S::SmBash => T::hit(&[E::Hit2]),
+        S::SmProvoke => T {
+            on_target: &[E::Provoke],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
+        S::MgNapalmbeat => T::hit(&[E::Hit2]),
         S::MgSoulstrike => T {
             before_hit: &[E::Soulstrike],
+            hit: &[E::Hit2],
             ..Default::default()
         },
         S::MgFirebolt => T::on_target(&[E::Firearrow]),
@@ -685,7 +713,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::MgLightningbolt => T::on_target(&[E::Lightbolt]),
         S::MgFrostdiver => T {
             before_hit: &[E::Frostdiver],
-            on_target: &[E::Frostdiver2],
+            hit: &[E::Frostdiver2],
             ..Default::default()
         },
         S::MgStonecurse => T {
@@ -699,11 +727,21 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::AlHolylight => T::hit(&[E::Holyhit]),
         S::AlCure => T::on_target(&[E::Cure]),
         S::AlIncagi | S::CashIncagi => T::on_target(&[E::Incagility]),
-        S::AlDecagi => T::on_target(&[E::Decagility]),
+        S::AlDecagi => T {
+            on_target: &[E::Decagility],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
         S::AlBlessing | S::CashBlessing => T::on_target(&[E::Blessing]),
+        S::AcDouble | S::AcShower | S::HtPower => T::hit(&[E::Hit2]),
         S::McMammonite => T::hit(&[E::Coin]),
         S::McCartrevolution => T::hit(&[E::Cartrevolution]),
-        S::TfSteal => T::on_target(&[E::Steal]),
+        S::TfSteal => T {
+            on_target: &[E::Steal],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
+        S::TfPoison => T::hit(&[E::Hit2]),
         S::TfDetoxify => T::on_target(&[E::Detoxication]),
         S::TfSprinklesand => T::on_target(&[E::Sprinklesand]),
         S::TfThrowstone => T::on_target(&[E::Throwitem3]),
@@ -779,7 +817,7 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::BsRepairweapon => T::on_target(&[E::Repairweapon]),
         S::BsWeaponperfect => T::on_target(&[E::Perfection]),
         S::HtSkidtrap => T::hit(&[E::Bowlingbash]),
-        S::HtBlitzbeat => T::on_target(&[E::Blitzbeat]),
+        S::HtBlitzbeat => T::hit(&[E::Blitzbeat]),
         S::AsSonicblow => T {
             on_target: &[E::Sonicblow],
             hit: &[E::Sonicblowhit],
@@ -803,12 +841,21 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
             ..Default::default()
         },
         S::MoBalkyoung => T::hit(&[E::Hit3]),
+        S::MoCombofinish | S::ChTigerfist => T::hit(&[E::Hit2]),
         S::MoExtremityfist => T::on_target(&[E::Teihit1x]),
         S::MoTripleattack => T::on_target(&[E::Tripleattack]),
         S::MoInvestigate => T::on_target(&[E::Teihit2, E::Chimto]),
         S::ChPalmstrike => T::on_target(&[E::Hitline2]),
-        S::ChChaincrush => T::on_target(&[E::Chemical2]),
-        S::MoFingeroffensive => T::on_target(&[E::Tanji]),
+        S::ChChaincrush => T {
+            on_target: &[E::Chemical2],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
+        S::MoFingeroffensive => T {
+            on_target: &[E::Tanji],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
 
         S::CrHolycross => T::on_target(&[E::Holycross]),
         S::CrShieldboomerang => T::on_target(&[E::Shieldboomerang]),
@@ -839,10 +886,22 @@ pub fn target_skill_effects(skill: SkillEnum) -> TargetSkillEffects {
         S::RgCloseconfine => T::on_target(&[E::Quakebody4]),
         S::StFullstrip => T::on_target(&[E::RgCoin2]),
 
-        S::SnFalconassault => T::on_target(&[E::Falconassault, E::Blitzbeat]),
+        S::SnFalconassault => T {
+            on_target: &[E::Falconassault],
+            hit: &[E::Blitzbeat],
+            ..Default::default()
+        },
         S::CgTarotcard => T::on_target(&[E::Chemicalbody]),
-        S::SnSharpshooting => T::on_target(&[E::Tripleattack2]),
-        S::CgArrowvulcan => T::on_target(&[E::Tripleattack3]),
+        S::SnSharpshooting => T {
+            on_target: &[E::Tripleattack2],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
+        S::CgArrowvulcan => T {
+            on_target: &[E::Tripleattack3],
+            hit: &[E::Hit2],
+            ..Default::default()
+        },
 
         S::SaSpellbreaker => T::on_target(&[E::Spellbreaker]),
         S::SaDispell => T::on_target(&[E::Dispell]),
@@ -1296,27 +1355,6 @@ mod tests {
     }
 
     #[test]
-    fn physical_attack_skills_share_the_bash_begin_effect() {
-        for skill in [
-            SkillEnum::AcDouble,
-            SkillEnum::McMammonite,
-            SkillEnum::HtPower,
-            SkillEnum::HtPhantasmic,
-        ] {
-            assert_eq!(begin_cast_effect(skill), &[EffectId::Bash], "{skill:?}");
-            assert!(
-                caster_skill_effects(skill).cast.is_empty(),
-                "{skill:?} has no cast-slot visual"
-            );
-        }
-        assert!(begin_cast_effect(SkillEnum::WsMeltdown).is_empty());
-        assert_eq!(
-            caster_skill_effects(SkillEnum::WsMeltdown).cast,
-            &[EffectId::Meltdown]
-        );
-    }
-
-    #[test]
     fn begin_cast_circle_is_per_skill_neutral_colored_and_special() {
         assert_eq!(
             begin_cast_effect(SkillEnum::MgFirebolt),
@@ -1377,7 +1415,6 @@ mod tests {
         );
         assert!(begin_cast_effect(SkillEnum::KnBrandishspear).is_empty());
         assert!(casting_skill(SkillEnum::KnBrandishspear).hide_cast_aura);
-        assert!(fire_glyph_effect(SkillEnum::McMammonite).is_empty());
     }
 
     #[test]
@@ -1452,12 +1489,13 @@ mod tests {
         assert_eq!(begin_cast_effect(S::NjHuujin), &[E::Beginspell5]);
         assert_eq!(begin_cast_effect(S::AlWarp), &[E::Beginspell]);
         assert_eq!(begin_cast_effect(S::KnChargeatk), &[E::Beginspell6]);
-        assert!(begin_cast_effect(S::HtBlitzbeat).is_empty());
-        assert!(begin_cast_effect(S::AmDemonstration).is_empty());
+        assert_eq!(begin_cast_effect(S::HtBlitzbeat), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::AmDemonstration), &[E::Bash]);
         assert_eq!(begin_cast_effect(S::AmSpheremine), &[E::Bash]);
         assert_eq!(begin_cast_effect(S::AmCannibalize), &[E::Beginspell]);
-        assert!(begin_cast_effect(S::BaMusicalstrike).is_empty());
-        assert!(begin_cast_effect(S::DcThrowarrow).is_empty());
+        assert_eq!(begin_cast_effect(S::BaMusicalstrike), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::DcThrowarrow), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::StChasewalk), &[E::Castspin]);
         assert_eq!(begin_cast_effect(S::AmTwilight2), &[E::Twilight2]);
     }
 
@@ -1737,12 +1775,7 @@ mod tests {
     fn damage_skill_slots_drive_projectile_landing_and_cast() {
         let soulstrike = target_skill_effects(SkillEnum::MgSoulstrike);
         assert_eq!(soulstrike.before_hit, &[EffectId::Soulstrike]);
-        assert!(soulstrike.on_target.is_empty() && soulstrike.hit.is_empty());
-
-        assert_eq!(
-            target_skill_effects(SkillEnum::MgNapalmbeat).on_target,
-            &[EffectId::Hit2]
-        );
+        assert!(soulstrike.on_target.is_empty());
 
         let coldbolt = target_skill_effects(SkillEnum::MgColdbolt);
         assert_eq!(coldbolt.on_target, &[EffectId::Icearrow]);
@@ -1765,7 +1798,7 @@ mod tests {
 
         let frostdiver = target_skill_effects(SkillEnum::MgFrostdiver);
         assert_eq!(frostdiver.before_hit, &[EffectId::Frostdiver]);
-        assert_eq!(frostdiver.on_target, &[EffectId::Frostdiver2]);
+        assert!(frostdiver.on_target.is_empty());
 
         assert_eq!(
             target_skill_effects(SkillEnum::LkSpiralpierce).on_target,
@@ -1885,5 +1918,70 @@ mod tests {
             missing.is_empty(),
             "trail projectiles in a skill slot with no reach time: {missing:?}"
         );
+    }
+
+    #[test]
+    fn envenom_shows_the_bash_glyph_on_every_channel() {
+        use EffectId as E;
+        use SkillEnum as S;
+        assert_eq!(fire_glyph_effect(S::TfPoison), &[E::Bash]);
+        let t = target_skill_effects(S::TfPoison);
+        assert!(t.on_target.is_empty());
+        assert_eq!(t.hit, &[E::Hit2]);
+
+        let first = derive_hit_effect(Some(S::TfPoison), false, JobName::Thief, false, 0);
+        assert_eq!(first.generic, &[E::Hit1]);
+        assert_eq!(first.skill, &[E::Hit2]);
+        let second = derive_hit_effect(Some(S::TfPoison), false, JobName::Thief, false, 1);
+        assert!(second.skill.is_empty());
+    }
+
+    #[test]
+    fn attacked_table_markers_ride_the_damage_not_the_use_packet() {
+        use EffectId as E;
+        use SkillEnum as S;
+        for (skill, effect) in [
+            (S::MgNapalmbeat, E::Hit2),
+            (S::MgFrostdiver, E::Frostdiver2),
+            (S::HtBlitzbeat, E::Blitzbeat),
+            (S::SnFalconassault, E::Blitzbeat),
+        ] {
+            let t = target_skill_effects(skill);
+            assert_eq!(t.hit, &[effect], "{skill:?}");
+            assert!(!t.on_target.contains(&effect), "{skill:?}");
+        }
+        assert_eq!(
+            target_skill_effects(S::MgFrostdiver).before_hit,
+            &[E::Frostdiver]
+        );
+        assert_eq!(
+            target_skill_effects(S::SnFalconassault).on_target,
+            &[E::Falconassault]
+        );
+
+        for (skill, effect) in [
+            (S::AcShower, E::Hit2),
+            (S::MoCombofinish, E::Hit2),
+            (S::ChTigerfist, E::Hit2),
+            (S::ChChaincrush, E::Hit2),
+        ] {
+            assert_eq!(target_skill_effects(skill).hit, &[effect], "{skill:?}");
+        }
+    }
+
+    #[test]
+    fn instant_damage_skills_glyph_at_the_damage_moment() {
+        use EffectId as E;
+        use SkillEnum as S;
+        for skill in [S::SmBash, S::AcDouble, S::McMammonite, S::HtPower] {
+            assert_eq!(fire_glyph_effect(skill), &[E::Bash], "{skill:?}");
+            assert!(begin_cast_effect(skill).is_empty(), "{skill:?}");
+            assert!(caster_skill_effects(skill).cast.is_empty(), "{skill:?}");
+        }
+        assert_eq!(begin_cast_effect(S::AmSpheremine), &[E::Bash]);
+        assert_eq!(begin_cast_effect(S::HtPhantasmic), &[E::Bash]);
+        assert!(fire_glyph_effect(S::AmSpheremine).is_empty());
+        assert!(begin_cast_effect(S::WsMeltdown).is_empty());
+        assert_eq!(caster_skill_effects(S::WsMeltdown).cast, &[E::Meltdown]);
     }
 }
