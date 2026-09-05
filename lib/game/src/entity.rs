@@ -972,8 +972,13 @@ impl Entity {
             Some(ref w) => w,
             None => {
                 return match job {
-                    JobName::Monk | JobName::Champion | JobName::BabyMonk => 11,
-                    _ => 5,
+                    JobName::Monk
+                    | JobName::Champion
+                    | JobName::BabyMonk
+                    | JobName::Archer
+                    | JobName::ArcherHigh
+                    | JobName::BabyArcher => 11,
+                    _ => 10,
                 };
             }
         };
@@ -1311,7 +1316,7 @@ mod tests {
         e.state = EntityState::ReadyFight;
         assert_eq!(e.action_index(), 4);
         e.state = EntityState::Attacking;
-        assert_eq!(e.action_index(), 5);
+        assert_eq!(e.action_index(), 10);
         e.state = EntityState::Hurt;
         assert_eq!(e.action_index(), 6);
         e.state = EntityState::Dead;
@@ -1751,18 +1756,31 @@ mod tests {
     }
 
     #[test]
-    fn barehand_swing_avoids_a_filler_attack1_group() {
+    fn throw_pose_avoids_a_filler_attack1_group() {
+        use models::enums::skill_enums::SkillEnum;
         let mut e = make_entity();
-        e.state = EntityState::Attacking;
-        assert_eq!(e.action_index(), 5, "barehand picks ATTACK1");
+        e.enter_skill_exec(0.5, SkillEnum::TfThrowstone, 1);
+        assert_eq!(e.action_index(), 5, "a throw picks ATTACK1");
 
         let with_attack1 = make_body_act(5, &[]);
         assert_eq!(e.resolved_action_index(&with_attack1), 5);
-        assert_eq!(e.resolved_attack_action_index(&with_attack1), 5);
 
         let filler_attack1 = make_body_act(5, &[5]);
         assert_eq!(e.resolved_action_index(&filler_attack1), 10);
-        assert_eq!(e.resolved_attack_action_index(&filler_attack1), 10);
+    }
+
+    #[test]
+    fn bare_hands_swing_with_a_group_the_body_sprite_actually_fills() {
+        let mut e = make_entity();
+        for (job, group) in [
+            (JobName::Gunslinger, 10),
+            (JobName::Novice, 10),
+            (JobName::Archer, 11),
+            (JobName::Monk, 11),
+        ] {
+            e.job = job.value() as u16;
+            assert_eq!(e.attack_action_index(), group, "{job:?}");
+        }
     }
 
     #[test]
@@ -1811,13 +1829,13 @@ mod tests {
         );
 
         let filler_attack1 = make_body_act(5, &[5]);
-        let mut bare = make_entity();
-        bare.enter_skill_exec(0.5, SkillEnum::SmBash, 1);
-        bare.animation_duration.take();
-        let pose = bare.resolved_action_index(&filler_attack1);
-        assert_eq!((bare.action_index(), pose), (5, 10));
+        let mut throwing = make_entity();
+        throwing.enter_skill_exec(0.5, SkillEnum::TfThrowstone, 1);
+        throwing.animation_duration.take();
+        let pose = throwing.resolved_action_index(&filler_attack1);
+        assert_eq!((throwing.action_index(), pose), (5, 10));
         assert!(
-            bare.holds_last_frame(pose, pose, true),
+            throwing.holds_last_frame(pose, pose, true),
             "a redirected group parks too, it does not restart"
         );
     }
