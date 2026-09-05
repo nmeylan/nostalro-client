@@ -1023,6 +1023,25 @@ mod tests {
         );
     }
 
+    /// Blaze Shield (`NJ_KAENSIN`) places ground skill units that live for the
+    /// skill's duration - 20s on rathena - and are taken down by a skill-unit
+    /// disappear packet, which despawns the effect by key. So the effect must
+    /// outlast its own animation instead of expiring on a timer, the same way
+    /// Fire Wall's does.
+    #[test]
+    fn blaze_shield_ground_unit_outlives_its_animation() {
+        let Some(EffectSpec::Spr {
+            duration_ms,
+            repeat,
+            ..
+        }) = effect_spec(EffectId::Kaen)
+        else {
+            panic!("Kaen should resolve to an SPR effect");
+        };
+        assert_eq!(duration_ms, GROUND_UNIT_DURATION_MS);
+        assert!(repeat, "the flames cycle until the server removes the unit");
+    }
+
     #[test]
     fn lv99_resolves_to_custom_factory_path() {
         assert!(matches!(
@@ -1774,7 +1793,11 @@ fn default_duration_ms(id: EffectId) -> u32 {
         EffectId::Tatami => 1000,
         EffectId::Kasumikiri => 1000,
         EffectId::Issen => 1000,
-        EffectId::Kaen => 230,
+        // Blaze Shield's flames are a ground skill unit, not a one-shot: the
+        // server removes them with a skill-unit disappear packet, which
+        // despawns the effect by key. 230ms grouped it with the bullet and
+        // spear one-shots below and made the flames vanish right after the cast.
+        EffectId::Kaen => GROUND_UNIT_DURATION_MS,
         EffectId::Baku => 1000,
         EffectId::Hyousyouraku => 1000,
         EffectId::Desperado => 2000,
