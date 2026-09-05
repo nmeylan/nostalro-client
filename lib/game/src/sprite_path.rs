@@ -260,11 +260,20 @@ pub fn hide_blocks_move(effect_state: i32, knows_tunnel_drive: bool) -> bool {
 }
 
 /// The few skills usable while Hiding (TF_HIDING to unhide, plus the ambush
-/// attacks). Every other action is blocked until the bit clears.
+/// attacks and the ninja's Shadow Leap). Every other action is blocked until
+/// the bit clears.
+///
+/// Blocking a skill here drops the request before it is ever sent, so anything
+/// the server accepts while hidden has to be listed or it becomes unusable —
+/// and for Shadow Leap that left the ninja stuck hidden, with no way to move.
 pub fn hide_allows_skill(skill: SkillEnum) -> bool {
     matches!(
         skill,
-        SkillEnum::TfHiding | SkillEnum::AsGrimtooth | SkillEnum::RgBackstap | SkillEnum::RgRaid
+        SkillEnum::TfHiding
+            | SkillEnum::AsGrimtooth
+            | SkillEnum::RgBackstap
+            | SkillEnum::RgRaid
+            | SkillEnum::NjShadowjump
     )
 }
 
@@ -817,6 +826,29 @@ mod tests {
             hidden_render(OPTION_CLOAK, Ally, true),
             Alpha(CLOAK_BODY_ALPHA)
         );
+    }
+
+    /// Hiding blocks movement for a ninja (no Tunnel Drive), so Shadow Leap is
+    /// the only way out. rathena flags it `AllowWhenHidden`, alongside
+    /// TF_HIDING and the two Rogue ambushes already listed here.
+    #[test]
+    fn hide_allows_shadow_leap_and_the_ambush_skills() {
+        for skill in [
+            SkillEnum::TfHiding,
+            SkillEnum::AsGrimtooth,
+            SkillEnum::RgBackstap,
+            SkillEnum::RgRaid,
+            SkillEnum::NjShadowjump,
+        ] {
+            assert!(hide_allows_skill(skill), "{skill:?} is usable while hidden");
+        }
+
+        for skill in [SkillEnum::NjKamaitachi, SkillEnum::MgFirebolt] {
+            assert!(
+                !hide_allows_skill(skill),
+                "{skill:?} should stay blocked while hidden"
+            );
+        }
     }
 
     #[test]
