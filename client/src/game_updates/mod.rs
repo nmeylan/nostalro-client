@@ -43,6 +43,7 @@ impl App {
                 0,
                 0,
                 0,
+                0,
             );
             self.char_create_built_appearance = Some(appearance);
             self.account_anims

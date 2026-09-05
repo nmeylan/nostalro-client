@@ -46,9 +46,15 @@ impl App {
             return;
         };
         let (weapon, shield) = self.game.character.resolve_hand_look();
+        let weapon_look = self.game.character.hand_look.0;
         let changed = match self.game.world.entities.get_mut(player_id) {
-            Some(entity) if entity.weapon != weapon || entity.shield != shield => {
+            Some(entity)
+                if entity.weapon != weapon
+                    || entity.weapon_look != weapon_look
+                    || entity.shield != shield =>
+            {
                 entity.weapon = weapon;
+                entity.weapon_look = weapon_look;
                 entity.shield = shield;
                 true
             }

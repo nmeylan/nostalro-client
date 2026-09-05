@@ -132,6 +132,8 @@ pub fn draw_hline(ui: &mut UiFrame, x: f32, y: f32, w: f32) {
     push_quad(ui, x, y, w, 1.0, [0.7, 0.7, 0.72, 1.0]);
 }
 
+pub const EXP_BAR_FILL: [f32; 4] = [0.26, 0.38, 0.65, 1.0];
+
 /// Thin flat EXP-style bar (gray border, white fill area, blue fill) matching the
 /// character info window's exp gauge.
 pub fn draw_exp_bar(
@@ -143,15 +145,30 @@ pub fn draw_exp_bar(
     fill_pct: f32,
     has_grf: bool,
 ) {
+    draw_value_bar(ui, x, y, w, h, fill_pct, EXP_BAR_FILL, has_grf);
+}
+
+/// [`draw_exp_bar`] with the fill colour chosen by the caller.
+#[allow(clippy::too_many_arguments)]
+pub fn draw_value_bar(
+    ui: &mut UiFrame,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    fill_pct: f32,
+    fill: [f32; 4],
+    has_grf: bool,
+) {
     if has_grf {
         push_quad(ui, x, y, w + 2.0, h + 2.0, [0.69, 0.69, 0.69, 1.0]);
         push_quad(ui, x + 1.0, y + 1.0, w, h, [1.0; 4]);
     } else {
         push_quad(ui, x, y, w + 2.0, h + 2.0, [0.3, 0.3, 0.35, 0.9]);
     }
-    if fill_pct > 0.0 && fill_pct < 1.0 {
+    if fill_pct > 0.0 {
         let fw = (w * fill_pct.clamp(0.0, 1.0)).floor();
-        push_quad(ui, x + 1.0, y + 1.0, fw, h, [0.26, 0.38, 0.65, 1.0]);
+        push_quad(ui, x + 1.0, y + 1.0, fw, h, fill);
     }
 }
 

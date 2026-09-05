@@ -54,6 +54,7 @@ impl App {
         let sex = entity.sex;
         let head = entity.head;
         let weapon_type = entity.weapon;
+        let weapon_look = entity.weapon_look;
         let shield = entity.shield;
         let head_top = entity.head_top;
         let head_mid = entity.head_mid;
@@ -68,6 +69,7 @@ impl App {
             hair_color,
             cloth_color,
             weapon_type,
+            weapon_look,
             head_top,
             head_mid,
             head_bottom,
@@ -85,6 +87,7 @@ impl App {
         hair_color: u16,
         cloth_color: u16,
         weapon: Option<WeaponType>,
+        weapon_look: u16,
         head_top: u16,
         head_mid: u16,
         head_bottom: u16,
@@ -109,6 +112,7 @@ impl App {
             hair_color,
             cloth_color,
             weapon,
+            weapon_look,
             head_top,
             head_mid,
             head_bottom,
@@ -133,6 +137,7 @@ impl App {
         hair_color: u16,
         cloth_color: u16,
         weapon: Option<WeaponType>,
+        weapon_look: u16,
         head_top: u16,
         head_mid: u16,
         head_bottom: u16,
@@ -160,6 +165,7 @@ impl App {
             hair_color,
             cloth_color,
             weapon,
+            weapon_look,
             head_top,
             head_mid,
             head_bottom,
@@ -222,7 +228,7 @@ impl App {
         };
         for (gid, job, sex, head, hair_color) in members {
             if let Some(sprite) = self.build_player_entity_sprite(
-                job, sex, head, hair_color, 0, None, 0, 0, 0, 0, false, false,
+                job, sex, head, hair_color, 0, None, 0, 0, 0, 0, 0, false, false,
             ) {
                 self.game
                     .sprite_caches
@@ -300,6 +306,7 @@ impl App {
                     hair_color,
                     0,
                     weapon_type,
+                    weapon,
                     head_top,
                     head_mid,
                     head_bottom,

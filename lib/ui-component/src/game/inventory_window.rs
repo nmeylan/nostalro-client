@@ -383,6 +383,15 @@ impl InGameWindow for InventoryWindow {
                 if response.double_clicked() {
                     if character.storage.is_open() {
                         events.push(GameEvent::RequestDepositItem { index: item.index });
+                    } else if item.is_ammunition() {
+                        // Ammo only ever goes on from here; it comes off through
+                        // the equipment window.
+                        if !item.is_equipped() {
+                            events.push(GameEvent::RequestEquipItem {
+                                index: item.index,
+                                location: item.equip_location(),
+                            });
+                        }
                     } else if item.is_equipment() {
                         if item.is_equipped() {
                             events.push(GameEvent::RequestUnequipItem { index: item.index });

@@ -782,9 +782,9 @@ impl App {
                 );
                 let entity_type = entity.entity_type;
                 if is_player {
-                    let (weapon, cloth_color) = {
+                    let (weapon, weapon_look, cloth_color) = {
                         let e = self.game.world.entities.get(gid).unwrap();
-                        (e.weapon, e.cloth_color)
+                        (e.weapon, e.weapon_look, e.cloth_color)
                     };
                     self.load_player_sprite(
                         gid,
@@ -794,6 +794,7 @@ impl App {
                         hair_color,
                         cloth_color,
                         weapon,
+                        weapon_look,
                         head_top,
                         head_mid,
                         head_bottom,
@@ -1247,8 +1248,13 @@ impl App {
         } else {
             entity_level
         };
-        let visible =
-            alive && level_aura::level_aura_visible(entity_type, base_level, effect_state);
+        let visible = alive
+            && level_aura::level_aura_visible(
+                entity_type,
+                base_level,
+                effect_state,
+                self.config.custom.aura_level,
+            );
         let want = visible.then(|| {
             level_aura_layers(
                 JobName::from_value(job as usize),
@@ -1297,7 +1303,13 @@ impl App {
         let want = alive
             && self.config.custom.boss_aura
             && self.config.display.show_level_aura
-            && level_aura::boss_aura_visible(entity_type, is_boss, level, effect_state);
+            && level_aura::boss_aura_visible(
+                entity_type,
+                is_boss,
+                level,
+                effect_state,
+                self.config.custom.aura_level,
+            );
         let have = self.game.effect_keys.boss_aura_keys.contains_key(&gid);
         match (want, have) {
             (true, false) => {
@@ -1574,11 +1586,13 @@ impl App {
                     )
                 });
                 entity.weapon = weapon;
+                entity.weapon_look = value;
                 entity.shield = shield;
             } else {
                 entity.apply_sprite_change(sprite_type, value);
             }
             let weapon_type = entity.weapon;
+            let weapon_look = entity.weapon_look;
             let sprite_job = visual_job(entity.job, entity.effect_state);
             let (sex, head, shield, head_top, head_mid, head_bottom, hair_color, cloth_color) = (
                 entity.sex,
@@ -1601,6 +1615,7 @@ impl App {
                     hair_color,
                     cloth_color,
                     weapon_type,
+                    weapon_look,
                     head_top,
                     head_mid,
                     head_bottom,

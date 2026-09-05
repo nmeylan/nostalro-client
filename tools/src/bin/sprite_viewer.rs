@@ -256,6 +256,7 @@ impl App {
             0,
             0,
             weapon_type,
+            weapon_view_id,
             headgear_top,
             0,
             0,
@@ -340,6 +341,7 @@ impl App {
                     self.composite_job,
                     self.composite_sex,
                     wt,
+                    self.weapon_view_id,
                 ) {
                     let wtex = upload_sprite_textures(
                         &wd.images,

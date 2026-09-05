@@ -160,15 +160,9 @@ impl ForcedAnimation {
     }
 }
 
-/// Attack action-group for a mercenary body (human 13-group layout), by merc
-/// class: archers/swordsmen use ATTACK2 (10), lancers use ATTACK3 (11), matching
-/// the player attack action for a bow / sword vs. spear.
-fn mercenary_attack_action(job: u16) -> usize {
-    match job {
-        6027..=6036 => 11, // lancer (spear)
-        _ => 10,           // archer (bow) / sword
-    }
-}
+/// Attack action-group of a mercenary body (human 13-group layout). The
+/// mercenary weapon sprites only carry frames in this group.
+const MERCENARY_ATTACK_ACTION: usize = 10;
 
 /// Mercenary bodies carry no weapon view id, so the weapon type is inferred from
 /// the merc class range. This drives swing/hit sounds and the ranged-arrow gate.
@@ -271,6 +265,9 @@ pub struct Entity {
     pub hair_color: u16,
     pub cloth_color: u16,
     pub weapon: Option<WeaponType>,
+    /// Raw right-hand look the server sent, kept because the weapon art is named
+    /// after the item id when the archive has such a file.
+    pub weapon_look: u16,
     pub head_top: u16,
     pub head_mid: u16,
     pub head_bottom: u16,
@@ -412,6 +409,7 @@ impl Entity {
             hair_color,
             cloth_color: 0,
             weapon: weapon_type,
+            weapon_look: weapon,
             head_top,
             head_mid,
             head_bottom,
@@ -890,9 +888,7 @@ impl Entity {
                 EntityState::Sitting => 2,
                 EntityState::Pickup => 3,
                 EntityState::ReadyFight => 4,
-                EntityState::Attacking | EntityState::SkillExec => {
-                    mercenary_attack_action(self.job)
-                }
+                EntityState::Attacking | EntityState::SkillExec => MERCENARY_ATTACK_ACTION,
                 EntityState::Hurt => 6,
                 EntityState::Dead => 8,
                 EntityState::Casting => 12,
@@ -932,7 +928,7 @@ impl Entity {
     pub fn attack_action_index(&self) -> usize {
         match self.entity_type {
             EntityType::Player => self.attack_action_for_weapon(),
-            EntityType::Mercenary => mercenary_attack_action(self.job),
+            EntityType::Mercenary => MERCENARY_ATTACK_ACTION,
             EntityType::Monster | EntityType::Npc | EntityType::Homunculus => 2,
         }
     }
@@ -1109,7 +1105,10 @@ impl Entity {
                 }
             }
             JobName::Gunslinger => match weapon {
-                WeaponType::Rifle | WeaponType::Gatling | WeaponType::Grenade => 11,
+                WeaponType::Rifle
+                | WeaponType::Gatling
+                | WeaponType::Shotgun
+                | WeaponType::Grenade => 11,
                 _ => 10,
             },
             JobName::Ninja => match weapon {
@@ -1251,11 +1250,33 @@ mod tests {
                 0,
                 150,
             )
-            .weapon
         };
-        assert_eq!(merc(6017), Some(WeaponType::Bow)); // archer
-        assert_eq!(merc(6027), Some(WeaponType::Spear1H)); // lancer
-        assert_eq!(merc(6037), Some(WeaponType::Sword1H)); // swordman
+        assert_eq!(merc(6017).weapon, Some(WeaponType::Bow)); // archer
+        assert_eq!(merc(6027).weapon, Some(WeaponType::Spear1H)); // lancer
+        assert_eq!(merc(6037).weapon, Some(WeaponType::Sword1H)); // swordman
+
+        for job in [6017, 6027, 6037] {
+            assert_eq!(merc(job).attack_action_index(), 10, "merc {job}");
+        }
+    }
+
+    #[test]
+    fn gunslinger_swings_with_the_group_its_gun_sprite_is_drawn_in() {
+        let mut e = make_entity();
+        e.job = JobName::Gunslinger.value() as u16;
+
+        e.weapon = Some(WeaponType::Revolver);
+        assert_eq!(e.attack_action_index(), 10);
+
+        for gun in [
+            WeaponType::Rifle,
+            WeaponType::Gatling,
+            WeaponType::Shotgun,
+            WeaponType::Grenade,
+        ] {
+            e.weapon = Some(gun);
+            assert_eq!(e.attack_action_index(), 11, "{gun:?}");
+        }
     }
 
     #[test]

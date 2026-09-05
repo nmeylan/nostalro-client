@@ -46,6 +46,9 @@ pub struct DebugConfig {
 pub struct CustomConfig {
     /// Green aura under boss monsters at level 99 or above.
     pub boss_aura: bool,
+    /// Base level a player's aura is drawn from. The original game hard-codes
+    /// 99; raise it on a server whose reported levels go past that.
+    pub aura_level: i16,
     /// Multiplies both fog distances. The original game's are tuned for its own
     /// window and camera range; raise this to push fog back on a screen that
     /// shows more of the map, lower it to pull fog in. 1.0 is the original.
@@ -63,6 +66,7 @@ impl Default for CustomConfig {
     fn default() -> Self {
         Self {
             boss_aura: false,
+            aura_level: ragnarok_game::level_aura::LEVEL_AURA_THRESHOLD,
             fog_scale: 1.0,
             accessibility: false,
             filtering: CustomFilteringConfig::default(),

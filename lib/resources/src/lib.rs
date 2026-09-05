@@ -383,6 +383,11 @@ pub mod sprite {
             format!("data/sprite/인간족/{job}/{job}_{sex}{suffix}")
         }
 
+        /// Weapon art keyed by item id, preferred over [`weapon`] when present.
+        pub fn weapon_by_item(job: &str, sex: &str, item_id: u16) -> String {
+            format!("data/sprite/인간족/{job}/{job}_{sex}_{item_id}")
+        }
+
         pub fn gm_body(sex: &str) -> String {
             format!("data/sprite/인간족/몸통/{sex}/운영자_{sex}")
         }

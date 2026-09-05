@@ -499,6 +499,11 @@ fn weapon_suffix(weapon_type: WeaponType) -> &'static str {
         WeaponType::DoubleDs => "_단검_검",
         WeaponType::DoubleDa => "_단검_도끼",
         WeaponType::DoubleSa => "_검_도끼",
+        WeaponType::Revolver => "_권총",
+        WeaponType::Rifle | WeaponType::Gatling | WeaponType::Shotgun | WeaponType::Grenade => {
+            "_기관총"
+        }
+        WeaponType::Huuma => "_수리검",
         _ => "_검",
     }
 }
@@ -522,6 +527,12 @@ pub fn weapon_view_id_to_type(id: u16) -> Option<WeaponType> {
         14 => Some(WeaponType::Whip),
         15 => Some(WeaponType::Book),
         16 => Some(WeaponType::Katar),
+        17 => Some(WeaponType::Revolver),
+        18 => Some(WeaponType::Rifle),
+        19 => Some(WeaponType::Gatling),
+        20 => Some(WeaponType::Shotgun),
+        21 => Some(WeaponType::Grenade),
+        22 => Some(WeaponType::Huuma),
         23 => Some(WeaponType::Staff2H),
         25 => Some(WeaponType::DoubleDd),
         26 => Some(WeaponType::DoubleSs),
@@ -563,13 +574,17 @@ fn weapon_type_from_item_id(id: u16) -> Option<WeaponType> {
         1450..1500 => Some(WeaponType::Spear2H),
         1500..1550 => Some(WeaponType::Mace),
         1550..1600 => Some(WeaponType::Book),
-        1600..1650 => Some(WeaponType::Staff),
+        1600..1700 => Some(WeaponType::Staff),
         1700..1750 => Some(WeaponType::Bow),
-        1800..1850 => Some(WeaponType::Knuckle),
+        1800..1900 => Some(WeaponType::Knuckle),
         1900..1950 => Some(WeaponType::Musical),
         1950..2000 => Some(WeaponType::Whip),
-        2000..2050 => Some(WeaponType::Staff2H),
-        13000..13050 => Some(WeaponType::Dagger),
+        2000..2100 => Some(WeaponType::Staff2H),
+        13000..13100 => Some(WeaponType::Dagger),
+        13100..13150 => Some(WeaponType::Revolver),
+        13150..13200 => Some(WeaponType::Rifle),
+        13300..13400 => Some(WeaponType::Huuma),
+        13400..13500 => Some(WeaponType::Sword1H),
         _ => None,
     }
 }
@@ -665,6 +680,25 @@ pub fn weapon_sprite_path(job_class: u16, sex: u8, weapon_type: WeaponType) -> S
     ragnarok_resources::sprite::player::weapon(job, sex_str, suffix)
 }
 
+/// Weapon art named after the item id rather than the weapon type. The original
+/// game reaches for this first and only falls back to [`weapon_sprite_path`]
+/// when the archive has no such file.
+pub fn weapon_item_sprite_path(job_class: u16, sex: u8, item_id: u16) -> String {
+    let job = job_name_kr(job_class);
+    let sex_str = sex_kr(sex);
+    ragnarok_resources::sprite::player::weapon_by_item(job, sex_str, item_id)
+}
+
+pub fn weapon_item_trail_sprite_path(
+    job_class: u16,
+    sex: u8,
+    item_id: u16,
+    weapon_type: WeaponType,
+) -> Option<String> {
+    weapon_has_trail(weapon_type)
+        .then(|| format!("{}_검광", weapon_item_sprite_path(job_class, sex, item_id)))
+}
+
 pub fn weapon_has_trail(weapon_type: WeaponType) -> bool {
     matches!(
         weapon_type,
@@ -684,6 +718,9 @@ pub fn weapon_has_trail(weapon_type: WeaponType) -> bool {
             | WeaponType::DoubleSa
             | WeaponType::Revolver
             | WeaponType::Rifle
+            | WeaponType::Gatling
+            | WeaponType::Shotgun
+            | WeaponType::Grenade
     )
 }
 
@@ -930,6 +967,9 @@ mod tests {
             WeaponType::DoubleSa,
             WeaponType::Revolver,
             WeaponType::Rifle,
+            WeaponType::Gatling,
+            WeaponType::Shotgun,
+            WeaponType::Grenade,
         ];
         let without_trail = [
             WeaponType::Fist,
@@ -942,9 +982,6 @@ mod tests {
             WeaponType::Musical,
             WeaponType::Whip,
             WeaponType::Book,
-            WeaponType::Gatling,
-            WeaponType::Shotgun,
-            WeaponType::Grenade,
             WeaponType::Huuma,
             WeaponType::Shuriken,
         ];
@@ -985,6 +1022,37 @@ mod tests {
         assert_eq!(weapon_view_id_to_type(1450), Some(WeaponType::Spear2H));
         assert_eq!(weapon_view_id_to_type(1116), Some(WeaponType::Sword2H));
         assert!(weapon_view_id_to_type(999).is_none());
+    }
+
+    #[test]
+    fn gunslinger_guns_resolve_to_their_art() {
+        const GUNSLINGER: u16 = 24;
+
+        // Revolvers share one sprite, everything else shares the gatling one.
+        assert_eq!(weapon_view_id_to_type(13100), Some(WeaponType::Revolver));
+        assert_eq!(
+            weapon_sprite_path(GUNSLINGER, 1, WeaponType::Revolver),
+            "data/sprite/인간족/건너/건너_남_권총"
+        );
+        assert_eq!(weapon_view_id_to_type(13154), Some(WeaponType::Rifle));
+        assert_eq!(
+            weapon_sprite_path(GUNSLINGER, 1, WeaponType::Rifle),
+            "data/sprite/인간족/건너/건너_남_기관총"
+        );
+
+        // Individual guns carry their own art, keyed by item id.
+        assert_eq!(
+            weapon_item_sprite_path(GUNSLINGER, 1, 13154),
+            "data/sprite/인간족/건너/건너_남_13154"
+        );
+        assert_eq!(
+            weapon_item_trail_sprite_path(GUNSLINGER, 0, 13154, WeaponType::Rifle).as_deref(),
+            Some("data/sprite/인간족/건너/건너_여_13154_검광")
+        );
+
+        // A weapon look the archive cannot name a file after.
+        assert!(weapon_view_id_to_type(13200).is_none()); // bullets are not a look
+        assert_eq!(weapon_view_id_to_type(17), Some(WeaponType::Revolver));
     }
 
     #[test]

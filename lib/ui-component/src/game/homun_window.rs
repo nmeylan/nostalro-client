@@ -1,7 +1,8 @@
 use crate::helper::colors;
 use crate::helper::window_chrome::{
-    GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_exp_bar, draw_gauge, draw_hline,
-    draw_sys_button, draw_titlebar, gauge_texture_paths, label_color, text_color,
+    EXP_BAR_FILL, GZE_BLUE_LEFT, TITLEBAR_TEX, draw_container, draw_exp_bar, draw_gauge,
+    draw_hline, draw_sys_button, draw_titlebar, draw_value_bar, gauge_texture_paths, label_color,
+    text_color,
 };
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::companion::HomunculusState;
@@ -56,10 +57,11 @@ const BAR_H: f32 = 11.0;
 const EXP_BAR_H: f32 = 4.0;
 const BASELINE: f32 = 10.0;
 
+/// Hunger below this draws the gauge red instead of blue.
+const HUNGER_LOW: i16 = 25;
+
 const PATROL_BTN_W: f32 = 48.0;
 const PATROL_BTN_H: f32 = 16.0;
-
-const NOTE_COLOR: [f32; 4] = crate::helper::colors::RED;
 
 pub struct HomunWindow {
     pub has_grf_textures: bool,
@@ -285,7 +287,21 @@ impl HomunWindow {
             tc,
         );
         let hunger_ratio = (homun.hunger.max(0) as f32 / 100.0).clamp(0.0, 1.0);
-        draw_exp_bar(ui, rx, ry + 14.0, bar_w, EXP_BAR_H, hunger_ratio, grf);
+        let hunger_fill = if homun.hunger < HUNGER_LOW {
+            colors::RED
+        } else {
+            EXP_BAR_FILL
+        };
+        draw_value_bar(
+            ui,
+            rx,
+            ry + 14.0,
+            bar_w,
+            EXP_BAR_H,
+            hunger_ratio,
+            hunger_fill,
+            grf,
+        );
         ry += BAR_H + 16.0;
 
         ui.text(rx, ry + BASELINE, "Intimacy", tc);
@@ -306,16 +322,6 @@ impl HomunWindow {
         if patrolling {
             ui.text(rx, ry + BASELINE + 1.0, "Patrolling", lc);
         }
-
-        // Red note, placed below the left stat column.
-        let note_y = y + TITLE_H + 2.0 + 8.0 * CELL_H + 4.0;
-        ui.text(x + PAD, note_y + BASELINE, "Homunculus get", NOTE_COLOR);
-        ui.text(
-            x + PAD,
-            note_y + BASELINE + 13.0,
-            "10% of EXP from player.",
-            NOTE_COLOR,
-        );
 
         ui.has_grf_textures = prev_grf;
         events

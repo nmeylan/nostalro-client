@@ -244,12 +244,56 @@ pub fn load_head_sprite(
     })
 }
 
+/// Weapon looks below this are a weapon-type id, above it an item id. Only the
+/// latter can name a sprite of its own.
+const WEAPON_LOOK_IS_ITEM_ID: u16 = 1100;
+
+fn is_dual_wield(weapon_type: WeaponType) -> bool {
+    matches!(
+        weapon_type,
+        WeaponType::DoubleDd
+            | WeaponType::DoubleSs
+            | WeaponType::DoubleAa
+            | WeaponType::DoubleDs
+            | WeaponType::DoubleDa
+            | WeaponType::DoubleSa
+    )
+}
+
+/// The original game names weapon art after the item id when the archive holds
+/// such a file, and only otherwise after the weapon type. A dual wield has no
+/// single item id, so it goes straight to the type name.
+fn weapon_look_names_a_file(weapon_type: WeaponType, look_id: u16) -> bool {
+    look_id >= WEAPON_LOOK_IS_ITEM_ID && !is_dual_wield(weapon_type)
+}
+
+fn load_if_present(grf: &GrfArchive, base_path: &str) -> Option<SpriteData> {
+    grf.file_exists(&format!("{base_path}.act"))
+        .then(|| {
+            load_sprite_data(
+                grf,
+                &format!("{base_path}.spr"),
+                &format!("{base_path}.act"),
+            )
+        })
+        .flatten()
+}
+
 pub fn load_weapon_sprite(
     grf: &GrfArchive,
     job: u16,
     sex: u8,
     weapon_type: WeaponType,
+    look_id: u16,
 ) -> Option<SpriteData> {
+    if weapon_look_names_a_file(weapon_type, look_id)
+        && let Some(data) = load_if_present(
+            grf,
+            &crate::sprite_path::weapon_item_sprite_path(job, sex, look_id),
+        )
+    {
+        return Some(data);
+    }
     let base_path = weapon_sprite_path(job, sex, weapon_type);
     let result = load_sprite_data(
         grf,
@@ -260,7 +304,7 @@ pub fn load_weapon_sprite(
         return result;
     }
     if let Some(base_job) = crate::sprite_path::unmounted_job(job) {
-        return load_weapon_sprite(grf, base_job, sex, weapon_type);
+        return load_weapon_sprite(grf, base_job, sex, weapon_type, look_id);
     }
     if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
         use models::enums::EnumWithNumberValue;
@@ -279,7 +323,15 @@ pub fn load_weapon_trail_sprite(
     job: u16,
     sex: u8,
     weapon_type: WeaponType,
+    look_id: u16,
 ) -> Option<SpriteData> {
+    if weapon_look_names_a_file(weapon_type, look_id)
+        && let Some(item_path) =
+            crate::sprite_path::weapon_item_trail_sprite_path(job, sex, look_id, weapon_type)
+        && let Some(data) = load_if_present(grf, &item_path)
+    {
+        return Some(data);
+    }
     let base_path = crate::sprite_path::weapon_trail_sprite_path(job, sex, weapon_type)?;
     let result = load_sprite_data(
         grf,
@@ -290,7 +342,7 @@ pub fn load_weapon_trail_sprite(
         return result;
     }
     if let Some(base_job) = crate::sprite_path::unmounted_job(job) {
-        return load_weapon_trail_sprite(grf, base_job, sex, weapon_type);
+        return load_weapon_trail_sprite(grf, base_job, sex, weapon_type, look_id);
     }
     if let Some(base_job) = crate::sprite_path::transcendent_to_base_class(job) {
         use models::enums::EnumWithNumberValue;
@@ -383,6 +435,7 @@ pub fn load_player_sprite_data(
     hair_color: u16,
     cloth_color: u16,
     weapon: Option<WeaponType>,
+    weapon_look: u16,
     head_top: u16,
     head_mid: u16,
     head_bottom: u16,
@@ -421,11 +474,11 @@ pub fn load_player_sprite_data(
         (weapon, shield_id)
     };
     let weapon_type = weapon;
-    let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt));
+    let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt, weapon_look));
     let weapon_trail = weapon
         .as_ref()
         .and_then(|_| weapon_type)
-        .and_then(|wt| load_weapon_trail_sprite(grf, job, sex, wt));
+        .and_then(|wt| load_weapon_trail_sprite(grf, job, sex, wt, weapon_look));
     let headgear_top = load_headgear(grf, accessory_table, head_top, sex);
     let headgear_mid = load_headgear(grf, accessory_table, head_mid, sex);
     let headgear_bottom = load_headgear(grf, accessory_table, head_bottom, sex);
