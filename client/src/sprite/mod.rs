@@ -3,36 +3,27 @@ mod cursor;
 mod effects;
 pub(crate) mod falcon;
 mod floor_item;
+pub(crate) mod gr2_loader;
 
 pub(crate) use cart::CartVisual;
 pub(crate) use falcon::FalconVisual;
 
 use crate::App;
 use models::enums::weapon::WeaponType;
-use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::spr::SpriteData;
 use ragnarok_game::data_table::accessory_table::AccessoryTable;
 use ragnarok_game::entity::EntityType;
-use ragnarok_game::gr2_model::{self, AnimationClip, Gr2Action, Gr2ModelInstance, SkeletonPose};
+use ragnarok_game::gr2_model::{self, Gr2Asset, Gr2ModelInstance};
 use ragnarok_game::sprite_loader;
 use ragnarok_game::sprite_path::{
     entity_sprite_base_path, is_undrawn_actor, weapon_view_id_to_type,
 };
-use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
+use ragnarok_profiling::profile_function;
 use ragnarok_renderer::{
-    EntitySprite, SpriteTextures, build_entity_sprite, upload_glyph_textures,
-    upload_sprite_textures,
+    EntitySprite, Gr2ModelAsset, Gr2ModelDraw, SpriteTextures, build_entity_sprite,
+    upload_glyph_textures, upload_sprite_textures,
 };
 use std::rc::Rc;
-
-fn parse_gr2_file(bytes: &[u8], path: &str) -> Option<Gr2File> {
-    let container = Gr2Container::parse(bytes)
-        .map_err(|e| tracing::warn!("gr2 container parse failed for {path}: {e:?}"))
-        .ok()?;
-    Gr2File::parse(&container)
-        .map_err(|e| tracing::warn!("gr2 extract failed for {path}: {e:?}"))
-        .ok()
-}
 
 impl App {
     pub(crate) fn upload_sprite(&self, data: &SpriteData) -> Option<SpriteTextures> {
@@ -447,55 +438,87 @@ impl App {
     }
 
     /// Load a `.gr2` name-table entity (emperium, guardian, guild flag…) as an
-    /// animated 3D model instead of a sprite: draw resources go into
-    /// `Renderer::gr2_models`, animation state into `game.gr2_models`.
+    /// animated 3D model instead of a sprite. Geometry, textures, skeleton and
+    /// clips are cached per model file; only the transform and bone palette are
+    /// per entity.
     pub(crate) fn load_gr2_entity_model(&mut self, gid: u32, model_name: &str) {
-        let (grf, renderer) = match (&self.grf, &mut self.renderer) {
-            (Some(g), Some(r)) => (g, r),
-            _ => return,
-        };
         let path = gr2_model::gr2_model_path(model_name);
-        let bytes = match grf.read_file(&path) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!("cannot read gr2 model {path}: {e}");
-                return;
-            }
-        };
-        let Some(file) = parse_gr2_file(&bytes, &path) else {
+        if self.game.sprite_caches.gr2_assets.contains_key(&path) {
+            self.spawn_gr2_instance(gid, &path);
+            return;
+        }
+        if let Some(loader) = &mut self.gr2_loader {
+            loader.request(gid, model_name, &path);
+        }
+    }
+
+    /// Instance every entity whose model finished reading on the loader thread.
+    pub(crate) fn poll_gr2_loads(&mut self) {
+        let Some(loader) = &mut self.gr2_loader else {
             return;
         };
-        let Some(pose) = SkeletonPose::from_model(&file, 0) else {
-            tracing::warn!("gr2 model {path} has no skeleton");
-            return;
-        };
-        let bone_type = gr2_model::bone_type_from_name(model_name);
-        let clips: [Option<AnimationClip>; 5] = std::array::from_fn(|i| match Gr2Action::ALL[i] {
-            Gr2Action::Stand => AnimationClip::from_gr2(&file, 0),
-            action => {
-                let anim_path = gr2_model::animation_file_path(bone_type?, action)?;
-                let bytes = grf.read_file(&anim_path).ok()?;
-                let anim_file = parse_gr2_file(&bytes, &anim_path)?;
-                AnimationClip::from_gr2(&anim_file, 0)
+        for (path, loaded, gids) in loader.take_ready() {
+            let uploaded = match loaded {
+                Some(loaded) => self.insert_gr2_asset(path.clone(), loaded),
+                None => false,
+            };
+            for gid in gids {
+                if !uploaded {
+                    self.game.sprite_caches.failed_sprite_loads.insert(gid);
+                    continue;
+                }
+                if self.game.world.entities.get(gid).is_some() {
+                    self.spawn_gr2_instance(gid, &path);
+                }
             }
-        });
-        let Some(model_renderer) = Gr2ModelRenderer::from_gr2(
-            &file,
-            0,
+        }
+    }
+
+    /// Upload a decoded model and cache it under `path`. False when it produced
+    /// nothing drawable.
+    fn insert_gr2_asset(&mut self, path: String, loaded: gr2_loader::Gr2LoadedAsset) -> bool {
+        let Some(renderer) = &mut self.renderer else {
+            return false;
+        };
+        let Some(asset) = Gr2ModelAsset::from_parts(
             &renderer.device.device,
             &renderer.device.queue,
-            &renderer.global_uniforms,
             &renderer.texture_cache,
-            renderer.device.surface_format,
+            loaded.geometry,
+            loaded.textures,
+            loaded.emblem_texture_index,
         ) else {
             tracing::warn!("gr2 model {path} produced no renderable geometry");
+            return false;
+        };
+        renderer.gr2_assets.insert(path.clone(), Rc::new(asset));
+        self.game.sprite_caches.gr2_assets.insert(
+            path,
+            Rc::new(Gr2Asset {
+                pose: loaded.pose,
+                clips: loaded.clips,
+            }),
+        );
+        true
+    }
+
+    /// Give `gid` its own transform and bone palette over the cached model.
+    fn spawn_gr2_instance(&mut self, gid: u32, path: &str) {
+        let Some(cpu_asset) = self.game.sprite_caches.gr2_assets.get(path).cloned() else {
             return;
         };
-        renderer.gr2_models.insert(gid, model_renderer);
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
+        let Some(asset) = renderer.gr2_assets.get(path).cloned() else {
+            return;
+        };
+        let draw = Gr2ModelDraw::new(&renderer.device.device, &renderer.gr2_pipeline, asset);
+        renderer.gr2_models.insert(gid, draw);
         self.game
             .sprite_caches
             .gr2_models
-            .insert(gid, Gr2ModelInstance::new(pose, clips));
+            .insert(gid, Gr2ModelInstance::new(cpu_asset));
         self.apply_guild_emblem_to_model(gid);
     }
 
@@ -517,6 +540,10 @@ impl App {
                     && !self.game.sprite_caches.sprites.contains_key(&e.id)
                     && !self.game.sprite_caches.gr2_models.contains_key(&e.id)
                     && !self.game.sprite_caches.failed_sprite_loads.contains(&e.id)
+                    && !self
+                        .gr2_loader
+                        .as_ref()
+                        .is_some_and(|loader| loader.is_waiting(e.id))
             })
             .map(|e| {
                 (
@@ -567,6 +594,10 @@ impl App {
             );
             if !self.game.sprite_caches.sprites.contains_key(gid)
                 && !self.game.sprite_caches.gr2_models.contains_key(gid)
+                && !self
+                    .gr2_loader
+                    .as_ref()
+                    .is_some_and(|loader| loader.is_waiting(*gid))
             {
                 self.game.sprite_caches.failed_sprite_loads.insert(*gid);
             }

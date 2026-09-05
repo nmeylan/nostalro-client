@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use ragnarok_formats::gr2::Gr2File;
 
@@ -49,6 +50,36 @@ pub struct Gr2Geometry {
     pub bone_count: usize,
     pub center: [f32; 3],
     pub size: [f32; 3],
+}
+
+/// A decoded GR2 texture, ready for upload.
+pub struct Gr2TextureData {
+    pub rgba: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Decode every texture embedded in `file`. One that fails to decode becomes a
+/// single white pixel, so the batches drawn with it stay visible.
+pub fn decode_textures(file: &Gr2File) -> Vec<Gr2TextureData> {
+    file.textures
+        .iter()
+        .map(|tex| match tex.to_rgba() {
+            Ok(rgba) => Gr2TextureData {
+                rgba,
+                width: tex.width as u32,
+                height: tex.height as u32,
+            },
+            Err(e) => {
+                tracing::warn!("gr2 texture {} decode failed: {e}", tex.from_file_name);
+                Gr2TextureData {
+                    rgba: vec![255u8; 4],
+                    width: 1,
+                    height: 1,
+                }
+            }
+        })
+        .collect()
 }
 
 /// Index of the model's emblem texture slot, swapped at runtime for the owning
@@ -211,18 +242,41 @@ pub fn build_gr2_geometry(file: &Gr2File, model_index: usize) -> Option<Gr2Geome
     })
 }
 
-/// Renders one GR2 model instance: skinned geometry batched by embedded
-/// texture, posed by a bone-matrix palette uploaded each frame and placed by a
-/// per-instance world transform.
-pub struct Gr2ModelRenderer {
+/// Shader, layouts and pipeline shared by every GR2 model draw.
+pub struct Gr2ModelPipeline {
     pipeline: wgpu::RenderPipeline,
+    skin_bind_group_layout: wgpu::BindGroupLayout,
+}
+
+impl Gr2ModelPipeline {
+    pub fn new(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        global_uniforms: &GlobalUniforms,
+        texture_cache: &TextureCache,
+    ) -> Self {
+        let skin_bind_group_layout = create_skin_layout(device);
+        let pipeline = create_pipeline(
+            device,
+            surface_format,
+            &global_uniforms.bind_group_layout,
+            &texture_cache.bind_group_layout,
+            &skin_bind_group_layout,
+        );
+        Gr2ModelPipeline {
+            pipeline,
+            skin_bind_group_layout,
+        }
+    }
+}
+
+/// The per-model half of a GR2 draw: skinned geometry batched by embedded
+/// texture. Shared by every instance of the same model file.
+pub struct Gr2ModelAsset {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     batches: Vec<DrawBatch>,
     textures: Vec<wgpu::BindGroup>,
-    instance_buffer: wgpu::Buffer,
-    bone_buffer: wgpu::Buffer,
-    skin_bind_group: wgpu::BindGroup,
     bone_count: usize,
     emblem_texture_index: Option<usize>,
     /// Bind-pose bounding-box center/size in model space (before the instance
@@ -231,37 +285,50 @@ pub struct Gr2ModelRenderer {
     pub size: [f32; 3],
 }
 
-impl Gr2ModelRenderer {
-    #[allow(clippy::too_many_arguments)]
+impl Gr2ModelAsset {
     pub fn from_gr2(
         file: &Gr2File,
         model_index: usize,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        global_uniforms: &GlobalUniforms,
         texture_cache: &TextureCache,
-        surface_format: wgpu::TextureFormat,
     ) -> Option<Self> {
         let geometry = build_gr2_geometry(file, model_index)?;
+        let textures = decode_textures(file);
+        Self::from_parts(
+            device,
+            queue,
+            texture_cache,
+            geometry,
+            textures,
+            emblem_texture_index(file),
+        )
+    }
 
-        let textures: Vec<wgpu::BindGroup> = file
-            .textures
+    /// Build from geometry and decoded textures produced elsewhere — the
+    /// background loader decodes off the frame thread and uploads here.
+    pub fn from_parts(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        texture_cache: &TextureCache,
+        geometry: Gr2Geometry,
+        textures: Vec<Gr2TextureData>,
+        emblem_texture_index: Option<usize>,
+    ) -> Option<Self> {
+        if textures.is_empty() {
+            tracing::warn!("gr2 model has no textures");
+            return None;
+        }
+        let textures: Vec<wgpu::BindGroup> = textures
             .iter()
             .enumerate()
             .map(|(i, tex)| {
-                let (rgba, w, h) = match tex.to_rgba() {
-                    Ok(rgba) => (rgba, tex.width as u32, tex.height as u32),
-                    Err(e) => {
-                        tracing::warn!("gr2 texture {} decode failed: {e}", tex.from_file_name);
-                        (vec![255u8; 4], 1, 1)
-                    }
-                };
                 create_texture_bind_group_from_rgba(
                     device,
                     queue,
-                    &rgba,
-                    w,
-                    h,
+                    &tex.rgba,
+                    tex.width,
+                    tex.height,
                     &texture_cache.bind_group_layout,
                     &format!("gr2_texture_{i}"),
                     wgpu::FilterMode::Linear,
@@ -270,10 +337,6 @@ impl Gr2ModelRenderer {
                 )
             })
             .collect();
-        if textures.is_empty() {
-            tracing::warn!("gr2 model has no textures");
-            return None;
-        }
 
         let vertex_buffer = create_buffer(
             device,
@@ -288,72 +351,7 @@ impl Gr2ModelRenderer {
             wgpu::BufferUsages::INDEX,
         );
 
-        let identity = glam::Mat4::IDENTITY.to_cols_array();
-        let instance_buffer = create_buffer(
-            device,
-            "gr2_instance",
-            &[identity],
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        );
-        let bone_count = geometry.bone_count.max(1);
-        let bind_palette = vec![identity; bone_count];
-        let bone_buffer = create_buffer(
-            device,
-            "gr2_bones",
-            &bind_palette,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        );
-
-        let skin_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("gr2_skin"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
-        let skin_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("gr2_skin"),
-            layout: &skin_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: instance_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: bone_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
-        let pipeline = create_pipeline(
-            device,
-            surface_format,
-            &global_uniforms.bind_group_layout,
-            &texture_cache.bind_group_layout,
-            &skin_layout,
-        );
-
-        Some(Self {
-            pipeline,
+        Some(Gr2ModelAsset {
             vertex_buffer,
             index_buffer,
             batches: geometry
@@ -366,11 +364,8 @@ impl Gr2ModelRenderer {
                 })
                 .collect(),
             textures,
-            instance_buffer,
-            bone_buffer,
-            skin_bind_group,
-            bone_count,
-            emblem_texture_index: emblem_texture_index(file),
+            bone_count: geometry.bone_count.max(1),
+            emblem_texture_index,
             center: geometry.center,
             size: geometry.size,
         })
@@ -379,17 +374,77 @@ impl Gr2ModelRenderer {
     pub fn bone_count(&self) -> usize {
         self.bone_count
     }
+}
+
+/// One drawn GR2 entity: a shared model asset placed by its own world transform
+/// and posed by its own bone-matrix palette, both uploaded each frame.
+pub struct Gr2ModelDraw {
+    asset: Rc<Gr2ModelAsset>,
+    instance_buffer: wgpu::Buffer,
+    bone_buffer: wgpu::Buffer,
+    skin_bind_group: wgpu::BindGroup,
+    emblem_texture: Option<wgpu::BindGroup>,
+}
+
+impl Gr2ModelDraw {
+    pub fn new(
+        device: &wgpu::Device,
+        pipeline: &Gr2ModelPipeline,
+        asset: Rc<Gr2ModelAsset>,
+    ) -> Self {
+        let identity = glam::Mat4::IDENTITY.to_cols_array();
+        let instance_buffer = create_buffer(
+            device,
+            "gr2_instance",
+            &[identity],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+        let bind_palette = vec![identity; asset.bone_count];
+        let bone_buffer = create_buffer(
+            device,
+            "gr2_bones",
+            &bind_palette,
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        );
+        let skin_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("gr2_skin"),
+            layout: &pipeline.skin_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: instance_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: bone_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        Gr2ModelDraw {
+            asset,
+            instance_buffer,
+            bone_buffer,
+            skin_bind_group,
+            emblem_texture: None,
+        }
+    }
+
+    pub fn asset(&self) -> &Gr2ModelAsset {
+        &self.asset
+    }
+
+    pub fn bone_count(&self) -> usize {
+        self.asset.bone_count
+    }
 
     /// Swap the guild flag's embedded default emblem for a real one. Returns
     /// false when the model has no emblem slot.
     pub fn set_emblem_texture(&mut self, bind_group: wgpu::BindGroup) -> bool {
-        let Some(slot) = self
-            .emblem_texture_index
-            .and_then(|i| self.textures.get_mut(i))
-        else {
+        if self.asset.emblem_texture_index.is_none() {
             return false;
-        };
-        *slot = bind_group;
+        }
+        self.emblem_texture = Some(bind_group);
         true
     }
 
@@ -406,7 +461,7 @@ impl Gr2ModelRenderer {
     pub fn set_palette(&self, queue: &wgpu::Queue, palette: &[glam::Mat4]) {
         let data: Vec<[f32; 16]> = palette
             .iter()
-            .take(self.bone_count)
+            .take(self.asset.bone_count)
             .map(|m| m.to_cols_array())
             .collect();
         if !data.is_empty() {
@@ -417,17 +472,26 @@ impl Gr2ModelRenderer {
     pub fn render<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
+        pipeline: &'a Gr2ModelPipeline,
         global_uniforms: &'a GlobalUniforms,
     ) {
-        pass.set_pipeline(&self.pipeline);
+        pass.set_pipeline(&pipeline.pipeline);
         pass.set_bind_group(0, &global_uniforms.bind_group, &[]);
         pass.set_bind_group(2, &self.skin_bind_group, &[]);
-        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        pass.set_vertex_buffer(0, self.asset.vertex_buffer.slice(..));
+        pass.set_index_buffer(self.asset.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        for batch in &self.batches {
-            let Some(texture) = self.textures.get(batch.texture_index) else {
-                continue;
+        for batch in &self.asset.batches {
+            let texture = match &self.emblem_texture {
+                Some(emblem) if Some(batch.texture_index) == self.asset.emblem_texture_index => {
+                    emblem
+                }
+                _ => {
+                    let Some(texture) = self.asset.textures.get(batch.texture_index) else {
+                        continue;
+                    };
+                    texture
+                }
             };
             pass.set_bind_group(1, texture, &[]);
             pass.draw_indexed(
@@ -450,6 +514,34 @@ fn create_buffer<T: bytemuck::Pod>(
         label: Some(label),
         contents: bytemuck::cast_slice(data),
         usage,
+    })
+}
+
+fn create_skin_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("gr2_skin"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
     })
 }
 

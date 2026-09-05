@@ -29,7 +29,7 @@ use ragnarok_game::entity::{ChatBubbleState, EntityState};
 use ragnarok_game::entity_collection::EntityCollection;
 use ragnarok_game::event::{CharacterInfo, GameEvent};
 use ragnarok_game::floor_item::FloorItem;
-use ragnarok_game::gr2_model::Gr2ModelInstance;
+use ragnarok_game::gr2_model::{Gr2Asset, Gr2ModelInstance};
 use ragnarok_game::graffiti::Graffiti;
 use ragnarok_game::party::Party;
 use ragnarok_game::pet::PetState;
@@ -429,6 +429,8 @@ pub struct SpriteCaches {
     /// Animation state of GR2 model entities (emperium, guardians…) keyed by
     /// gid; the matching draw resources live in `Renderer::gr2_models`.
     pub gr2_models: HashMap<u32, Gr2ModelInstance>,
+    /// Skeleton and clips of each loaded `.gr2`, keyed by GRF path.
+    pub gr2_assets: HashMap<String, Rc<Gr2Asset>>,
     pub guild_head_sprites: HashMap<u32, Rc<EntitySprite>>,
     pub sprite_cache: HashMap<String, Rc<EntitySprite>>,
     pub carts: HashMap<u32, crate::sprite::CartVisual>,

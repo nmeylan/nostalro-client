@@ -36,6 +36,7 @@ use ragnarok_game::gm::MANNER_POINT_STEP;
 use ragnarok_game::show_digit::ShowDigitClock;
 use ragnarok_game::skill::teleport_lvl1_destination;
 use ragnarok_network::*;
+use ragnarok_profiling::profile_function;
 use ragnarok_renderer::Renderer;
 use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::account::char_create_window::CharCreateWindow;
@@ -92,6 +93,7 @@ pub(crate) fn preload_window<W: UiWindow>(
 
 impl App {
     pub(crate) fn handle_game_events(&mut self, event_loop: &ActiveEventLoop) {
+        profile_function!("handle_game_events");
         let events = self.channel.drain_events();
         for event in events {
             match event {

@@ -416,6 +416,9 @@ impl App {
         if let Some(renderer) = &mut self.renderer {
             renderer.gr2_models.clear();
         }
+        if let Some(loader) = &mut self.gr2_loader {
+            loader.invalidate();
+        }
         self.game.world.entities.clear_non_player();
         self.game.world.clear_map_scoped();
         self.game.companions.pet.clear_entity();

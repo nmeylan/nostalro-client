@@ -144,10 +144,10 @@ impl App {
         if let Some(renderer) = &mut self.renderer {
             renderer.set_fog(if fog { self.map_fog } else { None });
             if world_filter_changed {
-                renderer.set_world_filtering(filter_world, self.grf.as_ref());
+                renderer.set_world_filtering(filter_world, self.grf.as_deref());
             }
             if effect_filter_changed {
-                renderer.set_effect_filtering(filter_effects, self.grf.as_ref());
+                renderer.set_effect_filtering(filter_effects, self.grf.as_deref());
             }
         }
         if effect_filter_changed {

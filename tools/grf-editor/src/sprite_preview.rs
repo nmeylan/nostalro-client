@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use eframe::egui;
 use ragnarok_formats::act::{MotionType, SpriteActionType, SpriteAnimationState};
 use ragnarok_formats::gr2::{Gr2Container, Gr2File};
@@ -9,9 +11,9 @@ use ragnarok_game::gr2_model::{
 use ragnarok_game::sprite_loader;
 use ragnarok_renderer::wgpu;
 use ragnarok_renderer::{
-    Camera, EntitySprite, GlobalUniforms, Gr2ModelRenderer, LightUniform, ModelRenderer,
-    SpriteRenderer, SpriteUniforms, StrEffectCache, StrEmitterInput, TextureCache, block_on,
-    build_entity_sprite, build_str_effect_batches,
+    Camera, EntitySprite, GlobalUniforms, Gr2ModelAsset, Gr2ModelDraw, Gr2ModelPipeline,
+    LightUniform, ModelRenderer, SpriteRenderer, SpriteUniforms, StrEffectCache, StrEmitterInput,
+    TextureCache, block_on, build_entity_sprite, build_str_effect_batches,
 };
 
 const CANVAS: u32 = 384;
@@ -89,7 +91,8 @@ pub struct SpritePreview {
     camera: Camera,
     global_uniforms: GlobalUniforms,
     model: Option<ModelRenderer>,
-    gr2: Option<Gr2ModelRenderer>,
+    gr2_pipeline: Gr2ModelPipeline,
+    gr2: Option<Gr2ModelDraw>,
     gr2_pose: Option<SkeletonPose>,
     gr2_clips: [Option<AnimationClip>; 5],
     gr2_action: usize,
@@ -183,6 +186,13 @@ impl SpritePreview {
             mapped_at_creation: false,
         });
 
+        let gr2_pipeline = Gr2ModelPipeline::new(
+            &device,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            &global_uniforms,
+            &tex_cache,
+        );
+
         Some(Self {
             device,
             queue,
@@ -205,6 +215,7 @@ impl SpritePreview {
                 camera.set_target(0.0, 0.0, 0.0);
                 camera
             },
+            gr2_pipeline,
             global_uniforms,
             model: None,
             gr2: None,
@@ -276,21 +287,16 @@ impl SpritePreview {
             self.error = Some(format!("Model has no skeleton: {path}"));
             return;
         };
-        let Some(renderer) = Gr2ModelRenderer::from_gr2(
-            &file,
-            0,
-            &self.device,
-            &self.queue,
-            &self.global_uniforms,
-            &self.tex_cache,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-        ) else {
+        let Some(asset) =
+            Gr2ModelAsset::from_gr2(&file, 0, &self.device, &self.queue, &self.tex_cache)
+        else {
             self.error = Some(format!("Model has no drawable geometry: {path}"));
             return;
         };
+        self.model_center = asset.center;
+        self.model_size = asset.size;
+        let renderer = Gr2ModelDraw::new(&self.device, &self.gr2_pipeline, Rc::new(asset));
         renderer.set_transform(&self.queue, z_up_transform());
-        self.model_center = renderer.center;
-        self.model_size = renderer.size;
 
         let bone_type = bone_type_from_name(path);
         self.gr2_clips = std::array::from_fn(|i| match Gr2Action::ALL[i] {
@@ -543,7 +549,7 @@ impl SpritePreview {
                         }),
                         ..Default::default()
                     });
-                    gr2.render(&mut pass, &self.global_uniforms);
+                    gr2.render(&mut pass, &self.gr2_pipeline, &self.global_uniforms);
                 }
             }
             Content::None => {}
@@ -783,20 +789,12 @@ impl SpritePreview {
             .ok()?;
         let pose = SkeletonPose::from_model(&file, 0)?;
         let clip = AnimationClip::from_gr2(&file, 0);
-        let renderer = Gr2ModelRenderer::from_gr2(
-            &file,
-            0,
-            &self.device,
-            &self.queue,
-            &self.global_uniforms,
-            &self.tex_cache,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-        )?;
+        let asset = Gr2ModelAsset::from_gr2(&file, 0, &self.device, &self.queue, &self.tex_cache)?;
+        self.model_center = asset.center;
+        self.model_size = asset.size;
+        let renderer = Gr2ModelDraw::new(&self.device, &self.gr2_pipeline, Rc::new(asset));
         renderer.set_transform(&self.queue, z_up_transform());
         renderer.set_palette(&self.queue, &gr2_palette(&clip, &pose, 0.0));
-
-        self.model_center = renderer.center;
-        self.model_size = renderer.size;
         self.model_yaw = 0.7;
         self.model_pitch = 0.35;
         let saved_zoom = self.zoom;
@@ -831,7 +829,7 @@ impl SpritePreview {
                 }),
                 ..Default::default()
             });
-            renderer.render(&mut pass, &self.global_uniforms);
+            renderer.render(&mut pass, &self.gr2_pipeline, &self.global_uniforms);
         }
         Some(self.finish_read(encoder))
     }

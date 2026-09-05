@@ -1,9 +1,12 @@
 use std::path::Path;
+use std::rc::Rc;
 
 use glam::Mat4;
 use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::grf::GrfArchive;
-use ragnarok_game::gr2_model::{AnimationClip, SkeletonPose};
+use ragnarok_game::gr2_model::{
+    AnimationClip, Gr2Action, Gr2Asset, Gr2ModelInstance, SkeletonPose,
+};
 
 fn open_any_grf() -> Option<GrfArchive> {
     for p in ["data/data.grf", "../../data/data.grf"] {
@@ -75,4 +78,38 @@ fn animation_poses_the_skeleton() {
     assert_eq!(posed.len(), guardian_skeleton.bone_count());
     assert!(posed.iter().all(|m| m.is_finite()));
     assert!(posed.iter().any(|m| !m.abs_diff_eq(Mat4::IDENTITY, 1e-3)));
+}
+
+#[test]
+fn instances_sharing_one_asset_animate_independently() {
+    let Some(grf) = open_any_grf() else {
+        eprintln!("skip: no grf");
+        return;
+    };
+    let guardian = load(&grf, "data/model/3dmob/kguardian90_7.gr2");
+    let attack = load(&grf, "data/model/3dmob_bone/7_attack.gr2");
+    let asset = Rc::new(Gr2Asset {
+        pose: SkeletonPose::from_model(&guardian, 0).expect("skeleton"),
+        clips: [
+            AnimationClip::from_gr2(&guardian, 0),
+            None,
+            AnimationClip::from_gr2(&attack, 0),
+            None,
+            None,
+        ],
+    });
+
+    let standing = Gr2ModelInstance::new(Rc::clone(&asset));
+    let mut attacking = Gr2ModelInstance::new(Rc::clone(&asset));
+    attacking.set_action(Gr2Action::Attack, 0.0);
+    assert_eq!(standing.action(), Gr2Action::Stand.index());
+
+    let now = 0.4;
+    let a = standing.skinning_palette(now);
+    let b = attacking.skinning_palette(now);
+    assert_eq!(a.len(), b.len());
+    assert!(
+        a.iter().zip(&b).any(|(x, y)| !x.abs_diff_eq(*y, 1e-3)),
+        "instances of one asset produced the same pose",
+    );
 }

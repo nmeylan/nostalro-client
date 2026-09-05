@@ -113,7 +113,8 @@ struct App {
     effect_holder: EffectHolder,
     effect_queue: EffectQueue,
     map_fog: Option<ragnarok_formats::fog_table::FogEntry>,
-    grf: Option<GrfArchive>,
+    grf: Option<std::sync::Arc<GrfArchive>>,
+    gr2_loader: Option<sprite::gr2_loader::Gr2Loader>,
     input: InputState,
     ui_context: Option<UiContext>,
     ui_state_cache: StateCache,
@@ -189,6 +190,7 @@ impl App {
             effect_queue,
             map_fog: None,
             grf: None,
+            gr2_loader: None,
             input: InputState::new(),
             ui_context: None,
             ui_state_cache: StateCache::new(),
@@ -817,6 +819,8 @@ impl ApplicationHandler for App {
                         self.bgm_table =
                             ragnarok_game::sound::bgm_table::parse_mp3_name_table(&text);
                     }
+                    let grf = std::sync::Arc::new(grf);
+                    self.gr2_loader = Some(sprite::gr2_loader::Gr2Loader::spawn(grf.clone()));
                     self.grf = Some(grf);
                 }
                 Err(e) => {

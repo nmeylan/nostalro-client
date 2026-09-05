@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use ragnarok_formats::gr2::{Gr2Container, Gr2File};
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::gr2_model::{AnimationClip, Gr2Action, SkeletonPose, animation_file_path};
-use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
+use ragnarok_renderer::gr2_model::{Gr2ModelAsset, Gr2ModelDraw, Gr2ModelPipeline};
 use ragnarok_renderer::{
     Camera, GlobalUniforms, LightUniform, RenderDevice, TextureCache, block_on,
 };
@@ -93,7 +93,8 @@ fn load_assets(grf: &GrfArchive, model_path: &str) -> Option<Gr2Assets> {
 }
 
 struct Scene {
-    renderer: Gr2ModelRenderer,
+    pipeline: Gr2ModelPipeline,
+    renderer: Gr2ModelDraw,
     assets: Gr2Assets,
     camera: Camera,
     global_uniforms: GlobalUniforms,
@@ -157,15 +158,10 @@ impl Scene {
     ) -> Option<Self> {
         let assets = load_assets(grf, &resolve_model_path(&args.model))?;
         let mut global_uniforms = GlobalUniforms::new(device);
-        let renderer = Gr2ModelRenderer::from_gr2(
-            &assets.file,
-            0,
-            device,
-            queue,
-            &global_uniforms,
-            texture_cache,
-            surface_format,
-        )?;
+        let pipeline =
+            Gr2ModelPipeline::new(device, surface_format, &global_uniforms, texture_cache);
+        let asset = Gr2ModelAsset::from_gr2(&assets.file, 0, device, queue, texture_cache)?;
+        let renderer = Gr2ModelDraw::new(device, &pipeline, std::rc::Rc::new(asset));
 
         let mut light = LightUniform::default();
         // Down-from-behind-the-camera in RO coords (negative Y is up); the
@@ -176,6 +172,7 @@ impl Scene {
         global_uniforms.update_point_lights(device, queue, &[]);
 
         let mut scene = Scene {
+            pipeline,
             renderer,
             assets,
             camera: Camera::with_aspect(aspect),
@@ -198,8 +195,8 @@ impl Scene {
     }
 
     fn frame_camera(&mut self) {
-        let c = self.renderer.center;
-        let s = self.renderer.size;
+        let c = self.renderer.asset().center;
+        let s = self.renderer.asset().size;
         // Match the model's Z-up → world -Y-up instance rotation.
         self.camera.target = glam::Vec3::new(c[0], -c[2], c[1]);
         let radius = 0.5 * (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt().max(1.0);
@@ -265,7 +262,8 @@ impl Scene {
             }),
             ..Default::default()
         });
-        self.renderer.render(&mut pass, &self.global_uniforms);
+        self.renderer
+            .render(&mut pass, &self.pipeline, &self.global_uniforms);
     }
 }
 

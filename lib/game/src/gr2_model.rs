@@ -2,6 +2,8 @@
 //! pose from the skeleton hierarchy and evaluates B-spline animation curves into
 //! per-bone skinning matrices. See <https://en.wikipedia.org/wiki/Skeletal_animation>.
 
+use std::rc::Rc;
+
 use glam::{Mat3, Mat4, Quat, Vec3};
 use ragnarok_formats::gr2::model::{Gr2Curve, Gr2File, Gr2Skeleton, Gr2Transform};
 
@@ -257,20 +259,24 @@ pub fn model_facing_yaw(direction: u8) -> f32 {
     std::f32::consts::PI - direction as f32 * (std::f32::consts::TAU / 8.0)
 }
 
-/// Per-entity GR2 animation state: the posed skeleton, one clip per action, and
-/// the currently playing action.
+/// The skeleton and clips of one `.gr2`, shared by every entity drawn with it.
+pub struct Gr2Asset {
+    pub pose: SkeletonPose,
+    pub clips: [Option<AnimationClip>; 5],
+}
+
+/// Per-entity GR2 animation state: the shared model and the currently playing
+/// action.
 pub struct Gr2ModelInstance {
-    pose: SkeletonPose,
-    clips: [Option<AnimationClip>; 5],
+    asset: Rc<Gr2Asset>,
     action: usize,
     action_start: f32,
 }
 
 impl Gr2ModelInstance {
-    pub fn new(pose: SkeletonPose, clips: [Option<AnimationClip>; 5]) -> Self {
+    pub fn new(asset: Rc<Gr2Asset>) -> Self {
         Gr2ModelInstance {
-            pose,
-            clips,
+            asset,
             action: Gr2Action::Stand.index(),
             action_start: 0.0,
         }
@@ -279,7 +285,7 @@ impl Gr2ModelInstance {
     /// Switch to `desired` when it changed, falling back to `Stand` when the
     /// model has no clip for it. Keeps the running clip's phase otherwise.
     pub fn set_action(&mut self, desired: Gr2Action, now: f32) {
-        let idx = if self.clips[desired.index()].is_some() {
+        let idx = if self.asset.clips[desired.index()].is_some() {
             desired.index()
         } else {
             Gr2Action::Stand.index()
@@ -296,7 +302,7 @@ impl Gr2ModelInstance {
 
     /// Whether the current (non-looping) action has played through once.
     pub fn action_completed(&self, now: f32) -> bool {
-        match &self.clips[self.action] {
+        match &self.asset.clips[self.action] {
             Some(clip) => now - self.action_start >= clip.duration,
             None => true,
         }
@@ -305,7 +311,7 @@ impl Gr2ModelInstance {
     /// Skinning palette at wall-clock time `now`. `Dead` holds its last frame;
     /// every other action loops.
     pub fn skinning_palette(&self, now: f32) -> Vec<Mat4> {
-        match &self.clips[self.action] {
+        match &self.asset.clips[self.action] {
             Some(clip) if clip.duration > 0.0 => {
                 let mut t = now - self.action_start;
                 if self.action == Gr2Action::Dead.index() {
@@ -313,10 +319,10 @@ impl Gr2ModelInstance {
                 } else {
                     t %= clip.duration;
                 }
-                clip.skinning_palette(&self.pose, t)
+                clip.skinning_palette(&self.asset.pose, t)
             }
-            Some(clip) => clip.skinning_palette(&self.pose, 0.0),
-            None => self.pose.bind_palette(),
+            Some(clip) => clip.skinning_palette(&self.asset.pose, 0.0),
+            None => self.asset.pose.bind_palette(),
         }
     }
 }
@@ -476,10 +482,10 @@ mod tests {
 
     #[test]
     fn instance_falls_back_to_stand_and_keeps_phase_on_repeat() {
-        let mut inst = Gr2ModelInstance::new(
-            empty_pose(),
-            [Some(clip(2.0)), None, Some(clip(1.0)), None, None],
-        );
+        let mut inst = Gr2ModelInstance::new(Rc::new(Gr2Asset {
+            pose: empty_pose(),
+            clips: [Some(clip(2.0)), None, Some(clip(1.0)), None, None],
+        }));
         // No move clip: stays on stand.
         inst.set_action(Gr2Action::Move, 5.0);
         assert_eq!(inst.action(), Gr2Action::Stand.index());

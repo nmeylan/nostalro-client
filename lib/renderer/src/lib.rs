@@ -42,7 +42,10 @@ pub use effect_sprite::{
     project_billboard,
 };
 pub use font_atlas::FontAtlas;
-pub use gr2_model::{Gr2ModelRenderer, Gr2ModelVertex, build_gr2_geometry};
+pub use gr2_model::{
+    Gr2Geometry, Gr2ModelAsset, Gr2ModelDraw, Gr2ModelPipeline, Gr2ModelVertex, Gr2TextureData,
+    build_gr2_geometry, decode_textures,
+};
 pub use grid_selector::GridSelectorRenderer;
 pub use ground::GroundRenderer;
 pub use ground_proxy::GroundProxyRenderer;
@@ -124,7 +127,11 @@ pub struct Renderer {
     pub animated_model_renderer: Option<AnimatedModelRenderer>,
     pub skill_unit_models: std::collections::HashMap<u32, ModelRenderer>,
     /// Animated GR2 entity models keyed by entity gid (emperium, guardians…).
-    pub gr2_models: std::collections::HashMap<u32, Gr2ModelRenderer>,
+    pub gr2_models: std::collections::HashMap<u32, Gr2ModelDraw>,
+    /// Geometry and textures of each loaded `.gr2`, keyed by GRF path and
+    /// shared by every entity drawn with it.
+    pub gr2_assets: std::collections::HashMap<String, std::rc::Rc<Gr2ModelAsset>>,
+    pub gr2_pipeline: Gr2ModelPipeline,
     pub water_renderer: Option<WaterRenderer>,
     pub grid_selector: Option<GridSelectorRenderer>,
     pub sprite_renderer: SpriteRenderer,
@@ -214,6 +221,13 @@ impl Renderer {
         let global_uniforms = GlobalUniforms::new(&device.device);
         let texture_cache = TextureCache::new(&device.device, dpi_scale);
 
+        let gr2_pipeline = Gr2ModelPipeline::new(
+            &device.device,
+            device.surface_format,
+            &global_uniforms,
+            &texture_cache,
+        );
+
         let font_atlas = FontAtlas::from_embedded(font_px_height, dpi_scale);
         let font_atlas_bind_group = texture::create_font_atlas_bind_group(
             &device.device,
@@ -288,6 +302,8 @@ impl Renderer {
             animated_model_renderer: None,
             skill_unit_models: std::collections::HashMap::new(),
             gr2_models: std::collections::HashMap::new(),
+            gr2_assets: std::collections::HashMap::new(),
+            gr2_pipeline,
             water_renderer: None,
             grid_selector: None,
             sprite_renderer,
@@ -857,7 +873,7 @@ impl Renderer {
                     if !self.gr2_models.is_empty() {
                         ragnarok_profiling::profile_scope!("gr2-models");
                         for model in self.gr2_models.values() {
-                            model.render(&mut pass, &self.global_uniforms);
+                            model.render(&mut pass, &self.gr2_pipeline, &self.global_uniforms);
                         }
                     }
                     if let Some(grid) = &self.grid_selector {
