@@ -52,7 +52,7 @@ pub use sprite::{
     BodyChannels, ClipQuad, CompositeClips, EntitySprite, SpriteBatch, SpriteRenderer,
     SpriteTextures, SpriteUniforms, SpriteVertex, build_clip_quad, build_clip_quad_scaled,
     build_composite_clips, build_entity_sprite, compose_actor_batches, scale_clip_vertices,
-    transform_batch_vertices, upload_sprite_textures,
+    transform_batch_vertices, upload_glyph_textures, upload_sprite_textures,
 };
 pub use texture::TextureCache;
 pub use ui_renderer::{UiDrawCommand, UiRenderer, UiVertex};

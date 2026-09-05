@@ -6,7 +6,7 @@ use ragnarok_formats::grf::GrfArchive;
 use ragnarok_game::damage_number::DamageNumberQuad;
 use ragnarok_game::sprite_loader;
 use ragnarok_renderer::font_atlas::FontAtlas;
-use ragnarok_renderer::sprite::{SpriteTextures, upload_sprite_textures};
+use ragnarok_renderer::sprite::{SpriteTextures, upload_glyph_textures};
 use ragnarok_renderer::texture::{self, TextureCache};
 use ragnarok_renderer::ui_renderer::{UiDrawCommand, UiRenderer};
 use ragnarok_renderer::{
@@ -272,7 +272,7 @@ impl App {
         };
 
         if let Some(sprite_data) = sprite_loader::load_damage_number_sprite(grf) {
-            self.num_textures = Some(upload_sprite_textures(
+            self.num_textures = Some(upload_glyph_textures(
                 &sprite_data.images,
                 sprite_data.indexed_count,
                 &device.device,
@@ -281,7 +281,7 @@ impl App {
             ));
         }
         if let Some(sprite_data) = sprite_loader::load_damage_miss_msg_sprite(grf) {
-            self.msg_textures = Some(upload_sprite_textures(
+            self.msg_textures = Some(upload_glyph_textures(
                 &sprite_data.images,
                 sprite_data.indexed_count,
                 &device.device,

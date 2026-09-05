@@ -28,7 +28,9 @@ use ragnarok_renderer::effect::holder::AfterimageSnapshot;
 use ragnarok_renderer::effect::{
     EffectFrameInputs, EffectHolder, EffectUpdateCtx, StrEffectCache, compose_effect_frame,
 };
-use ragnarok_renderer::sprite::{EntitySprite, build_entity_sprite, upload_sprite_textures};
+use ragnarok_renderer::sprite::{
+    EntitySprite, build_entity_sprite, upload_glyph_textures, upload_sprite_textures,
+};
 use ragnarok_renderer::sprite_projection::{
     cell_world_pos, project_cell_offset, project_entity_screen,
 };
@@ -184,7 +186,7 @@ impl App {
         self.accessory_table = AccessoryTable::load_from_grf(&grf);
 
         if let Some(sprite_data) = game_sprite_loader::load_damage_number_sprite(&grf) {
-            self.damage_number_textures = Some(upload_sprite_textures(
+            self.damage_number_textures = Some(upload_glyph_textures(
                 &sprite_data.images,
                 sprite_data.indexed_count,
                 &renderer.device.device,

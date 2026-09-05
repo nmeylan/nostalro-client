@@ -81,6 +81,28 @@ pub fn upload_sprite_textures(
     upload_sprite_textures_filtered(images, indexed_count, device, queue, layout, filter, upscale)
 }
 
+/// Bitmap glyphs (damage digits, the miss/crit plates, the rank and time
+/// fonts), point-sampled whatever the sprite filtering setting is: a digit is a
+/// dozen texels wide and lands on a fractional pixel, so filtering it softens
+/// the whole shape rather than a rim.
+pub fn upload_glyph_textures(
+    images: &[RgbaImageData],
+    indexed_count: usize,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+) -> SpriteTextures {
+    upload_sprite_textures_filtered(
+        images,
+        indexed_count,
+        device,
+        queue,
+        layout,
+        wgpu::FilterMode::Nearest,
+        1,
+    )
+}
+
 pub fn upload_sprite_textures_filtered(
     images: &[RgbaImageData],
     indexed_count: usize,

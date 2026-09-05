@@ -20,7 +20,8 @@ use ragnarok_game::sprite_path::{
 };
 use ragnarok_renderer::gr2_model::Gr2ModelRenderer;
 use ragnarok_renderer::{
-    EntitySprite, SpriteTextures, build_entity_sprite, upload_sprite_textures,
+    EntitySprite, SpriteTextures, build_entity_sprite, upload_glyph_textures,
+    upload_sprite_textures,
 };
 use std::rc::Rc;
 
@@ -37,6 +38,17 @@ impl App {
     pub(crate) fn upload_sprite(&self, data: &SpriteData) -> Option<SpriteTextures> {
         let renderer = self.renderer.as_ref()?;
         Some(upload_sprite_textures(
+            &data.images,
+            data.indexed_count,
+            &renderer.device.device,
+            &renderer.device.queue,
+            &renderer.texture_cache.bind_group_layout,
+        ))
+    }
+
+    pub(crate) fn upload_glyph_sprite(&self, data: &SpriteData) -> Option<SpriteTextures> {
+        let renderer = self.renderer.as_ref()?;
+        Some(upload_glyph_textures(
             &data.images,
             data.indexed_count,
             &renderer.device.device,
