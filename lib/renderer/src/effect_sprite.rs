@@ -17,6 +17,16 @@ pub struct EffectSpriteEntry {
     pub act: ActFile,
 }
 
+/// Effect sprite frames are uploaded with 4 bits of alpha.
+fn quantize_alpha(images: &mut [ragnarok_formats::spr::RgbaImageData]) {
+    for img in images {
+        for px in img.data.chunks_exact_mut(4) {
+            let q = px[3] >> 4;
+            px[3] = (q << 4) | q;
+        }
+    }
+}
+
 pub struct EffectSpriteCache {
     entries: HashMap<String, EffectSpriteEntry>,
     filtering: bool,
@@ -100,7 +110,8 @@ impl EffectSpriteCache {
             }
         };
 
-        let (images, indexed_count) = spr.to_rgba_images();
+        let (mut images, indexed_count) = spr.to_rgba_images();
+        quantize_alpha(&mut images);
         let filter = if self.filtering {
             wgpu::FilterMode::Linear
         } else {
@@ -537,4 +548,31 @@ pub fn collect_sprite_effect_draws<'cache>(
         })
     });
     draws
+}
+
+#[cfg(test)]
+mod quantize_alpha_tests {
+    use super::quantize_alpha;
+    use ragnarok_formats::spr::RgbaImageData;
+
+    #[test]
+    fn alpha_below_one_sixteenth_drops_out_and_full_alpha_survives() {
+        let mut images = vec![RgbaImageData {
+            width: 4,
+            height: 1,
+            data: vec![
+                0, 0, 0, 15, // particle1's outer ring
+                0, 0, 0, 30, // its corners
+                255, 255, 155, 0, // transparent interior
+                255, 255, 155, 255, // opaque core
+            ],
+        }];
+
+        quantize_alpha(&mut images);
+
+        assert_eq!(images[0].data[3], 0);
+        assert_eq!(images[0].data[7], 17);
+        assert_eq!(images[0].data[11], 0);
+        assert_eq!(images[0].data[15], 255);
+    }
 }

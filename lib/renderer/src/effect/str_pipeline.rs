@@ -179,12 +179,7 @@ fn load_str_texture(
     //   - magenta (FF00FF) for BMP color-keyed pixels (RO convention)
     //   - pure black for additive-blend layers (also key off black so the
     //     background doesn't add brightness)
-    ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
-    for px in rgba.pixels_mut() {
-        if px[0] == 0 && px[1] == 0 && px[2] == 0 {
-            px[3] = 0;
-        }
-    }
+    crate::texture::key_effect_texture(&mut rgba, !img.color().has_alpha());
 
     let filter = if filtering {
         wgpu::FilterMode::Linear
@@ -201,7 +196,7 @@ fn load_str_texture(
         path,
         filter,
         wgpu::TextureFormat::Rgba8UnormSrgb,
-        wgpu::AddressMode::Repeat,
+        wgpu::AddressMode::ClampToEdge,
     ))
 }
 

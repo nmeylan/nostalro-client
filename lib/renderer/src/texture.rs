@@ -262,12 +262,7 @@ pub fn load_keyed_texture(
     };
 
     let mut rgba = img.to_rgba8();
-    ragnarok_formats::apply_magenta_transparency(rgba.as_mut());
-    for px in rgba.pixels_mut() {
-        if px[0] == 0 && px[1] == 0 && px[2] == 0 {
-            px[3] = 0;
-        }
-    }
+    key_effect_texture(&mut rgba, !img.color().has_alpha());
 
     let w = rgba.width();
     let h = rgba.height();
@@ -339,6 +334,97 @@ fn decode_texture(name: &str, grf: &GrfArchive) -> Option<image::RgbaImage> {
 
 fn apply_magenta_transparency(img: &mut image::RgbaImage) {
     ragnarok_formats::apply_magenta_transparency(img.as_mut());
+}
+
+fn quantize_5bit(c: u8) -> u8 {
+    let q = c >> 3;
+    (q << 3) | (q >> 2)
+}
+
+/// Some effect bitmaps carry a leftover one-pixel frame in their outer texel row.
+const BORDER_KEY_MAX: u8 = 40;
+
+pub fn key_effect_texture(img: &mut image::RgbaImage, opaque_source: bool) {
+    ragnarok_formats::apply_magenta_transparency(img.as_mut());
+    let (w, h) = img.dimensions();
+    for (x, y, px) in img.enumerate_pixels_mut() {
+        if !opaque_source {
+            if px[0] == 0 && px[1] == 0 && px[2] == 0 {
+                px[3] = 0;
+            }
+            continue;
+        }
+        px[0] = quantize_5bit(px[0]);
+        px[1] = quantize_5bit(px[1]);
+        px[2] = quantize_5bit(px[2]);
+        let limit = if x == 0 || y == 0 || x + 1 == w || y + 1 == h {
+            BORDER_KEY_MAX
+        } else {
+            0
+        };
+        if px[0] <= limit && px[1] <= limit && px[2] <= limit {
+            px[3] = 0;
+        }
+    }
+}
+
+#[cfg(test)]
+mod key_effect_texture_tests {
+    use super::key_effect_texture;
+
+    fn image(w: u32, h: u32, px: &[[u8; 3]]) -> image::RgbaImage {
+        let raw = px
+            .iter()
+            .flat_map(|c| [c[0], c[1], c[2], 255])
+            .collect::<Vec<u8>>();
+        image::RgbaImage::from_raw(w, h, raw).unwrap()
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn opaque_source_quantizes_and_clears_the_guide_frame_but_keeps_lit_border_texels() {
+        let mut img = image(
+            4,
+            4,
+            &[
+                [255, 0, 255], [15, 15, 15], [12, 17, 64], [255, 255, 255],
+                [15, 15, 15], [15, 15, 15], [20, 20, 20], [15, 15, 15],
+                [0, 0, 0],    [0, 0, 0],    [0, 0, 0],    [255, 255, 255],
+                [15, 15, 15], [15, 15, 15], [15, 15, 15], [15, 15, 15],
+            ],
+        );
+
+        key_effect_texture(&mut img, true);
+
+        assert_eq!(img.get_pixel(0, 0).0, [0, 0, 0, 0]);
+        assert_eq!(img.get_pixel(1, 0).0, [8, 8, 8, 0]);
+        assert_eq!(img.get_pixel(2, 0).0, [8, 16, 66, 255]);
+        assert_eq!(img.get_pixel(3, 0).0, [255, 255, 255, 255]);
+        assert_eq!(img.get_pixel(0, 1).0, [8, 8, 8, 0]);
+        assert_eq!(img.get_pixel(1, 1).0, [8, 8, 8, 255]);
+        assert_eq!(img.get_pixel(2, 1).0, [16, 16, 16, 255]);
+        assert_eq!(img.get_pixel(3, 2).0, [255, 255, 255, 255]);
+        assert_eq!(img.get_pixel(1, 3).0, [8, 8, 8, 0]);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn source_with_alpha_is_left_unquantized_and_only_pure_black_is_keyed() {
+        let mut img = image(
+            3,
+            3,
+            &[
+                [15, 15, 15], [15, 15, 15], [15, 15, 15],
+                [15, 15, 15], [0, 0, 0],    [15, 15, 15],
+                [15, 15, 15], [15, 15, 15], [15, 15, 15],
+            ],
+        );
+
+        key_effect_texture(&mut img, false);
+
+        assert_eq!(img.get_pixel(0, 0).0, [15, 15, 15, 255]);
+        assert_eq!(img.get_pixel(1, 1).0, [0, 0, 0, 0]);
+    }
 }
 
 pub fn create_texture_bind_group(
