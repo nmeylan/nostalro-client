@@ -31,6 +31,7 @@ pub(crate) fn chat_room_board_rect(entry: &RenderEntry) -> [f32; 4] {
 
 const HP_BAR_WIDTH: f32 = 60.0;
 pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
+pub(crate) const CAST_BAR_HEIGHT: f32 = 7.0;
 const SP_BAR_COLOR: [f32; 4] = [0.094, 0.388, 0.871, 1.0];
 const CAST_BAR_COLOR: [f32; 4] = [0.0, 0.8, 0.0, 1.0];
 const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
@@ -161,7 +162,15 @@ impl App {
             bar_y = y;
             if let Some(sp_ratio) = self.entity_sp_ratio(entity_id) {
                 let sp_y = y + HP_BAR_HEIGHT;
-                render_bar(entry.screen_anchor[0], sp_y, sp_ratio, SP_BAR_COLOR, calls);
+                render_bar(
+                    entry.screen_anchor[0],
+                    sp_y,
+                    HP_BAR_WIDTH,
+                    HP_BAR_HEIGHT,
+                    sp_ratio,
+                    SP_BAR_COLOR,
+                    calls,
+                );
                 bar_y = sp_y;
             }
         }
@@ -266,6 +275,8 @@ impl App {
             render_bar(
                 entry.screen_anchor[0],
                 y + HP_BAR_HEIGHT,
+                HP_BAR_WIDTH,
+                HP_BAR_HEIGHT,
                 self.game.character.sp_percentage(),
                 SP_BAR_COLOR,
                 calls,
@@ -382,6 +393,8 @@ impl App {
                 render_bar(
                     entry.screen_anchor[0],
                     y + HP_BAR_HEIGHT,
+                    HP_BAR_WIDTH,
+                    HP_BAR_HEIGHT,
                     sp_ratio,
                     SP_BAR_COLOR,
                     calls,
@@ -392,6 +405,7 @@ impl App {
 
     fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         use ragnarok_game::effect::casting_skill;
+        let cast_bar_height = CAST_BAR_HEIGHT;
         if let Some(bar) = &self.game.session.progress_bar
             && let Some(entry) = render_list
                 .iter()
@@ -399,7 +413,9 @@ impl App {
         {
             render_bar(
                 entry.screen_anchor[0],
-                entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0,
+                entry.screen_anchor[1] - entry.head_offset - cast_bar_height - 2.0,
+                HP_BAR_WIDTH,
+                cast_bar_height,
                 bar.fraction(),
                 CAST_BAR_COLOR,
                 calls,
@@ -414,10 +430,12 @@ impl App {
                     .active_skill
                     .is_some_and(|skill| casting_skill(skill).hide_cast_bar)
             {
-                let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - HP_BAR_HEIGHT - 2.0;
+                let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - cast_bar_height - 2.0;
                 render_bar(
                     entry.screen_anchor[0],
                     cast_bar_y,
+                    HP_BAR_WIDTH,
+                    cast_bar_height,
                     progress,
                     CAST_BAR_COLOR,
                     calls,
@@ -455,7 +473,7 @@ impl App {
             self.build_speech_bubble(
                 &bubble.message,
                 entry.screen_anchor[0],
-                entry.screen_anchor[1] - entry.head_offset - 5.0,
+                entry.screen_anchor[1] - entry.head_offset - 10.0,
                 calls,
             );
         }
@@ -843,16 +861,18 @@ fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
 fn render_bar(
     center_x: f32,
     y: f32,
+    width: f32,
+    height: f32,
     ratio: f32,
     fill_color: [f32; 4],
     draw_calls: &mut Vec<UiDrawCall>,
 ) {
-    let border_x = center_x - HP_BAR_WIDTH / 2.0;
+    let border_x = center_x - width / 2.0;
     let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
         border_x,
         y,
-        HP_BAR_WIDTH,
-        HP_BAR_HEIGHT,
+        width,
+        height,
         [0.063, 0.094, 0.612, 1.0],
     );
     draw_calls.push(UiDrawCall {
@@ -863,8 +883,8 @@ fn render_bar(
     let (bg_verts, bg_idx) = ragnarok_ui::draw::quad_vertices(
         border_x + 1.0,
         y + 1.0,
-        HP_BAR_WIDTH - 2.0,
-        HP_BAR_HEIGHT - 2.0,
+        width - 2.0,
+        height - 2.0,
         [0.259, 0.259, 0.259, 1.0],
     );
     draw_calls.push(UiDrawCall {
@@ -873,12 +893,12 @@ fn render_bar(
         texture: UiTextureRef::White,
     });
     let fill_ratio = ratio.clamp(0.0, 1.0);
-    let fill_w = (HP_BAR_WIDTH - 2.0) * fill_ratio;
+    let fill_w = (width - 2.0) * fill_ratio;
     let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
         border_x + 1.0,
         y + 1.0,
         fill_w,
-        HP_BAR_HEIGHT - 2.0,
+        height - 2.0,
         fill_color,
     );
     draw_calls.push(UiDrawCall {
@@ -912,6 +932,8 @@ fn render_hp_bar(
     render_bar(
         center_x,
         y,
+        HP_BAR_WIDTH,
+        HP_BAR_HEIGHT,
         ratio,
         hp_bar_color(ratio, entity_type),
         draw_calls,
