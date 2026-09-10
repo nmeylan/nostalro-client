@@ -171,6 +171,7 @@ pub fn load_body_sprite(
 pub fn load_head_sprite(
     grf: &GrfArchive,
     head_id: u16,
+    job: u16,
     sex: u8,
     hair_color: u16,
     orc_face: bool,
@@ -215,7 +216,7 @@ pub fn load_head_sprite(
     };
 
     let override_palette = if hair_color > 0 {
-        let pal_path = head_palette_path(head_id, sex, hair_color);
+        let pal_path = head_palette_path(head_id, job, sex, hair_color);
         match grf.read_file(&pal_path) {
             Ok(pal_data) => match PalFile::parse(&pal_data) {
                 Ok(pal) => Some(pal.colors),
@@ -457,7 +458,7 @@ pub fn load_player_sprite_data(
     is_gm: bool,
 ) -> Option<PlayerSpriteData> {
     ragnarok_profiling::profile_function!();
-    let head = load_head_sprite(grf, head_id, sex, hair_color, orc_face);
+    let head = load_head_sprite(grf, head_id, job, sex, hair_color, orc_face);
     if is_gm {
         let body = load_sprite_data_from_spr(
             grf,
@@ -537,7 +538,7 @@ pub fn load_mercenary_sprite_data(
     let base = mercenary_sprite_path(name);
     let body = load_sprite_data(grf, &format!("{base}.spr"), &format!("{base}.act"))?;
     let head_id = (job % 23) + 1;
-    let head = load_head_sprite(grf, head_id, sex, 0, false);
+    let head = load_head_sprite(grf, head_id, job, sex, 0, false);
     let shadow = load_shadow_sprite(grf);
     let weapon_base = mercenary_weapon_sprite_path(name);
     let weapon = weapon_base

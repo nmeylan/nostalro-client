@@ -136,8 +136,8 @@ pub mod model {
 
 /// Sprite recolour palettes.
 pub mod palette {
-    pub fn head(head_id: u16, sex: &str, palette_id: u16) -> String {
-        format!("data/palette/머리/머리{head_id}_{sex}_{palette_id}.pal")
+    pub fn head(head_name: &str, sex: &str, palette_id: u16) -> String {
+        format!("data/palette/머리/머리{head_name}_{sex}_{palette_id}.pal")
     }
 
     pub fn body(job: &str, sex: &str, palette_id: u16) -> String {
@@ -375,8 +375,8 @@ pub mod sprite {
             format!("data/sprite/인간족/몸통/{sex}/{job}_{sex}")
         }
 
-        pub fn head(head_id: u16, sex: &str) -> String {
-            format!("data/sprite/인간족/머리통/{sex}/{head_id}_{sex}")
+        pub fn head(head_name: &str, sex: &str) -> String {
+            format!("data/sprite/인간족/머리통/{sex}/{head_name}_{sex}")
         }
 
         pub fn weapon(job: &str, sex: &str, suffix: &str) -> String {

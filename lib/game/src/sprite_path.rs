@@ -463,14 +463,52 @@ pub fn imf_fallback_job(job_class: u16) -> Option<u16> {
     }
 }
 
-pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
-    let sex_str = sex_kr(sex);
-    ragnarok_resources::sprite::player::head(head_id, sex_str)
+/// The hair style a character wears is an index, not a file number: each sex
+/// resolves it through its own table.
+const HEAD_NAMES_MALE: [&str; 26] = [
+    "2", "2", "1", "7", "5", "4", "3", "6", "8", "9", "10", "12", "11", "13", "14", "15", "16",
+    "17", "18", "19", "20", "21", "22", "23", "24", "25",
+];
+
+const HEAD_NAMES_FEMALE: [&str; 26] = [
+    "2", "2", "4", "7", "1", "5", "3", "6", "12", "10", "9", "11", "8", "13", "14", "15", "16",
+    "17", "18", "19", "20", "21", "22", "23", "24", "25",
+];
+
+fn clamp_head_id(head_id: u16) -> u16 {
+    if head_id as usize >= HEAD_NAMES_MALE.len() {
+        13
+    } else {
+        head_id
+    }
 }
 
-pub fn head_palette_path(head_id: u16, sex: u8, palette_id: u16) -> String {
+fn head_name(head_id: u16, sex: u8) -> &'static str {
+    let table = if sex == 0 {
+        &HEAD_NAMES_FEMALE
+    } else {
+        &HEAD_NAMES_MALE
+    };
+    table[head_id as usize]
+}
+
+pub fn head_sprite_path(head_id: u16, sex: u8) -> String {
     let sex_str = sex_kr(sex);
-    ragnarok_resources::palette::head(head_id, sex_str, palette_id)
+    ragnarok_resources::sprite::player::head(head_name(clamp_head_id(head_id), sex), sex_str)
+}
+
+/// Index 0 means "whatever suits the job", and only the palette resolves it;
+/// the sprite keeps the table entry for 0.
+pub fn head_palette_path(head_id: u16, job_class: u16, sex: u8, palette_id: u16) -> String {
+    let head_id = match clamp_head_id(head_id) {
+        0 => match job_class {
+            1..=6 => job_class + 1,
+            _ => 1,
+        },
+        id => id,
+    };
+    let sex_str = sex_kr(sex);
+    ragnarok_resources::palette::head(head_name(head_id, sex), sex_str, palette_id)
 }
 
 pub fn body_palette_path(job_class: u16, sex: u8, palette_id: u16) -> String {
@@ -907,13 +945,13 @@ mod tests {
     }
 
     #[test]
-    fn head_male_path() {
-        assert_eq!(head_sprite_path(1, 1), "data/sprite/인간족/머리통/남/1_남");
-    }
-
-    #[test]
-    fn head_female_path() {
-        assert_eq!(head_sprite_path(3, 0), "data/sprite/인간족/머리통/여/3_여");
+    fn head_index_maps_per_sex() {
+        assert_eq!(head_sprite_path(1, 1), "data/sprite/인간족/머리통/남/2_남");
+        assert_eq!(head_sprite_path(2, 1), "data/sprite/인간족/머리통/남/1_남");
+        assert_eq!(head_sprite_path(2, 0), "data/sprite/인간족/머리통/여/4_여");
+        assert_eq!(head_sprite_path(8, 0), "data/sprite/인간족/머리통/여/12_여");
+        assert_eq!(head_sprite_path(20, 0), "data/sprite/인간족/머리통/여/20_여");
+        assert_eq!(head_sprite_path(99, 1), "data/sprite/인간족/머리통/남/13_남");
     }
 
     #[test]
@@ -1117,13 +1155,26 @@ mod tests {
     #[test]
     fn head_palette_path_formats_correctly() {
         assert_eq!(
-            head_palette_path(1, 1, 3),
-            "data/palette/머리/머리1_남_3.pal"
+            head_palette_path(1, 0, 1, 3),
+            "data/palette/머리/머리2_남_3.pal"
         );
         assert_eq!(
-            head_palette_path(5, 0, 7),
+            head_palette_path(5, 0, 0, 7),
             "data/palette/머리/머리5_여_7.pal"
         );
+    }
+
+    #[test]
+    fn head_zero_palette_follows_the_job() {
+        assert_eq!(
+            head_palette_path(0, 1, 1, 2),
+            "data/palette/머리/머리1_남_2.pal"
+        );
+        assert_eq!(
+            head_palette_path(0, 0, 1, 2),
+            "data/palette/머리/머리2_남_2.pal"
+        );
+        assert_eq!(head_sprite_path(0, 1), "data/sprite/인간족/머리통/남/2_남");
     }
 
     #[test]
