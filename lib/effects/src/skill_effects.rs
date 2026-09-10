@@ -198,6 +198,7 @@ pub fn ground_placed_effect(skill: SkillEnum, level: i16) -> &'static [EffectId]
         S::HwGanbantein => &[E::Ganbantein],
         S::HtDetecting => &[E::Detecting],
         S::PrBenedictio => &[E::Benedictio],
+        S::AlPneuma => &[E::Pneuma],
         S::CrSlimpitcher if level < 6 => &[E::Slim],
         S::CrSlimpitcher if level < 10 => &[E::Slim2],
         S::CrSlimpitcher => &[E::Slim3],

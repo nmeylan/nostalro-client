@@ -4,9 +4,9 @@ const UNT_SAFETYWALL: u8 = 0x7e;
 const UNT_FIREWALL: u8 = 0x7f;
 const UNT_WARP_WAITING: u8 = 0x80;
 const UNT_WARP_ACTIVE: u8 = 0x81;
+const UNT_BENEDICTIO: u8 = 0x82;
 const UNT_SANCTUARY: u8 = 0x83;
 const UNT_MAGNUS: u8 = 0x84;
-const UNT_PNEUMA: u8 = 0x85;
 const UNT_FIREPILLAR_WAITING: u8 = 0x87;
 const UNT_FIREPILLAR_ACTIVE: u8 = 0x88;
 /// A trap that has just been sprung — the server changes the unit's look to this
@@ -58,18 +58,33 @@ const UNT_HERMODE: u8 = 0xb9;
 const UNT_SUITON: u8 = 0xbb;
 const UNT_TATAMIGAESHI: u8 = 0xbc;
 const UNT_KAEN: u8 = 0xbd;
+const UNT_GROUNDDRIFT_WIND: u8 = 0xbe;
+const UNT_GROUNDDRIFT_DARK: u8 = 0xbf;
+const UNT_GROUNDDRIFT_POISON: u8 = 0xc0;
+const UNT_GROUNDDRIFT_WATER: u8 = 0xc1;
+const UNT_GROUNDDRIFT_FIRE: u8 = 0xc2;
+const UNT_DEATHWAVE: u8 = 0xc3;
+const UNT_WATERATTACK: u8 = 0xc4;
+const UNT_WINDATTACK: u8 = 0xc5;
+const UNT_EVILLAND: u8 = 0xc7;
+const UNT_DARK_RUNNER: u8 = 0xc8;
+const UNT_DARK_TRANSFER: u8 = 0xc9;
 
-pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
+/// `effects_on` is the `/effect` toggle: the warp-portal-waiting unit is the
+/// only unit that shows a different effect with effects turned off.
+pub fn skill_unit_effect(unit_id: u8, effects_on: bool) -> Option<EffectId> {
     use EffectId as E;
     Some(match unit_id {
         UNT_SAFETYWALL => E::Glasswall2,
         UNT_FIREWALL => E::Firewall,
-        UNT_WARP_WAITING => E::Readyportal2,
-        UNT_WARP_ACTIVE => E::Portal2,
+        UNT_WARP_WAITING if effects_on => E::Portal2,
+        UNT_WARP_WAITING => E::Portal,
+        UNT_WARP_ACTIVE => E::Readyportal2,
+        UNT_BENEDICTIO => E::Benedictio,
         UNT_SANCTUARY => E::BottomSanc,
         UNT_MAGNUS => E::BottomMag,
-        UNT_PNEUMA => E::Pneuma,
-        UNT_FIREPILLAR_WAITING | UNT_FIREPILLAR_ACTIVE => E::Firepillaron,
+        UNT_FIREPILLAR_WAITING => E::Firepillaron,
+        UNT_FIREPILLAR_ACTIVE => E::Firepillarbomb,
         UNT_ICEWALL => E::Icewall,
         UNT_QUAGMIRE => E::Quagmire,
         UNT_VENOMDUST => E::Venomdust2,
@@ -88,6 +103,16 @@ pub fn skill_unit_effect(unit_id: u8) -> Option<EffectId> {
         UNT_SUITON => E::BottomSuiton,
         UNT_TATAMIGAESHI => E::Tatami,
         UNT_KAEN => E::Kaen,
+        UNT_GROUNDDRIFT_WIND => E::LightningS,
+        UNT_GROUNDDRIFT_DARK => E::BlindS,
+        UNT_GROUNDDRIFT_POISON => E::PoisonS,
+        UNT_GROUNDDRIFT_WATER => E::FreezingS,
+        UNT_GROUNDDRIFT_FIRE => E::FlareS,
+        UNT_DEATHWAVE | UNT_WATERATTACK => E::Icewall,
+        UNT_WINDATTACK => E::Firepillaron,
+        UNT_EVILLAND => E::BottomEvilland,
+        UNT_DARK_RUNNER => E::BottomRunner,
+        UNT_DARK_TRANSFER => E::BottomTransfer,
 
         UNT_LULLABY => E::BottomLullaby,
         UNT_RICHMANKIM => E::BottomRichmankim,
@@ -163,6 +188,15 @@ pub fn is_attackable_skill_unit(unit_id: u8) -> bool {
     matches!(unit_id, UNT_ICEWALL | UNT_BLASTMINE | UNT_CLAYMORETRAP)
 }
 
+/// The effect a deployed trap keeps playing on top of its model. Shock Wave
+/// Trap is the only trap that has one.
+pub fn trap_idle_effect(unit_id: u8) -> Option<EffectId> {
+    match unit_id {
+        UNT_SHOCKWAVE => Some(EffectId::Shockwave),
+        _ => None,
+    }
+}
+
 /// The one-shot burst a trap plays when a monster springs it (the trap unit
 /// becomes [`UNT_USED_TRAPS`]). Traps that only hold or teleport — Skid Trap,
 /// Ankle Snare, Land Mine, Talkie Box, Shockwave — have no trigger burst.
@@ -187,9 +221,14 @@ pub fn skill_unit_sprite_paths() -> Vec<&'static str> {
     use crate::table::effect_spec;
     let mut out = Vec::new();
     for unit_id in 0u8..=0xff {
-        for id in [skill_unit_effect(unit_id), trap_trigger_effect(unit_id)]
-            .into_iter()
-            .flatten()
+        for id in [
+            skill_unit_effect(unit_id, true),
+            skill_unit_effect(unit_id, false),
+            trap_idle_effect(unit_id),
+            trap_trigger_effect(unit_id),
+        ]
+        .into_iter()
+        .flatten()
         {
             match effect_spec(id) {
                 Some(EffectSpec::Spr { sprite, .. })
@@ -209,27 +248,71 @@ mod tests {
 
     #[test]
     fn representative_units_map_and_unknowns_are_none() {
-        assert_eq!(skill_unit_effect(UNT_FIREWALL), Some(EffectId::Firewall));
-        assert_eq!(skill_unit_effect(UNT_ICEWALL), Some(EffectId::Icewall));
-        assert_eq!(skill_unit_effect(UNT_SANCTUARY), Some(EffectId::BottomSanc));
         assert_eq!(
-            skill_unit_effect(UNT_LANDPROTECTOR),
+            skill_unit_effect(UNT_FIREWALL, true),
+            Some(EffectId::Firewall)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_ICEWALL, true),
+            Some(EffectId::Icewall)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_SANCTUARY, true),
+            Some(EffectId::BottomSanc)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_LANDPROTECTOR, true),
             Some(EffectId::BottomLa)
         );
         assert_eq!(
-            skill_unit_effect(UNT_POEMBRAGI),
+            skill_unit_effect(UNT_POEMBRAGI, true),
             Some(EffectId::BottomPoembragi)
         );
-        assert_eq!(skill_unit_effect(UNT_CALLFAMILY), Some(EffectId::Portal3));
-        assert_eq!(skill_unit_effect(0x86), None);
-        assert_eq!(skill_unit_effect(0x00), None);
+        assert_eq!(
+            skill_unit_effect(UNT_CALLFAMILY, true),
+            Some(EffectId::Portal3)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_DARK_TRANSFER, true),
+            Some(EffectId::BottomTransfer)
+        );
+        assert_eq!(skill_unit_effect(0x86, true), None);
+        assert_eq!(skill_unit_effect(0x00, true), None);
+    }
+
+    #[test]
+    fn warp_and_fire_pillar_split_by_unit_state() {
+        assert_eq!(
+            skill_unit_effect(UNT_WARP_WAITING, true),
+            Some(EffectId::Portal2)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_WARP_WAITING, false),
+            Some(EffectId::Portal)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_WARP_ACTIVE, true),
+            Some(EffectId::Readyportal2)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_WARP_ACTIVE, false),
+            Some(EffectId::Readyportal2)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_FIREPILLAR_WAITING, true),
+            Some(EffectId::Firepillaron)
+        );
+        assert_eq!(
+            skill_unit_effect(UNT_FIREPILLAR_ACTIVE, true),
+            Some(EffectId::Firepillarbomb)
+        );
     }
 
     #[test]
     fn traps_show_a_model_at_placement_and_burst_only_when_sprung() {
         // Placement: an RSM model, not a sprite effect.
-        assert_eq!(skill_unit_effect(UNT_FREEZINGTRAP), None);
-        assert_eq!(skill_unit_effect(UNT_ANKLESNARE), None);
+        assert_eq!(skill_unit_effect(UNT_FREEZINGTRAP, true), None);
+        assert_eq!(skill_unit_effect(UNT_ANKLESNARE, true), None);
         assert_eq!(
             trap_model_name(UNT_ANKLESNARE),
             Some("외부소품\\트랩01.rsm")
@@ -250,6 +333,11 @@ mod tests {
         );
         assert_eq!(trap_trigger_effect(UNT_ANKLESNARE), None);
         assert_eq!(trap_trigger_effect(UNT_SKIDTRAP), None);
+        // Idle: only Shock Wave Trap animates while it waits.
+        assert_eq!(trap_idle_effect(UNT_SHOCKWAVE), Some(EffectId::Shockwave));
+        assert_eq!(trap_trigger_effect(UNT_SHOCKWAVE), None);
+        assert_eq!(trap_idle_effect(UNT_BLASTMINE), None);
+        assert_eq!(trap_idle_effect(UNT_ANKLESNARE), None);
     }
 
     #[test]

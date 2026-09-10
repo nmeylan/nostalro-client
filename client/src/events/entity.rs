@@ -18,7 +18,8 @@ use ragnarok_game::effect::{
     OPT3_BLADESTOP, StatusKind, StatusSound, UNT_USED_TRAPS, devil_blind_effect,
     is_attackable_skill_unit, monster_opt3_reaction, opt3_bit_for_icon, opt3_bits, persistent_aura,
     player_opt3_reaction, reaction_for_efst, skill_unit_effect, skill_unit_entry_sound,
-    status_reaction, status_reaction_by_efst, trap_model_name, trap_trigger_effect,
+    status_reaction, status_reaction_by_efst, trap_idle_effect, trap_model_name,
+    trap_trigger_effect,
 };
 use ragnarok_game::entity::{ChatBubbleState, Entity, EntityState, EntityType};
 use ragnarok_game::entity_collection::GROUND_SKILL_EXEC_SECS;
@@ -1860,6 +1861,11 @@ impl App {
         // `UNT_USED_TRAPS` look change) — not at placement. A trap hidden from us
         // (cast by others) is held aside until a skill-unit update reveals it.
         if trap_model_name(unit_id).is_some() {
+            if let Some(idle) = trap_idle_effect(unit_id)
+                && !self.effect_holder.reposition_by_key(aid, world)
+            {
+                self.effect_queue.spawn_at_keyed(idle, world, aid);
+            }
             let trap = TrapUnit {
                 unit_id,
                 world,
@@ -1887,7 +1893,7 @@ impl App {
                 },
             );
         }
-        let Some(effect) = skill_unit_effect(unit_id) else {
+        let Some(effect) = skill_unit_effect(unit_id, self.config.show_skill_effects) else {
             return;
         };
         if self.effect_holder.reposition_by_key(aid, world) {
