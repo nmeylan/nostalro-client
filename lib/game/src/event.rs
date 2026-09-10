@@ -1461,7 +1461,6 @@ pub enum GameEvent {
     },
     MakingItemResult {
         result: i16,
-        item_id: u16,
     },
     RequestMakingItem {
         item_id: u16,
@@ -1473,6 +1472,11 @@ pub enum GameEvent {
     WeaponRefineResult {
         result: i32,
         item_id: u16,
+    },
+    ItemRefiningResult {
+        index: u16,
+        refine: u8,
+        result: i16,
     },
     RequestWeaponRefine {
         index: i32,

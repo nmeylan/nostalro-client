@@ -295,7 +295,7 @@ impl App {
         let Some((msg_id, color)) = map_info_notice(atype) else {
             return;
         };
-        self.add_msg_string_line(msg_id, color);
+        self.add_msg_string_line(msg_id, &[], color);
     }
 
     pub(super) fn handle_action_failure(&mut self, error_code: i16) {
@@ -303,7 +303,7 @@ impl App {
         let Some((msg_id, color)) = action_failure_notice(error_code, job) else {
             return;
         };
-        self.add_msg_string_line(msg_id, color);
+        self.add_msg_string_line(msg_id, &[], color);
     }
 
     pub(super) fn handle_server_colored_message(
@@ -321,14 +321,13 @@ impl App {
             .add_message(message, bgr(color), ChatChannel::System);
     }
 
-    fn add_msg_string_line(&mut self, msg_id: u16, color: [f32; 4]) {
+    pub(super) fn add_msg_string_line(&mut self, msg_id: u16, args: &[&str], color: [f32; 4]) {
         let Some(line) = self
             .game
             .data_table
             .msg_string
             .as_ref()
-            .and_then(|t| t.get(msg_id))
-            .map(str::to_string)
+            .and_then(|t| t.format(msg_id, args))
         else {
             tracing::debug!("Unknown server msg id {msg_id}");
             return;

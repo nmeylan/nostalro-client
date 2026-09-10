@@ -167,18 +167,6 @@ impl ConfirmDialog {
         ui.ensure_in_z_order_with(WINDOW_ID, WindowOrder::Foreground);
         ui.enter_window(WINDOW_ID, screen);
         ui.interact(OVERLAY_ID, screen);
-        let (v, i) = draw::quad_vertices(
-            0.0,
-            0.0,
-            ui.ctx.screen_width,
-            ui.ctx.screen_height,
-            [0.0, 0.0, 0.0, 0.5],
-        );
-        ui.draw_calls.push(DrawCall {
-            vertices: v.to_vec(),
-            indices: i.to_vec(),
-            texture: TextureRef::White,
-        });
 
         let (dialog_w, base_h) = self.win_size;
         let text_w = dialog_w - PADDING * 2.0;

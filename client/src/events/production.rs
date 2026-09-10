@@ -1,10 +1,37 @@
 use crate::App;
+use models::enums::effect_id::EffectId;
 use models::enums::skill_enums::SkillEnum;
 use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::entity::EntityState;
 use ragnarok_game::event::{RefineItemRow, VendorItem};
 use ragnarok_game::skill::{ItemSkill, SkillTargetType, skill_icon_path};
 use ragnarok_ui_component::game::item_list_selection_window::{ListContext, ListRow};
+use ragnarok_ui_component::helper::colors::{CYAN, RED};
+
+const MSI_CANT_MAKE_ITEM: u16 = 0x1a8;
+const MSI_ITEM_IDENTIFY_SUCCEESS: u16 = 0x1eb;
+const MSI_ITEM_IDENTIFY_FAIL: u16 = 0x1ec;
+const MSI_ITEM_REFINING_SUCCEESS: u16 = 0x1f2;
+const MSI_ITEM_REFINING_FAIL: u16 = 0x1f3;
+const MSI_ITEM_REPAIR_SUCCEESS: u16 = 0x32d;
+const MSI_ITEM_REPAIR_FAIL: u16 = 0x32e;
+const MSI_ITEM_REFINE_SUCCEESS: u16 = 0x38f;
+const MSI_ITEM_REFINE_FAIL: u16 = 0x390;
+const MSI_ITEM_REFINE_FAIL_LEVEL: u16 = 0x391;
+const MSI_ITEM_REFINE_FAIL_MATERIAL: u16 = 0x392;
+
+const REFINE_FAILED_COLOR: [f32; 4] = [0.0, 205.0 / 255.0, 205.0 / 255.0, 1.0];
+const REFINE_REFUSED_COLOR: [f32; 4] = [1.0, 200.0 / 255.0, 200.0 / 255.0, 1.0];
+
+fn weapon_refine_notice(result: i32) -> Option<(u16, [f32; 4])> {
+    match result {
+        0 => Some((MSI_ITEM_REFINE_SUCCEESS, CYAN)),
+        1 => Some((MSI_ITEM_REFINE_FAIL, REFINE_FAILED_COLOR)),
+        2 => Some((MSI_ITEM_REFINE_FAIL_LEVEL, REFINE_REFUSED_COLOR)),
+        3 => Some((MSI_ITEM_REFINE_FAIL_MATERIAL, REFINE_REFUSED_COLOR)),
+        _ => None,
+    }
+}
 
 impl App {
     fn resolve_name_icon(&self, item_id: u16, is_identified: bool) -> (String, Option<String>) {
@@ -82,7 +109,7 @@ impl App {
     }
 
     pub(crate) fn handle_item_identify_result(&mut self, index: i16, ok: bool) {
-        let msg = if ok {
+        if ok {
             let icon_path = self
                 .game
                 .character
@@ -91,11 +118,10 @@ impl App {
             if let Some(path) = icon_path {
                 self.preload_item_icons(vec![path]);
             }
-            "Item appraised.".to_string()
+            self.add_msg_string_line(MSI_ITEM_IDENTIFY_SUCCEESS, &[], CYAN);
         } else {
-            "Appraisal failed.".to_string()
-        };
-        self.windows.chat_window.add_system(msg);
+            self.add_msg_string_line(MSI_ITEM_IDENTIFY_FAIL, &[], RED);
+        }
     }
 
     pub(crate) fn handle_auto_cast_skill(
@@ -133,6 +159,9 @@ impl App {
     }
 
     pub(crate) fn handle_auto_spell_list(&mut self, skills: Vec<SkillEnum>) {
+        if skills.is_empty() {
+            return;
+        }
         let rows: Vec<ListRow> = skills
             .iter()
             .map(|&skill| {
@@ -156,6 +185,10 @@ impl App {
     }
 
     pub(crate) fn handle_weapon_refine_list(&mut self, items: Vec<RefineItemRow>) {
+        if items.is_empty() {
+            self.show_cant_make_item();
+            return;
+        }
         let rows: Vec<ListRow> = items.iter().map(|r| self.refine_row(r)).collect();
         self.windows.item_list_selection_window.open(
             "Refine Weapon",
@@ -165,16 +198,33 @@ impl App {
     }
 
     pub(crate) fn handle_weapon_refine_result(&mut self, result: i32, item_id: u16) {
-        let (name, _) = self.resolve_name_icon(item_id, true);
-        let msg = match result {
-            0 | 1 => format!("{name} was successfully refined."),
-            2 => "You need a higher skill level to refine this.".to_string(),
-            _ => format!("Failed to refine {name}."),
+        let Some((msg_id, color)) = weapon_refine_notice(result) else {
+            return;
         };
-        self.windows.chat_window.add_system(msg);
+        let (name, _) = self.resolve_name_icon(item_id, true);
+        self.add_msg_string_line(msg_id, &[&name], color);
+    }
+
+    pub(crate) fn handle_item_refining_result(&mut self, index: u16, refine: u8, result: i16) {
+        match result {
+            0 => {
+                self.spawn_effect_on_player(EffectId::Refineok);
+                self.add_msg_string_line(MSI_ITEM_REFINING_SUCCEESS, &[], CYAN);
+            }
+            1 => {
+                self.spawn_effect_on_player(EffectId::Refinefail);
+                self.add_msg_string_line(MSI_ITEM_REFINING_FAIL, &[], CYAN);
+            }
+            _ => {}
+        }
+        self.game.character.inventory.set_refine(index, refine);
     }
 
     pub(crate) fn handle_repair_item_list(&mut self, target_aid: u32, items: Vec<RefineItemRow>) {
+        if items.is_empty() {
+            self.show_cant_make_item();
+            return;
+        }
         let rows: Vec<ListRow> = items.iter().map(|r| self.refine_row(r)).collect();
         self.windows.item_list_selection_window.open(
             "Repair Weapon",
@@ -184,15 +234,19 @@ impl App {
     }
 
     pub(crate) fn handle_repair_item_result(&mut self, _index: i16, ok: bool) {
-        let msg = if ok {
-            "The weapon was repaired.".to_string()
+        let (msg_id, color) = if ok {
+            (MSI_ITEM_REPAIR_SUCCEESS, CYAN)
         } else {
-            "Repair failed.".to_string()
+            (MSI_ITEM_REPAIR_FAIL, RED)
         };
-        self.windows.chat_window.add_system(msg);
+        self.add_msg_string_line(msg_id, &[], color);
     }
 
     pub(crate) fn handle_makable_item_list(&mut self, item_ids: Vec<u16>) {
+        if item_ids.is_empty() {
+            self.show_cant_make_item();
+            return;
+        }
         let rows: Vec<(u16, String, Option<String>)> = item_ids
             .iter()
             .map(|&id| {
@@ -210,13 +264,33 @@ impl App {
         self.windows.make_item_window.open(rows);
     }
 
-    pub(crate) fn handle_making_item_result(&mut self, result: i16, item_id: u16) {
-        let (name, _) = self.resolve_name_icon(item_id, true);
-        let msg = match result {
-            0 | 2 => format!("Successfully created {name}."),
-            _ => format!("Failed to create {name}."),
+    pub(crate) fn handle_making_item_result(&mut self, result: i16) {
+        self.spawn_effect_on_player(match result {
+            0 => EffectId::Refineok,
+            1 => EffectId::Refinefail,
+            2 => EffectId::PharmacyOk,
+            _ => EffectId::PharmacyFail,
+        });
+    }
+
+    fn spawn_effect_on_player(&mut self, effect: EffectId) {
+        if let Some(player_id) = self.game.world.entities.player_id() {
+            self.effect_queue.spawn_on(effect, player_id);
+        }
+    }
+
+    fn show_cant_make_item(&mut self) {
+        let Some(message) = self
+            .game
+            .data_table
+            .msg_string
+            .as_ref()
+            .and_then(|t| t.get(MSI_CANT_MAKE_ITEM))
+            .map(str::to_string)
+        else {
+            return;
         };
-        self.windows.chat_window.add_system(msg);
+        self.windows.confirm_dialog.show(&message, false, |_| {});
     }
 
     pub(crate) fn handle_vending_shop_list(
@@ -348,5 +422,19 @@ impl App {
                 .chat_window
                 .add_system("Failed to open your shop.".to_string());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weapon_refine_notice_colors_the_refused_results_apart_from_the_attempted_ones() {
+        assert_eq!(weapon_refine_notice(0), Some((0x38f, CYAN)));
+        assert_eq!(weapon_refine_notice(1), Some((0x390, REFINE_FAILED_COLOR)));
+        assert_eq!(weapon_refine_notice(2), Some((0x391, REFINE_REFUSED_COLOR)));
+        assert_eq!(weapon_refine_notice(3), Some((0x392, REFINE_REFUSED_COLOR)));
+        assert_eq!(weapon_refine_notice(4), None);
     }
 }

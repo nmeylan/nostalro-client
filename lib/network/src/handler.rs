@@ -2917,10 +2917,7 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::MakableItemList { item_ids }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcAckReqmakingitem>() {
-        return vec![GameEvent::MakingItemResult {
-            result: p.result,
-            item_id: p.itid,
-        }];
+        return vec![GameEvent::MakingItemResult { result: p.result }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcNotifyWeaponitemlist>() {
         let items = p.item_list.iter().map(refine_row_from).collect();
@@ -2930,6 +2927,13 @@ pub fn dispatch_packet(packet: &dyn Packet, packetver: u32) -> Vec<GameEvent> {
         return vec![GameEvent::WeaponRefineResult {
             result: p.msg,
             item_id: p.itid,
+        }];
+    }
+    if let Some(p) = any.downcast_ref::<PacketZcAckItemrefining>() {
+        return vec![GameEvent::ItemRefiningResult {
+            index: p.item_index as u16,
+            refine: p.refining_level as u8,
+            result: p.result,
         }];
     }
     if let Some(p) = any.downcast_ref::<PacketZcRepairitemlist>() {
@@ -4829,6 +4833,27 @@ mod tests {
                 assert_eq!(*value2, 0);
             }
             other => panic!("expected EntitySpriteChanged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dispatch_ack_itemrefining_returns_item_refining_result() {
+        let packetver = 20120307;
+        let mut pkt = PacketZcAckItemrefining::new(packetver);
+        pkt.set_result(1);
+        pkt.set_item_index(7);
+        pkt.set_refining_level(4);
+        match &dispatch_packet(&pkt, packetver)[0] {
+            GameEvent::ItemRefiningResult {
+                index,
+                refine,
+                result,
+            } => {
+                assert_eq!(*index, 7);
+                assert_eq!(*refine, 4);
+                assert_eq!(*result, 1);
+            }
+            other => panic!("expected ItemRefiningResult, got {other:?}"),
         }
     }
 

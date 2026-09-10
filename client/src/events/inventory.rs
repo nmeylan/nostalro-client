@@ -9,8 +9,12 @@ use ragnarok_game::item::Item;
 use ragnarok_ui_component::Window as UiWindow;
 use ragnarok_ui_component::game::card_insert_dialog::{CardInsertDialog, EligibleItem};
 use ragnarok_ui_component::game::chat_window::ChatChannel;
+use ragnarok_ui_component::helper::colors::{CYAN, RED};
 
 const BIND_ON_EQUIP_COLOR: [f32; 4] = [1.0, 1.0, 0.431, 1.0];
+
+const MSI_ITEM_COMPOUNDING_SUCCEESS: u16 = 0x1ed;
+const MSI_ITEM_COMPOUNDING_FAIL: u16 = 0x1ee;
 
 impl App {
     pub(crate) fn item_is_book(&self, item_id: u16) -> bool {
@@ -419,10 +423,9 @@ impl App {
                     .inventory
                     .insert_card(equip_index, card_item_id);
             }
+            self.add_msg_string_line(MSI_ITEM_COMPOUNDING_SUCCEESS, &[], CYAN);
         } else {
-            self.windows
-                .chat_window
-                .add_system("Card insertion failed.".to_string());
+            self.add_msg_string_line(MSI_ITEM_COMPOUNDING_FAIL, &[], RED);
         }
     }
 }

@@ -115,6 +115,12 @@ impl InventoryData {
         }
     }
 
+    pub fn set_refine(&mut self, index: u16, refining_level: u8) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.index == index) {
+            item.refining_level = refining_level;
+        }
+    }
+
     pub fn insert_card(&mut self, equip_index: u16, card_item_id: u16) {
         if let Some(item) = self.items.iter_mut().find(|i| i.index == equip_index)
             && let Some(slot) = item.slot.iter_mut().find(|s| **s == 0)

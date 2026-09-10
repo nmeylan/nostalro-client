@@ -1521,6 +1521,13 @@ impl App {
                 GameEvent::WeaponRefineResult { result, item_id } => {
                     self.handle_weapon_refine_result(result, item_id);
                 }
+                GameEvent::ItemRefiningResult {
+                    index,
+                    refine,
+                    result,
+                } => {
+                    self.handle_item_refining_result(index, refine, result);
+                }
                 GameEvent::RepairItemList { items } => {
                     let target_aid = self
                         .game
@@ -1538,8 +1545,8 @@ impl App {
                 GameEvent::MakableItemList { item_ids } => {
                     self.handle_makable_item_list(item_ids);
                 }
-                GameEvent::MakingItemResult { result, item_id } => {
-                    self.handle_making_item_result(result, item_id);
+                GameEvent::MakingItemResult { result } => {
+                    self.handle_making_item_result(result);
                 }
                 GameEvent::OpenVendingSetup { max_items } => {
                     self.handle_open_vending_setup(max_items);
