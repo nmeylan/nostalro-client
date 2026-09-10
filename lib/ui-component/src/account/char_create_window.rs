@@ -56,7 +56,7 @@ const CANCEL_RIGHT: f32 = 4.0;
 
 const NAME_MAX_LEN: usize = 23;
 const HEAD_MIN: u16 = 1;
-const HEAD_MAX: u16 = 26;
+const HEAD_MAX: u16 = 25;
 const HAIR_COLOR_COUNT: u16 = 9;
 
 // Stat indices: 0=STR 1=AGI 2=VIT 3=INT 4=DEX 5=LUK.

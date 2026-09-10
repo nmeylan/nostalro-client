@@ -296,7 +296,7 @@ pub fn collect(
             probe!(sp::head_sprite_path(head, sex), Origin::Table("head ids"));
             for palette in 0..opts.max_palette_id {
                 probe!(
-                    sp::head_palette_path(head, sex, palette),
+                    sp::head_palette_path(head, 0, sex, palette),
                     Origin::Table("head ids"),
                 );
             }

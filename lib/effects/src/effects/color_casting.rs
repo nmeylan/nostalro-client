@@ -28,7 +28,29 @@ pub const DARK: SaintCastingConfig = SaintCastingConfig {
     reset_rise_deg: 74.0,
 };
 
-pub const TEXTURES: &[&str] = &["ring_blue.tga", "ring_black.tga"];
+/// `BeginSpellWhite` and `BeginSpellRed` are `SAINTCASTING(_, _, 1)` like
+/// `EF_BEGINSPELL`, differing only in texture.
+pub const SPELL_WHITE: SaintCastingConfig = SaintCastingConfig {
+    texture: "ring_blue.tga",
+    pass_textures: None,
+    max_heights: DEFAULT_HEIGHTS,
+    color_rgb: [1.0, 1.0, 170.0 / 255.0],
+    blend: BlendKind::Additive,
+    refill_per_frame: 10.0,
+    reset_rise_deg: 74.0,
+};
+
+pub const SPELL_RED: SaintCastingConfig = SaintCastingConfig {
+    texture: "ring_red2.tga",
+    pass_textures: None,
+    max_heights: DEFAULT_HEIGHTS,
+    color_rgb: [1.0, 1.0, 170.0 / 255.0],
+    blend: BlendKind::Additive,
+    refill_per_frame: 10.0,
+    reset_rise_deg: 74.0,
+};
+
+pub const TEXTURES: &[&str] = &["ring_blue.tga", "ring_black.tga", "ring_red2.tga"];
 
 pub struct ColorCastingEffect(SaintCastingEffect);
 
@@ -83,7 +105,7 @@ mod tests {
         list.primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::Frustum {
+                EffectPrimitiveDraw::RadialRing {
                     texture,
                     color,
                     blend,

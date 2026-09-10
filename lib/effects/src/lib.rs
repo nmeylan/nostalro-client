@@ -126,7 +126,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::fullscreen_overlay::TEXTURES,
         effects::begin_spell_6::TEXTURES,
         effects::begin_spell::TEXTURES,
-        effects::begin_spell_8::TEXTURES,
+        effects::beginspell_n::TEXTURES,
         effects::aura_blade::TEXTURES,
         effects::couple_casting::TEXTURES,
         effects::stormgust::TEXTURES,

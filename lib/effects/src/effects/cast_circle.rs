@@ -1,73 +1,84 @@
-use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
-use crate::spec::Attach;
+use crate::radial_emitter::RADIAL_EMITTER_DIVISION;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
-const TOTAL_FRAMES: f32 = 56.0;
-pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+const MIN_FRAMES: f32 = 70.0;
+pub const TOTAL_DURATION_MS: u32 = (MIN_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
 
-const WORLD_SCALE: f32 = 0.75;
-const COLUMN_HEIGHT_SCALE: f32 = 0.5;
-const NUM_PETALS: usize = 3;
-const PETAL_ALPHA_MAX: f32 = 180.0 / 255.0;
-const COLUMN_ALPHA_MAX: f32 = 70.0 / 255.0;
-const RING_ALPHA_MAX: f32 = 120.0 / 255.0;
+const DIVISION: usize = RADIAL_EMITTER_DIVISION;
+const SEGMENTS: u32 = (RADIAL_EMITTER_DIVISION - 1) as u32;
+const NUM_GI: usize = 4;
+const PILLAR: usize = 3;
 
-const FADE_FRAMES: f32 = 8.0;
+const LOBE_STEP_DEG: f32 = 9.0;
+const GROW_FRAMES: i32 = 90;
+const FADE_IN_FRAMES: i32 = 20;
+const FADE_OUT_LEAD: f32 = 40.0;
+const SKIRT_ALPHA_STEP: f32 = 10.0;
+const SKIRT_ALPHA_CAP: f32 = 180.0;
+const SKIRT_FADE_OUT: f32 = 5.0;
+const PILLAR_ALPHA_STEP: f32 = 8.0;
+const PILLAR_ALPHA_CAP: f32 = 60.0;
+const PILLAR_ALPHA_CAP_BREATHING: f32 = 100.0;
+const PILLAR_FADE_OUT: f32 = 2.0;
+const PILLAR_FADE_OUT_BREATHING: f32 = 3.0;
+const BREATH_BASE: f32 = 0.55;
+const BREATH_SWING: f32 = 0.45;
+const SIZE3_ALPHA: f32 = 80.0;
+/// The skirt renders at the reference's own units; the pillar is the one
+/// element whose literal does not survive the trip to our world scale.
+const PILLAR_SCALE: f32 = 0.75;
 
-const COLUMN_SIDES: u32 = 12;
-const COLUMN_UV_REPEAT: f32 = 3.0;
-const COLUMN_GROWTH_FRAMES: f32 = 12.0;
-const COLUMN_RISE_ANGLE_DEG: f32 = 89.0;
+/// Vertex `i` stays down until `process > i * REVEAL_FRAMES_PER_VERTEX`, so the
+/// blade unrolls from `rot_start` instead of rising everywhere at once. The
+/// reference capture widens from a sliver to full width over ~25 ticks across
+/// the 21 vertices.
+const REVEAL_FRAMES_PER_VERTEX: i32 = 2;
 
-const RING_UV_REPEAT: f32 = 1.0;
-const RING_TEXTURE: &str = "alpha_down.tga";
+struct GiSeed {
+    arc_deg: f32,
+    max_height: f32,
+    distance: f32,
+    rise_deg: f32,
+    rot_start_deg: f32,
+    alpha_b: f32,
+}
 
-const PETAL_SIDES: u32 = 20;
-const PETAL_UV_REPEAT: f32 = 1.0;
-const PETAL_ARC_DEG: f32 = 315.0;
-const PETAL_RISE_ANGLES_DEG: [f32; NUM_PETALS] = [70.0, 57.0, 45.0];
-const PETAL_ROT_SPEED_DEG_PER_FRAME: f32 = 4.0;
+const GI_SEEDS: [GiSeed; NUM_GI] = [
+    GiSeed { arc_deg: 315.0, max_height: 25.0, distance: 4.5, rise_deg: 70.0, rot_start_deg: 0.0, alpha_b: 180.0 },
+    GiSeed { arc_deg: 315.0, max_height: 22.0, distance: 5.0, rise_deg: 57.0, rot_start_deg: 90.0, alpha_b: 180.0 },
+    GiSeed { arc_deg: 315.0, max_height: 19.0, distance: 5.5, rise_deg: 45.0, rot_start_deg: 180.0, alpha_b: 180.0 },
+    GiSeed { arc_deg: 360.0, max_height: 250.0, distance: 4.0, rise_deg: 89.0, rot_start_deg: 0.0, alpha_b: 70.0 },
+];
 
 #[derive(Clone, Copy, Debug)]
 pub struct CastCircleParams {
     pub texture: &'static str,
-    pub color_rgb: [f32; 3],
-    pub column_max_height: f32,
-    pub column_radius: f32,
-    pub ring_radius: f32,
-    pub ring_thickness: f32,
-    pub petal_distances: [f32; NUM_PETALS],
-    pub petal_heights: [f32; NUM_PETALS],
+    /// `BeginCasting`'s `option`. 33 selects the breathing-pillar variant; 3
+    /// draws the pillar alone.
+    pub option: u8,
 }
 
-const fn spell_cast(texture: &'static str, r: f32, g: f32, b: f32) -> CastCircleParams {
-    CastCircleParams {
-        texture,
-        color_rgb: [r, g, b],
-        column_max_height: 250.0,
-        column_radius: 4.0,
-        ring_radius: 4.0,
-        ring_thickness: 2.0,
-        petal_distances: [4.5, 5.0, 5.5],
-        petal_heights: [25.0, 22.0, 19.0],
-    }
+const fn casting(texture: &'static str, option: u8) -> CastCircleParams {
+    CastCircleParams { texture, option }
 }
 
-pub const YELLOW: CastCircleParams = spell_cast("ring_yellow.tga", 1.00, 1.00, 1.00);
-pub const WATER: CastCircleParams = spell_cast("ring_blue.tga", 1.00, 1.00, 1.00);
-pub const FIRE: CastCircleParams = spell_cast("ring_red.tga", 1.00, 1.00, 1.00);
-pub const WIND: CastCircleParams = spell_cast("ring_white.tga", 1.00, 1.00, 1.00);
-pub const EARTH: CastCircleParams = spell_cast("ring_yellow.tga", 1.00, 1.00, 1.00);
-pub const HOLY: CastCircleParams = spell_cast("ring_white.tga", 1.00, 1.00, 1.00);
-pub const POISON: CastCircleParams = spell_cast("ring_purple.tga", 1.00, 1.00, 1.00);
-pub const RED: CastCircleParams = spell_cast("ring_red.tga", 1.00, 1.00, 1.00);
-pub const WHITE: CastCircleParams = spell_cast("ring_white.tga", 1.00, 1.00, 1.00);
-pub const N_BLUE: CastCircleParams = spell_cast("ring_blue.tga", 1.00, 1.00, 1.00);
+pub const BEGINSPELL2: CastCircleParams = casting("ring_blue.tga", 2);
+pub const BEGINSPELL3: CastCircleParams = casting("ring_yellow.tga", 1);
+pub const BEGINSPELL4: CastCircleParams = casting("Magic_Green.tga", 33);
+pub const BEGINSPELL5: CastCircleParams = casting("ring_yellow.tga", 0);
+pub const BEGINSPELL7: CastCircleParams = casting("Magic_Violet.tga", 33);
+pub const BEGINSPELL8: CastCircleParams = casting("ring_green.tga", 1);
 
-pub const DARK: CastCircleParams = spell_cast("ring_black.tga", 1.00, 1.00, 1.00);
-pub const FLAME: CastCircleParams = spell_cast("ring_jadu.tga", 1.00, 1.00, 1.00);
-pub const EARTH_BROWN: CastCircleParams = spell_cast("ring_brown.tga", 1.00, 1.00, 1.00);
+pub const CHANGE_FIRE: CastCircleParams = casting("ring_red.tga", 3);
+pub const CHANGE_COLD: CastCircleParams = casting("ring_blue.tga", 3);
+pub const CHANGE_DARK: CastCircleParams = casting("ring_black.tga", 3);
+pub const CHANGE_WIND: CastCircleParams = casting("ring_yellow.tga", 3);
+pub const CHANGE_FLAME: CastCircleParams = casting("ring_jadu.tga", 3);
+pub const CHANGE_EARTH: CastCircleParams = casting("ring_brown.tga", 3);
+pub const CHANGE_HOLY: CastCircleParams = casting("ring_white.tga", 3);
+pub const CHANGE_POISON: CastCircleParams = casting("ring_purple.tga", 3);
 
 pub const TEXTURES: &[&str] = &[
     "ring_yellow.tga",
@@ -78,31 +89,190 @@ pub const TEXTURES: &[&str] = &[
     "ring_black.tga",
     "ring_jadu.tga",
     "ring_brown.tga",
-    "alpha_down.tga",
+    "ring_green.tga",
+    "Magic_Green.tga",
+    "Magic_Violet.tga",
 ];
+
+fn sin_deg(deg: f32) -> f32 {
+    deg.to_radians().sin()
+}
+
+struct Appearance {
+    rgb: [f32; 3],
+    fixed_alpha: Option<f32>,
+    blend: BlendKind,
+}
+
+fn appearance(size: u8) -> Appearance {
+    match size {
+        1 => Appearance {
+            rgb: [1.0, 175.0 / 255.0, 175.0 / 255.0],
+            fixed_alpha: None,
+            blend: BlendKind::Additive,
+        },
+        2 => Appearance {
+            rgb: [195.0 / 255.0, 195.0 / 255.0, 1.0],
+            fixed_alpha: None,
+            blend: BlendKind::Alpha,
+        },
+        3 => Appearance {
+            rgb: [1.0, 1.0, 1.0],
+            fixed_alpha: Some(SIZE3_ALPHA),
+            blend: BlendKind::Alpha,
+        },
+        _ => Appearance {
+            rgb: [1.0, 1.0, 1.0],
+            fixed_alpha: None,
+            blend: BlendKind::Alpha,
+        },
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Gi {
+    arc_deg: f32,
+    max_height: f32,
+    distance: f32,
+    rise_deg: f32,
+    rot_start_deg: f32,
+    alpha_b: f32,
+    process: i32,
+    heights: [f32; DIVISION],
+    frozen: [bool; DIVISION],
+}
+
+impl Gi {
+    fn from_seed(seed: &GiSeed) -> Self {
+        Self {
+            arc_deg: seed.arc_deg,
+            max_height: seed.max_height,
+            distance: seed.distance,
+            rise_deg: seed.rise_deg,
+            rot_start_deg: seed.rot_start_deg,
+            alpha_b: seed.alpha_b,
+            process: 0,
+            heights: [0.0; DIVISION],
+            frozen: [false; DIVISION],
+        }
+    }
+
+    fn ceiling(&self, i: usize) -> f32 {
+        self.max_height * sin_deg(i as f32 * LOBE_STEP_DEG)
+    }
+
+    fn step(&mut self, ec: usize, duration_frames: f32, breathing: bool) {
+        self.process += 1;
+        if ec < PILLAR {
+            self.rot_start_deg = (self.rot_start_deg + ec as f32 + 3.0).rem_euclid(360.0);
+        }
+
+        let p = self.process as f32;
+        if p >= duration_frames - FADE_OUT_LEAD {
+            let step = if ec == PILLAR {
+                if breathing {
+                    PILLAR_FADE_OUT_BREATHING
+                } else {
+                    PILLAR_FADE_OUT
+                }
+            } else {
+                SKIRT_FADE_OUT
+            };
+            self.alpha_b = (self.alpha_b - step).max(0.0);
+        } else if self.process < FADE_IN_FRAMES {
+            if ec == PILLAR {
+                let cap = if breathing {
+                    PILLAR_ALPHA_CAP_BREATHING
+                } else {
+                    PILLAR_ALPHA_CAP
+                };
+                self.alpha_b = (self.alpha_b + PILLAR_ALPHA_STEP).min(cap);
+            } else {
+                self.alpha_b = (self.alpha_b + SKIRT_ALPHA_STEP).min(SKIRT_ALPHA_CAP);
+            }
+        }
+
+        if breathing && ec == PILLAR {
+            self.step_breathing_heights();
+        } else {
+            self.step_revealed_heights();
+        }
+    }
+
+    fn step_revealed_heights(&mut self) {
+        for i in 0..DIVISION {
+            if self.process <= i as i32 * REVEAL_FRAMES_PER_VERTEX {
+                continue;
+            }
+            let ceiling = self.ceiling(i);
+            if self.process <= GROW_FRAMES {
+                self.heights[i] = ceiling * sin_deg(self.process as f32);
+            }
+            if self.heights[i] > ceiling {
+                self.heights[i] = ceiling;
+            }
+            if self.heights[i] < 0.0 {
+                self.heights[i] = 0.0;
+            }
+        }
+    }
+
+    fn step_breathing_heights(&mut self) {
+        for i in 0..DIVISION {
+            let ceiling = self.ceiling(i);
+            if self.frozen[i] {
+                let phase = (self.process % 360) as f32;
+                self.heights[i] = ceiling * BREATH_BASE + ceiling * BREATH_SWING * sin_deg(phase);
+                continue;
+            }
+            if self.process <= GROW_FRAMES {
+                self.heights[i] = ceiling * sin_deg(self.process as f32);
+            } else {
+                self.frozen[i] = true;
+            }
+            if self.heights[i] > ceiling {
+                self.frozen[i] = true;
+            }
+            if self.heights[i] < 0.0 {
+                self.heights[i] = 0.0;
+            }
+        }
+    }
+}
 
 pub struct CastCircleEffect {
     params: CastCircleParams,
     world_pos: [f32; 3],
+    gis: Vec<Gi>,
     age: f32,
     life_frames: f32,
 }
 
 impl CastCircleEffect {
     pub fn new(world_pos: [f32; 3], params: CastCircleParams) -> Self {
+        let first = if params.option == 3 { PILLAR } else { 0 };
         Self {
             params,
             world_pos,
+            gis: GI_SEEDS[first..].iter().map(Gi::from_seed).collect(),
             age: 0.0,
-            life_frames: TOTAL_FRAMES,
+            life_frames: MIN_FRAMES,
         }
     }
 
     pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
         if let Some(ms) = ms {
-            self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(1.0);
+            self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(MIN_FRAMES);
         }
         self
+    }
+
+    fn breathing(&self) -> bool {
+        self.params.option == 33
+    }
+
+    fn first_ec(&self) -> usize {
+        if self.params.option == 3 { PILLAR } else { 0 }
     }
 
     fn frame(&self) -> f32 {
@@ -110,23 +280,25 @@ impl CastCircleEffect {
     }
 }
 
-fn fade(local_age: f32, local_life: f32, alpha_max: f32) -> f32 {
-    if local_age < 0.0 || local_age > local_life {
-        return 0.0;
-    }
-    let fade_in = (local_age / FADE_FRAMES).clamp(0.0, 1.0);
-    let fade_out = if local_age <= local_life - FADE_FRAMES {
-        1.0
-    } else {
-        ((local_life - local_age) / FADE_FRAMES).clamp(0.0, 1.0)
-    };
-    alpha_max * fade_in * fade_out
-}
-
 impl Effect for CastCircleEffect {
     fn update(&mut self, ctx: &EffectUpdateCtx) -> EffectStatus {
+        let before = self.frame();
         self.age += ctx.delta;
-        EffectStatus::Running
+        let after = self.frame();
+        let steps = (after.floor() - before.floor()).max(0.0) as i32;
+        let life = self.life_frames;
+        let breathing = self.breathing();
+        let first = self.first_ec();
+        for _ in 0..steps {
+            for (n, gi) in self.gis.iter_mut().enumerate() {
+                gi.step(first + n, life, breathing);
+            }
+        }
+        if after >= self.life_frames {
+            EffectStatus::Dead
+        } else {
+            EffectStatus::Running
+        }
     }
 
     fn set_position(&mut self, pos: [f32; 3]) {
@@ -134,93 +306,37 @@ impl Effect for CastCircleEffect {
     }
 
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
-        let [r, g, b] = self.params.color_rgb;
-        let frame = self.frame();
-
-        let col_alpha = fade(frame, self.life_frames, COLUMN_ALPHA_MAX);
-        if col_alpha > 0.0 {
-            let growth = (frame / COLUMN_GROWTH_FRAMES).clamp(0.0, 1.0);
-            let col_rise_rad = COLUMN_RISE_ANGLE_DEG.to_radians();
-            let (col_sin, col_cos) = col_rise_rad.sin_cos();
-            let max_h = self.params.column_max_height * growth * COLUMN_HEIGHT_SCALE;
-            let col_radius = self.params.column_radius * WORLD_SCALE;
-            let height = col_sin * max_h;
-            if height > 0.0 {
-                out.push(EffectPrimitiveDraw::Frustum {
-                    base_alpha: 1.0,
-                    base: self.world_pos,
-                    bottom_size: col_radius,
-                    top_size: col_radius + col_cos * max_h,
-                    height,
-                    sides: COLUMN_SIDES,
-                    arc_angle_deg: 360.0,
-                    rotation: 0.0,
-                    uv_repeat: COLUMN_UV_REPEAT,
-                    uv_scroll: [0.0, 0.0],
-                    wave_amplitude: 0.0,
-                    wave_frequency: 1.0,
-                    wave_phase: 0.0,
-                    wave_mode: FrustumWaveMode::Sine,
-                    tilt_x_rad: 0.0,
-                    rotation_y_rad: 0.0,
-                    cull_back: false,
-                    texture: self.params.texture,
-                    color: [r, g, b, col_alpha],
-                    blend: BlendKind::Alpha,
-                });
-            }
+        if self.frame() > self.life_frames {
+            return;
         }
-
-        let ring_alpha = fade(frame, self.life_frames, RING_ALPHA_MAX);
-        if ring_alpha > 0.0 {
-            out.push(EffectPrimitiveDraw::GroundDisc {
+        let look = appearance(if self.params.option == 33 {
+            0
+        } else {
+            self.params.option
+        });
+        for gi in &self.gis {
+            let alpha = look.fixed_alpha.unwrap_or(gi.alpha_b) / 255.0;
+            if alpha <= 0.0 {
+                continue;
+            }
+            let scale = if gi.arc_deg >= 360.0 {
+                PILLAR_SCALE
+            } else {
+                1.0
+            };
+            out.push(EffectPrimitiveDraw::RadialRing {
                 center: self.world_pos,
-                radius: self.params.ring_radius * WORLD_SCALE,
-                thickness: self.params.ring_thickness * WORLD_SCALE,
-                rotation: 0.0,
-                arc_angle_deg: 360.0,
-                uv_repeat: RING_UV_REPEAT,
-                texture: RING_TEXTURE,
-                color: [r, g, b, ring_alpha],
-                blend: BlendKind::Alpha,
-                no_depth: false,
-                tilt_rad: 0.0,
-                spin_rad: 0.0,
+                distance: gi.distance * scale,
+                rise_angle_rad: gi.rise_deg.to_radians(),
+                rot_start_rad: gi.rot_start_deg.to_radians(),
+                full_arc_rad: gi.arc_deg.to_radians(),
+                segments: SEGMENTS,
+                height_scale: scale,
+                heights: gi.heights,
+                texture: self.params.texture,
+                color: [look.rgb[0], look.rgb[1], look.rgb[2], alpha],
+                blend: look.blend,
             });
-        }
-
-        let spin_rad = (frame * PETAL_ROT_SPEED_DEG_PER_FRAME).to_radians();
-        let alpha = fade(frame, self.life_frames, PETAL_ALPHA_MAX);
-        if alpha > 0.0 {
-            for i in 0..NUM_PETALS {
-                let rise_rad = PETAL_RISE_ANGLES_DEG[i].to_radians();
-                let (sin_rise, cos_rise) = rise_rad.sin_cos();
-                let max_h = self.params.petal_heights[i] * WORLD_SCALE;
-                let distance = self.params.petal_distances[i] * WORLD_SCALE;
-                let offset_rad = (i as f32) * std::f32::consts::FRAC_PI_2;
-                out.push(EffectPrimitiveDraw::Frustum {
-                    base_alpha: 1.0,
-                    base: self.world_pos,
-                    bottom_size: distance,
-                    top_size: distance + cos_rise * max_h,
-                    height: sin_rise * max_h,
-                    sides: PETAL_SIDES,
-                    arc_angle_deg: PETAL_ARC_DEG,
-                    rotation: spin_rad + offset_rad,
-                    uv_repeat: PETAL_UV_REPEAT,
-                    uv_scroll: [0.0, 0.0],
-                    wave_amplitude: 0.0,
-                    wave_frequency: 1.0,
-                    wave_phase: 0.0,
-                    wave_mode: FrustumWaveMode::Sine,
-                    tilt_x_rad: 0.0,
-                    rotation_y_rad: 0.0,
-                    cull_back: false,
-                    texture: self.params.texture,
-                    color: [r, g, b, alpha],
-                    blend: BlendKind::Alpha,
-                });
-            }
         }
     }
 }
@@ -238,176 +354,139 @@ mod tests {
         }
     }
 
-    fn run_to(c: &mut CastCircleEffect, target_frame: f32) {
-        let current = c.frame();
-        let delta = (target_frame - current) / FRAMES_PER_SECOND;
-        if delta > 0.0 {
-            c.update(&EffectUpdateCtx {
-                delta,
+    fn step_frames(c: &mut CastCircleEffect, n: u32) -> EffectStatus {
+        let mut status = EffectStatus::Running;
+        for _ in 0..n {
+            status = c.update(&EffectUpdateCtx {
+                delta: 1.0 / 60.0,
                 camera_target: None,
                 caster_yaw: None,
             });
         }
+        status
     }
 
-    fn collect(c: &CastCircleEffect) -> Vec<EffectPrimitiveDraw> {
+    fn rings(c: &CastCircleEffect) -> Vec<EffectPrimitiveDraw> {
         let mut list = EffectDrawList::new();
         c.collect_draws(&mut list, &render_ctx());
         list.primitives
     }
 
-    #[test]
-    fn emits_all_three_elements_at_peak() {
-        let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
-        run_to(&mut c, 30.0);
-        let prims = collect(&c);
-        let columns = prims.iter().filter(|p| is_column(p)).count();
-        let petals = prims.iter().filter(|p| is_petal(p)).count();
-        let discs = prims
+    fn pillar(c: &CastCircleEffect) -> ([f32; DIVISION], f32, f32) {
+        rings(c)
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::GroundDisc { .. }))
-            .count();
-        assert_eq!(columns, 1);
-        assert_eq!(petals, NUM_PETALS);
-        assert_eq!(discs, 1);
-    }
-
-    fn is_column(p: &EffectPrimitiveDraw) -> bool {
-        matches!(p, EffectPrimitiveDraw::Frustum { sides, .. } if *sides == COLUMN_SIDES)
-    }
-
-    fn is_petal(p: &EffectPrimitiveDraw) -> bool {
-        matches!(p, EffectPrimitiveDraw::Frustum { sides, .. } if *sides == PETAL_SIDES)
-    }
-
-    #[test]
-    fn flame_ring_centered_on_column_with_rotating_texture() {
-        let caster = [10.0, 5.0, 20.0];
-        let mut c = CastCircleEffect::new(caster, YELLOW);
-        run_to(&mut c, 30.0);
-        let snapshot = |c: &CastCircleEffect| -> Option<([f32; 3], f32)> {
-            collect(c).into_iter().find_map(|p| match p {
-                EffectPrimitiveDraw::Frustum {
-                    base,
-                    rotation,
-                    sides,
+            .find_map(|p| match p {
+                EffectPrimitiveDraw::RadialRing {
+                    heights,
+                    full_arc_rad,
+                    color,
                     ..
-                } if sides == PETAL_SIDES => Some((base, rotation)),
+                } if (*full_arc_rad - std::f32::consts::TAU).abs() < 1e-4 => {
+                    Some((*heights, *full_arc_rad, color[3]))
+                }
                 _ => None,
             })
-        };
-        let (base_early, rot_early) = snapshot(&c).expect("flame ring should be emitted");
-        assert!(
-            (base_early[0] - caster[0]).abs() < 1e-3,
-            "petal X must equal caster X"
-        );
-        assert!(
-            (base_early[2] - caster[2]).abs() < 1e-3,
-            "petal Z must equal caster Z"
-        );
-        run_to(&mut c, 40.0);
-        let (_, rot_later) = snapshot(&c).unwrap();
-        assert!(
-            (rot_later - rot_early).abs() > 1e-3,
-            "flame ring rotation should advance over time ({} → {})",
-            rot_early,
-            rot_later
-        );
+            .expect("pillar ring")
     }
 
     #[test]
-    fn column_grows_over_growth_window() {
-        let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
-        let height_of_column = |c: &CastCircleEffect| -> f32 {
-            collect(c)
-                .into_iter()
-                .find_map(|p| {
-                    if is_column(&p) {
-                        if let EffectPrimitiveDraw::Frustum { height, .. } = p {
-                            Some(height)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
+    fn pillar_unrolls_one_vertex_at_a_time_from_the_seam() {
+        let mut c = CastCircleEffect::new([0.0; 3], BEGINSPELL3);
+        step_frames(&mut c, 9);
+        let (heights, _, _) = pillar(&c);
+        // Vertex i wakes at frame i*2, so at frame 9 vertices 1..4 are up
+        // (0 and 20 sit on sin(0)/sin(180) and are always flat).
+        assert!(heights[1] > 0.0 && heights[4] > 0.0, "leading edge is up");
+        assert_eq!(heights[5], 0.0, "vertex 5 has not woken yet");
+        assert_eq!(heights[10], 0.0, "far side is still down");
+
+        step_frames(&mut c, 8);
+        let (later, _, _) = pillar(&c);
+        assert!(later[8] > 0.0, "the edge advanced by frame 17");
+        assert_eq!(later[10], 0.0, "and has not reached the far side yet");
+    }
+
+    #[test]
+    fn four_rings_with_the_reference_geometry() {
+        let mut c = CastCircleEffect::new([0.0; 3], BEGINSPELL5).with_life_ms(Some(3000));
+        step_frames(&mut c, 12);
+        let prims = rings(&c);
+        assert_eq!(prims.len(), NUM_GI);
+        let arcs: Vec<f32> = prims
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::RadialRing { full_arc_rad, .. } => Some(*full_arc_rad),
+                _ => None,
+            })
+            .collect();
+        let skirts = arcs
+            .iter()
+            .filter(|a| (**a - 315.0_f32.to_radians()).abs() < 1e-4)
+            .count();
+        assert_eq!(skirts, 3, "three 315° skirt arcs");
+        step_frames(&mut c, 78);
+        let (heights, _, _) = pillar(&c);
+        let tallest = heights.iter().cloned().fold(0.0_f32, f32::max);
+        assert!(
+            tallest > 200.0,
+            "the revealed pillar towers over the 25-unit skirt: {tallest}"
+        );
+        assert!(heights[12] > 0.0, "the whole ring is awake by frame 90");
+    }
+
+    #[test]
+    fn option_three_draws_the_pillar_alone_at_fixed_alpha() {
+        let mut c = CastCircleEffect::new([0.0; 3], CHANGE_FIRE);
+        step_frames(&mut c, 12);
+        let prims = rings(&c);
+        assert_eq!(prims.len(), 1, "m_size 3 skips the skirt");
+        let (_, arc, alpha) = pillar(&c);
+        assert!((arc - std::f32::consts::TAU).abs() < 1e-4);
+        assert!((alpha - SIZE3_ALPHA / 255.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn variants_carry_their_own_texture_tint_and_blend() {
+        let cases = [
+            (BEGINSPELL2, "ring_blue.tga", BlendKind::Alpha, 195.0 / 255.0),
+            (BEGINSPELL3, "ring_yellow.tga", BlendKind::Additive, 1.0),
+            (BEGINSPELL8, "ring_green.tga", BlendKind::Additive, 1.0),
+            (BEGINSPELL4, "Magic_Green.tga", BlendKind::Alpha, 1.0),
+        ];
+        for (params, texture, blend, red) in cases {
+            let mut c = CastCircleEffect::new([0.0; 3], params);
+            step_frames(&mut c, 12);
+            let p = rings(&c);
+            let (t, b, col) = p
+                .iter()
+                .find_map(|p| match p {
+                    EffectPrimitiveDraw::RadialRing {
+                        texture,
+                        blend,
+                        color,
+                        ..
+                    } => Some((*texture, *blend, *color)),
+                    _ => None,
                 })
-                .unwrap_or(0.0)
-        };
-        run_to(&mut c, 2.0);
-        let h_early = height_of_column(&c);
-        run_to(&mut c, COLUMN_GROWTH_FRAMES);
-        let h_full = height_of_column(&c);
-        assert!(
-            h_full > h_early,
-            "column should grow ({} → {})",
-            h_early,
-            h_full
-        );
-        let expected = COLUMN_RISE_ANGLE_DEG.to_radians().sin()
-            * YELLOW.column_max_height
-            * COLUMN_HEIGHT_SCALE;
-        assert!(
-            (h_full - expected).abs() < 1e-3,
-            "column should reach full height by frame {}, got {} (expected {})",
-            COLUMN_GROWTH_FRAMES,
-            h_full,
-            expected
-        );
-    }
-
-    #[test]
-    fn with_life_ms_keeps_the_ring_visible_for_the_whole_cast() {
-        let frame = TOTAL_FRAMES + 34.0;
-        let mut default = CastCircleEffect::new([0.0; 3], YELLOW);
-        run_to(&mut default, frame);
-        assert!(
-            collect(&default).is_empty(),
-            "default ring is gone past its 56-frame life"
-        );
-        let mut long = CastCircleEffect::new([0.0; 3], YELLOW).with_life_ms(Some(2000));
-        run_to(&mut long, frame);
-        assert!(
-            !collect(&long).is_empty(),
-            "stretched ring is still visible at frame {frame}"
-        );
-    }
-
-    #[test]
-    fn every_variant_has_a_real_texture() {
-        for params in [
-            YELLOW,
-            WATER,
-            FIRE,
-            WIND,
-            EARTH,
-            HOLY,
-            POISON,
-            RED,
-            WHITE,
-            N_BLUE,
-            DARK,
-            FLAME,
-            EARTH_BROWN,
-        ] {
-            assert!(!params.texture.is_empty());
-            assert!(TEXTURES.contains(&params.texture));
+                .expect("a ring");
+            assert_eq!(t, texture);
+            assert_eq!(b, blend);
+            assert!((col[0] - red).abs() < 1e-3, "{texture}: red {}", col[0]);
         }
-        assert!(TEXTURES.contains(&RING_TEXTURE));
     }
 
     #[test]
-    fn never_self_terminates() {
-        let mut c = CastCircleEffect::new([0.0; 3], YELLOW);
-        for _ in 0..200 {
-            assert_eq!(
-                c.update(&EffectUpdateCtx {
-                    delta: 0.1,
-                    camera_target: None,
-                    caster_yaw: None
-                }),
-                EffectStatus::Running
-            );
-        }
+    fn breathing_pillar_pulses_once_it_tops_out() {
+        let mut c = CastCircleEffect::new([0.0; 3], BEGINSPELL4).with_life_ms(Some(4000));
+        step_frames(&mut c, 95);
+        let (a, _, _) = pillar(&c);
+        step_frames(&mut c, 45);
+        let (b, _, _) = pillar(&c);
+        assert!(
+            (a[10] - b[10]).abs() > 1.0,
+            "the topped-out pillar breathes: {} -> {}",
+            a[10],
+            b[10]
+        );
     }
 }

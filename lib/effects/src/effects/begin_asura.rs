@@ -405,7 +405,7 @@ mod tests {
         let frustums = l
             .primitives
             .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
+            .filter(|p| matches!(p, EffectPrimitiveDraw::RadialRing { .. }))
             .count();
         assert_eq!(frustums, 8, "two saint-casting passes × 4 emitters");
 

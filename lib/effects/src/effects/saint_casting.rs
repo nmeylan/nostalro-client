@@ -1,9 +1,14 @@
-use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus, FrustumWaveMode};
+use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
+use crate::radial_emitter::RADIAL_EMITTER_DIVISION;
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 const TOTAL_FRAMES: f32 = 56.0;
 pub const TOTAL_DURATION_MS: u32 = (TOTAL_FRAMES / FRAMES_PER_SECOND * 1000.0) as u32;
+
+const DIVISION: usize = RADIAL_EMITTER_DIVISION;
+const SEGMENTS: u32 = (RADIAL_EMITTER_DIVISION - 1) as u32;
+const FULL_ARC_RAD: f32 = std::f32::consts::TAU;
 
 const INIT_DISTANCE: f32 = 4.1;
 const INIT_RISE_DEG: f32 = 80.0;
@@ -15,6 +20,10 @@ const ALPHA_DRAIN_PER_FRAME: f32 = 3.0;
 const ALPHA_REFILL_DISTANCE_GATE: f32 = 4.0;
 const RESET_PROCESS_MARGIN: i32 = 30;
 const PROCESS_STAGGER: i32 = 5;
+/// Above this the emitters start together with `alpha_b` seeded from the pass
+/// time instead of cascading in from zero.
+const STAGGER_MAX_FRAMES: f32 = 60.0;
+const SEED_ALPHA_STEP: f32 = 45.0;
 
 pub const NUM_EMITTERS: usize = 4;
 /// Per-emitter starting azimuths (degrees).
@@ -24,9 +33,8 @@ const ROT_START_DEG: [f32; NUM_EMITTERS] = [180.0, 270.0, 0.0, 90.0];
 /// values just count the passes and pick per-pass textures.
 pub const PASS_TIMES: [f32; 2] = [45.0, 25.0];
 
-const CONE_SIDES: u32 = 20;
-const CONE_UV_REPEAT: f32 = 1.0;
 const WAVE_REL_AMPLITUDE: f32 = 0.3;
+const HEIGHT_LOBE_STEP_DEG: f32 = 9.0;
 const WAVE_PHASE_PER_FRAME_DEG: [f32; NUM_EMITTERS] = [1.0, 1.0, 2.0, 2.0];
 
 #[derive(Clone, Copy)]
@@ -50,6 +58,7 @@ struct Emitter {
     process: i32,
     wave_rate_deg: f32,
     wave_base_deg: f32,
+    heights: [f32; DIVISION],
     texture: &'static str,
 }
 
@@ -80,6 +89,12 @@ impl Emitter {
         } else {
             self.alpha += refill_per_frame;
         }
+
+        let wave = WAVE_REL_AMPLITUDE * self.max_height * self.wave_phase_rad().sin();
+        for (i, h) in self.heights.iter_mut().enumerate() {
+            let lobe = (i as f32 * HEIGHT_LOBE_STEP_DEG).to_radians().sin();
+            *h = self.max_height + wave * lobe;
+        }
     }
 
     fn wave_phase_rad(&self) -> f32 {
@@ -109,6 +124,40 @@ impl Emitter {
     }
 }
 
+fn seed_emitters(cfg: &SaintCastingConfig, life_frames: f32) -> Vec<Emitter> {
+    let cascade = life_frames <= STAGGER_MAX_FRAMES;
+    let mut emitters = Vec::with_capacity(PASS_TIMES.len() * NUM_EMITTERS);
+    for (pass_idx, pass_time) in PASS_TIMES.iter().enumerate() {
+        for ec in 0..NUM_EMITTERS {
+            let texture = cfg
+                .pass_textures
+                .map(|t| t[pass_idx])
+                .unwrap_or(cfg.texture);
+            let (alpha, process) = if cascade {
+                (0.0, -(ec as i32) * PROCESS_STAGGER)
+            } else {
+                (
+                    pass_time + (NUM_EMITTERS - 1 - ec) as f32 * SEED_ALPHA_STEP,
+                    0,
+                )
+            };
+            emitters.push(Emitter {
+                distance: INIT_DISTANCE,
+                rise_deg: INIT_RISE_DEG,
+                alpha,
+                rot_start_deg: ROT_START_DEG[ec],
+                max_height: cfg.max_heights[ec],
+                process,
+                wave_rate_deg: WAVE_PHASE_PER_FRAME_DEG[ec],
+                wave_base_deg: ec as f32 * 90.0,
+                heights: [0.0; DIVISION],
+                texture,
+            });
+        }
+    }
+    emitters
+}
+
 pub struct SaintCastingEffect {
     world_pos: [f32; 3],
     age: f32,
@@ -119,30 +168,10 @@ pub struct SaintCastingEffect {
 
 impl SaintCastingEffect {
     pub fn new(world_pos: [f32; 3], cfg: SaintCastingConfig) -> Self {
-        let mut emitters = Vec::with_capacity(PASS_TIMES.len() * NUM_EMITTERS);
-        for pass_idx in 0..PASS_TIMES.len() {
-            for ec in 0..NUM_EMITTERS {
-                let texture = cfg
-                    .pass_textures
-                    .map(|t| t[pass_idx])
-                    .unwrap_or(cfg.texture);
-                emitters.push(Emitter {
-                    distance: INIT_DISTANCE,
-                    rise_deg: INIT_RISE_DEG,
-                    alpha: 0.0,
-                    rot_start_deg: ROT_START_DEG[ec],
-                    max_height: cfg.max_heights[ec],
-                    process: -(ec as i32) * PROCESS_STAGGER,
-                    wave_rate_deg: WAVE_PHASE_PER_FRAME_DEG[ec],
-                    wave_base_deg: ec as f32 * 90.0,
-                    texture,
-                });
-            }
-        }
         Self {
             world_pos,
             age: 0.0,
-            emitters,
+            emitters: seed_emitters(&cfg, TOTAL_FRAMES),
             cfg,
             life_frames: TOTAL_FRAMES,
         }
@@ -150,7 +179,8 @@ impl SaintCastingEffect {
 
     pub fn with_life_ms(mut self, ms: Option<u32>) -> Self {
         if let Some(ms) = ms {
-            self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(1.0);
+            self.life_frames = (ms as f32 / 1000.0 * FRAMES_PER_SECOND).max(TOTAL_FRAMES);
+            self.emitters = seed_emitters(&self.cfg, self.life_frames);
         }
         self
     }
@@ -199,45 +229,15 @@ impl Effect for SaintCastingEffect {
             if alpha <= 0.0 {
                 continue;
             }
-            let (sin_rise, cos_rise) = em.rise_deg.to_radians().sin_cos();
-            let height = sin_rise * em.max_height;
-            let bottom = em.distance;
-            let top = em.distance + cos_rise * em.max_height;
-            // Height delta `max_h * 0.3 * sin(phase)` scales with `max_h`,
-            // not with the current `height = sin(rise) * max_h`. Scaling by
-            // `height` instead would shrink the flame-tip pulse by ~6× as
-            // the cone flattens (sin80° → sin10°), making the wave invisible
-            // late in the effect. The renderer projects this onto
-            // (cos rise, sin rise), so the cone-flatness factor is applied
-            // exactly once and the pulse stays visible the whole time the
-            // cone is alive.
-            let wave_amplitude = WAVE_REL_AMPLITUDE * em.max_height * em.wave_phase_rad().sin();
-            out.push(EffectPrimitiveDraw::Frustum {
-                base_alpha: 1.0,
-                base: self.world_pos,
-                bottom_size: bottom,
-                top_size: top,
-                height,
-                sides: CONE_SIDES,
-                arc_angle_deg: 360.0,
-                rotation: em.rot_start_deg.to_radians(),
-                uv_repeat: CONE_UV_REPEAT,
-                uv_scroll: [0.0, 0.0],
-                wave_amplitude,
-                wave_frequency: 1.0,
-                wave_phase: 0.0,
-                wave_mode: FrustumWaveMode::ArcTaper,
-                tilt_x_rad: 0.0,
-                rotation_y_rad: 0.0,
-                // A hard back-face discard would be ideal, but our
-                // `cull_back: true` is a soft per-segment fade; with 4 cones
-                // at 90° starts the fades overlap inconsistently (each
-                // cone's "back" sits where another cone's "front" is, so the
-                // visible silhouette gains noisy half-faded segments instead
-                // of one clean front face). The texture's transparency does
-                // the real shaping work, so keep both faces drawn rather
-                // than fading the back ones.
-                cull_back: false,
+            out.push(EffectPrimitiveDraw::RadialRing {
+                center: self.world_pos,
+                distance: em.distance,
+                rise_angle_rad: em.rise_deg.to_radians(),
+                rot_start_rad: em.rot_start_deg.to_radians(),
+                full_arc_rad: FULL_ARC_RAD,
+                segments: SEGMENTS,
+                height_scale: 1.0,
+                heights: em.heights,
                 texture: em.texture,
                 color: [
                     self.cfg.color_rgb[0],
@@ -265,6 +265,15 @@ mod tests {
         reset_rise_deg: 74.0,
     };
 
+    struct Ring {
+        distance: f32,
+        rise_rad: f32,
+        rot_start_rad: f32,
+        arc_rad: f32,
+        segments: u32,
+        heights: [f32; DIVISION],
+    }
+
     fn render_ctx() -> EffectRenderCtx {
         EffectRenderCtx {
             camera: Default::default(),
@@ -274,10 +283,31 @@ mod tests {
         }
     }
 
-    fn draws(e: &SaintCastingEffect) -> Vec<EffectPrimitiveDraw> {
+    fn rings(e: &SaintCastingEffect) -> Vec<Ring> {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
         list.primitives
+            .iter()
+            .filter_map(|p| match p {
+                EffectPrimitiveDraw::RadialRing {
+                    distance,
+                    rise_angle_rad,
+                    rot_start_rad,
+                    full_arc_rad,
+                    segments,
+                    heights,
+                    ..
+                } => Some(Ring {
+                    distance: *distance,
+                    rise_rad: *rise_angle_rad,
+                    rot_start_rad: *rot_start_rad,
+                    arc_rad: *full_arc_rad,
+                    segments: *segments,
+                    heights: *heights,
+                }),
+                _ => None,
+            })
+            .collect()
     }
 
     fn step_frames(e: &mut SaintCastingEffect, n: u32) -> EffectStatus {
@@ -292,84 +322,38 @@ mod tests {
         status
     }
 
-    fn widest_top(prims: &[EffectPrimitiveDraw]) -> f32 {
-        prims
-            .iter()
-            .filter_map(|p| match p {
-                EffectPrimitiveDraw::Frustum { top_size, .. } => Some(*top_size),
-                _ => None,
-            })
-            .fold(0.0_f32, f32::max)
-    }
-
-    fn tallest(prims: &[EffectPrimitiveDraw]) -> f32 {
-        prims
-            .iter()
-            .filter_map(|p| match p {
-                EffectPrimitiveDraw::Frustum { height, .. } => Some(*height),
-                _ => None,
-            })
-            .fold(0.0_f32, f32::max)
-    }
-
     #[test]
-    fn short_cast_aura_still_emits_cones() {
-        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(280));
-        let mut emitted = false;
-        for _ in 0..17 {
-            step_frames(&mut e, 1);
-            if !draws(&e).is_empty() {
-                emitted = true;
-                break;
-            }
-        }
-        assert!(
-            emitted,
-            "short-lived cast aura must emit cones within its lifetime"
-        );
-    }
-
-    #[test]
-    fn cone_expands_in_breadth_and_collapses_vertically() {
+    fn cascade_brings_the_emitters_up_one_at_a_time() {
         let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+        assert!(rings(&e).is_empty(), "everything fades in — frame 0 is empty");
         step_frames(&mut e, 4);
-        let early_top = widest_top(&draws(&e));
-        let early_h = tallest(&draws(&e));
-        step_frames(&mut e, 40);
-        let late_top = widest_top(&draws(&e));
-        let late_h = tallest(&draws(&e));
+        let early = rings(&e).len();
         assert!(
-            late_top > early_top * 2.0,
-            "top width must more than double over the effect ({early_top} → {late_top})"
+            early > 0 && early < 8,
+            "only the lead emitters are up: {early}"
         );
-        assert!(
-            late_h < early_h,
-            "vertical height must collapse as rise angle drops ({early_h} → {late_h})"
-        );
+        step_frames(&mut e, 14);
+        assert_eq!(rings(&e).len(), 8, "two passes × 4 emitters by frame 18");
     }
 
     #[test]
-    fn no_vertical_center_pillar() {
+    fn every_ring_closes_and_stands_full_height_all_the_way_round() {
         let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+        let starts: Vec<f32> = ROT_START_DEG.iter().map(|d| d.to_radians()).collect();
         for _ in 0..(TOTAL_FRAMES as u32) {
-            assert!(
-                tallest(&draws(&e)) < 25.0,
-                "no emitter is tall enough to read as a center pillar"
-            );
-            step_frames(&mut e, 1);
-        }
-    }
-
-    #[test]
-    fn cone_does_not_rotate_around_its_axis() {
-        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
-        let allowed: Vec<f32> = ROT_START_DEG.iter().map(|d| d.to_radians()).collect();
-        for _ in 0..(TOTAL_FRAMES as u32) {
-            for p in draws(&e) {
-                if let EffectPrimitiveDraw::Frustum { rotation, .. } = p {
+            for r in rings(&e) {
+                assert_eq!(r.segments, SEGMENTS);
+                assert!((r.arc_rad - FULL_ARC_RAD).abs() < 1e-5, "closed ring");
+                assert!(
+                    starts.iter().any(|s| (s - r.rot_start_rad).abs() < 1e-5),
+                    "rot start {} must stay on its initial azimuth",
+                    r.rot_start_rad
+                );
+                let tallest = r.heights.iter().cloned().fold(0.0_f32, f32::max);
+                for (i, h) in r.heights.iter().enumerate() {
                     assert!(
-                        allowed.iter().any(|a| (a - rotation).abs() < 1e-5),
-                        "rotation {rotation} must match an initial RotStart, never advance"
+                        *h >= tallest * 0.7,
+                        "height[{i}] = {h} dips below the ±30% wave around {tallest}"
                     );
                 }
             }
@@ -378,83 +362,58 @@ mod tests {
     }
 
     #[test]
-    fn emits_saint_bell_wave_mode() {
-        let e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
-        for p in draws(&e) {
-            if let EffectPrimitiveDraw::Frustum { wave_mode, .. } = p {
-                assert_eq!(wave_mode, FrustumWaveMode::ArcTaper);
-            }
-        }
-    }
-
-    #[test]
-    fn with_life_ms_stretches_the_aura_to_the_cast_time() {
-        // A 2s cast (120 frames) keeps the aura alive and re-pulsing well past
-        // the default 56-frame lifetime, then it ends near the cast's end.
-        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(2000));
-        let past_default = TOTAL_FRAMES as u32 + 24; // frame 80
-        assert_eq!(
-            step_frames(&mut e, past_default),
-            EffectStatus::Running,
-            "still casting at frame {past_default} (default would be dead)"
+    fn each_pulse_pushes_the_ring_out_and_flattens_it() {
+        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+        step_frames(&mut e, 4);
+        let early = rings(&e);
+        step_frames(&mut e, 12);
+        let late = rings(&e);
+        assert!(
+            late[0].distance > early[0].distance,
+            "ring widens ({} → {})",
+            early[0].distance,
+            late[0].distance
         );
         assert!(
-            !draws(&e).is_empty(),
-            "emitters keep re-pulsing through a long cast"
-        );
-        assert_eq!(
-            step_frames(&mut e, 120 - past_default + 1),
-            EffectStatus::Dead,
-            "aura ends once the cast time elapses"
+            late[0].rise_rad < early[0].rise_rad,
+            "ring flattens ({} → {})",
+            early[0].rise_rad,
+            late[0].rise_rad
         );
     }
 
     #[test]
-    fn dies_after_total_duration() {
-        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
+    fn the_aura_lasts_as_long_as_the_cast() {
+        let mut default = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
         for f in 0..(TOTAL_FRAMES as u32) {
             assert_eq!(
-                step_frames(&mut e, 1),
+                step_frames(&mut default, 1),
                 EffectStatus::Running,
                 "still alive at frame {f}"
             );
         }
-        assert_eq!(step_frames(&mut e, 1), EffectStatus::Dead);
-    }
+        assert_eq!(step_frames(&mut default, 1), EffectStatus::Dead);
 
-    #[test]
-    fn spawns_eight_emitters_once_the_cascade_is_up() {
-        // Each emitter idles for `ec·5` frames then fades in; the last starts
-        // at frame 16, so by frame 18 all 8 are drawing.
-        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
-        step_frames(&mut e, 18);
-        let n = draws(&e)
-            .iter()
-            .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
-            .count();
-        assert_eq!(n, 8);
-    }
-
-    #[test]
-    fn emitters_start_staggered_and_fade_in_from_zero() {
-        // Frame 0: nothing drawn (all emitters transparent). As `process`
-        // climbs past 0 for each `ec`, more cones appear — the cascade.
-        let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
-        let count = |e: &SaintCastingEffect| {
-            draws(e)
-                .iter()
-                .filter(|p| matches!(p, EffectPrimitiveDraw::Frustum { .. }))
-                .count()
-        };
-        assert_eq!(count(&e), 0, "everything fades in — frame 0 is empty");
-        step_frames(&mut e, 4);
-        let early = count(&e);
-        step_frames(&mut e, 14);
-        let late = count(&e);
-        assert!(
-            early > 0 && early < 8,
-            "only the lead emitters are up: {early}"
+        // A 2s cast (120 frames) keeps the aura re-pulsing well past the
+        // default 56-frame lifetime, then it ends near the cast's end.
+        let mut long = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(2000));
+        let past_default = TOTAL_FRAMES as u32 + 24;
+        assert_eq!(step_frames(&mut long, past_default), EffectStatus::Running);
+        assert!(!rings(&long).is_empty(), "emitters keep re-pulsing");
+        assert_eq!(
+            step_frames(&mut long, 120 - past_default + 1),
+            EffectStatus::Dead
         );
-        assert_eq!(late, 8, "the whole cascade is up by frame 18");
+
+        let mut short = SaintCastingEffect::new([0.0; 3], TEST_CONFIG).with_life_ms(Some(280));
+        let mut emitted = false;
+        for _ in 0..17 {
+            step_frames(&mut short, 1);
+            if !rings(&short).is_empty() {
+                emitted = true;
+                break;
+            }
+        }
+        assert!(emitted, "a short cast still gets its aura");
     }
 }

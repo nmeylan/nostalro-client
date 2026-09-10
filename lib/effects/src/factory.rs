@@ -1421,22 +1421,28 @@ pub fn make_effect(
         EffectId::Beginspell2 => Box::new(
             effects::cast_circle::CastCircleEffect::new(
                 anchor.point(),
-                effects::cast_circle::WATER,
+                effects::cast_circle::BEGINSPELL2,
             )
             .with_life_ms(duration_ms),
         ),
         EffectId::Beginspell3 => Box::new(
-            effects::cast_circle::CastCircleEffect::new(anchor.point(), effects::cast_circle::FIRE)
-                .with_life_ms(duration_ms),
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::BEGINSPELL3,
+            )
+            .with_life_ms(duration_ms),
         ),
         EffectId::Beginspell4 => Box::new(
-            effects::cast_circle::CastCircleEffect::new(anchor.point(), effects::cast_circle::WIND)
-                .with_life_ms(duration_ms),
+            effects::cast_circle::CastCircleEffect::new(
+                anchor.point(),
+                effects::cast_circle::BEGINSPELL4,
+            )
+            .with_life_ms(duration_ms),
         ),
         EffectId::Beginspell5 => Box::new(
             effects::cast_circle::CastCircleEffect::new(
                 anchor.point(),
-                effects::cast_circle::EARTH,
+                effects::cast_circle::BEGINSPELL5,
             )
             .with_life_ms(duration_ms),
         ),
@@ -1447,63 +1453,67 @@ pub fn make_effect(
         EffectId::Beginspell7 => Box::new(
             effects::cast_circle::CastCircleEffect::new(
                 anchor.point(),
-                effects::cast_circle::POISON,
+                effects::cast_circle::BEGINSPELL7,
             )
             .with_life_ms(duration_ms),
         ),
-        EffectId::Beginspell8 => Box::new(effects::begin_spell_8::BeginSpell8Effect::new(
-            anchor.point(),
-        )),
-        EffectId::Beginspellred => Box::new(
-            effects::cast_circle::CastCircleEffect::new(anchor.point(), effects::cast_circle::RED)
-                .with_life_ms(duration_ms),
-        ),
-        EffectId::Beginspellwhite => Box::new(
+        EffectId::Beginspell8 => Box::new(
             effects::cast_circle::CastCircleEffect::new(
                 anchor.point(),
-                effects::cast_circle::WHITE,
+                effects::cast_circle::BEGINSPELL8,
+            )
+            .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspellred => Box::new(
+            effects::color_casting::ColorCastingEffect::new(
+                anchor.point(),
+                effects::color_casting::SPELL_RED,
+            )
+            .with_life_ms(duration_ms),
+        ),
+        EffectId::Beginspellwhite => Box::new(
+            effects::color_casting::ColorCastingEffect::new(
+                anchor.point(),
+                effects::color_casting::SPELL_WHITE,
             )
             .with_life_ms(duration_ms),
         ),
         EffectId::BeginspellN => Box::new(
-            effects::cast_circle::CastCircleEffect::new(
-                anchor.point(),
-                effects::cast_circle::N_BLUE,
-            )
-            .with_life_ms(duration_ms),
+            effects::beginspell_n::BeginspellNEffect::new(anchor.point())
+                .with_life_ms(duration_ms),
         ),
 
         EffectId::Changefire => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::FIRE,
+            effects::cast_circle::CHANGE_FIRE,
         )),
         EffectId::Changecold => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::WATER,
+            effects::cast_circle::CHANGE_COLD,
         )),
         EffectId::Changedark => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::DARK,
+            effects::cast_circle::CHANGE_DARK,
         )),
         EffectId::Changewind => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::YELLOW,
+            effects::cast_circle::CHANGE_WIND,
         )),
         EffectId::Changeflame => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::FLAME,
+            effects::cast_circle::CHANGE_FLAME,
         )),
         EffectId::Changeearth => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::EARTH_BROWN,
+            effects::cast_circle::CHANGE_EARTH,
         )),
         EffectId::Chaingeholy => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::HOLY,
+            effects::cast_circle::CHANGE_HOLY,
         )),
         EffectId::Changepoison => Box::new(effects::cast_circle::CastCircleEffect::new(
             anchor.point(),
-            effects::cast_circle::POISON,
+            effects::cast_circle::CHANGE_POISON,
         )),
 
         EffectId::Sightrasher => {

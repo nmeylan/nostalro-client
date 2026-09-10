@@ -12,7 +12,7 @@ pub mod basilica;
 pub mod begin_asura;
 pub mod begin_spell;
 pub mod begin_spell_6;
-pub mod begin_spell_8;
+pub mod beginspell_n;
 pub mod big_portal;
 pub mod black_devil;
 pub mod blessing;

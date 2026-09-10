@@ -4,9 +4,9 @@ use super::buckets::{is_custom_bucket, is_noop_bucket};
 use super::effect_trait::CameraShake;
 use super::effects::{
     aciddemon, agiup, attack_energy, aura_blade, banjjakii, barrier, bash, bash3d, begin_asura,
-    begin_spell, begin_spell_8, big_portal, blessing, blitzbeat, body_buff, body_tint, bottom_box,
+    begin_spell, begin_spell_6, big_portal, blessing, blitzbeat, body_buff, body_tint, bottom_box,
     bottom_sanctuary_pillar, bowling_bash, bubble_drop, callzone, cartrevolution, cartter,
-    cast_circle, chemical, chookgi, cloud_projectile, colorpaper, cone, couple_casting,
+    cast_circle, chemical, color_casting, chookgi, cloud_projectile, colorpaper, cone, couple_casting,
     curseattack, defender, detecting, dome_ring, dragonsmoke, endure, energy_drain, enhance, entry,
     exit as exit_effect, fireball, fireivy, firepillaron, firstaid, flasher, flowercast,
     frost_diver, fullscreen_overlay, glasswall, glasswall2, grandcross, ground_sample, guard,
@@ -714,16 +714,15 @@ pub fn custom_duration_ms(id: EffectId) -> u32 {
         EffectId::Truesight => bash3d::TOTAL_DURATION_MS,
         EffectId::Beginspell => begin_spell::TOTAL_DURATION_MS,
         EffectId::Aurablade => aura_blade::TOTAL_DURATION_MS,
-        EffectId::Beginspell8 => begin_spell_8::TOTAL_DURATION_MS,
         EffectId::Beginspell2
         | EffectId::Beginspell3
         | EffectId::Beginspell4
         | EffectId::Beginspell5
-        | EffectId::Beginspell6
         | EffectId::Beginspell7
-        | EffectId::Beginspellred
-        | EffectId::Beginspellwhite
-        | EffectId::BeginspellN => cast_circle::TOTAL_DURATION_MS,
+        | EffectId::Beginspell8 => cast_circle::TOTAL_DURATION_MS,
+        EffectId::Beginspell6 => begin_spell_6::TOTAL_DURATION_MS,
+        EffectId::Beginspellred | EffectId::Beginspellwhite => color_casting::TOTAL_DURATION_MS,
+        EffectId::BeginspellN => u32::MAX,
         EffectId::Beginasura
         | EffectId::Beginasura1
         | EffectId::Beginasura2

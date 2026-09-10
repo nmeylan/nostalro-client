@@ -66,7 +66,7 @@ mod tests {
             .primitives
             .iter()
             .filter_map(|p| match p {
-                EffectPrimitiveDraw::Frustum { texture, color, .. } => Some((*texture, *color)),
+                EffectPrimitiveDraw::RadialRing { texture, color, .. } => Some((*texture, *color)),
                 _ => None,
             })
             .collect();
