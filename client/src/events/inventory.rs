@@ -16,6 +16,21 @@ const BIND_ON_EQUIP_COLOR: [f32; 4] = [1.0, 1.0, 0.431, 1.0];
 const MSI_ITEM_COMPOUNDING_SUCCEESS: u16 = 0x1ed;
 const MSI_ITEM_COMPOUNDING_FAIL: u16 = 0x1ee;
 
+const MSI_CANT_GET_ITEM_BECAUSE_WEIGHT: u16 = 0x34;
+const MSI_CANT_GET_ITEM: u16 = 0x35;
+const MSI_CANT_GET_ITEM_BECAUSE_COUNT: u16 = 0xdc;
+const MSI_CANT_GET_ITEM_OVERCOUNT_ONEITEM: u16 = 0x117;
+
+fn pickup_failure_notice(result: u8) -> Option<(u16, [f32; 4])> {
+    match result {
+        1 | 6 => Some((MSI_CANT_GET_ITEM, RED)),
+        2 => Some((MSI_CANT_GET_ITEM_BECAUSE_WEIGHT, RED)),
+        4 => Some((MSI_CANT_GET_ITEM_BECAUSE_COUNT, RED)),
+        5 => Some((MSI_CANT_GET_ITEM_OVERCOUNT_ONEITEM, RED)),
+        _ => None,
+    }
+}
+
 impl App {
     pub(crate) fn item_is_book(&self, item_id: u16) -> bool {
         self.grf
@@ -191,6 +206,9 @@ impl App {
         result: u8,
     ) {
         if result != 0 {
+            if let Some((msg_id, color)) = pickup_failure_notice(result) {
+                self.add_msg_string_line(msg_id, &[], color);
+            }
             return;
         }
         if let Some(player_gid) = self.game.world.entities.player_id() {
@@ -427,5 +445,23 @@ impl App {
         } else {
             self.add_msg_string_line(MSI_ITEM_COMPOUNDING_FAIL, &[], RED);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pickup_failure_notice_names_the_reason_the_item_was_refused() {
+        assert_eq!(pickup_failure_notice(1), Some((0x35, RED)));
+        assert_eq!(pickup_failure_notice(6), Some((0x35, RED)));
+        assert_eq!(pickup_failure_notice(2), Some((0x34, RED)));
+        assert_eq!(pickup_failure_notice(4), Some((0xdc, RED)));
+        assert_eq!(pickup_failure_notice(5), Some((0x117, RED)));
+
+        assert_eq!(pickup_failure_notice(0), None);
+        assert_eq!(pickup_failure_notice(3), None);
+        assert_eq!(pickup_failure_notice(7), None);
     }
 }
