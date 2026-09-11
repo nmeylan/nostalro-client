@@ -3,17 +3,20 @@ use std::collections::HashMap;
 use ragnarok_formats::builtin_accessory_table::BUILTIN_ACCESSORY_TABLE;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
+use ragnarok_formats::lub;
 
 pub struct AccessoryTable {
     entries: HashMap<u16, String>,
 }
 
 const ACCESSORY_ID_PATHS: &[&str] = &[
+    ragnarok_resources::lua::ACCESSORY_ID_514_LUB,
     ragnarok_resources::lua::ACCESSORY_ID_LUA,
     ragnarok_resources::lua::ACCESSORY_ID_LUB,
 ];
 
 const ACCNAME_PATHS: &[&str] = &[
+    ragnarok_resources::lua::ACCESSORY_NAME_514_LUB,
     ragnarok_resources::lua::ACCESSORY_NAME_LUA,
     ragnarok_resources::lua::ACCESSORY_NAME_LUB,
 ];
@@ -26,20 +29,30 @@ impl AccessoryTable {
     }
 
     pub fn load_from_grf(grf: &GrfArchive) -> Self {
-        let id_content = ACCESSORY_ID_PATHS
+        let id_data = ACCESSORY_ID_PATHS
             .iter()
-            .find_map(|path| grf.read_file(path).ok())
-            .map(|data| lua_table::decode_euc_kr(&data));
+            .find_map(|path| grf.read_file(path).ok());
 
-        let name_content = ACCNAME_PATHS
+        let name_data = ACCNAME_PATHS
             .iter()
-            .find_map(|path| grf.read_file(path).ok())
-            .map(|data| lua_table::decode_euc_kr(&data));
+            .find_map(|path| grf.read_file(path).ok());
 
-        if let (Some(ids), Some(names)) = (id_content, name_content) {
-            let table = lua_table::build_accessory_table(&ids, &names);
-            tracing::info!("Loaded accessory table from lua: {} entries", table.len());
-            return Self { entries: table };
+        if let (Some(ids), Some(names)) = (id_data, name_data) {
+            let table = if lub::is_compiled_chunk(&ids) || lub::is_compiled_chunk(&names) {
+                lua_table::build_accessory_table_from_lub(&ids, &names).unwrap_or_else(|error| {
+                    tracing::warn!("Compiled accessory lua unreadable: {error}");
+                    HashMap::new()
+                })
+            } else {
+                lua_table::build_accessory_table(
+                    &lua_table::decode_euc_kr(&ids),
+                    &lua_table::decode_euc_kr(&names),
+                )
+            };
+            if !table.is_empty() {
+                tracing::info!("Loaded accessory table from lua: {} entries", table.len());
+                return Self { entries: table };
+            }
         }
 
         tracing::info!(

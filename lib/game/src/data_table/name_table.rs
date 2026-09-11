@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use ragnarok_formats::builtin_name_table::BUILTIN_NAME_TABLE;
 use ragnarok_formats::grf::GrfArchive;
 use ragnarok_formats::lua_table;
+use ragnarok_formats::lub;
 
 pub struct NameTable {
     entries: HashMap<u16, String>,
@@ -18,35 +19,41 @@ const IDENTITY_PATHS: &[&str] = &[
 ];
 
 impl NameTable {
+    /// The GRF's identity tables name what that client knows; the builtin table
+    /// stays underneath so ids the client version predates keep a sprite name.
     pub fn load(grf: &GrfArchive) -> Self {
-        let mut entries = HashMap::new();
-
-        for path in IDENTITY_PATHS {
-            if let Ok(data) = grf.read_file(path) {
-                // Skip compiled Lua bytecode (starts with \x1bLua)
-                if data.starts_with(b"\x1bLua") {
-                    continue;
-                }
-                tracing::info!("Loading lua file {}", path);
-                let content = lua_table::decode_euc_kr(&data);
-                let assignments = parse_jt_assignments(&content);
-                entries.extend(assignments);
-            }
-        }
-
-        if !entries.is_empty() {
-            tracing::info!("Loaded name table from GRF: {} entries", entries.len());
-            return Self { entries };
-        }
-
-        tracing::info!(
-            "No identity lua in GRF, using builtin name table ({} entries)",
-            BUILTIN_NAME_TABLE.len()
-        );
-        let entries = BUILTIN_NAME_TABLE
+        let mut entries: HashMap<u16, String> = BUILTIN_NAME_TABLE
             .iter()
             .map(|&(id, name)| (id, name.to_string()))
             .collect();
+        let mut from_grf = 0;
+
+        for path in IDENTITY_PATHS {
+            if let Ok(data) = grf.read_file(path) {
+                tracing::info!("Loading lua file {}", path);
+                let identities = if lub::is_compiled_chunk(&data) {
+                    match lua_table::parse_jt_identity_lub(&data) {
+                        Ok(identities) => identities
+                            .into_iter()
+                            .map(|(id, name)| (id, sprite_name(&name)))
+                            .collect(),
+                        Err(error) => {
+                            tracing::warn!("Compiled lua {path} unreadable: {error}");
+                            HashMap::new()
+                        }
+                    }
+                } else {
+                    parse_jt_assignments(&lua_table::decode_euc_kr(&data))
+                };
+                from_grf += identities.len();
+                entries.extend(identities);
+            }
+        }
+
+        tracing::info!(
+            "Loaded name table: {} entries, {from_grf} from GRF identity lua",
+            entries.len()
+        );
         Self { entries }
     }
 
@@ -74,14 +81,18 @@ fn parse_jt_assignments(content: &str) -> HashMap<u16, String> {
                 .trim();
             let value_str = value_part.trim().trim_end_matches(',').trim();
             if let Ok(id) = value_str.parse::<u16>() {
-                let sprite_name = name.strip_prefix("JT_").unwrap_or(name);
+                let sprite_name = sprite_name(name);
                 if !sprite_name.is_empty() {
-                    map.insert(id, sprite_name.to_string());
+                    map.insert(id, sprite_name);
                 }
             }
         }
     }
     map
+}
+
+fn sprite_name(identity: &str) -> String {
+    identity.strip_prefix("JT_").unwrap_or(identity).to_string()
 }
 
 #[cfg(test)]

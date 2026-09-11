@@ -90,8 +90,10 @@ pub mod imf {
 /// the same table; readers try one then the other.
 pub mod lua {
     crate::paths! {
+        ACCESSORY_ID_514_LUB = "data/luafiles514/lua files/datainfo/accessoryid.lub";
         ACCESSORY_ID_LUA = "data/lua files/datainfo/accessoryid.lua";
         ACCESSORY_ID_LUB = "data/lua files/datainfo/accessoryid.lub";
+        ACCESSORY_NAME_514_LUB = "data/luafiles514/lua files/datainfo/accname.lub";
         ACCESSORY_NAME_LUA = "data/lua files/datainfo/accname.lua";
         ACCESSORY_NAME_LUB = "data/lua files/datainfo/accname.lub";
         JOB_IDENTITY_514_LUB = "data/luafiles514/lua files/datainfo/jobidentity.lub";

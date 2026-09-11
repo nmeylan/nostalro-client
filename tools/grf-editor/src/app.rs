@@ -7,7 +7,7 @@ use ragnarok_formats::grf::{GrfArchive, GrfFileInfo};
 
 use crate::file_list;
 use crate::gallery::Gallery;
-use crate::preview::{self, BmpPreview};
+use crate::preview::{self, BinaryPreview, BmpPreview, TextPreview};
 use crate::sprite_preview::SpritePreview;
 use crate::tree::{self, TreeNode};
 
@@ -23,6 +23,8 @@ struct LoadedGrf {
     search_filter: String,
     dirty: bool,
     preview: BmpPreview,
+    text_preview: TextPreview,
+    binary_preview: BinaryPreview,
     sprite_preview: Option<SpritePreview>,
     gallery: Gallery,
 }
@@ -55,6 +57,8 @@ impl LoadedGrf {
             search_filter: String::new(),
             dirty: false,
             preview: BmpPreview::default(),
+            text_preview: TextPreview::default(),
+            binary_preview: BinaryPreview::default(),
             sprite_preview: None,
             gallery: Gallery::default(),
         }
@@ -590,6 +594,34 @@ impl GrfEditorApp {
             if stop {
                 self.sound.stop_all_sfx();
             }
+            return;
+        }
+
+        if preview::is_text_previewable(&name) {
+            preview::update_text_preview(
+                &mut grf.text_preview,
+                &mut grf.binary_preview,
+                file_idx,
+                &grf.file_list,
+                &grf.archive,
+            );
+            let text_preview = &grf.text_preview;
+            let binary_preview = &grf.binary_preview;
+            let file = &grf.file_list[file_idx];
+            egui::TopBottomPanel::bottom("file_info")
+                .resizable(true)
+                .default_height(400.0)
+                .show(ctx, |ui| {
+                    ui.heading("File Info");
+                    ui.separator();
+                    file_list::show_file_info(ui, file);
+                    ui.separator();
+                    if binary_preview.has_preview() {
+                        binary_preview.show(ui);
+                    } else {
+                        text_preview.show(ui);
+                    }
+                });
             return;
         }
 

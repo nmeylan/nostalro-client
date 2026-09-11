@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use crate::lub;
+use crate::lub::{LubError, LuaState};
+
 pub fn decode_euc_kr(data: &[u8]) -> String {
     let (decoded, _, _) = encoding_rs::EUC_KR.decode(data);
     decoded.into_owned()
@@ -232,6 +235,45 @@ pub fn build_accessory_table(id_content: &str, name_content: &str) -> HashMap<u1
         }
     }
     table
+}
+
+pub fn build_accessory_table_from_lub(
+    id_chunk: &[u8],
+    name_chunk: &[u8],
+) -> Result<HashMap<u16, String>, LubError> {
+    let mut state = LuaState::new();
+    lub::load_chunk(id_chunk, &mut state)?;
+    lub::load_chunk(name_chunk, &mut state)?;
+
+    let table = state
+        .global_table("AccNameTable")
+        .ok_or(LubError::TypeError)?;
+    let mut accessories = HashMap::new();
+    for (key, value) in table {
+        if let (Some(id), Some(suffix)) = (key.as_number().and_then(to_id), value.as_bytes()) {
+            accessories.insert(id, decode_euc_kr(suffix));
+        }
+    }
+    Ok(accessories)
+}
+
+pub fn parse_jt_identity_lub(chunk: &[u8]) -> Result<HashMap<u16, String>, LubError> {
+    let mut state = LuaState::new();
+    lub::load_chunk(chunk, &mut state)?;
+
+    let mut identities = HashMap::new();
+    for table in state.tables() {
+        for (key, value) in table {
+            if let (Some(name), Some(id)) = (key.as_bytes(), value.as_number().and_then(to_id)) {
+                identities.insert(id, decode_euc_kr(name));
+            }
+        }
+    }
+    Ok(identities)
+}
+
+fn to_id(number: f64) -> Option<u16> {
+    (number >= 0.0 && number <= u16::MAX as f64).then_some(number as u16)
 }
 
 fn parse_assignments(content: &str) -> HashMap<String, u32> {
