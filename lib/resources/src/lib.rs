@@ -581,7 +581,11 @@ pub mod ui {
         RAG_TITLE = "data/texture/유저인터페이스/rag_title.bmp";
         RAG_TITLE2 = "data/texture/유저인터페이스/rag_title2.bmp";
         RAG_TITLE3 = "data/texture/유저인터페이스/rag_title3.bmp";
+        SCROLL0BAR_DOWN = "data/texture/유저인터페이스/scroll0bar_down.bmp";
+        SCROLL0BAR_MID = "data/texture/유저인터페이스/scroll0bar_mid.bmp";
+        SCROLL0BAR_UP = "data/texture/유저인터페이스/scroll0bar_up.bmp";
         SCROLL0DOWN = "data/texture/유저인터페이스/scroll0down.bmp";
+        SCROLL0MID = "data/texture/유저인터페이스/scroll0mid.bmp";
         SCROLL0UP = "data/texture/유저인터페이스/scroll0up.bmp";
         SCROLL1LEFT = "data/texture/유저인터페이스/scroll1left.bmp";
         SCROLL1RIGHT = "data/texture/유저인터페이스/scroll1right.bmp";
