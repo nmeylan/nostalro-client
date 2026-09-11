@@ -82,9 +82,24 @@ impl App {
             attackable.then_some(gid)
         });
 
+        let idx = usize::from(is_mercenary);
         if let Some(target) = attack_target {
-            self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), reserved);
+            // Attacking takes two clicks: the first arms the target and shows the
+            // indicator, the second confirms it. Shift skips that and queues at once.
+            if reserved {
+                self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), true);
+            } else if self.game.companions.companion_attack_target[idx] == Some(target) {
+                self.game.companions.companion_attack_target[idx] = None;
+                self.push_owner_command_to(is_mercenary, OwnerCommand::attack(target), false);
+            } else {
+                self.game.companions.companion_attack_target[idx] = Some(target);
+                self.game.companions.companion_move_marker[idx] = None;
+            }
         } else if let Some((x, y)) = self.hovered_cell() {
+            if !reserved {
+                self.game.companions.companion_attack_target[idx] = None;
+                self.game.companions.companion_move_marker[idx] = Some((x, y));
+            }
             self.push_owner_command_to(is_mercenary, OwnerCommand::move_to(x, y), reserved);
         }
     }

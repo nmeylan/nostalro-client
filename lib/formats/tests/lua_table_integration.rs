@@ -73,8 +73,31 @@ fn parse_npcidentity_lub() {
         .expect("lua 5.1 identity chunk");
 
     for table in [&lua50, &lua51] {
-        assert!(table.len() > 2000, "expected many entries, got {}", table.len());
+        assert!(
+            table.len() > 2000,
+            "expected many entries, got {}",
+            table.len()
+        );
         assert_eq!(table.get(&1002).map(|s| s.as_str()), Some("JT_PORING"));
         assert_eq!(table.get(&1885).map(|s| s.as_str()), Some("JT_GOPINICH"));
     }
+}
+
+#[test]
+fn job_name_table_resolves_homunculus_sprite_names() {
+    let identity = include_bytes!("fixtures/npcid_lua51.lub").as_slice();
+    let job_name = include_bytes!("fixtures/jname_lua51.lub").as_slice();
+
+    let names = lua_table::parse_job_name_lub(&[identity, job_name]).expect("jobname chunk");
+
+    assert!(
+        names.len() > 2000,
+        "expected many entries, got {}",
+        names.len()
+    );
+    // The identity constants are JT_MER_*; the sprite files are not.
+    assert_eq!(names.get(&6001).map(|s| s.as_str()), Some("LIF"));
+    assert_eq!(names.get(&6003).map(|s| s.as_str()), Some("FILIR"));
+    assert_eq!(names.get(&6011).map(|s| s.as_str()), Some("FILIR_H"));
+    assert_eq!(names.get(&1002).map(|s| s.as_str()), Some("Poring"));
 }

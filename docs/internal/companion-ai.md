@@ -115,11 +115,13 @@ Reset restores the built-in defaults, including the full default tactic tables.
 
 Direct commands override the AI until they complete, then the AI resumes.
 
-- Alt and left-click, or Alt and right-click, on a target or cell issues a
-  command. An attackable target under the cursor becomes an attack order.
-  Anything else is a move order to that cell.
-- If a mercenary is out, the command is sent to the mercenary. Otherwise it is
-  sent to the homunculus.
+- Alt and right-click commands the homunculus, Alt and left-click commands the
+  mercenary. Each binding is live only while that companion is out, so a player
+  with both out drives them independently. An attackable target under the cursor
+  becomes an attack order. Anything else is a move order to that cell.
+- An armed pick, a patrol destination or a companion skill target, wins over the
+  mercenary binding, so Alt and left-click resolves the pick instead of issuing a
+  move order. The original has no armed picks and so has no equivalent rule.
 - Holding Shift while issuing a command queues it as a reserved command. Reserved
   commands run after the current action finishes, in order, up to ten queued.
 - Right-clicking the companion without Alt opens a context menu: Show Info, Feed
@@ -130,8 +132,8 @@ Direct commands override the AI until they complete, then the AI resumes.
 
 Patrol:
 
-- The Patrol button in the homunculus window, or the context-menu entry, arms a
-  destination pick. The next left-click on a cell starts the patrol, and the
+- The context-menu entry arms a destination pick. The next left-click on a cell
+  starts the patrol, and the
   companion paces between the cell it was standing on and the clicked cell.
 - A patrol is a standing order: the companion breaks off to engage targets the
   usual way, then goes back to pacing instead of returning to the owner. It
@@ -139,8 +141,8 @@ Patrol:
 - While a patrol stands, the aggro and reaction radii are measured from the
   companion rather than from the owner, so it picks up what it walks past. Every
   other state measures them from the owner.
-- The button reads Stop while a patrol is standing. Any other command, including
-  Stand By and a plain move order, also ends it.
+- The context-menu entry reads Stop Patrol while a patrol is standing. Any other
+  command, including Stand By and a plain move order, also ends it.
 
 Casting a specific skill:
 

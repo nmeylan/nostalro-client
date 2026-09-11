@@ -475,6 +475,27 @@ impl App {
                     self.game.companions.companion_attack_target[idx] = None;
                 }
             }
+            let Some(dest) = self.game.companions.companion_move_marker[idx] else {
+                continue;
+            };
+            let arrived = self
+                .companion_gid(idx == 1)
+                .and_then(|gid| self.game.world.entities.get(gid))
+                .is_some_and(|e| {
+                    let (cx, cy) = e.movement.cell_position();
+                    (cx as i32, cy as i32) == dest
+                });
+            if !present || arrived {
+                self.game.companions.companion_move_marker[idx] = None;
+            }
+        }
+    }
+
+    fn companion_gid(&self, is_mercenary: bool) -> Option<u32> {
+        if is_mercenary {
+            self.game.companions.mercenary.as_ref().map(|m| m.gid)
+        } else {
+            self.game.companions.homunculus.as_ref().map(|h| h.gid)
         }
     }
 }

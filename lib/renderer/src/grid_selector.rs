@@ -26,6 +26,11 @@ impl GridSelectorVertex {
 }
 
 const HOVER_COLOR: [f32; 4] = [0.196, 0.941, 0.627, 0.6];
+/// Destination of a companion move order, drawn on the same bracket texture as
+/// the hover cell.
+const MARKER_COLOR: [f32; 4] = [1.0, 0.0, 0.0, 0.996];
+/// Slot 0 is the hover cell, then one per companion.
+const SLOT_COUNT: usize = 3;
 const GRID_WALKABLE_COLOR: [f32; 4] = [0.196, 0.941, 0.627, 0.4];
 const GRID_WATER_COLOR: [f32; 4] = [0.2, 0.4, 0.9, 0.4];
 const GRID_Y_OFFSET: f32 = -0.2;
@@ -35,7 +40,7 @@ pub struct GridSelectorRenderer {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     texture_name: String,
-    hover_visible: bool,
+    slot_visible: [bool; SLOT_COUNT],
     grid_vertex_buffer: Option<wgpu::Buffer>,
     grid_index_buffer: Option<wgpu::Buffer>,
     grid_index_count: u32,
@@ -76,7 +81,7 @@ impl GridSelectorRenderer {
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("grid_selector_hover_vertices"),
-            size: (4 * std::mem::size_of::<GridSelectorVertex>()) as u64,
+            size: (4 * SLOT_COUNT * std::mem::size_of::<GridSelectorVertex>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -96,7 +101,7 @@ impl GridSelectorRenderer {
             vertex_buffer,
             index_buffer,
             texture_name,
-            hover_visible: false,
+            slot_visible: [false; SLOT_COUNT],
             grid_vertex_buffer: None,
             grid_index_buffer: None,
             grid_index_count: 0,
@@ -105,17 +110,37 @@ impl GridSelectorRenderer {
     }
 
     pub fn update_hover(&self, queue: &wgpu::Queue, corners: [[f32; 3]; 4]) {
+        self.write_slot(queue, 0, corners, HOVER_COLOR);
+    }
+
+    pub fn set_hover_visible(&mut self, v: bool) {
+        self.slot_visible[0] = v;
+    }
+
+    /// `companion` is 0 for the homunculus and 1 for the mercenary.
+    pub fn update_marker(&self, queue: &wgpu::Queue, companion: usize, corners: [[f32; 3]; 4]) {
+        self.write_slot(queue, companion + 1, corners, MARKER_COLOR);
+    }
+
+    pub fn set_marker_visible(&mut self, companion: usize, v: bool) {
+        self.slot_visible[companion + 1] = v;
+    }
+
+    fn write_slot(
+        &self,
+        queue: &wgpu::Queue,
+        slot: usize,
+        corners: [[f32; 3]; 4],
+        color: [f32; 4],
+    ) {
         let uvs = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
         let vertices: [GridSelectorVertex; 4] = std::array::from_fn(|i| GridSelectorVertex {
             position: corners[i],
             tex_coord: uvs[i],
-            color: HOVER_COLOR,
+            color,
         });
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-    }
-
-    pub fn set_hover_visible(&mut self, v: bool) {
-        self.hover_visible = v;
+        let offset = (slot * 4 * std::mem::size_of::<GridSelectorVertex>()) as u64;
+        queue.write_buffer(&self.vertex_buffer, offset, bytemuck::cast_slice(&vertices));
     }
 
     pub fn build_grid_mesh(
@@ -228,10 +253,12 @@ impl GridSelectorRenderer {
             pass.draw_indexed(0..self.grid_index_count, 0, 0..1);
         }
 
-        if self.hover_visible {
+        if self.slot_visible.iter().any(|&v| v) {
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..6, 0, 0..1);
+            for slot in (0..SLOT_COUNT).filter(|&s| self.slot_visible[s]) {
+                pass.draw_indexed(0..6, (slot * 4) as i32, 0..1);
+            }
         }
     }
 }

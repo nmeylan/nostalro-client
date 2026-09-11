@@ -134,59 +134,78 @@ impl App {
         dt: f32,
         render_list: &[RenderEntry],
     ) -> Vec<ClipData> {
-        let target_id = match self.game.combat.attack_target_id {
-            Some(id) => id,
-            None => return Vec::new(),
-        };
-        let cursor_act = match &self.game.assets.cursor_act {
-            Some(a) => a,
-            None => return Vec::new(),
-        };
-        let cursor_tex = match &self.game.assets.cursor_textures {
-            Some(t) => t,
-            None => return Vec::new(),
-        };
-
-        let screen_pos = render_list
-            .iter()
-            .find(|e| e.id == target_id)
-            .map(|e| e.screen_anchor);
-        let [sx, sy] = match screen_pos {
-            Some(pos) => pos,
-            None => return Vec::new(),
-        };
-
-        self.game
-            .assets
-            .lock_cursor_animation
-            .set_cursor_type(CursorType::SemiLock);
-        self.game
-            .assets
-            .lock_cursor_animation
-            .update(dt, cursor_act);
-        let action_idx = self.game.assets.lock_cursor_animation.action_index();
-        let action_idx = if action_idx < cursor_act.actions.len() {
-            action_idx
-        } else {
+        let armed = self.game.companions.companion_attack_target;
+        let attack_target = self.game.combat.attack_target_id;
+        let assets = &mut self.game.assets;
+        let (Some(cursor_act), Some(cursor_tex)) = (&assets.cursor_act, &assets.cursor_textures)
+        else {
             return Vec::new();
         };
-        let action = &cursor_act.actions[action_idx];
-        if action.motions.is_empty() {
-            return Vec::new();
-        }
-        let motion_idx =
-            self.game.assets.lock_cursor_animation.motion_index() % action.motions.len();
-        let motion = &action.motions[motion_idx];
 
         let mut clips = Vec::new();
-        for clip in &motion.clips {
-            if let Some((vertices, indices, tex_idx)) =
-                build_clip_quad(clip, cursor_tex, [sx, sy], 0.0, [0.0, 0.0])
-                && tex_idx < cursor_tex.bind_groups.len()
-            {
-                clips.push((vertices, indices, tex_idx));
-            }
+        if let Some(entry) = attack_target.and_then(|id| render_list.iter().find(|e| e.id == id)) {
+            clips.extend(target_cursor_clips(
+                cursor_act,
+                cursor_tex,
+                &mut assets.lock_cursor_animation,
+                CursorType::SemiLock,
+                dt,
+                entry.screen_anchor,
+            ));
+        }
+        for entry in armed
+            .iter()
+            .filter_map(|&t| t)
+            .filter_map(|id| render_list.iter().find(|e| e.id == id))
+        {
+            // The original raises the marker 20 units above the target in world space.
+            let anchor = [
+                entry.screen_anchor[0],
+                entry.screen_anchor[1] - COMPANION_TARGET_RAISE * entry.sprite_scale,
+            ];
+            clips.extend(target_cursor_clips(
+                cursor_act,
+                cursor_tex,
+                &mut assets.companion_lock_animation,
+                CursorType::Lock,
+                dt,
+                anchor,
+            ));
         }
         clips
     }
+}
+
+/// World units the companion target marker sits above the target.
+const COMPANION_TARGET_RAISE: f32 = 20.0;
+
+fn target_cursor_clips(
+    cursor_act: &ragnarok_formats::act::ActFile,
+    cursor_tex: &ragnarok_renderer::SpriteTextures,
+    anim: &mut ragnarok_game::cursor::CursorAnimationState,
+    cursor_type: CursorType,
+    dt: f32,
+    anchor: [f32; 2],
+) -> Vec<ClipData> {
+    anim.set_cursor_type(cursor_type);
+    anim.update(dt, cursor_act);
+    let action_idx = anim.action_index();
+    if action_idx >= cursor_act.actions.len() {
+        return Vec::new();
+    }
+    let action = &cursor_act.actions[action_idx];
+    if action.motions.is_empty() {
+        return Vec::new();
+    }
+    let motion = &action.motions[anim.motion_index() % action.motions.len()];
+    let mut clips = Vec::new();
+    for clip in &motion.clips {
+        if let Some((vertices, indices, tex_idx)) =
+            build_clip_quad(clip, cursor_tex, anchor, 0.0, [0.0, 0.0])
+            && tex_idx < cursor_tex.bind_groups.len()
+        {
+            clips.push((vertices, indices, tex_idx));
+        }
+    }
+    clips
 }

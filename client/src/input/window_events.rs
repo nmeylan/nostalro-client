@@ -116,7 +116,14 @@ impl App {
                 MouseButton::Right => {
                     self.input.right_mouse_down = state == ElementState::Pressed;
                     if self.input.right_mouse_down {
-                        if self.take_right_double_click() && !self.input.ui_hovered {
+                        // Deviation: the original resets the yaw here whatever the
+                        // modifiers, which fights the two-click homunculus order since
+                        // the confirming click lands inside the double-click window.
+                        let commanding_homunculus = self.input.alt_pressed && self.has_homunculus();
+                        if self.take_right_double_click()
+                            && !self.input.ui_hovered
+                            && !commanding_homunculus
+                        {
                             let control = self.camera_control();
                             if let Some(renderer) = &mut self.renderer {
                                 renderer.camera.apply_reset_gesture(control);
@@ -136,18 +143,15 @@ impl App {
                     } else {
                         self.input.last_mouse_pos = None;
                         if !self.input.right_dragged && !self.input.ui_hovered {
-                            if self.input.alt_pressed
-                                && (self.has_homunculus() || self.has_mercenary())
-                            {
-                                self.issue_owner_command(
-                                    self.has_mercenary(),
-                                    self.input.right_press_target,
-                                );
-                            } else if !self
-                                .open_companion_context_menu(self.input.right_press_target)
-                                && !self.open_pet_context_menu(self.input.right_press_target)
-                            {
-                                self.open_entity_context_menu(self.input.right_press_entity);
+                            if self.input.alt_pressed && self.has_homunculus() {
+                                self.issue_owner_command(false, self.input.right_press_target);
+                            } else {
+                                self.game.companions.companion_attack_target[0] = None;
+                                if !self.open_companion_context_menu(self.input.right_press_target)
+                                    && !self.open_pet_context_menu(self.input.right_press_target)
+                                {
+                                    self.open_entity_context_menu(self.input.right_press_entity);
+                                }
                             }
                         }
                         self.input.right_press_entity = None;
@@ -161,13 +165,13 @@ impl App {
                         if self.input.ui_hovered {
                             self.input.ui_dragging = true;
                         } else if self.input.alt_pressed
-                            && (self.has_homunculus() || self.has_mercenary())
+                            && self.has_mercenary()
+                            && self.game.pending_casts.pending_companion_patrol.is_none()
+                            && self.game.pending_casts.pending_companion_skill.is_none()
                         {
-                            self.issue_owner_command(
-                                self.has_mercenary(),
-                                self.game.hover.target_id(),
-                            );
+                            self.issue_owner_command(true, self.game.hover.target_id());
                         } else {
+                            self.game.companions.companion_attack_target[1] = None;
                             self.handle_left_click();
                             self.input.walk_packet_cooldown = 0.5;
                             self.input.walk_server_acked = false;

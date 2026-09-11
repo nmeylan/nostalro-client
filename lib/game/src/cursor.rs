@@ -19,6 +19,7 @@ pub enum CursorType {
     NoWalk = 8,
     Pick = 9,
     Lock = 10,
+    Lock2 = 11,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::lub;
-use crate::lub::{LubError, LuaState};
+use crate::lub::{LuaState, LubError};
 
 pub fn decode_euc_kr(data: &[u8]) -> String {
     let (decoded, _, _) = encoding_rs::EUC_KR.decode(data);
@@ -150,7 +150,7 @@ pub fn parse_skill_name_table(data: &[u8]) -> HashMap<String, String> {
             let name = parts[0].trim();
             let display = parts[1].trim();
             if !name.is_empty() && !display.is_empty() {
-                map.insert(name.to_string(), display.replace("_"," ").to_string());
+                map.insert(name.to_string(), display.replace("_", " ").to_string());
             }
         }
     }
@@ -270,6 +270,27 @@ pub fn parse_jt_identity_lub(chunk: &[u8]) -> Result<HashMap<u16, String>, LubEr
         }
     }
     Ok(identities)
+}
+
+/// Resolves `JobNameTable` to job id -> sprite name. Its keys are `jobtbl.JT_*`
+/// lookups, so the identity chunks that define `jobtbl` have to be loaded into
+/// the same state first, in the order given.
+pub fn parse_job_name_lub(chunks: &[&[u8]]) -> Result<HashMap<u16, String>, LubError> {
+    let mut state = LuaState::new();
+    for chunk in chunks {
+        lub::load_chunk(chunk, &mut state)?;
+    }
+
+    let mut names = HashMap::new();
+    let Some(table) = state.global_table("JobNameTable") else {
+        return Ok(names);
+    };
+    for (key, value) in table {
+        if let (Some(id), Some(name)) = (key.as_number().and_then(to_id), value.as_bytes()) {
+            names.insert(id, decode_euc_kr(name));
+        }
+    }
+    Ok(names)
 }
 
 fn to_id(number: f64) -> Option<u16> {

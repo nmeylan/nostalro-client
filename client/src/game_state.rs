@@ -231,8 +231,9 @@ pub fn cursor_type_from_hover(
         CursorType::Click
     } else if input.ui_any_hovered {
         CursorType::Default
-    } else if pending.companion_target_armed
-        || pending.pending_companion_skill
+    } else if pending.companion_target_armed {
+        CursorType::Lock2
+    } else if pending.pending_companion_skill
         || pending.pending_companion_patrol
         || pending.capture_targeting
         || pending.pending_skill
@@ -292,6 +293,9 @@ pub struct Companions {
     /// Target armed by the first click of the two-click owner attack, confirmed by
     /// the second. Index 0 = homunculus (Alt+right-click), 1 = mercenary (Alt+left-click).
     pub companion_attack_target: [Option<u32>; 2],
+    /// Destination cell of a companion move order, drawn as a red cell until the
+    /// companion reaches it. Same indices as `companion_attack_target`.
+    pub companion_move_marker: [Option<(i32, i32)>; 2],
     /// Armed by ZC_START_CAPTURE: the next click on a valid mob opens the roulette.
     pub capture_targeting: bool,
     pub pet_roulette: Option<ragnarok_game::pet::PetRoulette>,
@@ -447,6 +451,8 @@ pub struct AssetHandles {
     pub cursor_act: Option<ActFile>,
     pub cursor_animation: CursorAnimationState,
     pub lock_cursor_animation: CursorAnimationState,
+    /// Marker on a homunculus or mercenary target armed by the first Alt-click.
+    pub companion_lock_animation: CursorAnimationState,
     pub emotion_textures: Option<SpriteTextures>,
     pub emotion_act: Option<ActFile>,
     pub status_overlay_sprites: HashMap<AilmentOverlay, (SpriteTextures, ActFile)>,
@@ -694,6 +700,7 @@ impl GameState {
                     COMPANION_AI_CONFIG_PATH,
                 ),
                 companion_attack_target: [None; 2],
+                companion_move_marker: [None; 2],
                 capture_targeting: false,
                 pet_roulette: None,
             },

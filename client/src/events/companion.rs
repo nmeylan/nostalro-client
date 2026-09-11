@@ -3,6 +3,10 @@ use ragnarok_game::companion::{HomunculusState, MercenaryState};
 use ragnarok_game::cursor::{CompanionSkillTarget, PendingCompanionSkill};
 use ragnarok_game::event::{HomunculusProperty, MercenaryInfo, SkillInfo};
 use ragnarok_game::skill::{SkillEnum, SkillTargetType};
+use ragnarok_ui_component::helper::colors::RED;
+
+const MSI_NOT_EXIST_PET_FOOD: u16 = 0x24f;
+const SWEAT: u8 = 4;
 
 /// e_hom_state2: SP_ACK carries the companion GID, SP_INTIMATE / SP_HUNGRY update those meters.
 const HOM_STATE_ACK: i8 = 0;
@@ -69,12 +73,27 @@ impl App {
     }
 
     pub(super) fn handle_homun_feed_result(&mut self, success: bool, item_id: u16) {
-        let msg = if success {
-            "You fed your homunculus.".to_string()
-        } else {
-            format!("Failed to feed homunculus (item {item_id}).")
-        };
-        self.windows.chat_window.add_system(msg);
+        if success {
+            return;
+        }
+        let name = self
+            .game
+            .data_table
+            .item_name
+            .as_ref()
+            .map(|t| t.get_name_or_id(item_id))
+            .unwrap_or_else(|| format!("Item #{item_id}"));
+        self.add_msg_string_line(MSI_NOT_EXIST_PET_FOOD, &[&name], RED);
+        if let Some(gid) = self.game.companions.homunculus.as_ref().map(|h| h.gid) {
+            let duration = ragnarok_game::emotion::emote_duration(
+                self.game.assets.emotion_act.as_ref(),
+                SWEAT,
+            );
+            self.game
+                .world
+                .entities
+                .apply_entity_emotion(gid, SWEAT, duration);
+        }
     }
 
     pub(super) fn handle_mercenary_info(&mut self, info: MercenaryInfo, is_init: bool) {

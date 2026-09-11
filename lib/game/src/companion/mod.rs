@@ -178,3 +178,20 @@ impl MercenaryState {
         self.hp > 0
     }
 }
+
+/// Companion status packets carry the attack motion delay in milliseconds. Both
+/// info windows show the rating derived from it.
+pub fn aspd_display(amotion: i16) -> i16 {
+    (2000 - amotion) / 10
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aspd_reads_as_a_rating_not_a_delay() {
+        assert_eq!(aspd_display(700), 130);
+        assert_eq!(aspd_display(100), 190);
+    }
+}

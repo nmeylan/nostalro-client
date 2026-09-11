@@ -18,6 +18,11 @@ const IDENTITY_PATHS: &[&str] = &[
     ragnarok_resources::lua::NPC_IDENTITY_LUA,
 ];
 
+const JOB_NAME_PATHS: &[&str] = &[
+    ragnarok_resources::lua::JOB_NAME_514_LUB,
+    ragnarok_resources::lua::JOB_NAME_LUB,
+];
+
 impl NameTable {
     /// The GRF's identity tables name what that client knows; the builtin table
     /// stays underneath so ids the client version predates keep a sprite name.
@@ -50,8 +55,12 @@ impl NameTable {
             }
         }
 
+        let from_job_name = load_job_names(grf);
+        let job_name_count = from_job_name.len();
+        entries.extend(from_job_name);
+
         tracing::info!(
-            "Loaded name table: {} entries, {from_grf} from GRF identity lua",
+            "Loaded name table: {} entries, {from_grf} from GRF identity lua, {job_name_count} from jobname lua",
             entries.len()
         );
         Self { entries }
@@ -89,6 +98,29 @@ fn parse_jt_assignments(content: &str) -> HashMap<u16, String> {
         }
     }
     map
+}
+
+/// The identity tables name the `JT_` constant, which is not always the sprite
+/// file name: every homunculus constant carries a `MER_` prefix the sprite does
+/// not. `jobname.lub` holds the real mapping, keyed by those same constants, so
+/// the identity chunks are loaded first to define `jobtbl`.
+fn load_job_names(grf: &GrfArchive) -> HashMap<u16, String> {
+    let mut chunks: Vec<Vec<u8>> = Vec::new();
+    for path in IDENTITY_PATHS.iter().chain(JOB_NAME_PATHS) {
+        if let Ok(data) = grf.read_file(path)
+            && lub::is_compiled_chunk(&data)
+        {
+            chunks.push(data);
+        }
+    }
+    let borrowed: Vec<&[u8]> = chunks.iter().map(|c| c.as_slice()).collect();
+    match lua_table::parse_job_name_lub(&borrowed) {
+        Ok(names) => names,
+        Err(error) => {
+            tracing::warn!("jobname lua unreadable: {error}");
+            HashMap::new()
+        }
+    }
 }
 
 fn sprite_name(identity: &str) -> String {

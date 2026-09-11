@@ -95,6 +95,7 @@ impl App {
                 self.game.minimap_marks.clear();
                 self.windows.pet_window.set_visible(false);
                 self.game.companions.companion_attack_target = [None; 2];
+                self.game.companions.companion_move_marker = [None; 2];
                 self.windows.homunculus_window.set_visible(false);
                 self.windows.mercenary_window.set_visible(false);
                 self.game.guild = None;

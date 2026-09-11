@@ -97,6 +97,8 @@ pub mod lua {
         ACCESSORY_NAME_LUA = "data/lua files/datainfo/accname.lua";
         ACCESSORY_NAME_LUB = "data/lua files/datainfo/accname.lub";
         JOB_IDENTITY_514_LUB = "data/luafiles514/lua files/datainfo/jobidentity.lub";
+        JOB_NAME_514_LUB = "data/luafiles514/lua files/datainfo/jobname.lub";
+        JOB_NAME_LUB = "data/lua files/datainfo/jobname.lub";
         JOB_IDENTITY_LUA = "data/lua files/datainfo/jobidentity.lua";
         JOB_IDENTITY_LUB = "data/lua files/datainfo/jobidentity.lub";
         NPC_IDENTITY_514_LUB = "data/luafiles514/lua files/datainfo/npcidentity.lub";
@@ -657,6 +659,7 @@ pub mod ui {
             GZERED_LEFT = "data/texture/유저인터페이스/basic_interface/gzered_left.bmp";
             GZERED_MID = "data/texture/유저인터페이스/basic_interface/gzered_mid.bmp";
             GZERED_RIGHT = "data/texture/유저인터페이스/basic_interface/gzered_right.bmp";
+            HOMUNINFO_BG = "data/texture/유저인터페이스/basic_interface/homuninfo_bg.bmp";
             ITEMWIN_MID = "data/texture/유저인터페이스/basic_interface/itemwin_mid.bmp";
             ITEM_INVERT = "data/texture/유저인터페이스/basic_interface/item_invert.bmp";
             LV_UP_OFF = "data/texture/유저인터페이스/basic_interface/lv_up_off.bmp";

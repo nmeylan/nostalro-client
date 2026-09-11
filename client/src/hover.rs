@@ -21,6 +21,13 @@ impl App {
             Some(coords.cell_corners_world(gat, cx, cy))
         });
 
+        let marker_corners: [Option<[[f32; 3]; 4]>; 2] = std::array::from_fn(|i| {
+            let (cx, cy) = self.game.companions.companion_move_marker[i]?;
+            let coords = self.game.session.map_coords.as_ref()?;
+            let gat = self.game.session.gat.as_ref()?;
+            Some(coords.cell_corners_world(gat, cx, cy))
+        });
+
         if let Some(renderer) = &mut self.renderer
             && let Some(grid) = &mut renderer.grid_selector
         {
@@ -29,6 +36,15 @@ impl App {
                 grid.set_hover_visible(true);
             } else {
                 grid.set_hover_visible(false);
+            }
+            for (i, corners) in marker_corners.iter().enumerate() {
+                match corners {
+                    Some(corners) => {
+                        grid.update_marker(&renderer.device.queue, i, *corners);
+                        grid.set_marker_visible(i, true);
+                    }
+                    None => grid.set_marker_visible(i, false),
+                }
             }
         }
 
@@ -104,16 +120,10 @@ impl App {
             hover.cell_cursor = cursor_type_for_cell(gat, hovered_cell);
         }
 
-        let companion_target_armed = self
-            .game
-            .companions
-            .companion_attack_target
-            .iter()
-            .any(Option::is_some);
-        let suppressed = self.input.right_mouse_down
-            || ui_any_interactive_hovered
-            || ui_any_hovered
-            || companion_target_armed;
+        // An armed companion target does not suppress picking: confirming the order
+        // needs the same target to resolve under the cursor a second time.
+        let suppressed =
+            self.input.right_mouse_down || ui_any_interactive_hovered || ui_any_hovered;
 
         if !suppressed {
             if let Some(pending) = &self.game.pending_casts.pending_companion_skill {

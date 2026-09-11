@@ -4,7 +4,7 @@ use crate::helper::window_chrome::{
     gauge_texture_paths, label_color, text_color,
 };
 use crate::{BuildCtx, InGameWindow, Window};
-use ragnarok_game::companion::MercenaryState;
+use ragnarok_game::companion::{MercenaryState, aspd_display};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -127,7 +127,7 @@ impl MercenaryWindow {
             ("Def", merc.def),
             ("Mdef", merc.mdef),
             ("Flee", merc.flee),
-            ("Aspd", merc.aspd),
+            ("Aspd", aspd_display(merc.aspd)),
         ];
         let cell_x = x + PAD;
         let cell_w = LEFT_W - PAD;
