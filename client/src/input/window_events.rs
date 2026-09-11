@@ -162,6 +162,12 @@ impl App {
                     let pressed = state == ElementState::Pressed;
                     self.input.left_mouse_down = pressed;
                     if pressed {
+                        if !self.input.ui_hovered
+                            && let Some(ui_ctx) = &mut self.ui_context
+                        {
+                            ui_ctx.mouse_clicked = false;
+                            ui_ctx.mouse_double_clicked = false;
+                        }
                         if self.input.ui_hovered {
                             self.input.ui_dragging = true;
                         } else if self.input.alt_pressed

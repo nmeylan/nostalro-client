@@ -13,6 +13,10 @@ pub struct UiContext {
     pub mouse_x: f32,
     pub mouse_y: f32,
     pub mouse_clicked: bool,
+    /// A left press happened this frame, whoever acts on it. Never consumed,
+    /// unlike [`Self::mouse_clicked`], so a press the world took still dismisses
+    /// an open popup.
+    pub mouse_pressed: bool,
     pub mouse_double_clicked: bool,
     pub mouse_down: bool,
     pub mouse_right_clicked: bool,
@@ -61,6 +65,7 @@ impl UiContext {
             mouse_x: 0.0,
             mouse_y: 0.0,
             mouse_clicked: false,
+            mouse_pressed: false,
             mouse_double_clicked: false,
             mouse_down: false,
             mouse_right_clicked: false,
@@ -101,6 +106,7 @@ impl UiContext {
 
     pub fn begin_frame(&mut self) {
         self.mouse_clicked = false;
+        self.mouse_pressed = false;
         self.mouse_double_clicked = false;
         self.mouse_right_clicked = false;
         self.typed_chars.clear();
@@ -169,6 +175,7 @@ impl UiContext {
                             let dist = (dx * dx + dy * dy).sqrt();
 
                             self.mouse_clicked = true;
+                            self.mouse_pressed = true;
                             self.mouse_down = true;
 
                             if elapsed < DOUBLE_CLICK_THRESHOLD_MS && dist < DOUBLE_CLICK_DISTANCE {

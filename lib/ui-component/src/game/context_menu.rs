@@ -234,11 +234,46 @@ impl ContextMenu {
                 }
             }
             self.close();
-        } else if ui.ctx.mouse_clicked && !any_hovered {
+        } else if ui.ctx.mouse_pressed && !any_hovered {
             self.close();
         }
 
         ui.end_popup_layer();
         events
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ragnarok_ui::context::UiContext;
+    use ragnarok_ui::state::StateCache;
+    use ragnarok_ui::test_support::test_frame;
+
+    #[test]
+    fn a_press_the_world_consumed_still_closes_the_menu() {
+        let mut state = StateCache::new();
+        let mut menu = ContextMenu::new();
+        menu.open_at(
+            100.0,
+            100.0,
+            vec![ContextMenuItem {
+                label: "Whisper".to_string(),
+                action: ContextMenuAction::Whisper {
+                    name: "someone".to_string(),
+                },
+            }],
+        );
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 400.0;
+        ctx.mouse_y = 400.0;
+        ctx.mouse_pressed = true;
+        ctx.mouse_clicked = false;
+        let mut ui = test_frame(&mut ctx, &mut state);
+        menu.build(&mut ui);
+
+        assert!(!menu.is_open());
     }
 }

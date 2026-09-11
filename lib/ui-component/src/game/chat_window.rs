@@ -605,7 +605,7 @@ impl ChatWindow {
             state.channel_menu_open = false;
             self.whisper_target.text.clear();
             self.whisper_target.cursor_pos = 0;
-        } else if ui.ctx.mouse_clicked
+        } else if ui.ctx.mouse_pressed
             && !anchor.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
             && !list.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
         {
@@ -679,7 +679,7 @@ impl ChatWindow {
             self.whisper_target.cursor_pos = self.whisper_target.text.chars().count();
             self.whisper_menu_open = false;
             self.focused_input = WHISPER_INPUT_ID;
-        } else if ui.ctx.mouse_clicked
+        } else if ui.ctx.mouse_pressed
             && !btn_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
             && !list.contains(ui.ctx.mouse_x, ui.ctx.mouse_y)
         {
