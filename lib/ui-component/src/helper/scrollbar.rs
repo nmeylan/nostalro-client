@@ -76,6 +76,9 @@ pub fn scrollbar(
 
     if bar_rect.contains(ui.ctx.mouse_x, ui.ctx.mouse_y) {
         ui.any_interactive_hovered = true;
+        if ui.ctx.mouse_clicked {
+            ui.cancel_current_window_drag();
+        }
     }
 
     let has_grf = ui.has_grf_textures;
@@ -315,6 +318,34 @@ mod tests {
         let content = Rect::new(0.0, 0.0, 200.0, 200.0);
         let result = scrollbar(&mut ui, ids(), 0, 5, 10, content, 190.0, 0.0, 200.0);
         assert_eq!(result, 4);
+    }
+
+    #[test]
+    fn thumb_drag_does_not_move_a_full_body_drag_window() {
+        const WIN_ID: WidgetId = WidgetId(903);
+        let mut state = StateCache::new();
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 285.0;
+        ctx.mouse_y = 120.0;
+        ctx.mouse_clicked = true;
+        ctx.mouse_down = true;
+        let mut ui = test_frame(&mut ctx, &mut state);
+        let win = ui.window_at(WIN_ID, 200.0, 200.0, 200.0, 100.0, 100.0);
+        let content = Rect::new(win.x, win.y, 180.0, 200.0);
+        scrollbar(&mut ui, ids(), 0, 5, 10, content, win.x + 180.0, win.y, 200.0);
+
+        let mut ctx = UiContext::new(800.0, 600.0);
+        ctx.mouse_x = 285.0;
+        ctx.mouse_y = 160.0;
+        ctx.mouse_down = true;
+        let mut ui = test_frame(&mut ctx, &mut state);
+        let win = ui.window_at(WIN_ID, 200.0, 200.0, 200.0, 100.0, 100.0);
+        let content = Rect::new(win.x, win.y, 180.0, 200.0);
+        let offset = scrollbar(&mut ui, ids(), 0, 5, 10, content, win.x + 180.0, win.y, 200.0);
+
+        assert_eq!((win.x, win.y), (100.0, 100.0));
+        assert!(offset > 0);
     }
 
     #[test]

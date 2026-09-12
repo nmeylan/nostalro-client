@@ -583,6 +583,12 @@ impl<'a> UiFrame<'a> {
         }
     }
 
+    pub fn cancel_current_window_drag(&mut self) {
+        if let Some(id) = self.current_window {
+            self.cancel_window_drag(id);
+        }
+    }
+
     pub fn cancel_window_drag(&mut self, id: WidgetId) {
         self.state.get_or_default::<WindowState>(id).dragging = false;
         let owner = self
