@@ -630,7 +630,7 @@ impl GameState {
         let Some(player) = self.world.entities.player() else {
             return false;
         };
-        if player.state != EntityState::Casting {
+        if player.state() != EntityState::Casting {
             return false;
         }
         if self

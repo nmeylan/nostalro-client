@@ -125,7 +125,12 @@ impl InputDialog {
         let Some(max) = self.max_value else {
             return;
         };
-        if self.input.text.parse::<i32>().is_ok_and(|value| value > max) {
+        if self
+            .input
+            .text
+            .parse::<i32>()
+            .is_ok_and(|value| value > max)
+        {
             self.set_input_text(&max.to_string());
         }
     }

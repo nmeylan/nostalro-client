@@ -16,7 +16,7 @@ pub fn is_kn_autocounter(skill: SkillEnum) -> bool {
 
 pub fn player_in_autocounter(entities: &EntityCollection) -> bool {
     entities.player().is_some_and(|e| {
-        e.state == EntityState::Casting && e.active_skill.is_some_and(is_kn_autocounter)
+        e.state() == EntityState::Casting && e.active_skill.is_some_and(is_kn_autocounter)
     })
 }
 

@@ -771,6 +771,11 @@ pub fn weapon_trail_sprite_path(
         .then(|| format!("{}_검광", weapon_sprite_path(job_class, sex, weapon_type)))
 }
 
+/// The kick flash a TaeKwon-line actor wears in place of a weapon.
+pub fn kick_glow_sprite_path(job_class: u16, sex: u8) -> String {
+    ragnarok_resources::sprite::player::weapon(job_name_kr(job_class), sex_kr(sex), "_발광")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -950,8 +955,14 @@ mod tests {
         assert_eq!(head_sprite_path(2, 1), "data/sprite/인간족/머리통/남/1_남");
         assert_eq!(head_sprite_path(2, 0), "data/sprite/인간족/머리통/여/4_여");
         assert_eq!(head_sprite_path(8, 0), "data/sprite/인간족/머리통/여/12_여");
-        assert_eq!(head_sprite_path(20, 0), "data/sprite/인간족/머리통/여/20_여");
-        assert_eq!(head_sprite_path(99, 1), "data/sprite/인간족/머리통/남/13_남");
+        assert_eq!(
+            head_sprite_path(20, 0),
+            "data/sprite/인간족/머리통/여/20_여"
+        );
+        assert_eq!(
+            head_sprite_path(99, 1),
+            "data/sprite/인간족/머리통/남/13_남"
+        );
     }
 
     #[test]
@@ -1033,6 +1044,18 @@ mod tests {
         assert_eq!(
             weapon_trail_sprite_path(7, 1, WeaponType::Sword2H).as_deref(),
             Some("data/sprite/인간족/기사/기사_남_검_검광")
+        );
+    }
+
+    #[test]
+    fn taekwon_kick_glow_is_named_after_the_job() {
+        assert_eq!(
+            kick_glow_sprite_path(4046, 1),
+            "data/sprite/인간족/태권소년/태권소년_남_발광"
+        );
+        assert_eq!(
+            kick_glow_sprite_path(4046, 0),
+            "data/sprite/인간족/태권소년/태권소년_여_발광"
         );
     }
 

@@ -971,19 +971,80 @@ pub struct CompositeClips {
 
 /// Which motion of a body-part action to render. For idle/sit the whole actor is
 /// posed by the head-turn (doridori) frame, so every part uses `head_dir`; other
-/// actions play their normal animation via `motion_idx`.
+/// actions play their normal animation via `motion_idx`. A part with no frame at
+/// `motion_idx` is not drawn.
 pub(crate) fn part_motion_index(
     is_idle_or_sit: bool,
     head_dir: u8,
     motion_idx: usize,
     len: usize,
-) -> usize {
+) -> Option<usize> {
     if len == 0 {
-        0
+        None
     } else if is_idle_or_sit {
-        head_dir as usize % len
+        Some(head_dir as usize % len)
+    } else if motion_idx < len {
+        Some(motion_idx)
     } else {
-        motion_idx % len
+        None
+    }
+}
+
+/// Action and motion of a headgear layer. A headgear with a whole multiple of
+/// the head's frames animates at that multiple of the head's frame, and that
+/// takes precedence over a substituted head pose.
+pub(crate) fn headgear_pose(
+    action_idx: usize,
+    head: Option<(usize, usize)>,
+    head_override: Option<usize>,
+    is_idle_or_sit: bool,
+    head_dir: u8,
+    motion_idx: usize,
+    len: usize,
+) -> Option<(usize, usize)> {
+    match head {
+        Some((head_idx, head_len)) if len > head_len && len % head_len == 0 => {
+            Some((action_idx, head_idx * (len / head_len)))
+        }
+        _ => match head_override {
+            Some(action) => Some((action, 0)),
+            None => Some((
+                action_idx,
+                part_motion_index(is_idle_or_sit, head_dir, motion_idx, len)?,
+            )),
+        },
+    }
+}
+
+/// Frames of the TaeKwon kick and cast that pose the head apart from the body:
+/// they draw the head and its headgear from the first frame of an idle
+/// direction instead of the action's own frame. `sex` is 1 for male.
+pub(crate) fn taekwon_head_action(action_idx: usize, motion_idx: usize, sex: u8) -> Option<usize> {
+    let dir = action_idx % 8;
+    match action_idx / 8 {
+        11 => {
+            let (first, second) = if sex == 1 { (3, 4) } else { (4, 5) };
+            let turned = match dir {
+                0 | 1 => (6, 5),
+                2 | 3 => (6, 7),
+                4 | 5 => (2, 1),
+                _ => (2, 3),
+            };
+            if motion_idx == first {
+                Some(turned.0)
+            } else if motion_idx == second {
+                Some(turned.1)
+            } else {
+                None
+            }
+        }
+        12 if motion_idx == 1 => Some(match dir {
+            0 | 1 => 0,
+            2 | 3 => 6,
+            4 | 5 => 4,
+            _ => 2,
+        }),
+        _ => None,
     }
 }
 
@@ -1004,7 +1065,7 @@ pub fn build_composite_clips(
     let is_idle_or_sit = (base_action == 0 || base_action == 2) && entity.head_act.is_some();
 
     let part_motion_idx = |len: usize| part_motion_index(is_idle_or_sit, head_dir, motion_idx, len);
-    let body_motion_idx = part_motion_idx(body_action.motions.len());
+    let body_motion_idx = part_motion_idx(body_action.motions.len())?;
     let body_motion = &body_action.motions[body_motion_idx];
 
     let mut body = Vec::new();
@@ -1021,13 +1082,28 @@ pub fn build_composite_clips(
         }
     }
 
+    let head_override = entity
+        .taekwon_sex
+        .and_then(|sex| taekwon_head_action(action_idx, motion_idx, sex));
+
     let mut head = Vec::new();
     let mut head_anchor: Option<(&Motion, [f32; 2])> = None;
+    let mut head_layer = None;
     if let (Some(head_act), Some(head_tex)) = (&entity.head_act, &entity.head_textures) {
-        let head_action_idx = action_idx % head_act.actions.len();
-        let head_action = &head_act.actions[head_action_idx];
-        if !head_action.motions.is_empty() {
-            let head_motion = &head_action.motions[part_motion_idx(head_action.motions.len())];
+        head_layer = head_act
+            .actions
+            .get(action_idx)
+            .and_then(|a| part_motion_idx(a.motions.len()).map(|m| (m, a.motions.len())));
+        let head_pose = match head_override {
+            Some(action) => Some((action, 0)),
+            None => head_layer.map(|(m, _)| (action_idx, m)),
+        };
+        if let Some((head_action_idx, head_motion_idx)) = head_pose
+            && let Some(head_motion) = head_act
+                .actions
+                .get(head_action_idx)
+                .and_then(|a| a.motions.get(head_motion_idx))
+        {
             let (off_x, off_y) = attachment_offset(body_motion, head_motion);
             let head_zoom = head_motion
                 .clips
@@ -1059,20 +1135,28 @@ pub fn build_composite_clips(
         is_idle_or_sit: bool,
         body_motion: &Motion,
         head_anchor: Option<(&Motion, [f32; 2])>,
+        head_layer: Option<(usize, usize)>,
+        head_override: Option<usize>,
         screen_anchor: [f32; 2],
         depth: f32,
     ) -> Vec<ClipQuad> {
         let mut clips = Vec::new();
         if let (Some(act), Some(tex)) = (act, tex) {
-            let hg_action_idx = action_idx % act.actions.len();
-            let hg_action = &act.actions[hg_action_idx];
-            if !hg_action.motions.is_empty() {
-                let hg_motion_idx = if is_idle_or_sit {
-                    head_dir as usize % hg_action.motions.len()
-                } else {
-                    motion_idx % hg_action.motions.len()
-                };
-                let hg_motion = &hg_action.motions[hg_motion_idx];
+            if let Some(hg_base) = act.actions.get(action_idx)
+                && let Some((hg_action_idx, hg_motion_idx)) = headgear_pose(
+                    action_idx,
+                    head_layer,
+                    head_override,
+                    is_idle_or_sit,
+                    head_dir,
+                    motion_idx,
+                    hg_base.motions.len(),
+                )
+                && let Some(hg_motion) = act
+                    .actions
+                    .get(hg_action_idx)
+                    .and_then(|a| a.motions.get(hg_motion_idx))
+            {
                 let body_offset = attachment_offset(body_motion, hg_motion);
                 for clip in &hg_motion.clips {
                     let offset = match head_anchor {
@@ -1109,6 +1193,8 @@ pub fn build_composite_clips(
         is_idle_or_sit,
         body_motion,
         head_anchor,
+        head_layer,
+        head_override,
         screen_anchor,
         depth,
     );
@@ -1121,6 +1207,8 @@ pub fn build_composite_clips(
         is_idle_or_sit,
         body_motion,
         head_anchor,
+        head_layer,
+        head_override,
         screen_anchor,
         depth,
     );
@@ -1133,16 +1221,17 @@ pub fn build_composite_clips(
         is_idle_or_sit,
         body_motion,
         head_anchor,
+        head_layer,
+        head_override,
         screen_anchor,
         depth,
     );
 
     let mut weapon = Vec::new();
     if let (Some(weapon_act), Some(weapon_tex)) = (&entity.weapon_act, &entity.weapon_textures) {
-        let weapon_action_idx = action_idx % weapon_act.actions.len();
-        let weapon_action = &weapon_act.actions[weapon_action_idx];
-        if !weapon_action.motions.is_empty() {
-            let weapon_motion_idx = part_motion_idx(weapon_action.motions.len());
+        if let Some(weapon_action) = weapon_act.actions.get(action_idx)
+            && let Some(weapon_motion_idx) = part_motion_idx(weapon_action.motions.len())
+        {
             let weapon_motion = &weapon_action.motions[weapon_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, weapon_motion);
             for clip in &weapon_motion.clips {
@@ -1164,10 +1253,9 @@ pub fn build_composite_clips(
     if let (Some(trail_act), Some(trail_tex)) =
         (&entity.weapon_trail_act, &entity.weapon_trail_textures)
     {
-        let trail_action_idx = action_idx % trail_act.actions.len();
-        let trail_action = &trail_act.actions[trail_action_idx];
-        if !trail_action.motions.is_empty() {
-            let trail_motion_idx = part_motion_idx(trail_action.motions.len());
+        if let Some(trail_action) = trail_act.actions.get(action_idx)
+            && let Some(trail_motion_idx) = part_motion_idx(trail_action.motions.len())
+        {
             let trail_motion = &trail_action.motions[trail_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, trail_motion);
             for clip in &trail_motion.clips {
@@ -1187,10 +1275,9 @@ pub fn build_composite_clips(
 
     let mut shield = Vec::new();
     if let (Some(shield_act), Some(shield_tex)) = (&entity.shield_act, &entity.shield_textures) {
-        let shield_action_idx = action_idx % shield_act.actions.len();
-        let shield_action = &shield_act.actions[shield_action_idx];
-        if !shield_action.motions.is_empty() {
-            let shield_motion_idx = part_motion_idx(shield_action.motions.len());
+        if let Some(shield_action) = shield_act.actions.get(action_idx)
+            && let Some(shield_motion_idx) = part_motion_idx(shield_action.motions.len())
+        {
             let shield_motion = &shield_action.motions[shield_motion_idx];
             let (off_x, off_y) = attachment_offset(body_motion, shield_motion);
             for clip in &shield_motion.clips {
@@ -1265,11 +1352,19 @@ pub struct EntitySprite {
     pub shadow_textures: Option<SpriteTextures>,
     pub shadow_act: Option<ActFile>,
     pub layer_order: Option<ImfLayerOrder>,
+    /// Set to the actor's sex on the TaeKwon line, whose kick and cast frames
+    /// pose the head apart from the body.
+    pub taekwon_sex: Option<u8>,
 }
 
 impl EntitySprite {
     pub fn with_layer_order(mut self, layer_order: Option<ImfLayerOrder>) -> Self {
         self.layer_order = layer_order;
+        self
+    }
+
+    pub fn with_taekwon_sex(mut self, sex: Option<u8>) -> Self {
+        self.taekwon_sex = sex;
         self
     }
 }
@@ -1340,6 +1435,7 @@ pub fn build_entity_sprite(
         shadow_textures,
         shadow_act,
         layer_order: None,
+        taekwon_sex: None,
     }
 }
 
@@ -2149,6 +2245,38 @@ mod tests {
         }
     }
 
+    #[test]
+    fn taekwon_kick_and_cast_turn_the_head_out_of_the_action() {
+        const MALE: u8 = 1;
+        const FEMALE: u8 = 0;
+
+        assert_eq!(taekwon_head_action(88, 3, MALE), Some(6));
+        assert_eq!(taekwon_head_action(88, 4, MALE), Some(5));
+        assert_eq!(taekwon_head_action(88, 5, MALE), None);
+        assert_eq!(taekwon_head_action(88, 3, FEMALE), None);
+        assert_eq!(taekwon_head_action(88, 4, FEMALE), Some(6));
+        assert_eq!(taekwon_head_action(88, 5, FEMALE), Some(5));
+
+        let turned: Vec<_> = (88..96)
+            .map(|a| taekwon_head_action(a, 3, MALE).unwrap())
+            .collect();
+        assert_eq!(turned, [6, 6, 6, 6, 2, 2, 2, 2]);
+        let turned: Vec<_> = (88..96)
+            .map(|a| taekwon_head_action(a, 4, MALE).unwrap())
+            .collect();
+        assert_eq!(turned, [5, 5, 7, 7, 1, 1, 3, 3]);
+
+        let cast: Vec<_> = (96..104)
+            .map(|a| taekwon_head_action(a, 1, MALE).unwrap())
+            .collect();
+        assert_eq!(cast, [0, 0, 6, 6, 4, 4, 2, 2]);
+        assert_eq!(taekwon_head_action(96, 0, MALE), None);
+
+        // The swing's other group and every non-kick frame keep their own pose.
+        assert_eq!(taekwon_head_action(80, 3, MALE), None);
+        assert_eq!(taekwon_head_action(88, 0, MALE), None);
+    }
+
     // Real dir=2 idle attach points from data.grf (초보자_남 / 1_남): each idle
     // action has 3 doridori-pose motions whose neck anchor differs by ~17px.
     #[test]
@@ -2165,14 +2293,28 @@ mod tests {
         ];
 
         // Idle: every part follows head_dir, not the (0) animation frame.
-        assert_eq!(part_motion_index(true, 1, 0, 3), 1);
+        assert_eq!(part_motion_index(true, 1, 0, 3), Some(1));
         // A moving action ignores head_dir and plays its own frame.
-        assert_eq!(part_motion_index(false, 1, 5, 3), 5 % 3);
+        assert_eq!(part_motion_index(false, 1, 2, 3), Some(2));
+        // A part short of frames is skipped rather than wrapped.
+        assert_eq!(part_motion_index(false, 1, 5, 3), None);
+        // A headgear with a whole multiple of the head's frames runs at that
+        // multiple; any other count follows the plain rule.
+        let pose =
+            |head, over, motion_idx, len| headgear_pose(88, head, over, false, 0, motion_idx, len);
+        assert_eq!(pose(Some((2, 3)), None, 2, 6), Some((88, 4)));
+        assert_eq!(pose(Some((2, 3)), None, 2, 5), Some((88, 2)));
+        assert_eq!(pose(Some((2, 3)), None, 2, 3), Some((88, 2)));
+        assert_eq!(pose(None, None, 7, 6), None);
+        // A substituted head pose carries the headgear with it, but the
+        // multiple wins over it.
+        assert_eq!(pose(Some((3, 8)), Some(6), 3, 8), Some((6, 0)));
+        assert_eq!(pose(Some((3, 8)), Some(6), 3, 16), Some((88, 6)));
 
         // With both parts on the head_dir pose the neck anchors line up.
         for head_dir in 0u8..3 {
-            let bi = part_motion_index(true, head_dir, 0, 3);
-            let hi = part_motion_index(true, head_dir, 0, 3);
+            let bi = part_motion_index(true, head_dir, 0, 3).unwrap();
+            let hi = part_motion_index(true, head_dir, 0, 3).unwrap();
             let (ox, oy) = attachment_offset(&body[bi], &head[hi]);
             assert!(
                 ox.abs() <= 2 && oy.abs() <= 2,

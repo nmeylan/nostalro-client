@@ -210,7 +210,7 @@ pub fn hovered_player(
             continue;
         };
         if entity.entity_type != EntityType::Player
-            || entity.state == EntityState::Dead
+            || entity.state() == EntityState::Dead
             || entity.is_fading()
         {
             continue;

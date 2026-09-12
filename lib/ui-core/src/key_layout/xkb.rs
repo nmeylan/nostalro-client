@@ -84,8 +84,7 @@ unsafe fn labels_from_keymap(
             else {
                 continue;
             };
-            let written =
-                (xkb.xkb_state_key_get_utf8)(state, keycode, buf.as_mut_ptr(), buf.len());
+            let written = (xkb.xkb_state_key_get_utf8)(state, keycode, buf.as_mut_ptr(), buf.len());
             if written <= 0 {
                 continue;
             }

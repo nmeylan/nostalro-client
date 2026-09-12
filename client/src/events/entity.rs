@@ -129,7 +129,7 @@ impl App {
             .world
             .entities
             .get(gid)
-            .is_some_and(|e| e.state == EntityState::Dead || e.is_fading());
+            .is_some_and(|e| e.state() == EntityState::Dead || e.is_fading());
         if stale {
             self.despawn_entity_effects(gid);
             self.game.world.entities.remove(gid);
@@ -147,7 +147,7 @@ impl App {
             let (cx, cy) = existing.movement.cell_position();
             if cx != x || cy != y {
                 existing.movement.set_position(x as f32, y as f32);
-                existing.state = EntityState::Standing;
+                existing.set_state(EntityState::Standing);
                 existing.state_timer = 0.0;
             }
             let effect_changed = existing.effect_state != effect_state;
@@ -189,8 +189,8 @@ impl App {
         entity.guild_emblem_version = guild_emblem_version;
         entity.is_gm = entity_type == EntityType::Player && self.config.is_gm_account(aid);
         match posture {
-            1 => entity.state = EntityState::Dead,
-            2 => entity.state = EntityState::Sitting,
+            1 => entity.set_state(EntityState::Dead),
+            2 => entity.set_state(EntityState::Sitting),
             _ => {}
         }
         self.game.world.entities.insert(entity);
@@ -262,7 +262,8 @@ impl App {
             .filter(|e| e.movement.is_moving())
             .and_then(|e| e.movement.destination())
             .is_some_and(|(dx, dy)| dx == dest_x && dy == dest_y);
-        if already_moving_to_dest {
+        let latency_coupled = self.config.custom.latency_coupled_walk;
+        if already_moving_to_dest && !latency_coupled {
             return;
         }
         if let Some(gat) = &self.game.session.gat {
@@ -275,9 +276,19 @@ impl App {
                 .unwrap_or((start_x, start_y));
             let path = ragnarok_game::path::path_search(gat, sx, sy, dest_x, dest_y);
             if !path.is_empty() {
-                let now = local_ms as f32 / 1000.0;
+                let now = if latency_coupled {
+                    self.game
+                        .session
+                        .server_time
+                        .server_to_local_secs(start_time, local_ms)
+                } else {
+                    local_ms as f32 / 1000.0
+                };
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
                     entity.begin_move(path, now);
+                    if latency_coupled {
+                        entity.movement.track_server_tick(start_time);
+                    }
                 }
             }
         }
@@ -388,17 +399,18 @@ impl App {
         match action {
             ActionType::Sit => {
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
-                    entity.state = EntityState::Sitting;
+                    entity.set_state(EntityState::Sitting);
                     entity.state_timer = 0.0;
                 }
             }
             ActionType::Stand => {
                 if let Some(entity) = self.game.world.entities.get_mut(gid) {
-                    entity.state = EntityState::Standing;
+                    entity.set_state(EntityState::Standing);
                     entity.state_timer = 0.0;
                 }
                 if self.game.world.entities.is_player(gid) {
                     self.game.session.doridori.reset();
+                    self.end_star_gazing();
                 }
             }
             ActionType::Attack
@@ -409,7 +421,13 @@ impl App {
             | ActionType::AttackCritical => {
                 let target_pos = self.attack_target_cell(target_gid);
                 let mut shooter_cell = None;
-                let motion_factor = ragnarok_game::entity::attack_motion_factor(attack_mt);
+                let roll = self.next_sfx_rand();
+                let mut is_bow = false;
+                if let Some(entity) = self.game.world.entities.get_mut(gid) {
+                    entity.roll_attack_variant(roll);
+                    is_bow = entity.weapon == Some(WeaponType::Bow);
+                }
+                let motion_factor = ragnarok_game::entity::attack_motion_factor(attack_mt, is_bow);
                 let swing_secs = self
                     .game
                     .world
@@ -627,7 +645,7 @@ impl App {
             .world
             .entities
             .get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading())
+            .is_some_and(|e| e.state() != EntityState::Dead && !e.is_fading())
             || self.game.world.trap_units.contains_key(&target_id);
         if !target_alive {
             self.stop_attacking();

@@ -194,7 +194,8 @@ impl App {
                 data.shield,
                 data.shadow,
             )
-            .with_layer_order(data.layer_order),
+            .with_layer_order(data.layer_order)
+            .with_taekwon_sex(ragnarok_game::entity::is_taekwon_job(job).then_some(sex)),
         ))
     }
 

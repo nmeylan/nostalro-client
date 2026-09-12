@@ -489,11 +489,21 @@ pub fn load_player_sprite_data(
         (weapon, shield_id)
     };
     let weapon_type = weapon;
-    let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt, weapon_look));
-    let weapon_trail = weapon
-        .as_ref()
-        .and_then(|_| weapon_type)
-        .and_then(|wt| load_weapon_trail_sprite(grf, job, sex, wt, weapon_look));
+    // A TaeKwon-line actor never shows a weapon; the trail slot carries its
+    // kick flash instead.
+    let (weapon, weapon_trail) = if crate::entity::is_taekwon_job(job) {
+        (
+            None,
+            load_if_present(grf, &crate::sprite_path::kick_glow_sprite_path(job, sex)),
+        )
+    } else {
+        let weapon = weapon_type.and_then(|wt| load_weapon_sprite(grf, job, sex, wt, weapon_look));
+        let trail = weapon
+            .as_ref()
+            .and_then(|_| weapon_type)
+            .and_then(|wt| load_weapon_trail_sprite(grf, job, sex, wt, weapon_look));
+        (weapon, trail)
+    };
     let headgear_top = load_headgear(grf, accessory_table, head_top, sex);
     let headgear_mid = load_headgear(grf, accessory_table, head_mid, sex);
     let headgear_bottom = load_headgear(grf, accessory_table, head_bottom, sex);

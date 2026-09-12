@@ -456,13 +456,30 @@ impl App {
         }
     }
 
+    /// Standing up pulls the sky-watching camera back within the normal zoom.
+    pub(crate) fn end_star_gazing(&mut self) {
+        let star_gladiator =
+            self.game.world.entities.player().is_some_and(|p| {
+                JobName::try_from_value(p.job as usize) == Ok(JobName::StarGladiator)
+            });
+        if !star_gladiator {
+            return;
+        }
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.camera.dest_distance = renderer
+                .camera
+                .dest_distance
+                .min(ragnarok_renderer::camera::OUTDOOR_MAX_DISTANCE);
+        }
+    }
+
     /// A seated Star Gladiator who has not learned Demon of the Sun, Moon and
     /// Stars may pull the camera far back to watch the sky.
     fn is_star_gazing(&self) -> bool {
         let Some(player) = self.game.world.entities.player() else {
             return false;
         };
-        player.state == EntityState::Sitting
+        player.state() == EntityState::Sitting
             && JobName::try_from_value(player.job as usize) == Ok(JobName::StarGladiator)
             && player.health_state & OPT2_BLIND == 0
             && self
@@ -624,7 +641,7 @@ impl App {
                     return;
                 }
                 if let Some(entity) = self.game.world.entities.player() {
-                    let action = if entity.state == EntityState::Sitting {
+                    let action = if entity.state() == EntityState::Sitting {
                         3u8
                     } else {
                         2u8

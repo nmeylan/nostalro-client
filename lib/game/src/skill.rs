@@ -369,25 +369,73 @@ mod tests {
         assert_eq!(skill_failure_msg_id(0, Some(basic), 3), Some(162));
         assert_eq!(skill_failure_msg_id(0, Some(basic), 7), Some(383));
         assert_eq!(skill_failure_msg_id(0, Some(basic), 9), None);
-        assert_eq!(skill_failure_msg_id(0, Some(SkillEnum::AlWarp), 0), Some(214));
-        assert_eq!(skill_failure_msg_id(0, Some(SkillEnum::TfSteal), 0), Some(205));
-        assert_eq!(skill_failure_msg_id(0, Some(SkillEnum::TfPoison), 0), Some(207));
-        assert_eq!(skill_failure_msg_id(0, Some(SkillEnum::SmBash), 0), Some(204));
+        assert_eq!(
+            skill_failure_msg_id(0, Some(SkillEnum::AlWarp), 0),
+            Some(214)
+        );
+        assert_eq!(
+            skill_failure_msg_id(0, Some(SkillEnum::TfSteal), 0),
+            Some(205)
+        );
+        assert_eq!(
+            skill_failure_msg_id(0, Some(SkillEnum::TfPoison), 0),
+            Some(207)
+        );
+        assert_eq!(
+            skill_failure_msg_id(0, Some(SkillEnum::SmBash), 0),
+            Some(204)
+        );
 
-        assert_eq!(skill_failure_msg_id(1, Some(SkillEnum::SmBash), 0), Some(202));
-        assert_eq!(skill_failure_msg_id(6, Some(SkillEnum::AcDouble), 0), Some(239));
-        assert_eq!(skill_failure_msg_id(9, Some(SkillEnum::SmBash), 0), Some(580));
-        assert_eq!(skill_failure_msg_id(10, Some(SkillEnum::SmBash), 0), Some(285));
+        assert_eq!(
+            skill_failure_msg_id(1, Some(SkillEnum::SmBash), 0),
+            Some(202)
+        );
+        assert_eq!(
+            skill_failure_msg_id(6, Some(SkillEnum::AcDouble), 0),
+            Some(239)
+        );
+        assert_eq!(
+            skill_failure_msg_id(9, Some(SkillEnum::SmBash), 0),
+            Some(580)
+        );
+        assert_eq!(
+            skill_failure_msg_id(10, Some(SkillEnum::SmBash), 0),
+            Some(285)
+        );
 
-        assert_eq!(skill_failure_msg_id(11, Some(SkillEnum::SmBash), 0), Some(1396));
-        assert_eq!(skill_failure_msg_id(16, Some(SkillEnum::SmBash), 0), Some(1401));
-        assert_eq!(skill_failure_msg_id(17, Some(SkillEnum::SmBash), 0), Some(1411));
-        assert_eq!(skill_failure_msg_id(23, Some(SkillEnum::SmBash), 0), Some(1417));
-        assert_eq!(skill_failure_msg_id(24, Some(SkillEnum::SmBash), 0), Some(1425));
-        assert_eq!(skill_failure_msg_id(27, Some(SkillEnum::SmBash), 0), Some(1428));
+        assert_eq!(
+            skill_failure_msg_id(11, Some(SkillEnum::SmBash), 0),
+            Some(1396)
+        );
+        assert_eq!(
+            skill_failure_msg_id(16, Some(SkillEnum::SmBash), 0),
+            Some(1401)
+        );
+        assert_eq!(
+            skill_failure_msg_id(17, Some(SkillEnum::SmBash), 0),
+            Some(1411)
+        );
+        assert_eq!(
+            skill_failure_msg_id(23, Some(SkillEnum::SmBash), 0),
+            Some(1417)
+        );
+        assert_eq!(
+            skill_failure_msg_id(24, Some(SkillEnum::SmBash), 0),
+            Some(1425)
+        );
+        assert_eq!(
+            skill_failure_msg_id(27, Some(SkillEnum::SmBash), 0),
+            Some(1428)
+        );
 
-        assert_eq!(skill_failure_msg_id(34, Some(SkillEnum::SmBash), 0), Some(1436));
-        assert_eq!(skill_failure_msg_id(84, Some(SkillEnum::SmBash), 0), Some(2466));
+        assert_eq!(
+            skill_failure_msg_id(34, Some(SkillEnum::SmBash), 0),
+            Some(1436)
+        );
+        assert_eq!(
+            skill_failure_msg_id(84, Some(SkillEnum::SmBash), 0),
+            Some(2466)
+        );
 
         assert_eq!(skill_failure_msg_id(0, None, 0), Some(204));
         assert_eq!(skill_failure_msg_id(84, None, 0), Some(2466));

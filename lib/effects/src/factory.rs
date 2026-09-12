@@ -1479,8 +1479,7 @@ pub fn make_effect(
             .with_life_ms(duration_ms),
         ),
         EffectId::BeginspellN => Box::new(
-            effects::beginspell_n::BeginspellNEffect::new(anchor.point())
-                .with_life_ms(duration_ms),
+            effects::beginspell_n::BeginspellNEffect::new(anchor.point()).with_life_ms(duration_ms),
         ),
 
         EffectId::Changefire => Box::new(effects::cast_circle::CastCircleEffect::new(

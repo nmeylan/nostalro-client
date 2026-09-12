@@ -150,7 +150,7 @@ impl App {
                 self.game.sprite_caches.carts.remove(&gid);
                 continue;
             };
-            let (action, motion) = if entity.state == EntityState::Moving {
+            let (action, motion) = if entity.state() == EntityState::Moving {
                 (CART_ACTION_MOVE, MotionType::Loop)
             } else {
                 (CART_ACTION_IDLE, MotionType::Static)

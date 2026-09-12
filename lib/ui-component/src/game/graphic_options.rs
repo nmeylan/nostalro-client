@@ -439,7 +439,6 @@ impl InGameWindow for GraphicOptionsWindow {
             &mut self.accessibility,
         );
 
-
         if let Some(overlay) = dd_resp.overlay_rect {
             let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
             if let Some(idx) =

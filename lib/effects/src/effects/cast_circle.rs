@@ -46,10 +46,38 @@ struct GiSeed {
 }
 
 const GI_SEEDS: [GiSeed; NUM_GI] = [
-    GiSeed { arc_deg: 315.0, max_height: 25.0, distance: 4.5, rise_deg: 70.0, rot_start_deg: 0.0, alpha_b: 180.0 },
-    GiSeed { arc_deg: 315.0, max_height: 22.0, distance: 5.0, rise_deg: 57.0, rot_start_deg: 90.0, alpha_b: 180.0 },
-    GiSeed { arc_deg: 315.0, max_height: 19.0, distance: 5.5, rise_deg: 45.0, rot_start_deg: 180.0, alpha_b: 180.0 },
-    GiSeed { arc_deg: 360.0, max_height: 250.0, distance: 4.0, rise_deg: 89.0, rot_start_deg: 0.0, alpha_b: 70.0 },
+    GiSeed {
+        arc_deg: 315.0,
+        max_height: 25.0,
+        distance: 4.5,
+        rise_deg: 70.0,
+        rot_start_deg: 0.0,
+        alpha_b: 180.0,
+    },
+    GiSeed {
+        arc_deg: 315.0,
+        max_height: 22.0,
+        distance: 5.0,
+        rise_deg: 57.0,
+        rot_start_deg: 90.0,
+        alpha_b: 180.0,
+    },
+    GiSeed {
+        arc_deg: 315.0,
+        max_height: 19.0,
+        distance: 5.5,
+        rise_deg: 45.0,
+        rot_start_deg: 180.0,
+        alpha_b: 180.0,
+    },
+    GiSeed {
+        arc_deg: 360.0,
+        max_height: 250.0,
+        distance: 4.0,
+        rise_deg: 89.0,
+        rot_start_deg: 0.0,
+        alpha_b: 70.0,
+    },
 ];
 
 #[derive(Clone, Copy, Debug)]
@@ -448,7 +476,12 @@ mod tests {
     #[test]
     fn variants_carry_their_own_texture_tint_and_blend() {
         let cases = [
-            (BEGINSPELL2, "ring_blue.tga", BlendKind::Alpha, 195.0 / 255.0),
+            (
+                BEGINSPELL2,
+                "ring_blue.tga",
+                BlendKind::Alpha,
+                195.0 / 255.0,
+            ),
             (BEGINSPELL3, "ring_yellow.tga", BlendKind::Additive, 1.0),
             (BEGINSPELL8, "ring_green.tga", BlendKind::Additive, 1.0),
             (BEGINSPELL4, "Magic_Green.tga", BlendKind::Alpha, 1.0),

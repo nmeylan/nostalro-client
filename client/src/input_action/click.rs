@@ -40,7 +40,7 @@ impl App {
                 .world
                 .entities
                 .player()
-                .is_some_and(|e| e.state == EntityState::SkillExec)
+                .is_some_and(|e| e.state() == EntityState::SkillExec)
         {
             return;
         }
@@ -342,7 +342,7 @@ impl App {
             .entities
             .player()
             .filter(|e| e.is_move_locked())
-            .map(|e| e.state);
+            .map(|e| e.state());
         if let Some(state) = locked_state {
             self.game.combat.queued_move = Some((dest_x, dest_y));
             self.game.combat.queued_move_state = Some(state);

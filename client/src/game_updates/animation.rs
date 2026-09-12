@@ -6,9 +6,10 @@ use ragnarok_game::entity::{
     DEATH_FADE_DURATION, EntityFade, EntityState, EntityType, ForcedAnimation,
 };
 use ragnarok_game::gr2_model::{self, Gr2Action};
+use ragnarok_game::movement::direction_from_positions;
 use ragnarok_game::sound::SoundQueue;
 
-/// If i remember correctly, original client does not always play sound, not sure about the threshold
+/// The original game plays every frame event; the percent gate is a custom option.
 fn act_event_audible(rng: &mut u32, percent: u32) -> bool {
     percent >= 100 || next_rand(rng) % 100 < percent
 }
@@ -41,10 +42,32 @@ fn emit_act_events(
 
 impl App {
     pub(crate) fn update_entity_state(&mut self, delta: f32) {
+        let sprites = &self.game.sprite_caches.sprites;
+        let mut refaces = Vec::new();
         for entity in self.game.world.entities.iter_mut() {
-            entity.update_state(delta);
+            entity.update_state(delta, sprites.contains_key(&entity.id));
             if let Some(move_dir) = entity.movement.movement_direction() {
                 entity.set_facing(move_dir);
+            }
+            if let Some(target) = entity.cast_reface_due(delta) {
+                refaces.push((entity.id, target));
+            }
+        }
+        for (gid, target) in refaces {
+            let Some((tx, ty)) = self
+                .game
+                .world
+                .entities
+                .get(target)
+                .map(|t| t.movement.cell_position())
+            else {
+                continue;
+            };
+            if let Some(caster) = self.game.world.entities.get_mut(gid) {
+                let (sx, sy) = caster.movement.cell_position();
+                if let Some(dir) = direction_from_positions(sx, sy, tx, ty) {
+                    caster.set_facing(dir);
+                }
             }
         }
     }
@@ -67,25 +90,13 @@ impl App {
         for entity in self.game.world.entities.iter_mut() {
             if let Some(sprite) = sprites.get(&entity.id) {
                 let pose_action = entity.resolved_action_index(&sprite.body_act);
-                if entity.holds_last_frame(
+                let holds_last_frame = entity.holds_last_frame(
                     pose_action,
                     entity.animation.action(),
                     entity.animation.is_finished(),
-                ) {
-                    continue;
-                }
-                if entity.forced_animation.is_none()
-                    && ailment::ailment_visual(
-                        entity.body_state,
-                        entity.health_state,
-                        entity.rooted,
-                    )
-                    .motion_locked
-                {
-                    continue;
-                }
-                let dir = camera_dir.unwrap_or(0);
-
+                );
+                let duration = entity.animation_duration.take();
+                let hold_secs = std::mem::take(&mut entity.animation_hold_secs);
                 if let Some(ba) = self.effect_holder.take_body_action_for_entity(entity.id) {
                     entity.forced_animation = Some(ForcedAnimation::new(
                         ba.action_index,
@@ -93,6 +104,21 @@ impl App {
                         ba.duration_ms,
                     ));
                 }
+                entity.animation.set_direction(entity.direction);
+                if entity.forced_animation.is_none()
+                    && (holds_last_frame
+                        || ailment::ailment_visual(
+                            entity.body_state,
+                            entity.health_state,
+                            entity.rooted,
+                        )
+                        .motion_locked)
+                {
+                    continue;
+                }
+                let dir = camera_dir.unwrap_or(0);
+                let new_entry = entity.animation.mark_entry(entity.motion_epoch());
+
                 if let Some(mut forced) = entity.forced_animation {
                     if !forced.started() {
                         forced.mark_started();
@@ -101,6 +127,12 @@ impl App {
                                 .animation
                                 .set_action(forced.action, MotionType::Static);
                             entity.animation.set_motion_index(forced.start_frame);
+                        } else if let Some(end_frame) = forced.end_frame {
+                            entity.animation.play_range(
+                                forced.action,
+                                forced.start_frame,
+                                end_frame,
+                            );
                         } else {
                             entity.animation.play(
                                 forced.action,
@@ -109,9 +141,12 @@ impl App {
                             );
                         }
                     }
-                    entity.animation.set_direction(entity.direction);
                     entity.forced_animation = if forced.hold {
-                        forced.tick_hold(delta).then_some(forced)
+                        let alive = forced.tick_hold(delta);
+                        if !alive {
+                            entity.animation.finish();
+                        }
+                        alive.then_some(forced)
                     } else {
                         entity.animation.update(delta, &sprite.body_act, dir);
                         let action_idx = entity.animation.action_index(&sprite.body_act, dir);
@@ -127,51 +162,60 @@ impl App {
                             act_sound_percent,
                             sound_queue,
                         );
-                        (!entity.animation.is_finished()).then_some(forced)
+                        let time_left = forced.hold_last && forced.tick_hold(delta);
+                        (!entity.animation.is_finished() || time_left).then_some(forced)
                     };
                     continue;
                 }
 
                 let action = pose_action;
                 let is_transient = matches!(
-                    entity.state,
+                    entity.state(),
                     EntityState::Hurt
                         | EntityState::SkillExec
                         | EntityState::Dead
                         | EntityState::Pickup
                 );
-                if let Some(duration) = entity.animation_duration.take() {
+                if let Some(duration) = duration {
                     let start_frame = entity.animation_start_frame.take().unwrap_or_else(|| {
-                        if entity.state == EntityState::SkillExec {
+                        if entity.state() == EntityState::SkillExec {
                             entity.skill_exec_start_frame()
                         } else {
                             0
                         }
                     });
-                    if entity.state == EntityState::Attacking {
+                    if entity.state() == EntityState::Attacking {
                         entity.animation.play_attack(
                             action,
                             entity.attack_motion_factor,
                             start_frame,
                         );
+                        entity.attack_motion_factor = 1.0;
                     } else {
-                        entity
-                            .animation
-                            .play(action, duration * 1000.0, start_frame);
+                        entity.animation.play_held(
+                            action,
+                            duration * 1000.0,
+                            hold_secs * 1000.0,
+                            start_frame,
+                        );
                     }
-                } else if entity.state == EntityState::Casting {
+                } else if entity.state() == EntityState::Casting {
                     entity.animation.set_action(action, MotionType::Static);
-                    entity.animation.set_direction(entity.direction);
+                    if new_entry {
+                        entity.animation.restart_motion();
+                    }
                     continue;
-                } else if entity.state != EntityState::Attacking {
+                } else if entity.state() != EntityState::Attacking {
                     let motion = if is_transient {
                         MotionType::OneShot
                     } else {
                         MotionType::Loop
                     };
                     entity.animation.set_action(action, motion);
+                    if new_entry {
+                        entity.animation.restart_motion();
+                    }
                 }
-                entity.animation.set_direction(entity.direction);
                 let is_composite = matches!(
                     entity.entity_type,
                     EntityType::Player | EntityType::Mercenary
@@ -181,7 +225,7 @@ impl App {
                         .is_none_or(|a| a.is_animated());
                 let (cx, cy) = entity.movement.position();
                 if animated {
-                    if entity.state == EntityState::Moving {
+                    if entity.state() == EntityState::Moving {
                         let (lx, ly) = entity.anim_last_pos;
                         let dist = ((cx - lx).powi(2) + (cy - ly).powi(2)).sqrt();
                         entity
@@ -230,9 +274,9 @@ impl App {
             let Some(entity) = self.game.world.entities.get_mut(*gid) else {
                 continue;
             };
-            instance.set_action(Gr2Action::from_state(entity.state), elapsed);
+            instance.set_action(Gr2Action::from_state(entity.state()), elapsed);
 
-            if entity.state == EntityState::Dead
+            if entity.state() == EntityState::Dead
                 && entity.fade.is_none()
                 && entity.scheduled_hits.is_empty()
                 && instance.action_completed(elapsed)
@@ -259,7 +303,7 @@ impl App {
 
     pub(crate) fn update_fades(&mut self, delta: f32) {
         for entity in self.game.world.entities.iter_mut() {
-            if entity.state == EntityState::Dead
+            if entity.state() == EntityState::Dead
                 && entity.fade.is_none()
                 && entity.animation.is_finished()
                 && entity.scheduled_hits.is_empty()

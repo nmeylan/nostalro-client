@@ -325,7 +325,10 @@ mod tests {
     #[test]
     fn cascade_brings_the_emitters_up_one_at_a_time() {
         let mut e = SaintCastingEffect::new([0.0; 3], TEST_CONFIG);
-        assert!(rings(&e).is_empty(), "everything fades in — frame 0 is empty");
+        assert!(
+            rings(&e).is_empty(),
+            "everything fades in — frame 0 is empty"
+        );
         step_frames(&mut e, 4);
         let early = rings(&e).len();
         assert!(

@@ -79,7 +79,6 @@ impl MapCloudScheduler {
 mod tests {
     use super::*;
 
-
     #[test]
     fn waits_for_the_player_then_spawns_once_and_follows_the_effect_toggle() {
         let mut sched = MapCloudScheduler::default();

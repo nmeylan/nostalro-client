@@ -32,7 +32,7 @@ impl App {
             .world
             .entities
             .player()
-            .map(|p| motion_from_state(p.state))
+            .map(|p| motion_from_state(p.state()))
             .unwrap_or(Motion::Stand);
         let owner_hp_pct = {
             let c = &self.game.character;
@@ -55,7 +55,7 @@ impl App {
                     is_monster: e.entity_type == EntityType::Monster && !e.is_pet,
                     is_player: e.entity_type == EntityType::Player,
                     class_id: e.job,
-                    motion: motion_from_state(e.state),
+                    motion: motion_from_state(e.state()),
                     target_gid: e.target_gid,
                 }
             })
@@ -163,7 +163,7 @@ impl App {
         let gid = homun.gid;
         let entity = self.game.world.entities.get(gid)?;
         let (mx, my) = entity.movement.cell_position();
-        let motion = motion_from_state(entity.state);
+        let motion = motion_from_state(entity.state());
         let job = entity.job;
         // (re-borrow homun mutably after the immutable entity read)
         let homun = self.game.companions.homunculus.as_mut()?;
@@ -230,7 +230,7 @@ impl App {
             return None;
         };
         let (mx, my) = entity.movement.cell_position();
-        let motion = motion_from_state(entity.state);
+        let motion = motion_from_state(entity.state());
         let job = entity.job;
         let merc = self.game.companions.mercenary.as_mut()?;
         merc.job = job;

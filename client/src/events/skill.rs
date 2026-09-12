@@ -436,8 +436,9 @@ impl App {
     }
 
     /// Fraction `[0, 1)` through the caster's attack/skill animation at which
-    /// its swing connects — the `atk` keyframe. Defaults to mid-animation when
-    /// the caster sprite or action is unavailable.
+    /// its swing connects: a job table for a player, the `atk` keyframe for
+    /// everything else. Defaults to mid-animation when the caster sprite or
+    /// action is unavailable.
     pub(super) fn atk_keyframe_fraction(
         &self,
         caster_gid: u32,
@@ -457,7 +458,13 @@ impl App {
         if motion_count == 0 {
             return 0.5;
         }
-        ragnarok_formats::act::atk_keyframe_index(act, action_idx) as f32 / motion_count as f32
+        let keyframe = match self.game.world.entities.get(caster_gid) {
+            Some(caster) if caster.entity_type == EntityType::Player => {
+                caster.player_attack_keyframe()
+            }
+            _ => ragnarok_formats::act::atk_keyframe_index(act, action_idx) as f32,
+        };
+        keyframe / motion_count as f32
     }
 
     /// Feet-world positions of caster and target for a projectile trail. `None`

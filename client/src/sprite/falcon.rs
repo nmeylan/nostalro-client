@@ -232,7 +232,7 @@ impl App {
                 .world
                 .entities
                 .get(gid)
-                .is_some_and(|e| e.state == EntityState::Moving);
+                .is_some_and(|e| e.state() == EntityState::Moving);
             let Some(falcon) = self.game.sprite_caches.falcons.get_mut(&gid) else {
                 continue;
             };

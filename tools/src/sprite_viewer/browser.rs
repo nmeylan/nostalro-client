@@ -63,6 +63,10 @@ const JOB_LIST: &[(u16, &str)] = &[
     (4020, "Clown"),
     (4021, "Gypsy"),
     (4022, "Peco Paladin"),
+    (4046, "Taekwon"),
+    (4047, "Star Gladiator"),
+    (4048, "Star Gladiator Union"),
+    (4049, "Soul Linker"),
 ];
 
 struct TabData {

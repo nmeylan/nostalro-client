@@ -868,13 +868,8 @@ fn render_bar(
     draw_calls: &mut Vec<UiDrawCall>,
 ) {
     let border_x = center_x - width / 2.0;
-    let (border_verts, border_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x,
-        y,
-        width,
-        height,
-        [0.063, 0.094, 0.612, 1.0],
-    );
+    let (border_verts, border_idx) =
+        ragnarok_ui::draw::quad_vertices(border_x, y, width, height, [0.063, 0.094, 0.612, 1.0]);
     draw_calls.push(UiDrawCall {
         vertices: border_verts.to_vec(),
         indices: border_idx.to_vec(),
@@ -894,13 +889,8 @@ fn render_bar(
     });
     let fill_ratio = ratio.clamp(0.0, 1.0);
     let fill_w = (width - 2.0) * fill_ratio;
-    let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
-        border_x + 1.0,
-        y + 1.0,
-        fill_w,
-        height - 2.0,
-        fill_color,
-    );
+    let (fill_verts, fill_idx) =
+        ragnarok_ui::draw::quad_vertices(border_x + 1.0, y + 1.0, fill_w, height - 2.0, fill_color);
     draw_calls.push(UiDrawCall {
         vertices: fill_verts.to_vec(),
         indices: fill_idx.to_vec(),

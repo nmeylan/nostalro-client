@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::ops::Index;
 use crate::data_table::skill_name_table::{SkillNameTable, format_skill_display_name};
 use crate::entity::{EmotionState, Entity, EntityState, EntityType, ForcedAnimation};
 use crate::mob_info::MobInfo;
 use crate::movement::direction_from_positions;
 use crate::skill_action::skill_pose;
 use models::enums::skill_enums::SkillEnum;
+use std::collections::HashMap;
+use std::ops::Index;
 
 /// How long a caster stays in its skill motion for a ground-placed skill.
 pub const GROUND_SKILL_EXEC_SECS: f32 = 0.6;
@@ -132,8 +132,8 @@ impl EntityCollection {
     pub fn apply_entity_stop_move(&mut self, gid: u32, x: u16, y: u16) {
         if let Some(entity) = self.entities.get_mut(&gid) {
             entity.movement.set_position(x as f32, y as f32);
-            if entity.state == EntityState::Moving {
-                entity.state = EntityState::Standing;
+            if entity.state() == EntityState::Moving {
+                entity.set_state(EntityState::Standing);
             }
         }
     }
@@ -149,8 +149,11 @@ impl EntityCollection {
         let key = self.resolve_key(gid);
         if let Some(entity) = self.entities.get_mut(&key) {
             entity.name = Some(match entity.entity_type {
-                EntityType::Npc => name.split_once("#").map(|r|r.0.to_owned()).unwrap_or_else(|| name),
-                _ => name
+                EntityType::Npc => name
+                    .split_once("#")
+                    .map(|r| r.0.to_owned())
+                    .unwrap_or_else(|| name),
+                _ => name,
             });
         }
     }
@@ -222,6 +225,8 @@ impl EntityCollection {
             let duration = delay_ms as f32 / 1000.0;
             if duration > 0.0 {
                 entity.enter_casting(duration, skill);
+                entity.cast_target_gid =
+                    (target_gid != 0 && target_gid != gid).then_some(target_gid);
             } else {
                 entity.enter_skill_exec(0.3, skill, 1);
             }
@@ -245,6 +250,7 @@ impl EntityCollection {
                 }
             }
             entity.enter_casting(duration_secs, skill);
+            entity.state_timer = duration_secs;
         }
     }
 
@@ -344,7 +350,7 @@ impl EntityCollection {
             gid
         };
         if let Some(entity) = self.entities.get_mut(&target_gid) {
-            entity.state = EntityState::Standing;
+            entity.set_state(EntityState::Standing);
             entity.state_timer = 0.0;
             entity.clear_cast();
             entity.active_skill = None;
@@ -353,7 +359,7 @@ impl EntityCollection {
 
     pub fn apply_action_failure(&mut self) {
         if let Some(entity) = self.player_mut() {
-            entity.state = EntityState::Standing;
+            entity.set_state(EntityState::Standing);
             entity.state_timer = 0.0;
         }
     }
@@ -514,26 +520,26 @@ mod tests {
     fn stop_move_updates_position_and_state() {
         let mut col = EntityCollection::new();
         let mut entity = make_entity(100);
-        entity.state = EntityState::Moving;
+        entity.set_state(EntityState::Moving);
         col.insert(entity);
 
         col.apply_entity_stop_move(100, 10, 20);
         let e = col.get(100).unwrap();
         assert_eq!(e.movement.cell_position(), (10, 20));
-        assert_eq!(e.state, EntityState::Standing);
+        assert_eq!(e.state(), EntityState::Standing);
     }
 
     #[test]
     fn stop_move_ignores_non_moving_state() {
         let mut col = EntityCollection::new();
         let mut entity = make_entity(100);
-        entity.state = EntityState::Attacking;
+        entity.set_state(EntityState::Attacking);
         col.insert(entity);
 
         col.apply_entity_stop_move(100, 5, 5);
         let e = col.get(100).unwrap();
         assert_eq!(e.movement.cell_position(), (5, 5));
-        assert_eq!(e.state, EntityState::Attacking);
+        assert_eq!(e.state(), EntityState::Attacking);
     }
 
     #[test]
@@ -541,12 +547,12 @@ mod tests {
         let mut col = EntityCollection::new();
         let mut entity = make_entity(100);
         entity.enter_casting(2.0, SkillEnum::MgFirebolt);
-        assert_eq!(entity.state, EntityState::Casting);
+        assert_eq!(entity.state(), EntityState::Casting);
         col.insert(entity);
 
         col.apply_skill_cast_cancel(100);
         let e = col.get(100).unwrap();
-        assert_eq!(e.state, EntityState::Standing);
+        assert_eq!(e.state(), EntityState::Standing);
         assert_eq!(e.state_timer, 0.0);
         assert!(e.active_skill.is_none());
     }
@@ -579,7 +585,7 @@ mod tests {
         col.insert(entity);
 
         col.apply_skill_cast_cancel(0);
-        assert_eq!(col.player().unwrap().state, EntityState::Standing);
+        assert_eq!(col.player().unwrap().state(), EntityState::Standing);
     }
 
     fn make_entity_at(id: u32, x: u16, y: u16) -> Entity {
@@ -612,7 +618,7 @@ mod tests {
         col.apply_autocounter_channel(100, Some(200), SkillEnum::KnAutocounter, 1.5);
 
         let e = col.get(100).unwrap();
-        assert_eq!(e.state, EntityState::Casting);
+        assert_eq!(e.state(), EntityState::Casting);
         assert_eq!(e.state_timer, 1.5);
         assert_eq!(e.cast_total_duration, 1.5);
         assert_eq!(e.active_skill, Some(SkillEnum::KnAutocounter));
@@ -645,18 +651,18 @@ mod tests {
         let mut col = EntityCollection::new();
         col.set_player_id(100);
         let mut player = make_entity(100);
-        player.state = EntityState::Attacking;
+        player.set_state(EntityState::Attacking);
         player.state_timer = 1.0;
         col.insert(player);
 
         let mut other = make_entity(200);
-        other.state = EntityState::Attacking;
+        other.set_state(EntityState::Attacking);
         col.insert(other);
 
         col.apply_action_failure();
-        assert_eq!(col.player().unwrap().state, EntityState::Standing);
+        assert_eq!(col.player().unwrap().state(), EntityState::Standing);
         assert_eq!(col.player().unwrap().state_timer, 0.0);
-        assert_eq!(col.get(200).unwrap().state, EntityState::Attacking);
+        assert_eq!(col.get(200).unwrap().state(), EntityState::Attacking);
     }
 
     #[test]
@@ -723,7 +729,7 @@ mod tests {
         col.apply_skill_no_damage(SkillEnum::MgSight, 1, 2);
         let e = col.get(1).unwrap();
         assert_eq!(e.direction, 6);
-        assert_eq!(e.state, EntityState::SkillExec);
+        assert_eq!(e.state(), EntityState::SkillExec);
     }
 
     #[test]
@@ -737,16 +743,16 @@ mod tests {
         starter.is_running = true;
         col.insert(starter);
         col.apply_skill_no_damage(run, 1, 0);
-        assert_eq!(col.get(1).unwrap().state, EntityState::SkillExec);
+        assert_eq!(col.get(1).unwrap().state(), EntityState::SkillExec);
 
         // Stop: is_running already flipped off, so the skill packet is ignored
         // and the character does not re-enter a walk motion in place.
         let mut col = EntityCollection::new();
         let mut runner = make_entity(1);
-        runner.state = EntityState::Standing;
+        runner.set_state(EntityState::Standing);
         col.insert(runner);
         col.apply_skill_no_damage(run, 1, 0);
-        assert_eq!(col.get(1).unwrap().state, EntityState::Standing);
+        assert_eq!(col.get(1).unwrap().state(), EntityState::Standing);
     }
 
     #[test]
@@ -756,7 +762,7 @@ mod tests {
         col.apply_skill_no_damage(SkillEnum::TkReadyturn, 1, 0);
 
         let e = col.get(1).unwrap();
-        assert_eq!(e.state, EntityState::SkillExec);
+        assert_eq!(e.state(), EntityState::SkillExec);
         assert_eq!(e.action_index(), 12);
         assert_eq!(e.skill_exec_start_frame(), 3);
         let mut forced = e.forced_animation.expect("stance poses the body");

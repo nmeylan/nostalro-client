@@ -129,13 +129,7 @@ pub fn fallback_button(ui: &mut UiFrame, r: Rect, hovered: bool, pressed: bool, 
         let tw = ui.atlas.measure_text(label);
         let tx = r.x + (r.w - tw) / 2.0;
         let ty = r.y + r.h - (ui.atlas.line_height / 2.0);
-        let (v, i) = draw::text_vertices(
-            label,
-            tx,
-            ty,
-            FallbackPalette::TEXT_ON_LIGHT,
-            ui.atlas,
-        );
+        let (v, i) = draw::text_vertices(label, tx, ty, FallbackPalette::TEXT_ON_LIGHT, ui.atlas);
         if !v.is_empty() {
             ui.draw_calls.push(DrawCall {
                 vertices: v,

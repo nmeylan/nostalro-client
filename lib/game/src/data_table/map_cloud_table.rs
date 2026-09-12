@@ -138,11 +138,23 @@ mod tests {
         let deep = map_background_color("GONRYUN.RSW").unwrap();
         assert_eq!(light, [153.0 / 255.0, 204.0 / 255.0, 255.0 / 255.0]);
         assert_eq!(deep, [102.0 / 255.0, 153.0 / 255.0, 204.0 / 255.0]);
-        assert_eq!(map_background_color("thana_boss").unwrap()[0], 224.0 / 255.0);
-        assert_eq!(map_background_color("5@tower").unwrap(), [51.0 / 255.0, 0.0, 51.0 / 255.0]);
+        assert_eq!(
+            map_background_color("thana_boss").unwrap()[0],
+            224.0 / 255.0
+        );
+        assert_eq!(
+            map_background_color("5@tower").unwrap(),
+            [51.0 / 255.0, 0.0, 51.0 / 255.0]
+        );
 
         // Cloud maps that stay black.
-        for map in ["einbroch", "mjolnir_01", "gef_fild07", "moc_fild22", "6@tower"] {
+        for map in [
+            "einbroch",
+            "mjolnir_01",
+            "gef_fild07",
+            "moc_fild22",
+            "6@tower",
+        ] {
             assert!(map_cloud_effect(map).is_some());
             assert_eq!(map_background_color(map), None, "{map}");
         }

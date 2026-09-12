@@ -17,6 +17,9 @@ pub struct MovementState {
     speed: u16,
     correction_offset: (f32, f32),
     correction_remaining: f32,
+    /// Server stamp the walk started at, when it replays against the server
+    /// clock rather than the local one.
+    server_start_tick: Option<u32>,
 }
 
 impl MovementState {
@@ -34,6 +37,7 @@ impl MovementState {
             speed: DEFAULT_WALK_SPEED,
             correction_offset: (0.0, 0.0),
             correction_remaining: 0.0,
+            server_start_tick: None,
         }
     }
 
@@ -47,6 +51,21 @@ impl MovementState {
         self.path = path;
         self.seg_index = 0;
         self.moving = true;
+        self.server_start_tick = None;
+        self.build_times();
+    }
+
+    pub fn track_server_tick(&mut self, tick: u32) {
+        self.server_start_tick = Some(tick);
+    }
+
+    pub fn server_start_tick(&self) -> Option<u32> {
+        self.server_start_tick
+    }
+
+    /// Moves the walk's start to `start_time`, keeping its origin and path.
+    pub fn rebase_source_time(&mut self, start_time: f32) {
+        self.source_time = start_time;
         self.build_times();
     }
 

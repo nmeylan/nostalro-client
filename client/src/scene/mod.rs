@@ -176,8 +176,15 @@ impl App {
                         // Tunnel Drive) but no body.
                         let visible_body = !is_fading
                             && matches!(render, HiddenRender::Visible | HiddenRender::ShadowOnly);
-                        let sits_or_lies =
-                            matches!(entity.state, EntityState::Sitting | EntityState::Dead);
+                        // A hovering Star Gladiator Union keeps its shadow while
+                        // seated, since it is seated in the air.
+                        let sits_or_lies = match entity.state() {
+                            EntityState::Sitting => {
+                                entity.job != ragnarok_game::entity::JOB_STAR_GLADIATOR_UNION
+                            }
+                            EntityState::Dead => true,
+                            _ => false,
+                        };
                         if visible_body && !sits_or_lies {
                             let shadow_scale =
                                 entry.sprite_scale * SHADOW_SCALE * shadow_size(entity.job);
@@ -196,7 +203,7 @@ impl App {
                         // that depth over a ground effect they lie in and erase it.
                         if visible_body
                             && render == HiddenRender::Visible
-                            && entity.state != EntityState::Dead
+                            && entity.state() != EntityState::Dead
                         {
                             let mut sil = sprite.build_batches(
                                 &entity.animation,
@@ -237,7 +244,7 @@ impl App {
 
                         // A living sprite stands upright (depth varies head-to-feet).
                         // A corpse lies flat, so its depth follows the ground plane.
-                        let body_gradient = if entity.state == EntityState::Dead {
+                        let body_gradient = if entity.state() == EntityState::Dead {
                             entry.flat_depth_gradient
                         } else {
                             entry.depth_gradient
@@ -256,7 +263,7 @@ impl App {
 
                         if let Some(ai) = self.effect_holder.afterimage_params_for_entity(entry.id)
                         {
-                            let trailing = entity.state == EntityState::Moving;
+                            let trailing = entity.state() == EntityState::Moving;
                             let action = entity.animation.action();
                             let motion = entity.animation.motion_index();
                             let last = self

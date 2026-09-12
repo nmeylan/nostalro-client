@@ -535,17 +535,30 @@ impl App {
             .session
             .server_time
             .observe_server_tick(start_time, local_ms);
-        if !already_moving_to_dest && let Some(gat) = &self.game.session.gat {
+        let latency_coupled = self.config.custom.latency_coupled_walk;
+        if (latency_coupled || !already_moving_to_dest)
+            && let Some(gat) = &self.game.session.gat
+        {
             let path = ragnarok_game::path::path_search(gat, start_x, start_y, dest_x, dest_y);
             // Start at local now, not the server tick: fast-forwarding jumps the
             // player forward by one round-trip at each segment seam.
-            let now = local_ms as f32 / 1000.0;
+            let now = if latency_coupled {
+                self.game
+                    .session
+                    .server_time
+                    .server_to_local_secs(start_time, local_ms)
+            } else {
+                local_ms as f32 / 1000.0
+            };
             if let Some(entity) = self.game.world.entities.player_mut() {
                 entity
                     .movement
                     .correct_to_cell(start_x as f32, start_y as f32);
                 if !path.is_empty() {
                     entity.begin_move(path, now);
+                    if latency_coupled {
+                        entity.movement.track_server_tick(start_time);
+                    }
                 }
             }
         }
@@ -553,19 +566,12 @@ impl App {
 
     pub(super) fn handle_server_tick(&mut self, server_tick: u32, local_send_time_ms: u32) {
         let local_now_ms = self.start_time.elapsed().as_millis() as u32;
-        if self.config.enhanced_lag_compensation {
-            self.game.session.server_time.on_server_tick_enhanced(
-                server_tick,
-                local_now_ms,
-                local_send_time_ms,
-            );
-        } else {
-            self.game.session.server_time.on_server_tick(
-                server_tick,
-                local_now_ms,
-                local_send_time_ms,
-            );
-        }
+        self.game.session.server_time.on_server_tick(
+            server_tick,
+            local_now_ms,
+            local_send_time_ms,
+            self.config.custom.latency_coupled_walk,
+        );
     }
 
     pub(super) fn handle_disconnect_ack(&mut self, allowed: bool, event_loop: &ActiveEventLoop) {

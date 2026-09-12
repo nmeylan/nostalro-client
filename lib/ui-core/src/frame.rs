@@ -838,13 +838,8 @@ impl<'a> UiFrame<'a> {
             let x0 = (text_x + measure_upto(sel_start)).clamp(clip_left, clip_right);
             let x1 = (text_x + measure_upto(sel_end)).clamp(clip_left, clip_right);
             if x1 > x0 {
-                let (v, i) = draw::quad_vertices(
-                    x0,
-                    span_y,
-                    x1 - x0,
-                    self.atlas.ascent,
-                    SELECTION_COLOR,
-                );
+                let (v, i) =
+                    draw::quad_vertices(x0, span_y, x1 - x0, self.atlas.ascent, SELECTION_COLOR);
                 self.draw_calls.push(DrawCall {
                     vertices: v.to_vec(),
                     indices: i.to_vec(),
@@ -870,8 +865,7 @@ impl<'a> UiFrame<'a> {
         if response.has_focus && (self.elapsed_secs % 1.0) < 0.5 {
             let cursor_x = (text_x + cursor_px).clamp(clip_left, clip_right);
             let caret_color = [0.0, 0.0, 0.0, 1.0];
-            let (v, i) =
-                draw::quad_vertices(cursor_x, span_y, 1.0, self.atlas.ascent, caret_color);
+            let (v, i) = draw::quad_vertices(cursor_x, span_y, 1.0, self.atlas.ascent, caret_color);
             self.draw_calls.push(DrawCall {
                 vertices: v.to_vec(),
                 indices: i.to_vec(),

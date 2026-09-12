@@ -86,7 +86,7 @@ impl App {
                     return;
                 }
                 if let Some(entity) = self.game.world.entities.player() {
-                    let action = if entity.state == EntityState::Sitting {
+                    let action = if entity.state() == EntityState::Sitting {
                         3u8
                     } else {
                         2u8
@@ -104,7 +104,7 @@ impl App {
                     .world
                     .entities
                     .player()
-                    .is_some_and(|e| e.state == EntityState::Sitting);
+                    .is_some_and(|e| e.state() == EntityState::Sitting);
                 if sitting {
                     self.channel
                         .send_packet(build_action_request_packet(0, 3u8, pv));
@@ -116,7 +116,7 @@ impl App {
                 };
                 entity.head_dir = if entity.head_dir == 1 { 2 } else { 1 };
                 let (head_dir, dir) = (entity.head_dir, entity.direction);
-                let sitting = entity.state == EntityState::Sitting;
+                let sitting = entity.state() == EntityState::Sitting;
                 self.channel
                     .send_packet(build_change_direction_packet(head_dir, dir, pv));
                 if sitting {

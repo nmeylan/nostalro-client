@@ -145,11 +145,8 @@ mod tests {
     #[test]
     fn near_magenta_keys_out_but_neighbouring_colours_stay() {
         let mut px = [
-            255, 0, 255, 255,
-            252, 4, 252, 255,
-            248, 7, 248, 255,
-            247, 8, 247, 255,
-            255, 0, 200, 255,
+            255, 0, 255, 255, 252, 4, 252, 255, 248, 7, 248, 255, 247, 8, 247, 255, 255, 0, 200,
+            255,
         ];
         apply_magenta_transparency(&mut px);
         assert_eq!(&px[0..4], &[0, 0, 0, 0]);

@@ -21,17 +21,24 @@ const PICKUP_MOTION_FALLBACK_SECS: f32 = 0.5;
 const ATTACK_REPLAY_SECS: f32 = 0.3;
 
 /// Attack-motion time (ms) that plays the swing at its native ACT frame delay.
-/// Slower attacks scale up to a cap of 2×, matching the original client.
+/// Slower attacks scale up to a cap of 2×.
 const AVG_ATTACK_MT_MS: f32 = 432.0;
 const MAX_ATTACK_MT_MS: f32 = AVG_ATTACK_MT_MS * 2.0;
 
+pub fn is_taekwon_job(job: u16) -> bool {
+    (JobName::Taekwon.value()..=JobName::StarGladiatorUnion.value()).contains(&(job as usize))
+}
+
 /// Maps a server attack-motion time to the swing's animation speed factor.
-/// A missing time (`<= 0`) plays at the native ACT speed.
-pub fn attack_motion_factor(attack_mt_ms: i32) -> f32 {
+/// A missing time (`<= 0`) plays at the native ACT speed. A bow is never
+/// clamped.
+pub fn attack_motion_factor(attack_mt_ms: i32, is_bow: bool) -> f32 {
     if attack_mt_ms <= 0 {
         return 1.0;
     }
-    (attack_mt_ms as f32).min(MAX_ATTACK_MT_MS) / AVG_ATTACK_MT_MS
+    let mt = attack_mt_ms as f32;
+    let clamped = if is_bow { mt } else { mt.min(MAX_ATTACK_MT_MS) };
+    clamped / AVG_ATTACK_MT_MS
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +116,10 @@ pub struct ForcedAnimation {
     /// Hold a single static frame until cleared externally, instead of playing
     /// the action once and auto-clearing (used by Blade Stop's grip pose).
     pub hold: bool,
+    /// Play `start_frame..=end_frame` at native speed, then keep the end frame
+    /// until `duration_ms` has elapsed.
+    pub hold_last: bool,
+    pub end_frame: Option<usize>,
     started: bool,
 }
 
@@ -119,7 +130,22 @@ impl ForcedAnimation {
             start_frame,
             duration_ms,
             hold: false,
+            hold_last: false,
+            end_frame: None,
             started: false,
+        }
+    }
+
+    pub fn play_then_hold(
+        action: usize,
+        start_frame: usize,
+        end_frame: usize,
+        duration_ms: f32,
+    ) -> Self {
+        Self {
+            hold_last: true,
+            end_frame: Some(end_frame),
+            ..Self::new(action, start_frame, duration_ms)
         }
     }
 
@@ -129,6 +155,8 @@ impl ForcedAnimation {
             start_frame: frame,
             duration_ms: 0.0,
             hold: true,
+            hold_last: false,
+            end_frame: None,
             started: false,
         }
     }
@@ -290,16 +318,31 @@ pub struct Entity {
     pub facing_degrees: f32,
     pub head_dir: u8,
     pub speed: u16,
-    pub state: EntityState,
+    state: EntityState,
+    /// Counts state entries. The sprite animation restarts whenever it differs
+    /// from the entry it last started on, so re-entering the same state
+    /// (a second swing) rewinds too.
+    motion_epoch: u32,
+    /// Expires a transient state only while the entity has no sprite to end it
+    /// on the animation. A cast never expires on it unless armed by a local
+    /// channel.
     pub state_timer: f32,
     /// Cast countdown, tracked apart from `state_timer` because a cast outlives
     /// the casting pose: Free Cast walks the caster away while the bar keeps
     /// filling.
     pub cast_remaining: f32,
     pub cast_total_duration: f32,
+    /// Actor the running cast is aimed at; the caster turns to it periodically.
+    pub cast_target_gid: Option<u32>,
+    cast_reface_timer: f32,
     pub animation_duration: Option<f32>,
+    /// Extra time the last frame of the queued one-shot is held before it
+    /// reports finished.
+    pub animation_hold_secs: f32,
     pub animation_start_frame: Option<usize>,
     pub attack_motion_factor: f32,
+    /// A TaeKwon swing kicks with group 11 or 10, rolled once per swing.
+    second_attack: bool,
     pub movement: MovementState,
     pub animation: SpriteAnimationState,
     pub emotion: Option<EmotionState>,
@@ -428,12 +471,17 @@ impl Entity {
             head_dir: 0,
             speed,
             state: EntityState::Standing,
+            motion_epoch: 0,
             state_timer: 0.0,
             cast_remaining: 0.0,
             cast_total_duration: 0.0,
+            cast_target_gid: None,
+            cast_reface_timer: 0.0,
             animation_duration: None,
+            animation_hold_secs: 0.0,
             animation_start_frame: None,
             attack_motion_factor: 1.0,
+            second_attack: false,
             movement,
             animation: SpriteAnimationState::new(direction),
             emotion: None,
@@ -552,7 +600,69 @@ impl Entity {
         self.direction = (self.direction + steps) % 8;
     }
 
-    pub fn update_state(&mut self, dt: f32) {
+    pub fn state(&self) -> EntityState {
+        self.state
+    }
+
+    pub fn motion_epoch(&self) -> u32 {
+        self.motion_epoch
+    }
+
+    /// Changes state, restarting the animation only when the state differs.
+    pub fn set_state(&mut self, state: EntityState) {
+        if self.state != state {
+            self.enter(state);
+        }
+    }
+
+    fn enter(&mut self, state: EntityState) {
+        self.state = state;
+        self.motion_epoch = self.motion_epoch.wrapping_add(1);
+    }
+
+    fn tick_state_timer(&mut self, dt: f32) -> bool {
+        self.state_timer -= dt;
+        if self.state_timer <= 0.0 {
+            self.state_timer = 0.0;
+            return true;
+        }
+        false
+    }
+
+    /// Whether the sprite animation started for the current state entry has
+    /// played through.
+    fn animation_played_through(&self) -> bool {
+        self.animation.entry() == self.motion_epoch && self.animation.is_finished()
+    }
+
+    /// A composite actor's static groups are never ticked, so a transient state
+    /// resolving to one would never report finished.
+    fn motion_never_advances(&self) -> bool {
+        matches!(self.entity_type, EntityType::Player | EntityType::Mercenary)
+            && SpriteActionType::from_index(self.action_index()).is_some_and(|a| !a.is_animated())
+    }
+
+    fn end_transient(&mut self) {
+        self.state_timer = 0.0;
+        self.active_skill = None;
+        let combat_actor = matches!(self.entity_type, EntityType::Player | EntityType::Mercenary);
+        let ready = combat_actor
+            && match self.state {
+                EntityState::Attacking => !self.is_second_attack(),
+                EntityState::Hurt | EntityState::Casting => true,
+                _ => false,
+            };
+        self.set_state(if ready {
+            EntityState::ReadyFight
+        } else {
+            EntityState::Standing
+        });
+    }
+
+    /// `sprite_loaded` hands the transient states to the animation: with a
+    /// sprite they end when it reports finished, without one they expire on
+    /// `state_timer`.
+    pub fn update_state(&mut self, dt: f32, sprite_loaded: bool) {
         if let Some(emo) = &mut self.emotion {
             emo.elapsed += dt;
             if emo.is_expired() {
@@ -581,33 +691,34 @@ impl Entity {
             self.enter_dead();
             return;
         }
-        if self.state == EntityState::Pickup && self.animation.is_finished() {
-            self.state = EntityState::Standing;
-            self.state_timer = 0.0;
-        }
-        if self.state_timer > 0.0 {
-            self.state_timer -= dt;
-            if self.state_timer <= 0.0 {
-                self.state_timer = 0.0;
-                self.active_skill = None;
-                match self.state {
-                    EntityState::Attacking | EntityState::Hurt | EntityState::Casting
-                        if matches!(
-                            self.entity_type,
-                            EntityType::Player | EntityType::Mercenary
-                        ) =>
-                    {
-                        self.state = EntityState::ReadyFight;
-                    }
-                    _ => self.state = EntityState::Standing,
+        match self.state {
+            EntityState::Attacking
+            | EntityState::SkillExec
+            | EntityState::Hurt
+            | EntityState::Pickup => {
+                let ended = if sprite_loaded {
+                    self.animation_played_through() || self.motion_never_advances()
+                } else {
+                    self.tick_state_timer(dt)
+                };
+                if ended {
+                    self.end_transient();
+                }
+                return;
+            }
+            EntityState::Casting => {
+                if self.state_timer > 0.0 && self.tick_state_timer(dt) {
+                    self.end_transient();
+                    return;
+                }
+                if !self.movement.is_moving() {
+                    return;
                 }
             }
-            return;
+            EntityState::Sitting => return,
+            _ => {}
         }
-        if self.state == EntityState::Sitting {
-            return;
-        }
-        self.state = if self.movement.is_moving() {
+        let next = if self.movement.is_moving() {
             self.head_dir = 0;
             EntityState::Moving
         } else if self.state == EntityState::ReadyFight {
@@ -615,6 +726,7 @@ impl Entity {
         } else {
             EntityState::Standing
         };
+        self.set_state(next);
     }
 
     pub fn is_move_locked(&self) -> bool {
@@ -624,6 +736,15 @@ impl Entity {
     pub fn begin_move(&mut self, path: Vec<crate::path::PathNode>, now: f32) {
         self.movement.start_move(path, now);
         self.state_timer = 0.0;
+        if matches!(
+            self.state,
+            EntityState::Attacking
+                | EntityState::SkillExec
+                | EntityState::Hurt
+                | EntityState::Pickup
+        ) {
+            self.set_state(EntityState::Moving);
+        }
     }
 
     /// Action group the damage motion plays from.
@@ -653,16 +774,67 @@ impl Entity {
             .unwrap_or(AVG_ATTACKED_SPEED_SECS);
         let factor = damage_motion_secs / AVG_ATTACKED_SPEED_SECS;
         self.movement.stop();
-        self.state = EntityState::Hurt;
+        self.enter(EntityState::Hurt);
         self.state_timer = natural * factor;
         self.animation_duration = Some(natural * factor.min(1.0));
+        self.animation_hold_secs = natural * (factor - 1.0).max(0.0);
+    }
+
+    /// Picks which attack group the next swing uses. Must run before the swing's
+    /// duration is measured, because that reads the group.
+    pub fn roll_attack_variant(&mut self, rand: u32) {
+        if is_taekwon_job(self.job) {
+            self.second_attack = rand % 10 < 7;
+        }
+    }
+
+    /// Whether the player swings with the second attack group (11).
+    pub fn is_second_attack(&self) -> bool {
+        self.entity_type == EntityType::Player && self.attack_action_for_weapon() == 11
+    }
+
+    /// Frame of the player's swing at which the blow connects.
+    pub fn player_attack_keyframe(&self) -> f32 {
+        let job = JobName::try_from_value(self.job as usize).ok();
+        if self.is_second_attack() {
+            let dual_wield = matches!(
+                self.weapon,
+                Some(
+                    WeaponType::Katar
+                        | WeaponType::DoubleDd
+                        | WeaponType::DoubleSs
+                        | WeaponType::DoubleAa
+                        | WeaponType::DoubleDs
+                        | WeaponType::DoubleDa
+                        | WeaponType::DoubleSa
+                )
+            );
+            return match job {
+                Some(JobName::Novice | JobName::SuperNovice | JobName::SuperBaby)
+                    if self.sex == 1 =>
+                {
+                    5.85
+                }
+                Some(JobName::Assassin | JobName::AssassinCross | JobName::BabyAssassin)
+                    if dual_wield =>
+                {
+                    3.0
+                }
+                _ => 6.0,
+            };
+        }
+        match job {
+            Some(JobName::Merchant) => 5.85,
+            Some(JobName::Thief) => 5.75,
+            _ => 6.0,
+        }
     }
 
     pub fn enter_attack(&mut self, duration_secs: f32, motion_factor: f32) {
         if self.state == EntityState::Dead {
             return;
         }
-        self.state = EntityState::Attacking;
+        self.enter(EntityState::Attacking);
         self.state_timer = duration_secs;
         self.attack_motion_factor = motion_factor;
         self.animation_duration = Some(duration_secs);
@@ -672,7 +844,7 @@ impl Entity {
         if self.state == EntityState::Dead {
             return;
         }
-        self.state = EntityState::SkillExec;
+        self.enter(EntityState::SkillExec);
         self.state_timer = ATTACK_REPLAY_SECS;
         self.active_skill = Some(skill);
         self.animation_duration = Some(ATTACK_REPLAY_SECS);
@@ -705,11 +877,28 @@ impl Entity {
             return;
         }
         self.movement.stop();
-        self.state = EntityState::Casting;
-        self.state_timer = duration_secs;
+        self.enter(EntityState::Casting);
+        self.state_timer = 0.0;
+        self.cast_target_gid = None;
+        self.cast_reface_timer = 0.0;
         self.cast_remaining = duration_secs;
         self.cast_total_duration = duration_secs;
         self.active_skill = Some(skill);
+    }
+
+    /// The target to turn toward, once every 34 frame units of the cast.
+    pub fn cast_reface_due(&mut self, dt: f32) -> Option<u32> {
+        const REFACE_SECS: f32 = 34.0 * ragnarok_formats::act::FRAME_DELAY_UNIT_MS / 1000.0;
+        if self.state != EntityState::Casting {
+            return None;
+        }
+        let target = self.cast_target_gid?;
+        self.cast_reface_timer += dt;
+        if self.cast_reface_timer < REFACE_SECS {
+            return None;
+        }
+        self.cast_reface_timer -= REFACE_SECS;
+        Some(target)
     }
 
     pub fn clear_cast(&mut self) {
@@ -726,15 +915,59 @@ impl Entity {
         if self.state == EntityState::Dead {
             return;
         }
-        self.state = EntityState::SkillExec;
+        self.enter(EntityState::SkillExec);
         self.state_timer = duration_secs;
         self.animation_duration = Some(duration_secs);
         self.active_skill = Some(skill);
         self.skill_hit_count = hit_count;
+        if crate::skill_action::skill_motion_type(skill)
+            == crate::skill_action::SkillMotionType::Skill
+            && let Some(overlay) = self.skill_exec_overlay()
+        {
+            self.forced_animation = Some(overlay);
+        }
+    }
+
+    /// Action group a skill's casting motion plays from.
+    fn skill_exec_group(&self) -> usize {
+        match JobName::try_from_value(self.job as usize) {
+            Ok(
+                JobName::Bard
+                | JobName::Dancer
+                | JobName::Crusader
+                | JobName::BabyBard
+                | JobName::BabyDancer
+                | JobName::BabyCrusader
+                | JobName::Taekwon
+                | JobName::StarGladiator
+                | JobName::StarGladiatorUnion
+                | JobName::Gunslinger,
+            ) => SpriteActionType::ReadyFight as usize,
+            Ok(JobName::Monk | JobName::Champion | JobName::BabyMonk) if self.sex == 0 => {
+                SpriteActionType::ReadyFight as usize
+            }
+            _ => SpriteActionType::Skill as usize,
+        }
+    }
+
+    /// Frames of the skill group some jobs show over their casting motion.
+    fn skill_exec_overlay(&self) -> Option<ForcedAnimation> {
+        let skill = SpriteActionType::Skill as usize;
+        match JobName::try_from_value(self.job as usize) {
+            Ok(JobName::Gunslinger) => Some(ForcedAnimation::play_then_hold(skill, 0, 3, 1000.0)),
+            Ok(JobName::Ninja) => Some(ForcedAnimation::play_then_hold(skill, 2, 5, 1000.0)),
+            Ok(JobName::Clown | JobName::Gypsy | JobName::Paladin) => {
+                Some(ForcedAnimation::held_for(skill, 0, 400.0))
+            }
+            Ok(JobName::Monk | JobName::Champion | JobName::BabyMonk) if self.sex != 0 => {
+                Some(ForcedAnimation::held_for(skill, 0, 400.0))
+            }
+            _ => None,
+        }
     }
 
     pub fn enter_dead(&mut self) {
-        self.state = EntityState::Dead;
+        self.enter(EntityState::Dead);
         self.state_timer = 0.0;
         self.clear_cast();
         self.forced_animation = None;
@@ -744,7 +977,7 @@ impl Entity {
     }
 
     pub fn revive(&mut self) {
-        self.state = EntityState::Standing;
+        self.set_state(EntityState::Standing);
         self.state_timer = 0.0;
         self.pending_death = false;
     }
@@ -779,15 +1012,12 @@ impl Entity {
         self.fade.as_ref().is_some_and(|f| f.is_expired())
     }
 
-    /// `motion_secs` caps the pose for entities whose sprite animation never
-    /// reports the motion as finished; the motion itself ends the state.
     pub fn enter_pickup(&mut self, motion_secs: Option<f32>) {
         if self.state == EntityState::Dead {
             return;
         }
-        self.state = EntityState::Pickup;
+        self.enter(EntityState::Pickup);
         self.state_timer = motion_secs.unwrap_or(PICKUP_MOTION_FALLBACK_SECS);
-        self.animation.restart_motion();
     }
 
     pub fn apply_sprite_change(&mut self, sprite_type: u8, value: u16) {
@@ -957,7 +1187,8 @@ impl Entity {
             SkillMotionType::Throw => 5,
             SkillMotionType::Attack2 => 10,
             SkillMotionType::Pickup => 3,
-            SkillMotionType::Sing | SkillMotionType::Dance | SkillMotionType::Skill => 12,
+            SkillMotionType::Skill => self.skill_exec_group(),
+            SkillMotionType::Sing | SkillMotionType::Dance => 12,
             SkillMotionType::Stand => 0,
             SkillMotionType::Walk => 1,
         }
@@ -968,6 +1199,9 @@ impl Entity {
             Ok(j) => j,
             Err(_) => return 5,
         };
+        if is_taekwon_job(self.job) {
+            return if self.second_attack { 11 } else { 10 };
+        }
         let weapon = match self.weapon {
             Some(ref w) => w,
             None => {
@@ -1120,7 +1354,6 @@ impl Entity {
                 WeaponType::Shuriken => 11,
                 _ => 10,
             },
-            JobName::Taekwon | JobName::StarGladiator => 10,
             _ => 10,
         }
     }
@@ -1141,12 +1374,12 @@ mod tests {
         e.job = JOB_STAR_GLADIATOR_UNION;
         assert_eq!(e.hover_lift_px(200.0), 0.0, "starts on the ground");
 
-        e.state = EntityState::Standing;
+        e.set_state(EntityState::Standing);
         e.tick_hover(10.0, false);
         let standing = e.hover_lift_px(200.0);
         assert!(standing > 0.0);
 
-        e.state = EntityState::Sitting;
+        e.set_state(EntityState::Sitting);
         e.tick_hover(20.0, false);
         assert!(e.hover_lift_px(200.0) > standing, "sitting floats higher");
 
@@ -1154,7 +1387,7 @@ mod tests {
         assert!(e.hover_lift_px(800.0) < e.hover_lift_px(200.0));
 
         let mut plain = make_entity();
-        plain.state = EntityState::Standing;
+        plain.set_state(EntityState::Standing);
         plain.tick_hover(10.0, false);
         assert_eq!(plain.hover_lift_px(200.0), 0.0);
     }
@@ -1163,17 +1396,17 @@ mod tests {
     fn hover_decays_when_the_pose_is_neither_upright_nor_seated_unless_flashing_red() {
         let mut e = make_entity();
         e.job = JOB_STAR_GLADIATOR_UNION;
-        e.state = EntityState::Standing;
+        e.set_state(EntityState::Standing);
         e.tick_hover(10.0, false);
         let airborne = e.hover_lift_px(200.0);
 
         let mut warm = make_entity();
         warm.job = e.job;
-        warm.state = EntityState::Standing;
+        warm.set_state(EntityState::Standing);
         warm.tick_hover(10.0, false);
 
-        e.state = EntityState::Dead;
-        warm.state = EntityState::Dead;
+        e.set_state(EntityState::Dead);
+        warm.set_state(EntityState::Dead);
         e.tick_hover(2.0, false);
         warm.tick_hover(2.0, true);
         assert!(e.hover_lift_px(200.0) < airborne, "sinks once knocked down");
@@ -1285,6 +1518,88 @@ mod tests {
     }
 
     #[test]
+    fn taekwon_swings_pick_a_kick_per_swing_and_hold_it_through_the_swing() {
+        assert!(
+            JobName::try_from_value(JOB_STAR_GLADIATOR_UNION as usize).is_ok(),
+            "the server crate must know job 4048"
+        );
+        let mut groups = std::collections::HashSet::new();
+        for job in [
+            JobName::Taekwon,
+            JobName::StarGladiator,
+            JobName::StarGladiatorUnion,
+        ] {
+            let mut e = make_entity();
+            e.job = job.value() as u16;
+            for roll in 0..20u32 {
+                e.roll_attack_variant(roll);
+                e.enter_attack(0.5, 1.0);
+                let first = e.action_index();
+                for _ in 0..5 {
+                    assert_eq!(e.action_index(), first, "{job:?} roll {roll}");
+                }
+                groups.insert(first);
+                e.update_state(1.0, false);
+            }
+        }
+        assert_eq!(groups, [10, 11].into_iter().collect());
+
+        let mut knight = make_entity();
+        knight.job = JobName::Knight.value() as u16;
+        knight.roll_attack_variant(0);
+        knight.enter_attack(0.5, 1.0);
+        assert_eq!(knight.action_index(), 10, "the roll is TaeKwon-only");
+    }
+
+    #[test]
+    fn skill_motion_group_and_overlay_follow_job_and_sex() {
+        let exec = |job: JobName, sex: u8| {
+            let mut e = make_entity();
+            e.job = job.value() as u16;
+            e.sex = sex;
+            e.enter_skill_exec(0.5, SkillEnum::AlHeal, 1);
+            (e.action_index(), e.forced_animation)
+        };
+        let skill = SpriteActionType::Skill as usize;
+
+        assert_eq!(exec(JobName::Knight, 1), (skill, None));
+        assert_eq!(exec(JobName::Bard, 1).0, 4);
+        assert_eq!(exec(JobName::BabyCrusader, 0).0, 4);
+        assert_eq!(exec(JobName::StarGladiatorUnion, 1).0, 4);
+        assert_eq!(exec(JobName::Monk, 0), (4, None), "female monk");
+        assert_eq!(
+            exec(JobName::Monk, 1),
+            (skill, Some(ForcedAnimation::held_for(skill, 0, 400.0))),
+            "male monk"
+        );
+        assert_eq!(
+            exec(JobName::Paladin, 1).0,
+            skill,
+            "only the baby forms join group 4"
+        );
+        assert_eq!(
+            exec(JobName::Gunslinger, 1),
+            (
+                4,
+                Some(ForcedAnimation::play_then_hold(skill, 0, 3, 1000.0))
+            )
+        );
+        assert_eq!(
+            exec(JobName::Ninja, 1),
+            (
+                skill,
+                Some(ForcedAnimation::play_then_hold(skill, 2, 5, 1000.0))
+            )
+        );
+
+        let mut song = make_entity();
+        song.job = JobName::Bard.value() as u16;
+        song.enter_skill_exec(0.5, SkillEnum::BaPoembragi, 1);
+        assert_eq!(song.action_index(), skill, "a song is not a skill motion");
+        assert!(song.forced_animation.is_none());
+    }
+
+    #[test]
     fn entity_starts_without_name() {
         let e = make_entity();
         assert!(e.name.is_none());
@@ -1307,23 +1622,23 @@ mod tests {
     fn action_index_maps_states_to_player_sprite_actions() {
         let mut e = make_entity();
         assert_eq!(e.action_index(), 0);
-        e.state = EntityState::Moving;
+        e.set_state(EntityState::Moving);
         assert_eq!(e.action_index(), 1);
-        e.state = EntityState::Sitting;
+        e.set_state(EntityState::Sitting);
         assert_eq!(e.action_index(), 2);
-        e.state = EntityState::Pickup;
+        e.set_state(EntityState::Pickup);
         assert_eq!(e.action_index(), 3);
-        e.state = EntityState::ReadyFight;
+        e.set_state(EntityState::ReadyFight);
         assert_eq!(e.action_index(), 4);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 10);
-        e.state = EntityState::Hurt;
+        e.set_state(EntityState::Hurt);
         assert_eq!(e.action_index(), 6);
-        e.state = EntityState::Dead;
+        e.set_state(EntityState::Dead);
         assert_eq!(e.action_index(), 8);
-        e.state = EntityState::Casting;
+        e.set_state(EntityState::Casting);
         assert_eq!(e.action_index(), 12);
-        e.state = EntityState::SkillExec;
+        e.set_state(EntityState::SkillExec);
         assert_eq!(e.action_index(), 12);
     }
 
@@ -1347,17 +1662,17 @@ mod tests {
             200,
         );
         assert_eq!(e.action_index(), 0);
-        e.state = EntityState::Moving;
+        e.set_state(EntityState::Moving);
         assert_eq!(e.action_index(), 1);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 2);
-        e.state = EntityState::SkillExec;
+        e.set_state(EntityState::SkillExec);
         assert_eq!(e.action_index(), 2);
-        e.state = EntityState::Casting;
+        e.set_state(EntityState::Casting);
         assert_eq!(e.action_index(), 2);
-        e.state = EntityState::Hurt;
+        e.set_state(EntityState::Hurt);
         assert_eq!(e.action_index(), 3);
-        e.state = EntityState::Dead;
+        e.set_state(EntityState::Dead);
         assert_eq!(e.action_index(), 4);
     }
 
@@ -1381,13 +1696,13 @@ mod tests {
             0,
             200,
         );
-        e.state = EntityState::Standing;
+        e.set_state(EntityState::Standing);
         let mut hit = ScheduledHit::single(50, Some(SkillEnum::MgFirebolt), false);
         hit.fire_at = 10.0;
         e.scheduled_hits.push(hit);
 
         e.request_pending_death();
-        e.update_state(0.1);
+        e.update_state(0.1, false);
         assert_eq!(
             e.state,
             EntityState::Standing,
@@ -1396,7 +1711,7 @@ mod tests {
         assert!(e.pending_death);
 
         e.scheduled_hits.drain_ready(10.0);
-        e.update_state(0.1);
+        e.update_state(0.1, false);
         assert_eq!(
             e.state,
             EntityState::Dead,
@@ -1408,8 +1723,8 @@ mod tests {
     #[test]
     fn update_state_preserves_sitting() {
         let mut e = make_entity();
-        e.state = EntityState::Sitting;
-        e.update_state(0.016);
+        e.set_state(EntityState::Sitting);
+        e.update_state(0.016, false);
         assert_eq!(e.state, EntityState::Sitting);
     }
 
@@ -1423,7 +1738,7 @@ mod tests {
         ];
         e.movement.start_move(path, 0.0);
 
-        e.update_state(0.016);
+        e.update_state(0.016, false);
 
         assert_eq!(e.state, EntityState::Moving);
         assert_eq!(e.head_dir, 0);
@@ -1447,10 +1762,10 @@ mod tests {
             "the damage motion never swallows a move request"
         );
 
-        e.update_state(0.3);
+        e.update_state(0.3, false);
         assert_eq!(e.state, EntityState::Hurt);
 
-        e.update_state(0.3);
+        e.update_state(0.3, false);
         assert_eq!(e.state, EntityState::ReadyFight);
         assert_eq!(e.action_index(), 4);
     }
@@ -1462,18 +1777,27 @@ mod tests {
         assert_eq!(e.state, EntityState::Pickup);
         assert!(e.is_move_locked());
 
-        e.update_state(0.6);
+        e.update_state(0.6, false);
         assert_eq!(e.state, EntityState::Standing);
         assert!(!e.is_move_locked());
     }
 
+    /// One frame of the client's animation pass for a one-shot state.
+    fn start_one_shot(e: &mut Entity) {
+        use ragnarok_formats::act::MotionType;
+        let new_entry = e.animation.mark_entry(e.motion_epoch());
+        e.animation
+            .set_action(e.action_index(), MotionType::OneShot);
+        if new_entry {
+            e.animation.restart_motion();
+        }
+    }
+
     #[test]
     fn each_pickup_replays_the_motion_and_the_pose_ends_with_it() {
-        use ragnarok_formats::act::MotionType;
         let act = make_body_act(3, &[]);
         let play_out = |e: &mut Entity| {
-            e.animation
-                .set_action(e.action_index(), MotionType::OneShot);
+            start_one_shot(e);
             for _ in 0..10 {
                 e.animation.update(0.05, &act, 0);
             }
@@ -1485,15 +1809,133 @@ mod tests {
         assert!(e.animation.is_finished());
 
         e.enter_pickup(Some(0.3));
+        start_one_shot(&mut e);
         assert_eq!(e.animation.motion_index(), 0);
-        e.update_state(0.016);
+        e.update_state(0.016, true);
         assert_eq!(e.state, EntityState::Pickup);
         assert!(e.is_move_locked());
 
         play_out(&mut e);
-        e.update_state(0.016);
+        e.update_state(0.016, true);
         assert_eq!(e.state, EntityState::Standing);
         assert!(!e.is_move_locked());
+    }
+
+    #[test]
+    fn a_new_cast_rewinds_the_skill_group_left_on_its_last_frame() {
+        use ragnarok_formats::act::MotionType;
+        let act = make_body_act(4, &[]);
+        let mut e = make_entity();
+
+        e.enter_skill_exec(0.2, SkillEnum::AlHeal, 1);
+        assert!(e.animation.mark_entry(e.motion_epoch()));
+        e.animation.play(
+            e.action_index(),
+            e.animation_duration.take().unwrap() * 1000.0,
+            1,
+        );
+        for _ in 0..10 {
+            e.animation.update(0.05, &act, 0);
+        }
+        assert!(e.animation.is_finished());
+        assert_eq!(e.animation.motion_index(), 3);
+        e.update_state(0.016, true);
+        assert_eq!(e.state, EntityState::Standing);
+
+        e.enter_casting(2.0, SkillEnum::MgFirebolt);
+        assert_eq!(e.action_index(), 12, "same group as the skill it follows");
+        assert!(e.animation.mark_entry(e.motion_epoch()));
+        e.animation.set_action(12, MotionType::Static);
+        e.animation.restart_motion();
+        assert_eq!(e.animation.motion_index(), 0);
+
+        for _ in 0..10 {
+            e.update_state(1.0, true);
+        }
+        assert_eq!(
+            e.state,
+            EntityState::Casting,
+            "a cast only ends on a server packet"
+        );
+        assert!(
+            !e.animation.mark_entry(e.motion_epoch()),
+            "re-deriving the same state must not restart it"
+        );
+    }
+
+    #[test]
+    fn a_held_stance_ends_its_state_when_the_hold_expires_with_nothing_stale_after() {
+        let act = make_body_act(3, &[]);
+        let mut e = make_entity();
+        e.enter_skill_exec(2.0, SkillEnum::TkReadystorm, 1);
+        e.animation.mark_entry(e.motion_epoch());
+        e.update_state(3.0, true);
+        assert_eq!(
+            e.state,
+            EntityState::SkillExec,
+            "no timer while a sprite is loaded"
+        );
+
+        e.animation.finish();
+        e.update_state(0.016, true);
+        assert_eq!(e.state, EntityState::Standing);
+
+        start_one_shot(&mut e);
+        e.animation.update(0.05, &act, 0);
+        assert_eq!(e.animation.action(), 0);
+        assert!(!e.animation.is_finished());
+    }
+
+    #[test]
+    fn a_stand_motion_skill_does_not_latch_the_actor_in_skill_exec() {
+        let mut e = make_entity();
+        e.enter_skill_exec(1.0, SkillEnum::BdAdaptation, 1);
+        assert_eq!(e.action_index(), SpriteActionType::Idle as usize);
+
+        e.animation.mark_entry(e.motion_epoch());
+        e.update_state(0.016, true);
+
+        assert_eq!(e.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn a_swing_ends_on_its_animation_with_a_sprite_and_on_the_timer_without() {
+        let act = make_body_act(3, &[]);
+        let mut with_sprite = make_entity();
+        with_sprite.enter_attack(5.0, 1.0);
+        with_sprite.animation.mark_entry(with_sprite.motion_epoch());
+        with_sprite
+            .animation
+            .play_attack(with_sprite.action_index(), 1.0, 0);
+        with_sprite.update_state(1.0, true);
+        assert_eq!(with_sprite.state, EntityState::Attacking);
+        for _ in 0..10 {
+            with_sprite.animation.update(0.05, &act, 0);
+        }
+        with_sprite.update_state(0.016, true);
+        assert_eq!(with_sprite.state, EntityState::ReadyFight);
+
+        let mut without = make_entity();
+        without.enter_attack(0.5, 1.0);
+        without.update_state(0.3, false);
+        assert_eq!(without.state, EntityState::Attacking);
+        without.update_state(0.3, false);
+        assert_eq!(without.state, EntityState::ReadyFight);
+
+        let mut stale = make_entity();
+        stale.enter_hurt(0.2, Some(0.2));
+        stale.animation.mark_entry(stale.motion_epoch());
+        stale.animation.play(stale.action_index(), 200.0, 0);
+        for _ in 0..10 {
+            stale.animation.update(0.05, &act, 0);
+        }
+        stale.enter_attack(0.5, 1.0);
+        stale.update_state(0.016, true);
+        assert_eq!(
+            stale.state,
+            EntityState::Attacking,
+            "the previous entry's finished flag must not end the new state"
+        );
     }
 
     #[test]
@@ -1541,24 +1983,65 @@ mod tests {
         e.enter_casting(1.0, SkillEnum::SmBash);
         assert_eq!(e.state, EntityState::Dead);
 
-        e.update_state(1.0);
+        e.update_state(1.0, false);
         assert_eq!(e.state, EntityState::Dead);
     }
 
     #[test]
-    fn attack_motion_factor_is_native_at_average_and_capped_when_slow() {
-        assert_eq!(attack_motion_factor(432), 1.0);
-        assert_eq!(attack_motion_factor(216), 0.5);
+    fn attack_motion_factor_is_native_at_average_and_capped_when_slow_except_for_a_bow() {
+        assert_eq!(attack_motion_factor(432, false), 1.0);
+        assert_eq!(attack_motion_factor(216, false), 0.5);
         assert_eq!(
-            attack_motion_factor(5000),
+            attack_motion_factor(5000, false),
             2.0,
             "slow attacks cap at 2x native"
         );
         assert_eq!(
-            attack_motion_factor(0),
+            attack_motion_factor(1296, true),
+            3.0,
+            "a bow is never clamped"
+        );
+        assert_eq!(
+            attack_motion_factor(0, false),
             1.0,
             "missing time plays at native speed"
         );
+    }
+
+    #[test]
+    fn player_hit_keyframe_is_gated_on_the_second_attack_first() {
+        let keyframe = |job: JobName, sex: u8, weapon: Option<WeaponType>| {
+            let mut e = make_entity();
+            e.job = job.value() as u16;
+            e.sex = sex;
+            e.weapon = weapon;
+            e.player_attack_keyframe()
+        };
+        assert_eq!(keyframe(JobName::Thief, 1, Some(WeaponType::Dagger)), 5.75);
+        assert_eq!(
+            keyframe(JobName::Merchant, 1, Some(WeaponType::Axe1H)),
+            5.85
+        );
+        assert_eq!(
+            keyframe(JobName::Thief, 1, Some(WeaponType::Bow)),
+            6.0,
+            "a second attack skips the first-attack rows"
+        );
+        assert_eq!(keyframe(JobName::Assassin, 1, Some(WeaponType::Katar)), 3.0);
+        assert_eq!(
+            keyframe(JobName::Assassin, 1, Some(WeaponType::DoubleDd)),
+            3.0
+        );
+        assert_eq!(
+            keyframe(JobName::Assassin, 1, Some(WeaponType::Dagger)),
+            6.0
+        );
+        assert_eq!(
+            keyframe(JobName::Novice, 1, Some(WeaponType::Sword1H)),
+            5.85
+        );
+        assert_eq!(keyframe(JobName::Novice, 0, Some(WeaponType::Dagger)), 6.0);
+        assert_eq!(keyframe(JobName::Knight, 1, Some(WeaponType::Spear1H)), 6.0);
     }
 
     #[test]
@@ -1658,11 +2141,11 @@ mod tests {
         e.chat_bubble = Some(ChatBubbleState::new("Hello!".to_string()));
         assert!(e.chat_bubble.is_some());
 
-        e.update_state(3.0);
+        e.update_state(3.0, false);
         assert!(e.chat_bubble.is_some());
         assert_eq!(e.chat_bubble.as_ref().unwrap().message, "Hello!");
 
-        e.update_state(2.1);
+        e.update_state(2.1, false);
         assert!(e.chat_bubble.is_none());
     }
 
@@ -1671,10 +2154,10 @@ mod tests {
         let mut e = make_entity();
         e.emotion = Some(super::EmotionState::new(0, 1.4));
 
-        e.update_state(1.3);
+        e.update_state(1.3, false);
         assert!(e.emotion.is_some());
 
-        e.update_state(0.2);
+        e.update_state(0.2, false);
         assert!(
             e.emotion.is_none(),
             "gone at the action's length, not at the 2.5 s fallback"
@@ -1690,15 +2173,16 @@ mod tests {
     }
 
     #[test]
-    fn casting_counts_down_to_the_combat_stance() {
+    fn a_locally_timed_channel_counts_down_to_the_combat_stance() {
         let mut e = make_entity();
-        e.enter_casting(1.0, SkillEnum::SmBash);
+        e.enter_casting(1.0, SkillEnum::KnAutocounter);
+        e.state_timer = 1.0;
         assert_eq!(e.state, EntityState::Casting);
 
-        e.update_state(0.5);
+        e.update_state(0.5, false);
         assert_eq!(e.state, EntityState::Casting);
 
-        e.update_state(0.6);
+        e.update_state(0.6, false);
         assert_eq!(e.state, EntityState::ReadyFight);
     }
 
@@ -1729,11 +2213,11 @@ mod tests {
             ],
             0.0,
         );
-        e.update_state(0.5);
+        e.update_state(0.5, false);
         assert_eq!(e.state, EntityState::Moving);
         assert_eq!(e.cast_progress(), Some(0.5));
 
-        e.update_state(0.6);
+        e.update_state(0.6, false);
         assert_eq!(e.state, EntityState::Moving);
         assert_eq!(e.cast_progress(), None);
     }
@@ -1745,14 +2229,47 @@ mod tests {
         assert_eq!(e.state, EntityState::Attacking);
         assert!(e.is_move_locked());
 
-        e.update_state(0.6);
+        e.update_state(0.6, false);
         assert_eq!(e.state, EntityState::ReadyFight);
         assert_eq!(e.action_index(), 4);
         assert!(!e.is_move_locked());
 
         // The stance holds until something else moves the actor out of it.
-        e.update_state(5.0);
+        e.update_state(5.0, false);
         assert_eq!(e.state, EntityState::ReadyFight);
+    }
+
+    #[test]
+    fn a_second_attack_swing_ends_standing_not_in_the_combat_stance() {
+        let mut archer = make_entity();
+        archer.job = JobName::Archer.value() as u16;
+        archer.weapon = Some(WeaponType::Bow);
+        archer.enter_attack(0.5, 1.0);
+        assert_eq!(archer.action_index(), 10);
+        archer.update_state(0.6, false);
+        assert_eq!(archer.state, EntityState::ReadyFight);
+
+        archer.weapon = None;
+        archer.enter_attack(0.5, 1.0);
+        assert_eq!(archer.action_index(), 11);
+        archer.update_state(0.6, false);
+        assert_eq!(archer.state, EntityState::Standing);
+    }
+
+    #[test]
+    fn a_caster_turns_to_its_target_every_34_frame_units() {
+        let mut e = make_entity();
+        e.enter_casting(5.0, SkillEnum::MgFirebolt);
+        assert_eq!(e.cast_reface_due(1.0), None, "no target, no turn");
+
+        e.cast_target_gid = Some(7);
+        assert_eq!(e.cast_reface_due(0.5), None);
+        assert_eq!(e.cast_reface_due(0.4), Some(7));
+        assert_eq!(e.cast_reface_due(0.4), None);
+        assert_eq!(e.cast_reface_due(0.5), Some(7));
+
+        e.set_state(EntityState::Standing);
+        assert_eq!(e.cast_reface_due(2.0), None);
     }
 
     #[test]
@@ -1787,7 +2304,7 @@ mod tests {
     fn move_during_standby_switches_to_walking() {
         let mut e = make_entity();
         e.enter_attack(0.9, 1.0);
-        e.update_state(1.0);
+        e.update_state(1.0, false);
         assert_eq!(e.state, EntityState::ReadyFight);
 
         e.begin_move(
@@ -1797,7 +2314,7 @@ mod tests {
             ],
             0.0,
         );
-        e.update_state(0.016);
+        e.update_state(0.016, false);
         assert_eq!(e.state, EntityState::Moving);
         assert_eq!(e.action_index(), 1);
     }
@@ -1847,7 +2364,7 @@ mod tests {
         assert_eq!(e.state, EntityState::SkillExec);
         assert_eq!(e.action_index(), 12);
 
-        e.update_state(0.6);
+        e.update_state(0.6, false);
         assert_eq!(e.state, EntityState::Standing);
     }
 
@@ -1871,50 +2388,50 @@ mod tests {
             200,
         );
         e.enter_attack(0.5, 1.0);
-        e.update_state(0.6);
+        e.update_state(0.6, false);
         assert_eq!(e.state, EntityState::Standing);
     }
 
     #[test]
     fn weapon_dependent_attack_action() {
         let mut e = Entity::new_player(1, 1, 1, 1, 0, 4, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 1, 1, 1, 0, 2, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 10);
 
         let mut e = Entity::new_player(1, 12, 1, 1, 0, 16, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 3, 1, 1, 0, 11, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 10);
 
         let mut e = Entity::new_player(1, 3, 1, 1, 0, 1, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 11, 1, 1, 0, 11, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 19, 1, 1, 0, 11, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 15, 1, 1, 0, 0, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 15, 1, 1, 0, 12, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 11);
 
         let mut e = Entity::new_player(1, 15, 1, 1, 0, 8, 0, 0, 0, 0, 100, 100, 0);
-        e.state = EntityState::Attacking;
+        e.set_state(EntityState::Attacking);
         assert_eq!(e.action_index(), 10);
     }
 

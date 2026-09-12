@@ -53,9 +53,9 @@ puffin = "0.20"
 puffin_http = "0.17"
 
 # Server crate git dependencies
-models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "781ce847" }
-movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "781ce847" }
-packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "781ce847" }
+models = { git = "https://github.com/nmeylan/rust-ro.git", rev = "2e673a24" }
+movement = { git = "https://github.com/nmeylan/rust-ro.git", rev = "2e673a24" }
+packets = { git = "https://github.com/nmeylan/rust-ro.git", rev = "2e673a24" }
 
 # Internal crates
 ragnarok-formats = { path = "lib/formats" }

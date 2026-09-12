@@ -1152,13 +1152,15 @@ impl InGameWindow for ChatWindow {
             let st = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
             st.channel_menu_open = !st.channel_menu_open;
         }
-        if self.draw_bubble(ui, SIZE_BTN_ID, height_bubble, [0.55, 0.55, 0.6, 1.0]) || ui.ctx.key_f10 {
+        if self.draw_bubble(ui, SIZE_BTN_ID, height_bubble, [0.55, 0.55, 0.6, 1.0])
+            || ui.ctx.key_f10
+        {
             let st = ui.state.get_or_default::<ChatWindowState>(CHAT_WINDOW_ID);
             let next = st.size_index + 1;
             st.size_index = if next >= SIZE_CYCLE.len() { 1 } else { next };
             let old_h = st.msg_area_h;
             st.msg_area_h = SIZE_CYCLE[st.size_index];
-            st.pos_y -= st.msg_area_h -old_h;
+            st.pos_y -= st.msg_area_h - old_h;
         }
         self.draw_channel_menu(ui, channel_bubble);
 

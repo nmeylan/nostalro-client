@@ -39,7 +39,7 @@ impl App {
             if !entity.is_running && !chasewalk {
                 continue;
             }
-            if entity.state != EntityState::Moving {
+            if entity.state() != EntityState::Moving {
                 entity.footstep_timer = 0.0;
                 continue;
             }
@@ -98,7 +98,7 @@ impl App {
         if self.game.combat.queued_move.is_none() {
             return;
         }
-        let state = self.game.world.entities.player().map(|p| p.state);
+        let state = self.game.world.entities.player().map(|p| p.state());
         if state == self.game.combat.queued_move_state {
             return;
         }
@@ -113,7 +113,7 @@ impl App {
         let Some(player) = self.game.world.entities.player() else {
             return;
         };
-        if player.state == EntityState::Dead {
+        if player.state() == EntityState::Dead {
             return;
         }
         let (src_x, src_y) = player.movement.cell_position();
@@ -167,9 +167,16 @@ impl App {
     }
 
     pub(crate) fn update_movement(&mut self, delta: f32, elapsed: f32) {
+        let local_ms = self.start_time.elapsed().as_millis() as u32;
+        let server_time = &self.game.session.server_time;
         for entity in self.game.world.entities.iter_mut() {
             entity.movement.decay_correction(delta);
             if entity.movement.is_moving() {
+                if let Some(tick) = entity.movement.server_start_tick() {
+                    entity
+                        .movement
+                        .rebase_source_time(server_time.server_to_local_secs(tick, local_ms));
+                }
                 entity.movement.update(elapsed);
             }
         }

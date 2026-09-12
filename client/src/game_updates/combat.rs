@@ -36,7 +36,7 @@ impl App {
             .world
             .entities
             .get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading())
+            .is_some_and(|e| e.state() != EntityState::Dead && !e.is_fading())
             || self.game.world.trap_units.contains_key(&target_id);
         if !target_alive {
             self.game.combat.attack_target_id = None;
@@ -46,7 +46,7 @@ impl App {
         if self.game.casting_blocks_action()
             || self.game.world.entities.player().is_some_and(|player| {
                 matches!(
-                    player.state,
+                    player.state(),
                     EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
                 )
             })
@@ -86,7 +86,7 @@ impl App {
                 .world
                 .entities
                 .player()
-                .map(|e| e.state)
+                .map(|e| e.state())
                 .unwrap_or(EntityState::Standing);
             // The damage motion and the walk are animation states, not action
             // locks: the swing keeps being requested through both. Mid-swing
@@ -108,7 +108,7 @@ impl App {
         } else if !self.game.casting_blocks_action()
             && let Some(player) = self.game.world.entities.player()
             && !matches!(
-                player.state,
+                player.state(),
                 EntityState::SkillExec | EntityState::Dead | EntityState::Sitting
             )
         {
@@ -159,7 +159,7 @@ impl App {
             .world
             .entities
             .get(target_id)
-            .is_some_and(|e| e.state != EntityState::Dead && !e.is_fading());
+            .is_some_and(|e| e.state() != EntityState::Dead && !e.is_fading());
         if !target_alive {
             self.game.pending_casts.pending_skill = None;
             self.game.pending_casts.pending_skill_level = None;
@@ -169,7 +169,7 @@ impl App {
 
         if let Some(player) = self.game.world.entities.player()
             && matches!(
-                player.state,
+                player.state(),
                 EntityState::Casting
                     | EntityState::SkillExec
                     | EntityState::Dead
@@ -245,7 +245,7 @@ impl App {
 
         if let Some(player) = self.game.world.entities.player()
             && matches!(
-                player.state,
+                player.state(),
                 EntityState::Casting
                     | EntityState::SkillExec
                     | EntityState::Dead
@@ -305,7 +305,7 @@ impl App {
 
         if let Some(player) = self.game.world.entities.player()
             && matches!(
-                player.state,
+                player.state(),
                 EntityState::Casting
                     | EntityState::SkillExec
                     | EntityState::Dead
@@ -509,7 +509,7 @@ impl App {
                 tracing::info!(
                     "Caster replay fired for entity {}: state={:?}, drained {} replays, {} remaining",
                     entity.id,
-                    entity.state,
+                    entity.state(),
                     before_count - after_count,
                     after_count
                 );

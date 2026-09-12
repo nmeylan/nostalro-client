@@ -152,7 +152,7 @@ pub fn hover_cursor(
     if target.is_fading() {
         return None;
     }
-    if target.state == EntityState::Dead {
+    if target.state() == EntityState::Dead {
         // Resurrection is cast on a corpse, so a supportive skill keeps a dead
         // player pickable — with the plain cursor, not the lock one.
         return (active_skill == Some(TargetClass::Supportive)
@@ -200,7 +200,7 @@ pub fn skill_target_allowed(
     map: &MapProperties,
     player_id: Option<u32>,
 ) -> bool {
-    if target.state == EntityState::Dead {
+    if target.state() == EntityState::Dead {
         return class == TargetClass::Supportive && target.entity_type == EntityType::Player;
     }
     match class {
@@ -299,9 +299,9 @@ mod tests {
         let me = Some(1u32);
         let town = MapProperties::from_kind(MapKind::Normal);
         let mut corpse = entity(20, EntityType::Player, 0);
-        corpse.state = EntityState::Dead;
+        corpse.set_state(EntityState::Dead);
         let mut dead_mob = entity(30, EntityType::Monster, 1002);
-        dead_mob.state = EntityState::Dead;
+        dead_mob.set_state(EntityState::Dead);
 
         let support = skill_target_class(SkillTargetType::Friend);
         assert!(skill_target_allowed(support, &corpse, &town, me));

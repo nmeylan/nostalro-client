@@ -332,15 +332,15 @@ impl App {
     pub(crate) fn handle_vending_board_shown(&mut self, aid: u32, name: String) {
         if let Some(entity) = self.game.world.entities.get_mut(aid) {
             entity.vending_board = Some(name);
-            entity.state = EntityState::Sitting;
+            entity.set_state(EntityState::Sitting);
         }
     }
 
     pub(crate) fn handle_vending_board_hidden(&mut self, aid: u32) {
         if let Some(entity) = self.game.world.entities.get_mut(aid) {
             entity.vending_board = None;
-            if entity.state == EntityState::Sitting {
-                entity.state = EntityState::Standing;
+            if entity.state() == EntityState::Sitting {
+                entity.set_state(EntityState::Standing);
             }
         }
     }
@@ -371,7 +371,7 @@ impl App {
             && let Some(entity) = self.game.world.entities.get_mut(pid)
         {
             entity.vending_board = Some(shop_name);
-            entity.state = EntityState::Sitting;
+            entity.set_state(EntityState::Sitting);
         }
     }
 
@@ -386,8 +386,8 @@ impl App {
             && let Some(entity) = self.game.world.entities.get_mut(pid)
         {
             entity.vending_board = None;
-            if entity.state == EntityState::Sitting {
-                entity.state = EntityState::Standing;
+            if entity.state() == EntityState::Sitting {
+                entity.set_state(EntityState::Standing);
             }
         }
     }

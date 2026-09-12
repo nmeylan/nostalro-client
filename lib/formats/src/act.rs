@@ -4,8 +4,13 @@ use byteorder::{LittleEndian as LE, ReadBytesExt};
 
 use crate::{Color, FormatError, read_string, version_at_least};
 
-/// Frame delay used when the ACT carries no delay table (pre-2.2).
-const DEFAULT_FRAME_DELAY_MS: f32 = 150.0;
+/// Milliseconds one unit of an ACT delay lasts.
+pub const FRAME_DELAY_UNIT_MS: f32 = 24.0;
+
+/// A missing or sub-unit delay plays at one unit.
+fn frame_delay_ms(delay: Option<f32>) -> f32 {
+    delay.unwrap_or(1.0).max(1.0) * FRAME_DELAY_UNIT_MS
+}
 
 pub struct AnchorPoint {
     pub ignored: u32,
@@ -212,17 +217,13 @@ impl ActFile {
         if frames == 0 {
             return None;
         }
-        let delay_ms = match self.delays.get(idx) {
-            Some(&d) if d > 0.0 => d * 25.0,
-            _ => DEFAULT_FRAME_DELAY_MS,
-        };
-        Some(frames as f32 * delay_ms)
+        Some(frames as f32 * frame_delay_ms(self.delays.get(idx).copied()))
     }
 }
 
-/// Frame index within `action_idx` at which the swing connects — the first
-/// motion carrying the `"atk"` event. Falls back to the second-to-last frame
-/// when the action has no atk event, mirroring the original game's lookup.
+/// Frame index within `action_idx` at which a non-player swing connects — the
+/// first motion carrying the `"atk"` event, else the second-to-last frame. A
+/// player's keyframe comes from a job table instead.
 pub fn atk_keyframe_index(act: &ActFile, action_idx: usize) -> usize {
     let Some(action) = act.actions.get(action_idx) else {
         return 0;
@@ -364,6 +365,11 @@ pub struct SpriteAnimationState {
     motion_speed_override_ms: Option<f32>,
     motion_speed_factor: Option<f32>,
     remaining_repeats: u16,
+    /// Time the last frame of a one-shot stays before `finished` is set.
+    finish_hold_ms: f32,
+    /// Frame a one-shot stops on instead of the group's last.
+    end_frame: Option<usize>,
+    entry: u32,
     walk_dist: f32,
     prev_motion: usize,
     prev_action: usize,
@@ -381,10 +387,31 @@ impl SpriteAnimationState {
             motion_speed_override_ms: None,
             motion_speed_factor: None,
             remaining_repeats: 0,
+            finish_hold_ms: 0.0,
+            end_frame: None,
+            entry: 0,
             walk_dist: 0.0,
             prev_motion: 0,
             prev_action: 0,
         }
+    }
+
+    /// Records which state entry the animation now plays for and reports
+    /// whether it is a new one, in which case the caller restarts the motion.
+    pub fn mark_entry(&mut self, entry: u32) -> bool {
+        let changed = self.entry != entry;
+        self.entry = entry;
+        changed
+    }
+
+    pub fn entry(&self) -> u32 {
+        self.entry
+    }
+
+    /// Ends the current motion where it stands, as a held frame does when its
+    /// time is up.
+    pub fn finish(&mut self) {
+        self.finished = true;
     }
 
     /// Frame sound-event ids crossed since the last call, scanning every frame
@@ -453,16 +480,26 @@ impl SpriteAnimationState {
             self.motion_speed_override_ms = None;
             self.motion_speed_factor = None;
             self.remaining_repeats = 0;
+            self.finish_hold_ms = 0.0;
+            self.end_frame = None;
         } else if self.motion_type != motion_type {
             self.finished = false;
             self.motion_speed_override_ms = None;
             self.motion_speed_factor = None;
             self.remaining_repeats = 0;
+            self.finish_hold_ms = 0.0;
+            self.end_frame = None;
         }
         self.motion_type = motion_type;
     }
 
     pub fn play(&mut self, action: usize, total_ms: f32, start_frame: usize) {
+        self.play_held(action, total_ms, 0.0, start_frame);
+    }
+
+    /// Plays `action` once over `total_ms`, then keeps its last frame for
+    /// `hold_ms` before reporting finished.
+    pub fn play_held(&mut self, action: usize, total_ms: f32, hold_ms: f32, start_frame: usize) {
         self.action = action;
         self.motion_index = start_frame;
         self.accumulated_ms = 0.0;
@@ -471,6 +508,15 @@ impl SpriteAnimationState {
         self.motion_speed_override_ms = Some(total_ms);
         self.motion_speed_factor = None;
         self.remaining_repeats = 0;
+        self.finish_hold_ms = hold_ms;
+        self.end_frame = None;
+    }
+
+    /// Plays frames `start_frame..=end_frame` of `action` once at the ACT's
+    /// native delay, holding `end_frame` when it ends.
+    pub fn play_range(&mut self, action: usize, start_frame: usize, end_frame: usize) {
+        self.play_attack(action, 1.0, start_frame);
+        self.end_frame = Some(end_frame);
     }
 
     /// Plays `action` once at the ACT's native frame delay multiplied by
@@ -489,6 +535,8 @@ impl SpriteAnimationState {
             1.0
         });
         self.remaining_repeats = 0;
+        self.finish_hold_ms = 0.0;
+        self.end_frame = None;
     }
 
     pub fn play_repeated(&mut self, action: usize, total_ms: f32, repeat_count: u16) {
@@ -500,6 +548,8 @@ impl SpriteAnimationState {
         self.motion_speed_override_ms = Some(total_ms / repeat_count.max(1) as f32);
         self.motion_speed_factor = None;
         self.remaining_repeats = repeat_count.saturating_sub(1);
+        self.finish_hold_ms = 0.0;
+        self.end_frame = None;
     }
 
     pub fn is_finished(&self) -> bool {
@@ -576,11 +626,8 @@ impl SpriteAnimationState {
         if motion_count == 0 {
             return;
         }
-        let frame_dist = if action_idx < act.delays.len() && act.delays[action_idx] > 0.0 {
-            act.delays[action_idx] / 6.0
-        } else {
-            0.15
-        };
+        let frame_dist =
+            frame_delay_ms(act.delays.get(action_idx).copied()) / FRAME_DELAY_UNIT_MS / 7.4;
         let cycle = frame_dist * motion_count as f32;
         self.walk_dist = (self.walk_dist + dist_cells.max(0.0)) % cycle.max(1e-4);
         self.motion_index = (self.walk_dist / frame_dist) as usize % motion_count;
@@ -600,28 +647,27 @@ impl SpriteAnimationState {
             return;
         }
 
-        let native_delay = if action_idx < act.delays.len() && act.delays[action_idx] > 0.0 {
-            act.delays[action_idx] * 25.0
-        } else {
-            DEFAULT_FRAME_DELAY_MS
-        };
+        let native_delay = frame_delay_ms(act.delays.get(action_idx).copied());
         let delay_ms = if let Some(total_ms) = self.motion_speed_override_ms {
-            if motion_count > 0 {
-                total_ms / motion_count as f32
-            } else {
-                DEFAULT_FRAME_DELAY_MS
-            }
+            total_ms / motion_count as f32
         } else {
             native_delay * self.motion_speed_factor.unwrap_or(1.0)
         };
 
+        let last_frame = self
+            .end_frame
+            .map_or(motion_count - 1, |f| f.min(motion_count - 1));
         self.accumulated_ms += dt_secs * 1000.0;
         while self.accumulated_ms >= delay_ms {
             self.accumulated_ms -= delay_ms;
-            if self.motion_type == MotionType::OneShot && self.motion_index == motion_count - 1 {
+            if self.motion_type == MotionType::OneShot && self.motion_index >= last_frame {
                 if self.remaining_repeats > 0 {
                     self.remaining_repeats -= 1;
                     self.motion_index = 0;
+                    continue;
+                }
+                if self.finish_hold_ms > 0.0 {
+                    self.finish_hold_ms -= delay_ms;
                     continue;
                 }
                 self.finished = true;
@@ -826,9 +872,16 @@ mod tests {
     #[test]
     fn attack_swing_lasts_exactly_its_reported_duration() {
         let act = make_act(16, 9);
+        assert_eq!(act.action_group_duration_ms(1), Some(9.0 * 4.0 * 24.0));
+        let mut zero_delay = make_act(16, 9);
+        zero_delay.delays = vec![0.0; 16];
+        assert_eq!(
+            zero_delay.action_group_duration_ms(1),
+            Some(9.0 * 24.0),
+            "a zero delay plays at one delay unit"
+        );
         let factor = 1.5;
         let total_secs = act.action_group_duration_ms(1).unwrap() * factor / 1000.0;
-        assert_eq!(total_secs, 9.0 * 100.0 * 1.5 / 1000.0);
 
         let mut anim = SpriteAnimationState::new(0);
         anim.play_attack(1, factor, 0);
@@ -855,7 +908,7 @@ mod tests {
 
     #[test]
     fn walk_frame_tracks_distance_and_holds_when_still() {
-        // delay 4.0 -> frame_dist 4/6 cells; 4 motions -> cycle 2.667 cells
+        // delay 4.0 -> frame_dist 4/7.4 cells; 4 motions -> cycle 2.162 cells
         let act = make_act(8, 4);
         let mut anim = SpriteAnimationState::new(0);
         anim.set_action(0, MotionType::Loop);

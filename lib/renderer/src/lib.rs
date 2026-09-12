@@ -425,12 +425,8 @@ impl Renderer {
     /// Filters ground and model textures, the way the original game does. Pass
     /// the archive to rebuild the textures a loaded map already uploaded.
     pub fn set_world_filtering(&mut self, on: bool, grf: Option<&GrfArchive>) {
-        self.texture_cache.set_world_filtering(
-            on,
-            grf,
-            &self.device.device,
-            &self.device.queue,
-        );
+        self.texture_cache
+            .set_world_filtering(on, grf, &self.device.device, &self.device.queue);
     }
 
     /// Multiplies both fog distances, so a wider view than the original game's

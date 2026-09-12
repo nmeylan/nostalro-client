@@ -158,7 +158,10 @@ impl<'a> Reader<'a> {
 
     fn take(&mut self, count: usize) -> Result<&'a [u8], LubError> {
         let end = self.pos.checked_add(count).ok_or(LubError::UnexpectedEof)?;
-        let slice = self.data.get(self.pos..end).ok_or(LubError::UnexpectedEof)?;
+        let slice = self
+            .data
+            .get(self.pos..end)
+            .ok_or(LubError::UnexpectedEof)?;
         self.pos = end;
         Ok(slice)
     }

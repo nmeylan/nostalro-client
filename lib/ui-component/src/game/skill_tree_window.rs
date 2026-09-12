@@ -513,11 +513,11 @@ mod tests {
     use ragnarok_game::character::Character;
     use ragnarok_game::data_table::DataTable;
     use ragnarok_game::data_table::skill_description_table::SkillDescriptionTable;
-    use std::collections::HashMap;
     use ragnarok_game::skill::SkillData;
     use ragnarok_ui::context::UiContext;
     use ragnarok_ui::state::StateCache;
     use ragnarok_ui::test_support::test_frame;
+    use std::collections::HashMap;
 
     fn character_with_upgradable_skill() -> Character {
         let mut character = Character::new();

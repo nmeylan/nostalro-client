@@ -351,12 +351,8 @@ pub(crate) fn draw_companion_skill_tooltip(
     }
 
     let tooltip_text = lines.join("\n");
-    let wrapped = draw::colored_word_wrap(
-        &tooltip_text,
-        220.0,
-        |t| ui.atlas.measure_text(t),
-        false,
-    );
+    let wrapped =
+        draw::colored_word_wrap(&tooltip_text, 220.0, |t| ui.atlas.measure_text(t), false);
 
     let line_h = ui.atlas.line_height;
     let pad = 8.0;

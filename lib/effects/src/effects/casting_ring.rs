@@ -241,7 +241,10 @@ mod tests {
         run_to(&mut c, GROW_FRAMES * 3.0);
         let held = ring_height(&c);
         assert!(early > 0.0 && early < full, "grows in ({early} → {full})");
-        assert!((full - LV99.rings[0][2]).abs() < 1e-3, "reaches its full rise");
+        assert!(
+            (full - LV99.rings[0][2]).abs() < 1e-3,
+            "reaches its full rise"
+        );
         assert!((held - full).abs() < 1e-4, "holds once grown");
         for p in rings(&c) {
             let EffectPrimitiveDraw::Frustum { wave_mode, .. } = p else {

@@ -56,6 +56,10 @@ pub struct CustomConfig {
     /// Draw name plates, floor-item labels and the pending-skill level in a bold
     /// weight with a heavier outline. The original game has one weight only.
     pub accessibility: bool,
+    /// Replay walks against the server clock the way the original game does:
+    /// read 72 ms behind the estimate and corrected in 144 ms steps, so the
+    /// walk cycle stalls and jumps under lag. Off keeps the smooth local walk.
+    pub latency_coupled_walk: bool,
     pub filtering: CustomFilteringConfig,
     pub sound: CustomSoundConfig,
     pub window: CustomWindowConfig,
@@ -69,6 +73,7 @@ impl Default for CustomConfig {
             aura_level: ragnarok_game::level_aura::LEVEL_AURA_THRESHOLD,
             fog_scale: 1.0,
             accessibility: false,
+            latency_coupled_walk: false,
             filtering: CustomFilteringConfig::default(),
             sound: CustomSoundConfig::default(),
             window: CustomWindowConfig::default(),
@@ -205,7 +210,6 @@ pub struct Config {
     /// inside of the archive's `data/` folder (e.g. `sprite/…`, `texture/…`) and
     /// take priority over every entry in `grf_paths`.
     pub data_dir: Option<String>,
-    pub enhanced_lag_compensation: bool,
     pub debug_network_delay_ms: u32,
     pub debug: DebugConfig,
     pub window_state: HashMap<u32, WindowStateEntry>,
@@ -285,7 +289,6 @@ impl Default for Config {
             dpi_scale: 125.0,
             grf_paths: vec![ragnarok_resources::grf::DEFAULT_ARCHIVE.to_string()],
             data_dir: None,
-            enhanced_lag_compensation: false,
             debug_network_delay_ms: 0,
             debug: DebugConfig::default(),
             window_state: HashMap::new(),
