@@ -4,12 +4,13 @@ use ragnarok_game::autocounter;
 use ragnarok_game::companion::OwnerCommand;
 use ragnarok_game::cursor::{CompanionSkillTarget, PendingSkillTarget};
 use ragnarok_game::entity::{EntityCategory, EntityState, EntityType};
+use ragnarok_game::movement::direction_from_delta;
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::hide_allows_skill;
 use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
 use ragnarok_network::{
-    build_contact_npc_packet, build_req_buy_frommc_packet, build_req_enter_room_packet,
-    build_request_move_packet, build_use_skill_packet,
+    build_change_direction_packet, build_contact_npc_packet, build_req_buy_frommc_packet,
+    build_req_enter_room_packet, build_request_move_packet, build_use_skill_packet,
 };
 
 impl App {
@@ -336,6 +337,9 @@ impl App {
             Some(c) => c,
             None => return,
         };
+        if self.turn_while_sitting(dest_x, dest_y) {
+            return;
+        }
         let locked_state = self
             .game
             .world
@@ -371,5 +375,25 @@ impl App {
             move_action.dest_y,
             self.active_packetver,
         ));
+    }
+
+    fn turn_while_sitting(&mut self, dest_x: i32, dest_y: i32) -> bool {
+        let pv = self.active_packetver;
+        let Some(entity) = self.game.world.entities.player_mut() else {
+            return false;
+        };
+        if entity.state() != EntityState::Sitting {
+            return false;
+        }
+        let (src_x, src_y) = entity.movement.cell_position();
+        let dx = dest_x as f32 - src_x as f32;
+        let dy = dest_y as f32 - src_y as f32;
+        if let Some(target) = direction_from_delta(dx, dy) {
+            entity.look_at_direction(target);
+            let (head_dir, dir) = (entity.head_dir, entity.direction);
+            self.channel
+                .send_packet(build_change_direction_packet(head_dir, dir, pv));
+        }
+        true
     }
 }

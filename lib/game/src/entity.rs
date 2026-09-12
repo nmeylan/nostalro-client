@@ -588,6 +588,32 @@ impl Entity {
         self.facing_degrees = facing_degrees_for(direction);
     }
 
+    /// Face the cell direction `target`, letting the head cover the last
+    /// eighth: the body never ends more than one step off `target`, and a
+    /// second look to the same side straightens the head and turns the body.
+    pub fn look_at_direction(&mut self, target: u8) {
+        match (self.direction + 8 - target) % 8 {
+            0 | 4 => {
+                self.set_facing(target);
+                self.head_dir = 0;
+            }
+            1 if self.head_dir != 1 => self.head_dir = 1,
+            7 if self.head_dir != 2 => self.head_dir = 2,
+            1 | 7 => {
+                self.set_facing(target);
+                self.head_dir = 0;
+            }
+            2 | 3 => {
+                self.set_facing((target + 1) % 8);
+                self.head_dir = 1;
+            }
+            _ => {
+                self.set_facing((target + 7) % 8);
+                self.head_dir = 2;
+            }
+        }
+    }
+
     /// Turn a quarter clockwise, as a multi-hit skill does to its target on
     /// every blow. The angle wraps only once it passes a full turn, so a facing
     /// that lands exactly on 360 keeps that value rather than folding to zero.
@@ -1718,6 +1744,25 @@ mod tests {
             "dies once the delayed hit has landed"
         );
         assert!(!e.pending_death);
+    }
+
+    #[test]
+    fn looking_at_a_cell_turns_the_head_before_the_body() {
+        let mut e = make_entity();
+        e.set_state(EntityState::Sitting);
+        e.set_facing(2);
+
+        e.look_at_direction(1);
+        assert_eq!((e.direction, e.head_dir), (2, 1));
+
+        e.look_at_direction(1);
+        assert_eq!((e.direction, e.head_dir), (1, 0));
+
+        e.look_at_direction(4);
+        assert_eq!((e.direction, e.head_dir), (3, 2));
+
+        e.look_at_direction(4);
+        assert_eq!((e.direction, e.head_dir), (4, 0));
     }
 
     #[test]
