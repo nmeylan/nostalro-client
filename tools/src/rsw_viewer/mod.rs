@@ -27,6 +27,10 @@ use crate::rsw_viewer::controls::OverlayMode;
 pub struct Args {
     pub grf_path: String,
     pub map_name: Option<String>,
+    pub start_cell: Option<(i32, i32)>,
+    pub yaw: Option<f32>,
+    pub pitch: Option<f32>,
+    pub distance: Option<f32>,
 }
 
 // === FFI types - must match `tools/rsw-viewer-hot/src/lib.rs` exactly ===
@@ -104,6 +108,7 @@ type HotGetOverridesFn = unsafe extern "C" fn(*mut (), *mut SceneOverrides);
 type HotBuildOverlayFn =
     unsafe extern "C" fn(*mut (), *const FontAtlas, f32, f32, *mut Vec<UiDrawCall>);
 type HotSetTargetFn = unsafe extern "C" fn(*mut (), f32, f32, f32);
+type HotSetTargetImmediateFn = unsafe extern "C" fn(*mut (), f32, f32, f32);
 type HotGetHoverCellFn = unsafe extern "C" fn(*mut (), *mut [i32; 2], *mut u8);
 
 struct HotLib {
@@ -123,6 +128,7 @@ struct HotLib {
     get_overrides_fn: HotGetOverridesFn,
     build_overlay_fn: HotBuildOverlayFn,
     set_target_fn: HotSetTargetFn,
+    set_target_immediate_fn: HotSetTargetImmediateFn,
     destroy_fn: HotDestroyFn,
 }
 
@@ -153,6 +159,7 @@ impl HotLib {
             get_overrides_fn,
             build_overlay_fn,
             set_target_fn,
+            set_target_immediate_fn,
         ) = unsafe {
             let create: libloading::Symbol<HotCreateFn> = lib.get(b"hot_create").ok()?;
             let destroy: libloading::Symbol<HotDestroyFn> = lib.get(b"hot_destroy").ok()?;
@@ -178,6 +185,8 @@ impl HotLib {
             let build_overlay: libloading::Symbol<HotBuildOverlayFn> =
                 lib.get(b"hot_build_overlay").ok()?;
             let set_target: libloading::Symbol<HotSetTargetFn> = lib.get(b"hot_set_target").ok()?;
+            let set_target_immediate: libloading::Symbol<HotSetTargetImmediateFn> =
+                lib.get(b"hot_set_target_immediate").ok()?;
 
             (
                 *create,
@@ -196,6 +205,7 @@ impl HotLib {
                 *get_overrides,
                 *build_overlay,
                 *set_target,
+                *set_target_immediate,
             )
         };
 
@@ -217,6 +227,7 @@ impl HotLib {
             get_overrides_fn,
             build_overlay_fn,
             set_target_fn,
+            set_target_immediate_fn,
             destroy_fn,
         })
     }
@@ -331,6 +342,9 @@ impl HotLib {
     fn set_target(&self, x: f32, y: f32, z: f32) {
         unsafe { (self.set_target_fn)(self.state, x, y, z) };
     }
+    fn set_target_immediate(&self, x: f32, y: f32, z: f32) {
+        unsafe { (self.set_target_immediate_fn)(self.state, x, y, z) };
+    }
 }
 
 fn find_dylib() -> PathBuf {
@@ -373,6 +387,8 @@ struct App {
     // Map data
     map_name: Option<String>,
     map_data: Option<MapData>,
+    start_cell: Option<(i32, i32)>,
+    start_camera: (Option<f32>, Option<f32>, Option<f32>),
     grf_path: String,
 
     // Browser
@@ -417,6 +433,8 @@ impl App {
             renderer: None,
             map_name: args.map_name.clone(),
             map_data: None,
+            start_cell: args.start_cell,
+            start_camera: (args.yaw, args.pitch, args.distance),
             grf_path: args.grf_path.clone(),
             browser: None,
             ctrl_pressed: false,
@@ -567,6 +585,14 @@ impl App {
                 }
             }
 
+            if let Some((cx, cy)) = self.start_cell.take()
+                && let Some(hot) = &self.hot_lib
+                && let Some(coords) = self.map_data.as_ref().and_then(|m| m.coordinates.as_ref())
+            {
+                let (wx, _wy, wz) = coords.cell_to_world(cx as f32 + 0.5, cy as f32 + 0.5);
+                hot.set_target_immediate(wx, 0.0, wz);
+            }
+
             tracing::info!("Map loaded successfully: {map_name} ({gnd_width}x{gnd_height})");
 
             if let Some(window) = &self.window {
@@ -575,6 +601,27 @@ impl App {
         } else {
             tracing::error!("Failed to load map '{map_name}'");
         }
+    }
+
+    fn apply_start_camera(&self) {
+        let (yaw, pitch, distance) = self.start_camera;
+        if yaw.is_none() && pitch.is_none() && distance.is_none() {
+            return;
+        }
+        let Some(hot) = &self.hot_lib else {
+            return;
+        };
+        let mut camera = hot.get_camera();
+        if let Some(yaw) = yaw {
+            camera.yaw = yaw;
+        }
+        if let Some(pitch) = pitch {
+            camera.pitch = pitch.clamp(0.1, std::f32::consts::FRAC_PI_2 - 0.01);
+        }
+        if let Some(distance) = distance {
+            camera.distance = distance.clamp(20.0, 3000.0);
+        }
+        hot.set_camera(&camera);
     }
 
     fn push_map_info_to_dylib(&self, cache: &MapInfoCache) {
@@ -919,6 +966,8 @@ impl ApplicationHandler for App {
         if let Some(hot) = &self.hot_lib {
             hot.set_viewport(initial_w, initial_h);
         }
+
+        self.apply_start_camera();
 
         if self.map_name.is_some() {
             self.load_map();

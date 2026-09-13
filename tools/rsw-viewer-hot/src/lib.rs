@@ -258,6 +258,15 @@ pub unsafe extern "C" fn hot_set_target(state_ptr: *mut (), x: f32, y: f32, z: f
     state.animating = true;
 }
 
+/// Jump the camera target immediately, cancelling any tween.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hot_set_target_immediate(state_ptr: *mut (), x: f32, y: f32, z: f32) {
+    let state = unsafe { &mut *(state_ptr as *mut State) };
+    state.target = [x, y, z];
+    state.target_goal = [x, y, z];
+    state.animating = false;
+}
+
 /// Cancel any in-progress camera tween.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hot_cancel_tween(state_ptr: *mut ()) {
