@@ -1264,6 +1264,12 @@ fn create_buffer<T: bytemuck::Pod>(
     })
 }
 
+const MODEL_DEPTH_BIAS: wgpu::DepthBiasState = wgpu::DepthBiasState {
+    constant: 0,
+    slope_scale: -2.0,
+    clamp: 0.0,
+};
+
 fn create_animated_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
@@ -1315,7 +1321,7 @@ fn create_animated_pipeline(
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: Default::default(),
-            bias: Default::default(),
+            bias: MODEL_DEPTH_BIAS,
         }),
         multisample: Default::default(),
         multiview_mask: None,
@@ -1369,7 +1375,7 @@ fn create_pipeline(
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: Default::default(),
-            bias: Default::default(),
+            bias: MODEL_DEPTH_BIAS,
         }),
         multisample: Default::default(),
         multiview_mask: None,
