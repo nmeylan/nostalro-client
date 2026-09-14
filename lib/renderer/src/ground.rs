@@ -768,7 +768,11 @@ fn create_pipeline(
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: Default::default(),
-            bias: Default::default(),
+            bias: wgpu::DepthBiasState {
+                constant: 0,
+                slope_scale: 2.0,
+                clamp: 0.0,
+            },
         }),
         multisample: Default::default(),
         multiview_mask: None,

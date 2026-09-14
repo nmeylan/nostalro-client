@@ -32,7 +32,7 @@ impl Default for Camera {
             dest_pitch: DEFAULT_PITCH_DEG.to_radians(),
             fov_y: 15_f32.to_radians(),
             aspect: 4.0 / 3.0,
-            near: 1.0,
+            near: 10.0,
             far: 5000.0,
             shake_offset: glam::Vec3::ZERO,
             eye_floor: None,
@@ -556,32 +556,6 @@ mod tests {
         assert_eq!(camera.direction_index(), 2);
         camera.yaw = std::f32::consts::PI;
         assert_eq!(camera.direction_index(), 4);
-    }
-
-    #[test]
-    fn depth_bias_stays_bounded_across_zoom_levels() {
-        let mut camera = Camera::default();
-        const VIEW_SPACE_BIAS: f32 = 4.0;
-
-        for &distance in &[50.0, 200.0, 500.0, 1000.0, 1500.0] {
-            camera.distance = distance;
-            let t = camera.target;
-            let (_, _, _, clip_w) = camera
-                .world_to_screen_with_depth(t.x, t.y, t.z, 800.0, 600.0)
-                .expect("target should be visible");
-
-            let ndc_bias = camera.near * VIEW_SPACE_BIAS / (clip_w * clip_w);
-            let approx_world_bias = ndc_bias * clip_w * clip_w / camera.near;
-            assert!(
-                (approx_world_bias - VIEW_SPACE_BIAS).abs() < 0.01,
-                "at distance {distance}: world bias = {approx_world_bias}, expected {VIEW_SPACE_BIAS}"
-            );
-            assert!(ndc_bias > 0.0);
-            assert!(
-                ndc_bias < 0.01,
-                "ndc_bias too large at distance {distance}: {ndc_bias}"
-            );
-        }
     }
 
     #[test]

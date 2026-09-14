@@ -220,20 +220,7 @@ impl ModelRenderer {
             );
         }
 
-        let mut all_vertices = Vec::new();
-        let mut all_indices = Vec::new();
-        let mut batches = Vec::new();
-        for (tex_name, (verts, idxs)) in texture_quads {
-            let vertex_offset = all_vertices.len() as u32;
-            let start_index = all_indices.len() as u32;
-            all_vertices.extend_from_slice(&verts);
-            all_indices.extend(idxs.iter().map(|i| i + vertex_offset));
-            batches.push(DrawBatch {
-                texture_name: tex_name,
-                start_index,
-                index_count: idxs.len() as u32,
-            });
-        }
+        let (all_vertices, all_indices, batches) = flatten_texture_batches(texture_quads);
 
         if all_vertices.is_empty() {
             return None;
@@ -315,20 +302,7 @@ impl ModelRenderer {
             );
         }
 
-        let mut all_vertices = Vec::new();
-        let mut all_indices = Vec::new();
-        let mut batches = Vec::new();
-        for (tex_name, (verts, idxs)) in texture_quads {
-            let vertex_offset = all_vertices.len() as u32;
-            let start_index = all_indices.len() as u32;
-            all_vertices.extend_from_slice(&verts);
-            all_indices.extend(idxs.iter().map(|i| i + vertex_offset));
-            batches.push(DrawBatch {
-                texture_name: tex_name,
-                start_index,
-                index_count: idxs.len() as u32,
-            });
-        }
+        let (all_vertices, all_indices, batches) = flatten_texture_batches(texture_quads);
 
         if all_vertices.is_empty() {
             return None;
@@ -1264,12 +1238,6 @@ fn create_buffer<T: bytemuck::Pod>(
     })
 }
 
-const MODEL_DEPTH_BIAS: wgpu::DepthBiasState = wgpu::DepthBiasState {
-    constant: 0,
-    slope_scale: -2.0,
-    clamp: 0.0,
-};
-
 fn create_animated_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
@@ -1321,7 +1289,7 @@ fn create_animated_pipeline(
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: Default::default(),
-            bias: MODEL_DEPTH_BIAS,
+            bias: Default::default(),
         }),
         multisample: Default::default(),
         multiview_mask: None,
@@ -1375,7 +1343,7 @@ fn create_pipeline(
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: Default::default(),
-            bias: MODEL_DEPTH_BIAS,
+            bias: Default::default(),
         }),
         multisample: Default::default(),
         multiview_mask: None,
