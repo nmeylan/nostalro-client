@@ -172,6 +172,10 @@ impl Effect for BlitzbeatEffect {
         }
     }
 
+    fn set_position(&mut self, pos: [f32; 3]) {
+        self.caster_pos = pos;
+    }
+
     fn collect_draws(&self, out: &mut EffectDrawList, _ctx: &EffectRenderCtx) {
         let frame = self.age * FRAMES_PER_SECOND;
         if let Some((base, alpha)) = self.mote_at(frame) {
@@ -190,7 +194,7 @@ impl Effect for BlitzbeatEffect {
                 texture: MOTE_TEXTURE,
                 color: [1.0, 1.0, 1.0, alpha],
                 alpha_bottom: alpha,
-                blend: BlendKind::Additive,
+                blend: BlendKind::Alpha,
             });
         }
 
@@ -336,6 +340,7 @@ mod tests {
         assert_eq!(cones.len(), 1, "one cone: the effect carries a single hit");
 
         let EffectPrimitiveDraw::Cylinder {
+            base,
             height,
             tilt_x_rad,
             rotation_y_rad,
@@ -344,6 +349,7 @@ mod tests {
         else {
             unreachable!()
         };
+        let base = *base;
         // Walk the renderer's local-to-world transform for the apex at
         // (0, -height, 0) and check the cone lies flat, aimed downrange.
         let (sin_tx, cos_tx) = tilt_x_rad.sin_cos();
@@ -356,6 +362,20 @@ mod tests {
         assert!(
             (apex[0] / height - fwd[0]).abs() < 1e-4 && (apex[2] / height - fwd[2]).abs() < 1e-4,
             "apex points downrange: {apex:?} vs {fwd:?}"
+        );
+
+        e.set_position([12.0, 0.0, -3.0]);
+        let moved = match &draws(&e)[0] {
+            EffectPrimitiveDraw::Cylinder { base, .. } => *base,
+            _ => unreachable!(),
+        };
+        assert_eq!(
+            [
+                moved[0] - base[0],
+                moved[1] - base[1],
+                moved[2] - base[2]
+            ],
+            [12.0, 0.0, -3.0]
         );
 
         assert_eq!(step_n(&mut e, 12), EffectStatus::Dead);

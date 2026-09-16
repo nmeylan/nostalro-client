@@ -55,6 +55,9 @@ pub struct Params {
     window: (f32, f32),
     total_frames: f32,
     glow: f32,
+    /// `(period, on)` in frames: the glow copy blinks `on` frames out of every
+    /// `period`. `None` holds it lit for the whole window.
+    glow_blink: Option<(f32, f32)>,
     body_alpha: f32,
     light_body: bool,
     double_body: Option<DoubleBody>,
@@ -74,6 +77,7 @@ pub const REDBODY: Params = Params {
     window: (0.0, 120.0),
     total_frames: 120.0,
     glow: 0.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: true,
     double_body: None,
@@ -87,6 +91,7 @@ pub const TRANSBLUEBODY: Params = Params {
     window: (0.0, 200.0),
     total_frames: 200.0,
     glow: 0.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: false,
     double_body: None,
@@ -100,6 +105,7 @@ pub const PINKBODY: Params = Params {
     window: (0.0, 120.0),
     total_frames: 120.0,
     glow: 0.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: true,
     double_body: Some(DoubleBody {
@@ -116,6 +122,7 @@ pub const LINKLIGHT: Params = Params {
     window: (40.0, 70.0),
     total_frames: 70.0,
     glow: 1.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: false,
     double_body: None,
@@ -129,6 +136,7 @@ pub const MAGICCRASHER: Params = Params {
     window: (30.0, 60.0),
     total_frames: 60.0,
     glow: 1.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: false,
     double_body: None,
@@ -142,6 +150,7 @@ pub const MAGICCRASHER2: Params = Params {
     window: (0.0, 60.0),
     total_frames: 60.0,
     glow: 0.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: false,
     double_body: None,
@@ -155,6 +164,7 @@ pub const HITBODY: Params = Params {
     window: (0.0, 15.0),
     total_frames: 15.0,
     glow: 0.0,
+    glow_blink: None,
     body_alpha: 1.0,
     light_body: false,
     double_body: None,
@@ -165,9 +175,10 @@ pub const HITBODY: Params = Params {
 
 pub const FALCONASSAULT: Params = Params {
     mode: TintMode::Fixed([255, 255, 255]),
-    window: (30.0, 54.0),
+    window: (30.0, 50.0),
     total_frames: 54.0,
     glow: 0.8,
+    glow_blink: Some((10.0, 5.0)),
     body_alpha: 1.0,
     light_body: false,
     double_body: None,
@@ -182,6 +193,7 @@ const fn pulse(rgb: [u8; 3]) -> Params {
         window: (0.0, PULSE_TOTAL),
         total_frames: PULSE_TOTAL,
         glow: 0.0,
+        glow_blink: None,
         body_alpha: 1.0,
         light_body: false,
         double_body: None,
@@ -209,6 +221,7 @@ const fn hit_flash(rgb: [u8; 3], bt2_scale: f32, bt2_cap: f32, end: f32) -> Para
         window: (0.0, end),
         total_frames: end,
         glow: 0.0,
+        glow_blink: None,
         body_alpha: 1.0,
         light_body: false,
         double_body: None,
@@ -229,6 +242,7 @@ const fn strobe(rgb: [u8; 3]) -> Params {
         window: (0.0, 60.0),
         total_frames: 60.0,
         glow: 0.0,
+        glow_blink: None,
         body_alpha: 1.0,
         light_body: false,
         double_body: None,
@@ -413,8 +427,9 @@ impl Effect for BodyTintEffect {
 
     fn body_yaw(&self) -> Option<f32> {
         let y = self.params.yaw_per_frame?;
-        self.in_window()
-            .then(|| (self.process - self.params.window.0) * y)
+        let start = self.params.window.0;
+        (self.process >= start && self.process < self.params.total_frames)
+            .then(|| (self.process - start) * y)
     }
 
     fn body_copies(&self) -> Option<Vec<BodyCopy>> {
@@ -471,7 +486,11 @@ impl Effect for BodyTintEffect {
         }
 
         let mut copies = Vec::new();
-        if self.params.glow > 0.0 {
+        let blink_on = match self.params.glow_blink {
+            Some((period, on)) => self.process.rem_euclid(period) < on,
+            None => true,
+        };
+        if self.params.glow > 0.0 && blink_on {
             if let Some(tint) = self.current_color() {
                 copies.push(BodyCopy {
                     offset_px: [0.0, 0.0],
@@ -595,6 +614,13 @@ mod tests {
         assert!(e.body_yaw().unwrap() > 0.0);
         let glow = e.body_copies().expect("glowing");
         assert!(glow[0].additive && glow[0].tint == [255, 255, 255]);
+
+        step(&mut e, 5.0);
+        assert!(e.body_copies().is_none(), "glow blinks off for five frames");
+
+        step(&mut e, 7.0);
+        assert!(e.body_copies().is_none(), "glow is spent by frame 52");
+        assert!(e.body_yaw().unwrap() > 0.0, "the spin runs on to frame 54");
     }
 
     #[test]

@@ -118,11 +118,7 @@ impl App {
         );
 
         let entities = &self.game.world.entities;
-        let resolve_caster_yaw = |id: u32| {
-            entities
-                .get(id)
-                .map(|e| e.direction as f32 * (std::f32::consts::TAU / 8.0))
-        };
+        let resolve_caster_yaw = |id: u32| entities.get(id).map(|e| e.facing_degrees.to_radians());
         let gat = self.game.session.gat.as_ref();
         let map_coords = self.game.session.map_coords.as_ref();
         let resolve_entity_pos = |id: u32| {
