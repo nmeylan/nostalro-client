@@ -188,6 +188,21 @@ impl MakeItemWindow {
             self.scroll_offset = 0;
         }
 
+        if ui.ctx.key_up && self.selected > 0 {
+            self.selected -= 1;
+        }
+        if ui.ctx.key_down && self.selected + 1 < self.rows.len() {
+            self.selected += 1;
+        }
+        if ui.ctx.key_up || ui.ctx.key_down {
+            if self.scroll_offset > self.selected {
+                self.scroll_offset = self.selected;
+            } else if self.selected >= self.scroll_offset + visible_rows {
+                self.scroll_offset = self.selected + 1 - visible_rows;
+            }
+            self.scroll_offset = self.scroll_offset.min(max_scroll);
+        }
+
         let mut clicked = None;
         for vis in 0..visible_rows {
             let idx = self.scroll_offset + vis;
@@ -238,7 +253,7 @@ impl MakeItemWindow {
         let btns = win_rect.buttons_bottom_right(2, btn_w, btn_h, 5.0, 5.0, 3.0);
         let cancel = ui.button(CANCEL_ID, btns[0], &CANCEL_BTN, "Cancel");
         let ok = ui.button(OK_ID, btns[1], &OK_BTN, "OK");
-        if ok.clicked() {
+        if ok.clicked() || ui.ctx.key_enter {
             if self.rows.get(self.selected).is_some() {
                 self.phase = Phase::Process;
                 self.slots = [None, None, None];
@@ -365,7 +380,7 @@ impl MakeItemWindow {
         let btns = win_rect.buttons_bottom_right(2, btn_w, btn_h, 5.0, 5.0, 3.0);
         let cancel = ui.button(CANCEL_ID, btns[0], &CANCEL_BTN, "Cancel");
         let make = ui.button(MAKE_ID, btns[1], &MAKE_BTN, "Make");
-        if make.clicked() {
+        if make.clicked() || ui.ctx.key_enter {
             let materials = std::array::from_fn(|i| {
                 self.slots[i].as_ref().map(|s| s.item.item_id).unwrap_or(0)
             });
@@ -463,6 +478,10 @@ impl Window for MakeItemWindow {
 }
 
 impl InGameWindow for MakeItemWindow {
+    fn owns_keyboard(&self, _ctx: &BuildCtx) -> bool {
+        self.is_open()
+    }
+
     fn wants_escape(&self, _ctx: &BuildCtx) -> bool {
         self.is_open()
     }
@@ -541,6 +560,46 @@ mod tests {
 
         win.close();
         assert!(!win.is_open());
+    }
+
+    #[test]
+    fn arrows_move_the_selection_and_enter_walks_both_phases() {
+        let mut win = MakeItemWindow::new();
+        win.open(vec![
+            (501, "Red Potion".into(), None),
+            (503, "Yellow Potion".into(), None),
+        ]);
+
+        let mut character = Character::new();
+        let data = DataTable::new();
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+
+        let mut frame = |win: &mut MakeItemWindow, key: &dyn Fn(&mut UiContext)| {
+            ctx.key_up = false;
+            ctx.key_down = false;
+            ctx.key_enter = false;
+            key(&mut ctx);
+            let mut ui = test_frame(&mut ctx, &mut state);
+            win.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data))
+        };
+
+        frame(&mut win, &|c| c.key_down = true);
+        assert_eq!(win.selected, 1);
+        frame(&mut win, &|c| c.key_down = true);
+        assert_eq!(win.selected, 1);
+        frame(&mut win, &|c| c.key_enter = true);
+        assert!(win.phase == Phase::Process);
+
+        let events = frame(&mut win, &|c| c.key_enter = true);
+        assert!(!win.is_open());
+        assert!(events.iter().any(|e| matches!(
+            e,
+            GameEvent::RequestMakingItem {
+                item_id: 503,
+                materials: [0, 0, 0]
+            }
+        )));
     }
 
     fn stack(index: u16, item_id: u16, count: i16) -> Item {
