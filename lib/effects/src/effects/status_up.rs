@@ -21,12 +21,11 @@
 //!   * alpha ramps in over 20 frames to max alpha 200/255, then fades out
 //!     in the last 20 frames of a 50-frame lifetime
 //!
-//! Center label is a screen overlay. The
-//! original draws it in 2D screen space; we approximate with a camera-facing
-//! world billboard at the entity, which keeps it readable on top of the
-//! streaks. It rises (or falls, for Decagility) and fades in/out across the
-//! parent's lifetime. Every label figure below is the original's screen-pixel
-//! value divided by `LABEL_PX_PER_WU`.
+//! Center label is a screen overlay: the original draws it in 2D screen space
+//! pinned to the near plane, so we emit a `BillboardFlash`, whose vertex Z is
+//! pinned to 0 for the same effect. It rises (or falls, for Decagility) and
+//! fades in/out across the parent's lifetime. Every label figure below is the
+//! original's screen-pixel value divided by `LABEL_PX_PER_WU`.
 
 use crate::draw::{BlendKind, EffectDrawList, EffectPrimitiveDraw, EffectStatus};
 use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
@@ -309,7 +308,7 @@ impl Effect for StatusUpEffect {
         }
 
         if let Some((label_pos, label_alpha)) = self.label_state() {
-            out.push(EffectPrimitiveDraw::Billboard {
+            out.push(EffectPrimitiveDraw::BillboardFlash {
                 pos: label_pos,
                 size: [LABEL_WIDTH, self.params.label_height],
                 uv: [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
@@ -380,14 +379,18 @@ mod tests {
         let mut list = EffectDrawList::new();
         e.collect_draws(&mut list, &render_ctx());
 
-        let (labels, streaks): (Vec<_>, Vec<_>) = list.primitives.iter().partition(|p| match p {
-            EffectPrimitiveDraw::Billboard { texture, .. } => *texture == AGI_UP_TEXTURE,
-            _ => false,
-        });
+        let (labels, streaks): (Vec<_>, Vec<_>) = list
+            .primitives
+            .iter()
+            .partition(|p| matches!(p, EffectPrimitiveDraw::BillboardFlash { .. }));
         assert_eq!(labels.len(), 1, "exactly one center label per frame");
-        let EffectPrimitiveDraw::Billboard { pos, color, .. } = labels[0] else {
+        let EffectPrimitiveDraw::BillboardFlash {
+            pos, color, texture, ..
+        } = labels[0]
+        else {
             unreachable!();
         };
+        assert_eq!(*texture, AGI_UP_TEXTURE);
         assert!((pos[0] - 10.0).abs() < 1e-3 && (pos[2] - 20.0).abs() < 1e-3);
         assert!(color[3] > 0.0);
 
@@ -430,7 +433,7 @@ mod tests {
             let mut list = EffectDrawList::new();
             e.collect_draws(&mut list, &render_ctx());
             let found = list.primitives.iter().any(|p| match p {
-                EffectPrimitiveDraw::Billboard { texture, .. } => *texture == expected,
+                EffectPrimitiveDraw::BillboardFlash { texture, .. } => *texture == expected,
                 _ => false,
             });
             assert!(found, "label texture {expected} not emitted");
