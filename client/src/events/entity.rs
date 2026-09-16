@@ -221,8 +221,12 @@ impl App {
         if let Some(accessory) = pet_accessory {
             self.load_pet_sprite(gid, sprite_job, accessory);
         }
-        if is_new_entry && entity_type == EntityType::Player && !is_hidden(effect_state) {
-            self.effect_queue.spawn_on(EffectId::Entry2, gid);
+        if is_new_entry && !is_hidden(effect_state) {
+            if entity_type == EntityType::Player {
+                self.effect_queue.spawn_on(EffectId::Entry2, gid);
+            } else if let Some(entity) = self.game.world.entities.get_mut(gid) {
+                entity.start_spawn_fade();
+            }
         }
         if let Some(design) = cart_design_from_option(effect_state) {
             if let Some(entity) = self.game.world.entities.get_mut(gid) {

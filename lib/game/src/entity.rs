@@ -223,6 +223,8 @@ pub fn facing_degrees_for(direction: u8) -> f32 {
 
 pub const DEATH_FADE_DURATION: f32 = 6.12; // 255 × 24 ms
 pub const VANISH_FADE_DURATION: f32 = 0.51; // 510 ms
+pub const SPAWN_FADE_DURATION: f32 = 0.4;
+const SPAWN_FADE_START_ALPHA: f32 = 0.267;
 
 pub struct EntityFade {
     pub elapsed: f32,
@@ -352,6 +354,8 @@ pub struct Entity {
     pub scheduled_hits: ScheduledHitQueue,
     pub pending_attack_replays: Vec<(f32, SkillEnum)>,
     pub fade: Option<EntityFade>,
+    /// Ramp-up applied to a non-player actor that just spawned in view.
+    pub spawn_fade: Option<EntityFade>,
     pub pending_death: bool,
     pub just_spawned: bool,
     pub effect_state: i32,
@@ -491,6 +495,7 @@ impl Entity {
             scheduled_hits: ScheduledHitQueue::new(),
             pending_attack_replays: Vec::new(),
             fade: None,
+            spawn_fade: None,
             pending_death: false,
             just_spawned: true,
             effect_state: 0,
@@ -1022,8 +1027,21 @@ impl Entity {
         });
     }
 
+    pub fn start_spawn_fade(&mut self) {
+        self.spawn_fade = Some(EntityFade {
+            elapsed: 0.0,
+            duration: SPAWN_FADE_DURATION,
+        });
+    }
+
     pub fn alpha(&self) -> f32 {
         self.fade.as_ref().map_or(1.0, |f| f.alpha())
+    }
+
+    pub fn spawn_alpha(&self) -> f32 {
+        self.spawn_fade.as_ref().map_or(1.0, |f| {
+            SPAWN_FADE_START_ALPHA + (1.0 - SPAWN_FADE_START_ALPHA) * (1.0 - f.alpha())
+        })
     }
 
     pub fn is_fading(&self) -> bool {
@@ -2513,6 +2531,25 @@ mod tests {
         e.fade.as_mut().unwrap().elapsed = 6.12;
         assert!((e.alpha() - 0.0).abs() < f32::EPSILON);
         assert!(e.should_remove());
+    }
+
+    #[test]
+    fn spawn_fade_ramps_up_without_marking_the_actor_fading() {
+        let mut e = make_entity();
+        assert!((e.spawn_alpha() - 1.0).abs() < f32::EPSILON);
+
+        e.start_spawn_fade();
+        assert!((e.spawn_alpha() - 0.267).abs() < 0.01);
+        assert!(!e.is_fading());
+        assert!(e.is_alive());
+        assert!(!e.should_remove());
+
+        e.spawn_fade.as_mut().unwrap().elapsed = SPAWN_FADE_DURATION / 2.0;
+        assert!((e.spawn_alpha() - 0.633).abs() < 0.01);
+
+        e.spawn_fade.as_mut().unwrap().elapsed = SPAWN_FADE_DURATION;
+        assert!((e.spawn_alpha() - 1.0).abs() < f32::EPSILON);
+        assert!(e.spawn_fade.as_ref().unwrap().is_expired());
     }
 
     #[test]

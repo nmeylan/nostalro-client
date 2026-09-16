@@ -318,6 +318,13 @@ impl App {
             if let Some(ref mut fade) = entity.fade {
                 fade.elapsed += delta;
             }
+
+            if let Some(ref mut fade) = entity.spawn_fade {
+                fade.elapsed += delta;
+                if fade.is_expired() {
+                    entity.spawn_fade = None;
+                }
+            }
         }
 
         let expired: Vec<u32> = self

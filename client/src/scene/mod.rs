@@ -166,6 +166,7 @@ impl App {
                         }
                         let fade_alpha = entity.alpha();
                         let body_alpha = fade_alpha
+                            * entity.spawn_alpha()
                             * match render {
                                 HiddenRender::Alpha(a) => a,
                                 _ => 1.0,
