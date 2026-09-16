@@ -21,7 +21,7 @@ pub mod ui_renderer;
 pub mod water;
 
 pub use camera::Camera;
-pub use device::{RenderDevice, block_on};
+pub use device::{DEPTH_FORMAT, RenderDevice, block_on};
 pub use fps::Fps;
 pub use global_uniforms::{FogUniform, GlobalUniforms, LightUniform, PointLightGpu};
 
