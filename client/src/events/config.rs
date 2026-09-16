@@ -38,7 +38,7 @@ impl App {
                 self.config.snap,
                 self.config.refuse_trade,
                 self.config.refuse_party_invite,
-                self.config.custom.accessibility,
+                self.config.accessibility.bold_name_plates,
                 self.config.custom.filtering.world,
                 self.config.custom.filtering.effects,
                 self.config.custom.filtering.sprites,
@@ -82,7 +82,7 @@ impl App {
         self.config.snap = snap;
         self.config.refuse_trade = refuse_trade;
         self.config.refuse_party_invite = refuse_party_invite;
-        self.config.custom.accessibility = accessibility;
+        self.config.accessibility.bold_name_plates = accessibility;
         self.config.custom.filtering.world = filter_world;
         self.config.custom.filtering.effects = filter_effects;
         self.config.custom.filtering.sprites = filter_sprites;

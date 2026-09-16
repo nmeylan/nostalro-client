@@ -53,8 +53,9 @@ pub struct CustomConfig {
     /// window and camera range; raise this to push fog back on a screen that
     /// shows more of the map, lower it to pull fog in. 1.0 is the original.
     pub fog_scale: f32,
-    /// Draw name plates, floor-item labels and the pending-skill level in a bold
-    /// weight with a heavier outline. The original game has one weight only.
+    /// Deprecated alias of `accessibility.bold_name_plates`, folded into it at
+    /// load time and never written back.
+    #[serde(skip_serializing)]
     pub accessibility: bool,
     /// Replay walks against the server clock the way the original game does:
     /// read 72 ms behind the estimate and corrected in 144 ms steps, so the
@@ -164,6 +165,155 @@ impl Default for CustomSoundConfig {
     }
 }
 
+/// RGBA colour written in config as `"#RRGGBB"` or `"#RRGGBBAA"`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HexColor([f32; 4]);
+
+impl HexColor {
+    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self([
+            r as f32 / 255.0,
+            g as f32 / 255.0,
+            b as f32 / 255.0,
+            1.0,
+        ])
+    }
+
+    pub fn rgba(&self) -> [f32; 4] {
+        self.0
+    }
+}
+
+impl std::str::FromStr for HexColor {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let hex = s.strip_prefix('#').unwrap_or(s);
+        if !hex.is_ascii() || (hex.len() != 6 && hex.len() != 8) {
+            return Err(format!("expected #RRGGBB or #RRGGBBAA, got {s:?}"));
+        }
+        let byte = |i: usize| {
+            u8::from_str_radix(&hex[i..i + 2], 16).map_err(|_| format!("invalid hex color {s:?}"))
+        };
+        let alpha = if hex.len() == 8 { byte(6)? } else { 255 };
+        Ok(Self([
+            byte(0)? as f32 / 255.0,
+            byte(2)? as f32 / 255.0,
+            byte(4)? as f32 / 255.0,
+            alpha as f32 / 255.0,
+        ]))
+    }
+}
+
+impl std::fmt::Display for HexColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let [r, g, b, a] = self.0.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+        if a == 255 {
+            write!(f, "#{r:02X}{g:02X}{b:02X}")
+        } else {
+            write!(f, "#{r:02X}{g:02X}{b:02X}{a:02X}")
+        }
+    }
+}
+
+impl Serialize for HexColor {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for HexColor {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer)?
+            .parse()
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+const BAR_BACKGROUND_COLOR: HexColor = HexColor::rgb(0x42, 0x42, 0x42);
+const BAR_BORDER_COLOR: HexColor = HexColor::rgb(0x10, 0x18, 0x9C);
+
+/// Geometry and frame colours of one overhead bar. The fill colour is not here:
+/// HP takes it from the ratio and the entity type, SP and cast are fixed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BarStyle {
+    pub width: f32,
+    pub height: f32,
+    pub background_color: HexColor,
+    pub border_color: HexColor,
+    pub fill_color: HexColor,
+    /// Fill below a quarter of the bar. The SP and cast defaults repeat
+    /// `fill_color`, so only the HP bars change colour as they drain.
+    pub fill_color_low: HexColor,
+}
+
+impl Default for BarStyle {
+    fn default() -> Self {
+        Self {
+            width: 60.0,
+            height: 5.0,
+            background_color: BAR_BACKGROUND_COLOR,
+            border_color: BAR_BORDER_COLOR,
+            fill_color: HexColor::rgb(0x10, 0xEF, 0x21),
+            fill_color_low: HexColor::rgb(0xFF, 0x00, 0x00),
+        }
+    }
+}
+
+impl BarStyle {
+    fn monster_hp() -> Self {
+        Self {
+            fill_color: HexColor::rgb(0xFF, 0x00, 0xE7),
+            fill_color_low: HexColor::rgb(0xFF, 0xFF, 0x00),
+            ..Self::default()
+        }
+    }
+
+    fn sp() -> Self {
+        let fill = HexColor::rgb(0x18, 0x63, 0xDE);
+        Self {
+            fill_color: fill,
+            fill_color_low: fill,
+            ..Self::default()
+        }
+    }
+
+    fn cast() -> Self {
+        let fill = HexColor::rgb(0x00, 0xCC, 0x00);
+        Self {
+            height: 7.0,
+            fill_color: fill,
+            fill_color_low: fill,
+            ..Self::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AccessibilityConfig {
+    /// Draw name plates, floor-item labels and the pending-skill level in a bold
+    /// weight with a heavier outline. The original game has one weight only.
+    pub bold_name_plates: bool,
+    pub hp_bar: BarStyle,
+    pub monster_hp_bar: BarStyle,
+    pub sp_bar: BarStyle,
+    pub cast_bar: BarStyle,
+}
+
+impl Default for AccessibilityConfig {
+    fn default() -> Self {
+        Self {
+            bold_name_plates: false,
+            hp_bar: BarStyle::default(),
+            monster_hp_bar: BarStyle::monster_hp(),
+            sp_bar: BarStyle::sp(),
+            cast_bar: BarStyle::cast(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginServer {
     pub name: String,
@@ -256,6 +406,8 @@ pub struct Config {
     pub see_self_as_gm_when_gm: bool,
     #[serde(default)]
     pub custom: CustomConfig,
+    #[serde(default)]
+    pub accessibility: AccessibilityConfig,
 }
 
 
@@ -315,6 +467,7 @@ impl Default for Config {
             admin_account_ids: Vec::new(),
             see_self_as_gm_when_gm: false,
             custom: CustomConfig::default(),
+            accessibility: AccessibilityConfig::default(),
         }
     }
 }
@@ -362,6 +515,9 @@ impl Config {
                 Config::default()
             });
             config.keybindings.fill_missing_from_defaults();
+            if config.custom.accessibility {
+                config.accessibility.bold_name_plates = true;
+            }
             config
         } else {
             let config = Config::default();
@@ -515,6 +671,68 @@ mod tests {
     fn missing_debug_section_defaults_to_none() {
         let config: Config = serde_json::from_str(r#"{"packetver": 20120307}"#).unwrap();
         assert_eq!(config.debug.trace_packet, PacketTrace::None);
+    }
+
+    #[test]
+    fn accessibility_bars_default_to_todays_look_and_parse_hex() {
+        let config = Config::default();
+        assert_eq!(config.accessibility.hp_bar.width, 60.0);
+        assert_eq!(config.accessibility.hp_bar.height, 5.0);
+        assert_eq!(config.accessibility.sp_bar.height, 5.0);
+        assert_eq!(config.accessibility.cast_bar.height, 7.0);
+        assert_eq!(
+            config.accessibility.cast_bar.border_color.rgba(),
+            [16.0 / 255.0, 24.0 / 255.0, 156.0 / 255.0, 1.0]
+        );
+        assert_eq!(
+            config.accessibility.monster_hp_bar.fill_color.rgba(),
+            [1.0, 0.0, 231.0 / 255.0, 1.0]
+        );
+        assert_eq!(
+            config.accessibility.monster_hp_bar.fill_color_low.rgba(),
+            [1.0, 1.0, 0.0, 1.0]
+        );
+        assert_eq!(
+            config.accessibility.cast_bar.fill_color_low,
+            config.accessibility.cast_bar.fill_color
+        );
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains(r##""border_color":"#10189C""##), "{json}");
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            parsed.accessibility.hp_bar.background_color,
+            config.accessibility.hp_bar.background_color
+        );
+
+        let json = r##"{"accessibility": {"hp_bar": {"width": 90.0, "height": 8.0,
+            "background_color": "#1A1A1A", "border_color": "#FFCC0080"}}}"##;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.accessibility.hp_bar.width, 90.0);
+        assert_eq!(
+            config.accessibility.hp_bar.border_color.rgba(),
+            [1.0, 204.0 / 255.0, 0.0, 128.0 / 255.0]
+        );
+        assert_eq!(config.accessibility.sp_bar.height, 5.0);
+        assert_eq!(config.accessibility.cast_bar.height, 7.0);
+        assert_eq!(
+            config.accessibility.monster_hp_bar.fill_color,
+            BarStyle::monster_hp().fill_color
+        );
+        assert!(!config.accessibility.bold_name_plates);
+
+        assert!("#GGG000".parse::<HexColor>().is_err());
+        assert!(serde_json::from_str::<Config>(r#"{"accessibility": {"hp_bar": {"border_color": "red"}}}"#).is_err());
+    }
+
+    #[test]
+    fn deprecated_custom_accessibility_folds_into_bold_name_plates() {
+        let path = std::env::temp_dir().join("ragnarok_legacy_accessibility.json");
+        std::fs::write(&path, r#"{"custom": {"accessibility": true}}"#).unwrap();
+        let config = Config::load_or_default(path.to_str().unwrap());
+        assert!(config.accessibility.bold_name_plates);
+        assert!(!serde_json::to_string(&config).unwrap().contains(r#""accessibility":true"#));
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]

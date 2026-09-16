@@ -57,6 +57,7 @@ are lost on the next save.
 | `display` | Name plate, damage and cast bar visibility. See [display](#display). | `{"show_other_damage": true, "show_other_cast_bars": true, "hide_name_player": false, "hide_name_monster": false, "hide_name_npc": false, "show_level_aura": true}` | No |
 | `snap` | Mouse snapping targets. See [snap](#snap). | `{"monster_no_skill": false, "monster_skill": true, "item": false}` | No |
 | `debug` | Trace toggles. See [debug](#debug). | `{"trace_packet": "none", "trace_effects": false, "trace_input": false, "trace_texture_load": false, "trace_sprite_scale": false}` | No |
+| `accessibility` | Name plate weight, and the geometry and colours of the overhead HP, monster HP, SP and cast bars. See [accessibility](#accessibility). | `{"bold_name_plates": false, "hp_bar": {"width": 60.0, "height": 5.0, "background_color": "#424242", "border_color": "#10189C", "fill_color": "#10EF21", "fill_color_low": "#FF0000"}, "monster_hp_bar": {…, "fill_color": "#FF00E7", "fill_color_low": "#FFFF00"}, "sp_bar": {…, "fill_color": "#1863DE"}, "cast_bar": {…, "height": 7.0, "fill_color": "#00CC00"}}` | No |
 | `custom` | Behaviour the original game has no counterpart for. See [custom](#custom). | `{"boss_aura": false, "fog_scale": 1.0, "sound": {"act_percent": 100, "stereo": true, "play_when_unfocused": false}, "window": {"exclude_close_via_esc": []}}` | No |
 
 ## Login server
@@ -102,6 +103,58 @@ have no toggle.
 | `debug.trace_texture_load` | Log every texture load and its resolved GRF key. | `false` | No |
 | `debug.trace_sprite_scale` | On map entry, log how many screen pixels one sprite texel covers, and the upscale factor derived from it. See [Texture filtering](#texture-filtering). | `false` | No |
 
+## accessibility
+
+The bars drawn over an entity's head: HP, the SP bar stacked under it, and the
+cast bar above. The defaults reproduce what the client drew before these keys
+existed. Monsters take `monster_hp_bar`; every other entity, the local player
+included, takes `hp_bar`.
+
+Colours are `"#RRGGBB"` or `"#RRGGBBAA"`, case-insensitive. A malformed colour
+fails the whole parse, and the client falls back to the full default set with a
+warning.
+
+`width` and `height` are in unscaled pixels. The HP bar's height also drives
+what sits under it: the SP bar is stacked directly below, and the name plate
+below whichever of the two was drawn last.
+
+`fill_color_low` replaces `fill_color` below a quarter of the bar. The SP and
+cast defaults repeat `fill_color` there, so only the two HP bars change colour
+as they drain; give them different values and the SP or cast bar gets a low
+warning colour too.
+
+Write every field of a bar you override. A bar entry present but incomplete
+takes its missing fields from the `hp_bar` defaults, so a `cast_bar` written as
+`{"width": 80.0}` gets height `5.0` and a green fill, not `7.0` and `#00CC00`.
+
+| Config key | Description | Default value | Mandatory |
+| --- | --- | --- | --- |
+| `accessibility.bold_name_plates` | Draw name plates, floor-item labels and the pending-skill level in a bold weight with a heavier outline. The original game has one weight only. Also toggled from the graphic options window. | `false` | No |
+| `accessibility.hp_bar.width` | HP bar width. | `60.0` | No |
+| `accessibility.hp_bar.height` | HP bar height. | `5.0` | No |
+| `accessibility.hp_bar.background_color` | Colour behind the fill. | `"#424242"` | No |
+| `accessibility.hp_bar.border_color` | Frame, one pixel wide. | `"#10189C"` | No |
+| `accessibility.hp_bar.fill_color` | Fill at or above a quarter HP. | `"#10EF21"` | No |
+| `accessibility.hp_bar.fill_color_low` | Fill below a quarter HP. | `"#FF0000"` | No |
+| `accessibility.monster_hp_bar.width` | Monster HP bar width. | `60.0` | No |
+| `accessibility.monster_hp_bar.height` | Monster HP bar height. | `5.0` | No |
+| `accessibility.monster_hp_bar.background_color` | Colour behind the fill. | `"#424242"` | No |
+| `accessibility.monster_hp_bar.border_color` | Frame, one pixel wide. | `"#10189C"` | No |
+| `accessibility.monster_hp_bar.fill_color` | Fill at or above a quarter HP. | `"#FF00E7"` | No |
+| `accessibility.monster_hp_bar.fill_color_low` | Fill below a quarter HP. | `"#FFFF00"` | No |
+| `accessibility.sp_bar.width` | SP bar width. | `60.0` | No |
+| `accessibility.sp_bar.height` | SP bar height. | `5.0` | No |
+| `accessibility.sp_bar.background_color` | Colour behind the fill. | `"#424242"` | No |
+| `accessibility.sp_bar.border_color` | Frame, one pixel wide. | `"#10189C"` | No |
+| `accessibility.sp_bar.fill_color` | SP fill. | `"#1863DE"` | No |
+| `accessibility.sp_bar.fill_color_low` | Fill below a quarter SP. | `"#1863DE"` | No |
+| `accessibility.cast_bar.width` | Cast bar width. | `60.0` | No |
+| `accessibility.cast_bar.height` | Cast bar height. | `7.0` | No |
+| `accessibility.cast_bar.background_color` | Colour behind the fill. | `"#424242"` | No |
+| `accessibility.cast_bar.border_color` | Frame, one pixel wide. | `"#10189C"` | No |
+| `accessibility.cast_bar.fill_color` | Cast progress fill. | `"#00CC00"` | No |
+| `accessibility.cast_bar.fill_color_low` | Fill over the first quarter of the cast. | `"#00CC00"` | No |
+
 ## custom
 
 The defaults match the original game. Most keys are off for that reason;
@@ -118,7 +171,7 @@ behaviour is the enabled one.
 | `custom.window.exclude_close_via_esc`     | Windows Escape must leave alone, by the names in `ESC_WINDOW_NAMES` (`client/src/ui/escape.rs`), matched case- and space-insensitively. Escape then moves on to the next window behind them. Unknown names are logged and ignored. | `[]`          | No        |
 | `custom.skill.al_teleport.separate_lvl`   | Give Teleport a level picker in the skill tree, the way Fire Bolt has one. See [Forced level select](#forced-level-select).                                                                                                        | `false`       | No        |
 | `custom.skill.al_teleport.skip_lvl1_menu` | Answer a level 1 Teleport's warp list without showing it, so the cast warps straight away. See [Skipping the level 1 warp list](#skipping-the-level-1-warp-list).                                                                  | `false`       | No        |
-| `custom.accessibility`                    | Enable accessibility improvement: bold name plate on hovering item, entities, npc                                                                                                                                                  | `false`       | No        |
+| `custom.accessibility`                    | Deprecated spelling of `accessibility.bold_name_plates`. A `true` here still turns bold plates on at load time, and is not written back: the next config save carries the new key only.                                            | `false`       | No        |
 | `custom.latency_coupled_walk`             | Replay walks against the server clock as the original game does: read 72 ms behind the estimate and corrected in 144 ms steps, so the walk cycle stalls and jumps under lag. Off keeps the smooth local-clock walk.                | `false`       | No        |
 | `custom.filtering.world`                  | Filter ground and model textures, over a mip chain. Off point-samples them. See [Texture filtering](#texture-filtering).                                                                                                           | `true`        | No        |
 | `custom.filtering.effects`                | Filter effect textures, both the STR ones and the primitive ones. See [Texture filtering](#texture-filtering).                                                                                                                     | `true`        | No        |

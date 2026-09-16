@@ -29,6 +29,41 @@
     "trace_texture_load": false,
     "trace_sprite_scale": false
   },
+  "accessibility": {
+    "bold_name_plates": false,
+    "hp_bar": {
+      "width": 60.0,
+      "height": 5.0,
+      "background_color": "#424242",
+      "border_color": "#10189C",
+      "fill_color": "#10EF21",
+      "fill_color_low": "#FF0000"
+    },
+    "monster_hp_bar": {
+      "width": 60.0,
+      "height": 5.0,
+      "background_color": "#424242",
+      "border_color": "#10189C",
+      "fill_color": "#FF00E7",
+      "fill_color_low": "#FFFF00"
+    },
+    "sp_bar": {
+      "width": 60.0,
+      "height": 5.0,
+      "background_color": "#424242",
+      "border_color": "#10189C",
+      "fill_color": "#1863DE",
+      "fill_color_low": "#1863DE"
+    },
+    "cast_bar": {
+      "width": 60.0,
+      "height": 7.0,
+      "background_color": "#424242",
+      "border_color": "#10189C",
+      "fill_color": "#00CC00",
+      "fill_color_low": "#00CC00"
+    }
+  },
   "custom": {
     "filtering": {
       "world": true,

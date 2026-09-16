@@ -1,4 +1,5 @@
 use crate::App;
+use crate::config::{AccessibilityConfig, BarStyle};
 use ragnarok_game::cursor::RenderEntry;
 use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
 use ragnarok_game::entity::{Entity, EntityCategory, EntityType};
@@ -29,11 +30,8 @@ pub(crate) fn chat_room_board_rect(entry: &RenderEntry) -> [f32; 4] {
     )
 }
 
-const HP_BAR_WIDTH: f32 = 60.0;
-pub(crate) const HP_BAR_HEIGHT: f32 = 5.0;
-pub(crate) const CAST_BAR_HEIGHT: f32 = 7.0;
-const SP_BAR_COLOR: [f32; 4] = [0.094, 0.388, 0.871, 1.0];
-const CAST_BAR_COLOR: [f32; 4] = [0.0, 0.8, 0.0, 1.0];
+/// Below this the bar draws `fill_color_low`.
+const BAR_LOW_RATIO: f32 = 0.25;
 const GUILD_NAME_COLOR: [f32; 4] = [0.8, 1.0, 0.753, 1.0];
 const NPC_NAME_COLOR: [f32; 4] = [0.584, 0.722, 0.969, 1.0];
 const MONSTER_NAME_COLOR: [f32; 4] = [1.0, 0.765, 0.765, 1.0];
@@ -54,7 +52,7 @@ const OUTLINE_PASSES: usize = 3;
 
 impl App {
     fn plate_text_width(&self, text: &str, font_atlas: &ragnarok_renderer::FontAtlas) -> f32 {
-        if self.config.custom.accessibility {
+        if self.config.accessibility.bold_name_plates {
             bold_width(text, font_atlas)
         } else {
             font_atlas.measure_text(text)
@@ -70,7 +68,7 @@ impl App {
         font_atlas: &ragnarok_renderer::FontAtlas,
         calls: &mut Vec<UiDrawCall>,
     ) {
-        if self.config.custom.accessibility {
+        if self.config.accessibility.bold_name_plates {
             build_outlined_bold_text(text, x, y, color, font_atlas, calls);
         } else {
             build_outlined_text(text, x, y, color, font_atlas, calls);
@@ -152,26 +150,22 @@ impl App {
             None => return,
         };
 
+        let hp_style = hp_bar_style(&self.config.accessibility, entity.entity_type);
+        let sp_style = &self.config.accessibility.sp_bar;
         let mut bar_y = entry.pick_bounds[3] + 5.0;
+        let mut bar_height = hp_style.height;
         let hp_ratio = (entity.category().has_health_bar()
             && !self.game.world.entities.hides_overhead_ui(entity_id))
         .then(|| self.entity_hp_ratio(entity_id))
         .flatten();
         if let Some(ratio) = hp_ratio {
-            let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
+            let (_x, y) = render_hp_bar(entry, ratio, hp_style, calls);
             bar_y = y;
             if let Some(sp_ratio) = self.entity_sp_ratio(entity_id) {
-                let sp_y = y + HP_BAR_HEIGHT;
-                render_bar(
-                    entry.screen_anchor[0],
-                    sp_y,
-                    HP_BAR_WIDTH,
-                    HP_BAR_HEIGHT,
-                    sp_ratio,
-                    SP_BAR_COLOR,
-                    calls,
-                );
+                let sp_y = y + hp_style.height;
+                render_bar(entry.screen_anchor[0], sp_y, sp_ratio, sp_style, calls);
                 bar_y = sp_y;
+                bar_height = sp_style.height;
             }
         }
         if let Some(name) = &entity.name
@@ -179,7 +173,7 @@ impl App {
         {
             let text_width = self.plate_text_width(name, &renderer.font_atlas);
             let text_x = entry.screen_anchor[0] - text_width / 2.0;
-            let name_y = bar_y + HP_BAR_HEIGHT + 13.0;
+            let name_y = bar_y + bar_height + 13.0;
             let mut text_y = name_y;
             self.build_plate_text(
                 name,
@@ -271,14 +265,13 @@ impl App {
             .iter()
             .find(|e| Some(e.id) == self.game.world.entities.player_id())
         {
-            let (_x, y) = render_hp_bar(entry, ratio, EntityType::Player, calls);
+            let hp_style = &self.config.accessibility.hp_bar;
+            let (_x, y) = render_hp_bar(entry, ratio, hp_style, calls);
             render_bar(
                 entry.screen_anchor[0],
-                y + HP_BAR_HEIGHT,
-                HP_BAR_WIDTH,
-                HP_BAR_HEIGHT,
+                y + hp_style.height,
                 self.game.character.sp_percentage(),
-                SP_BAR_COLOR,
+                &self.config.accessibility.sp_bar,
                 calls,
             );
         }
@@ -388,15 +381,14 @@ impl App {
             let Some(ratio) = self.entity_hp_ratio(entry.id) else {
                 continue;
             };
-            let (_x, y) = render_hp_bar(entry, ratio, entity.entity_type, calls);
+            let hp_style = hp_bar_style(&self.config.accessibility, entity.entity_type);
+            let (_x, y) = render_hp_bar(entry, ratio, hp_style, calls);
             if let Some(sp_ratio) = self.entity_sp_ratio(entry.id) {
                 render_bar(
                     entry.screen_anchor[0],
-                    y + HP_BAR_HEIGHT,
-                    HP_BAR_WIDTH,
-                    HP_BAR_HEIGHT,
+                    y + hp_style.height,
                     sp_ratio,
-                    SP_BAR_COLOR,
+                    &self.config.accessibility.sp_bar,
                     calls,
                 );
             }
@@ -405,7 +397,8 @@ impl App {
 
     fn build_cast_bars(&self, render_list: &[RenderEntry], calls: &mut Vec<UiDrawCall>) {
         use ragnarok_game::effect::casting_skill;
-        let cast_bar_height = CAST_BAR_HEIGHT;
+        let style = &self.config.accessibility.cast_bar;
+        let cast_bar_height = style.height;
         if let Some(bar) = &self.game.session.progress_bar
             && let Some(entry) = render_list
                 .iter()
@@ -414,10 +407,8 @@ impl App {
             render_bar(
                 entry.screen_anchor[0],
                 entry.screen_anchor[1] - entry.head_offset - cast_bar_height - 2.0,
-                HP_BAR_WIDTH,
-                cast_bar_height,
                 bar.fraction(),
-                CAST_BAR_COLOR,
+                style,
                 calls,
             );
         }
@@ -431,15 +422,7 @@ impl App {
                     .is_some_and(|skill| casting_skill(skill).hide_cast_bar)
             {
                 let cast_bar_y = entry.screen_anchor[1] - entry.head_offset - cast_bar_height - 2.0;
-                render_bar(
-                    entry.screen_anchor[0],
-                    cast_bar_y,
-                    HP_BAR_WIDTH,
-                    cast_bar_height,
-                    progress,
-                    CAST_BAR_COLOR,
-                    calls,
-                );
+                render_bar(entry.screen_anchor[0], cast_bar_y, progress, style, calls);
             }
         }
     }
@@ -839,37 +822,18 @@ fn entity_name_color(entity: &Entity) -> [f32; 4] {
     }
 }
 
-fn hp_bar_color(ratio: f32, entity_type: EntityType) -> [f32; 4] {
+fn hp_bar_style(accessibility: &AccessibilityConfig, entity_type: EntityType) -> &BarStyle {
     match entity_type {
-        EntityType::Monster => {
-            if ratio >= 0.25 {
-                [1.0, 0.0, 0.906, 1.0]
-            } else {
-                [1.0, 1.0, 0.0, 1.0]
-            }
-        }
-        _ => {
-            if ratio >= 0.25 {
-                [0.063, 0.937, 0.129, 1.0]
-            } else {
-                [1.0, 0.0, 0.0, 1.0]
-            }
-        }
+        EntityType::Monster => &accessibility.monster_hp_bar,
+        _ => &accessibility.hp_bar,
     }
 }
 
-fn render_bar(
-    center_x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-    ratio: f32,
-    fill_color: [f32; 4],
-    draw_calls: &mut Vec<UiDrawCall>,
-) {
+fn render_bar(center_x: f32, y: f32, ratio: f32, style: &BarStyle, draw_calls: &mut Vec<UiDrawCall>) {
+    let (width, height) = (style.width, style.height);
     let border_x = center_x - width / 2.0;
     let (border_verts, border_idx) =
-        ragnarok_ui::draw::quad_vertices(border_x, y, width, height, [0.063, 0.094, 0.612, 1.0]);
+        ragnarok_ui::draw::quad_vertices(border_x, y, width, height, style.border_color.rgba());
     draw_calls.push(UiDrawCall {
         vertices: border_verts.to_vec(),
         indices: border_idx.to_vec(),
@@ -880,7 +844,7 @@ fn render_bar(
         y + 1.0,
         width - 2.0,
         height - 2.0,
-        [0.259, 0.259, 0.259, 1.0],
+        style.background_color.rgba(),
     );
     draw_calls.push(UiDrawCall {
         vertices: bg_verts.to_vec(),
@@ -889,8 +853,18 @@ fn render_bar(
     });
     let fill_ratio = ratio.clamp(0.0, 1.0);
     let fill_w = (width - 2.0) * fill_ratio;
-    let (fill_verts, fill_idx) =
-        ragnarok_ui::draw::quad_vertices(border_x + 1.0, y + 1.0, fill_w, height - 2.0, fill_color);
+    let fill_color = if fill_ratio >= BAR_LOW_RATIO {
+        style.fill_color
+    } else {
+        style.fill_color_low
+    };
+    let (fill_verts, fill_idx) = ragnarok_ui::draw::quad_vertices(
+        border_x + 1.0,
+        y + 1.0,
+        fill_w,
+        height - 2.0,
+        fill_color.rgba(),
+    );
     draw_calls.push(UiDrawCall {
         vertices: fill_verts.to_vec(),
         indices: fill_idx.to_vec(),
@@ -914,20 +888,12 @@ fn persistent_bar_eligible(entity: &Entity, is_companion: bool, is_party_member:
 fn render_hp_bar(
     entry: &RenderEntry,
     ratio: f32,
-    entity_type: EntityType,
+    style: &BarStyle,
     draw_calls: &mut Vec<UiDrawCall>,
 ) -> (f32, f32) {
     let center_x = entry.screen_anchor[0];
     let y = entry.pick_bounds[3];
-    render_bar(
-        center_x,
-        y,
-        HP_BAR_WIDTH,
-        HP_BAR_HEIGHT,
-        ratio,
-        hp_bar_color(ratio, entity_type),
-        draw_calls,
-    );
+    render_bar(center_x, y, ratio, style, draw_calls);
     (center_x, y)
 }
 
