@@ -217,14 +217,16 @@ impl InGameWindow for NpcDialog {
         let mut events = Vec::new();
         let state = self.dialog.state;
 
-        if ui.ctx.key_enter && self.dialog.next_button {
+        let menu_up = state == NpcDialogState::WaitingForMenu;
+
+        if ui.ctx.key_enter && !menu_up && self.dialog.next_button {
             events.push(GameEvent::RequestNpcNext {
                 npc_id: self.dialog.npc_id,
             });
             self.dialog.advance_next();
             return events;
         }
-        if ui.ctx.key_enter && self.dialog.close_button {
+        if ui.ctx.key_enter && !menu_up && self.dialog.close_button {
             events.push(GameEvent::RequestNpcClose {
                 npc_id: self.dialog.npc_id,
             });
@@ -259,7 +261,7 @@ impl InGameWindow for NpcDialog {
                         npc_id: self.dialog.npc_id,
                         choice,
                     });
-                    self.dialog.close();
+                    self.dialog.close_menu();
                     return events;
                 }
             }
@@ -293,13 +295,12 @@ impl InGameWindow for NpcDialog {
             return result;
         }
 
-        let has_text = !self.dialog.text.is_empty();
-        let menu_only = state == NpcDialogState::WaitingForMenu && !has_text;
+        let say_visible = self.dialog.say_visible || state == NpcDialogState::WaitingForStringInput;
 
         let padding = PADDING;
         let dialog_w = DIALOG_W;
 
-        if !menu_only {
+        if say_visible {
             let text_area_w = dialog_w - padding * 2.0;
             let wrapped_lines = word_wrap(
                 &self.dialog.text,
@@ -422,7 +423,7 @@ impl InGameWindow for NpcDialog {
                     self.dialog.close();
                 }
             }
-        } // !menu_only
+        } // say_visible
 
         if state == NpcDialogState::WaitingForMenu {
             let menu_events = self.build_menu_window(ui);
@@ -602,7 +603,7 @@ impl NpcDialog {
                 npc_id: self.dialog.npc_id,
                 choice,
             });
-            self.dialog.close();
+            self.dialog.close_menu();
         }
         if cancel.clicked() {
             events.push(GameEvent::RequestNpcMenuSelect {

@@ -18,6 +18,8 @@ pub struct NpcDialogData {
     pub menu_items: Vec<String>,
     pub selected_menu_index: usize,
     pub menu_scroll_offset: usize,
+    pub say_visible: bool,
+    clear_text_on_next: bool,
 }
 
 impl Default for NpcDialogData {
@@ -37,6 +39,8 @@ impl NpcDialogData {
             menu_items: Vec::new(),
             selected_menu_index: 0,
             menu_scroll_offset: 0,
+            say_visible: false,
+            clear_text_on_next: false,
         }
     }
 
@@ -49,9 +53,11 @@ impl NpcDialogData {
     }
 
     pub fn open_text(&mut self, npc_id: u32, text: &str) {
-        if self.state == NpcDialogState::Idle || self.npc_id != npc_id {
+        if self.clear_text_on_next || self.state == NpcDialogState::Idle || self.npc_id != npc_id {
             self.text.clear();
+            self.clear_text_on_next = false;
         }
+        self.say_visible = true;
         self.npc_id = npc_id;
         if !self.text.is_empty() {
             self.text.push('\n');
@@ -61,6 +67,7 @@ impl NpcDialogData {
     }
 
     pub fn wait_for_next(&mut self, npc_id: u32) {
+        self.say_visible = true;
         self.npc_id = npc_id;
         if self.state == NpcDialogState::Idle {
             self.state = NpcDialogState::DisplayingText;
@@ -69,6 +76,10 @@ impl NpcDialogData {
     }
 
     pub fn wait_for_close(&mut self) {
+        if !self.say_visible {
+            self.close();
+            return;
+        }
         self.close_button = true;
     }
 
@@ -77,6 +88,7 @@ impl NpcDialogData {
         self.menu_items = items;
         self.selected_menu_index = 0;
         self.menu_scroll_offset = 0;
+        self.next_button = false;
         self.state = NpcDialogState::WaitingForMenu;
     }
 
@@ -96,9 +108,20 @@ impl NpcDialogData {
     }
 
     pub fn advance_next(&mut self) {
-        self.text.clear();
+        self.clear_text_on_next = true;
         self.next_button = false;
         self.close_button = false;
+        self.state = NpcDialogState::DisplayingText;
+    }
+
+    pub fn close_menu(&mut self) {
+        if !self.say_visible {
+            self.close();
+            return;
+        }
+        self.menu_items.clear();
+        self.selected_menu_index = 0;
+        self.menu_scroll_offset = 0;
         self.state = NpcDialogState::DisplayingText;
     }
 
@@ -111,6 +134,8 @@ impl NpcDialogData {
         self.menu_items.clear();
         self.selected_menu_index = 0;
         self.menu_scroll_offset = 0;
+        self.say_visible = false;
+        self.clear_text_on_next = false;
     }
 }
 
@@ -133,7 +158,7 @@ mod tests {
 
         dialog.advance_next();
         assert_eq!(dialog.state, NpcDialogState::DisplayingText);
-        assert!(dialog.text.is_empty());
+        assert_eq!(dialog.text, "Hello adventurer!");
         assert!(!dialog.next_button);
 
         dialog.open_text(100, "Choose wisely.");
@@ -165,17 +190,31 @@ mod tests {
     }
 
     #[test]
-    fn next_reopens_a_dialog_dismissed_by_a_menu_pick() {
+    fn menu_keeps_the_say_dialog_and_its_text() {
         let mut dialog = NpcDialogData::new();
         dialog.open_text(100, "Choose:");
-        dialog.show_menu(100, vec!["Yes".into(), "No".into()]);
-        dialog.close();
-
         dialog.wait_for_next(100);
+        dialog.advance_next();
 
-        assert!(dialog.is_open());
-        assert!(dialog.next_button);
-        assert_eq!(dialog.npc_id, 100);
+        dialog.show_menu(100, vec!["Yes".into(), "No".into()]);
+        assert_eq!(dialog.text, "Choose:");
+        assert!(dialog.say_visible);
+        assert!(!dialog.next_button);
+
+        dialog.close_menu();
+        assert!(dialog.menu_items.is_empty());
+        assert_eq!(dialog.state, NpcDialogState::DisplayingText);
+        assert_eq!(dialog.text, "Choose:");
+        assert!(dialog.say_visible);
+
+        dialog.open_text(100, "You chose.");
+        assert_eq!(dialog.text, "You chose.");
+
+        let mut bare = NpcDialogData::new();
+        bare.show_menu(100, vec!["Yes".into()]);
+        assert!(!bare.say_visible);
+        bare.close_menu();
+        assert!(!bare.is_open());
     }
 
     #[test]
