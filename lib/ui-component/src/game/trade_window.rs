@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use super::inventory_window::INV_WINDOW_ID;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{draw_container, draw_titlebar, text_color};
@@ -100,11 +100,12 @@ impl TradeWindow {
         self.qty_dialog = None;
     }
 
-    fn open_qty_dialog(&mut self, index: u16, max: i16) {
+    fn open_qty_dialog(&mut self, index: u16, max: i16, item_name: &str) {
         let mut dialog = InputDialog::new(
             InputDialogConfig {
-                label: None,
-                show_cancel: true,
+                layout: InputDialogLayout::ItemCount {
+                    item_name: item_name.to_string(),
+                },
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
@@ -370,7 +371,7 @@ impl InGameWindow for TradeWindow {
             {
                 let count = it.count;
                 if count > 1 {
-                    self.open_qty_dialog(index, count);
+                    self.open_qty_dialog(index, count, &it.name);
                 } else {
                     character.trade.set_pending_add(index, 1);
                     events.push(GameEvent::RequestAddExchangeItem { index, count: 1 });

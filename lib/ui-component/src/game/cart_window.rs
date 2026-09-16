@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use super::inventory_window::INV_WINDOW_ID;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, SCROLLBAR_W, ScrollbarIds};
@@ -69,11 +69,12 @@ impl CartWindow {
         }
     }
 
-    fn open_qty_dialog(&mut self, kind: PendingCartMove, max: i16) {
+    fn open_qty_dialog(&mut self, kind: PendingCartMove, max: i16, item_name: &str) {
         let mut dialog = InputDialog::new(
             InputDialogConfig {
-                label: None,
-                show_cancel: true,
+                layout: InputDialogLayout::ItemCount {
+                    item_name: item_name.to_string(),
+                },
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
@@ -350,7 +351,7 @@ impl InGameWindow for CartWindow {
                 if let Some(it) = character.inventory.get_item(index) {
                     let count = it.count;
                     if count > 1 {
-                        self.open_qty_dialog(PendingCartMove::FromBody { index }, count);
+                        self.open_qty_dialog(PendingCartMove::FromBody { index }, count, &it.name);
                     } else {
                         events.push(GameEvent::RequestMoveItemBodyToCart { index, count: 1 });
                     }
@@ -359,7 +360,7 @@ impl InGameWindow for CartWindow {
                 if let Some(it) = character.storage.get_item(index) {
                     let count = it.count;
                     if count > 1 {
-                        self.open_qty_dialog(PendingCartMove::FromStore { index }, count);
+                        self.open_qty_dialog(PendingCartMove::FromStore { index }, count, &it.name);
                     } else {
                         events.push(GameEvent::RequestMoveItemStoreToCart { index, count: 1 });
                     }

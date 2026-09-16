@@ -1,5 +1,5 @@
 use super::equipment_window::EQ_WINDOW_ID;
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{
     FOOTER_TEX, ITEMWIN_MID_TEX, SYS_BASE_OFF_TEX, SYS_BASE_ON_TEX, TITLEBAR_TEX, draw_container,
@@ -87,11 +87,12 @@ impl InventoryWindow {
 
     /// Opens the "how many to retrieve" dialog for a cart→inventory drag of a
     /// stack; `index` is the cart slot.
-    fn open_cart_qty_dialog(&mut self, index: u16, max: i16) {
+    fn open_cart_qty_dialog(&mut self, index: u16, max: i16, item_name: &str) {
         let mut dialog = InputDialog::new(
             InputDialogConfig {
-                label: None,
-                show_cancel: true,
+                layout: InputDialogLayout::ItemCount {
+                    item_name: item_name.to_string(),
+                },
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
@@ -429,7 +430,7 @@ impl InGameWindow for InventoryWindow {
                 if let Some(it) = character.cart.get_item(index) {
                     let count = it.count;
                     if count > 1 {
-                        self.open_cart_qty_dialog(index, count);
+                        self.open_cart_qty_dialog(index, count, &it.name);
                     } else {
                         events.push(GameEvent::RequestMoveItemCartToBody { index, count: 1 });
                     }

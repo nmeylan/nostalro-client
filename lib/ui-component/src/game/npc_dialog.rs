@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::scrollbar::{self, ScrollbarIds};
 use crate::{BuildCtx, InGameWindow, Window};
@@ -433,8 +433,10 @@ impl InGameWindow for NpcDialog {
             if self.number_input_dialog.is_none() {
                 let mut dialog = InputDialog::new(
                     InputDialogConfig {
-                        label: Some("Input number".to_string()),
-                        show_cancel: false,
+                        layout: InputDialogLayout::Text {
+                            label: Some("Input number".to_string()),
+                            show_cancel: false,
+                        },
                         escape_cancels: false,
                         default_value: String::new(),
                         max_len: 10,

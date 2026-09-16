@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_game::skill::{SkillEnum, TALKBOX_MESSAGE_MAX_LEN};
@@ -18,8 +18,10 @@ pub struct SkillTalkboxDialog {
 impl SkillTalkboxDialog {
     pub fn new(skill: SkillEnum, level: i16, x: i16, y: i16) -> Self {
         let config = InputDialogConfig {
-            label: Some("Message:".to_string()),
-            show_cancel: true,
+            layout: InputDialogLayout::Text {
+                label: Some("Message:".to_string()),
+                show_cancel: true,
+            },
             escape_cancels: true,
             default_value: String::new(),
             max_len: TALKBOX_MESSAGE_MAX_LEN,

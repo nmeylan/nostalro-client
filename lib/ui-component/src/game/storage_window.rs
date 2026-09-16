@@ -1,5 +1,5 @@
 use super::cart_window::CART_WINDOW_ID;
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use super::inventory_window::INV_WINDOW_ID;
 use super::inventory_window::{TAB_EQUIP_TEX, TAB_ETC_TEX, TAB_USABLE_TEX};
 use crate::helper::dialog_container::DialogContainer;
@@ -115,11 +115,12 @@ impl StorageWindow {
         TITLE_H + self.rows as f32 * ROW_H + FOOTER_H
     }
 
-    fn open_qty_dialog(&mut self, kind: PendingMove, max: i16) {
+    fn open_qty_dialog(&mut self, kind: PendingMove, max: i16, item_name: &str) {
         let mut dialog = InputDialog::new(
             InputDialogConfig {
-                label: None,
-                show_cancel: true,
+                layout: InputDialogLayout::ItemCount {
+                    item_name: item_name.to_string(),
+                },
                 escape_cancels: true,
                 default_value: max.to_string(),
                 max_len: 6,
@@ -381,7 +382,7 @@ impl InGameWindow for StorageWindow {
                 if let Some(it) = character.inventory.get_item(index) {
                     let count = it.count;
                     if count > 1 {
-                        self.open_qty_dialog(PendingMove::DepositBody { index }, count);
+                        self.open_qty_dialog(PendingMove::DepositBody { index }, count, &it.name);
                     } else {
                         events.push(GameEvent::RequestMoveItemBodyToStore { index, count: 1 });
                     }
@@ -390,7 +391,7 @@ impl InGameWindow for StorageWindow {
                 if let Some(it) = character.cart.get_item(index) {
                     let count = it.count;
                     if count > 1 {
-                        self.open_qty_dialog(PendingMove::DepositCart { index }, count);
+                        self.open_qty_dialog(PendingMove::DepositCart { index }, count, &it.name);
                     } else {
                         events.push(GameEvent::RequestMoveItemCartToStore { index, count: 1 });
                     }
@@ -653,16 +654,16 @@ impl StorageWindow {
     /// Deposit an inventory item (e.g. double-click while storage is open):
     /// stacks open the quantity dialog, singles move immediately.
     pub fn begin_deposit_body(&mut self, character: &Character, index: u16) -> Vec<GameEvent> {
-        let count = character
+        let (count, name) = character
             .inventory
             .get_item(index)
-            .map(|i| i.count)
-            .unwrap_or(0);
+            .map(|i| (i.count, i.name.clone()))
+            .unwrap_or((0, String::new()));
         if count <= 0 {
             return Vec::new();
         }
         if count > 1 {
-            self.open_qty_dialog(PendingMove::DepositBody { index }, count);
+            self.open_qty_dialog(PendingMove::DepositBody { index }, count, &name);
             Vec::new()
         } else {
             vec![GameEvent::RequestMoveItemBodyToStore { index, count: 1 }]
@@ -687,7 +688,7 @@ impl StorageWindow {
             }];
         }
         if count > 1 {
-            self.open_qty_dialog(PendingMove::Withdraw { index }, count);
+            self.open_qty_dialog(PendingMove::Withdraw { index }, count, &item.name);
             Vec::new()
         } else {
             vec![GameEvent::RequestMoveItemStoreToBody { index, count: 1 }]

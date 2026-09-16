@@ -70,7 +70,9 @@ use ragnarok_ui_component::game::hotkey_bar::HotkeyBarWindow;
 use ragnarok_ui_component::game::hotkey_config_window::{
     HOTKEY_CONFIG_WINDOW_ID, HotkeyConfigWindow,
 };
-use ragnarok_ui_component::game::input_dialog::{InputDialog, InputDialogConfig};
+use ragnarok_ui_component::game::input_dialog::{
+    InputDialog, InputDialogConfig, InputDialogLayout,
+};
 use ragnarok_ui_component::game::inventory_window::{INV_WINDOW_ID, InventoryWindow};
 use ragnarok_ui_component::game::item_info_window::{ITEM_INFO_WINDOW_ID, ItemInfoWindow};
 use ragnarok_ui_component::game::item_pickup_notification::ItemPickupNotification;
@@ -795,8 +797,9 @@ fn create_single(name: &str) -> State {
         "number_input" => State::NumberInput {
             dialog: InputDialog::new(
                 InputDialogConfig {
-                    label: Some("How many (max 99)?".to_string()),
-                    show_cancel: false,
+                    layout: InputDialogLayout::ItemCount {
+                        item_name: "Red Potion".to_string(),
+                    },
                     escape_cancels: true,
                     default_value: "99".to_string(),
                     max_len: 6,

@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use super::item_info_window::ITEM_INFO_WINDOW_ID;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
@@ -693,8 +693,6 @@ impl NpcShop {
     }
 
     fn open_qty_popup(&mut self, item_idx: usize, name: &str) {
-        let price = self.shop.item_price(item_idx);
-        let label = format!("{} ({}z)", name, format_thousands(price as i64));
         let sell_remaining = match self.shop.mode {
             Some(NpcShopMode::Sell) => {
                 Some(self.shop.sell_item_remaining(item_idx)).filter(|remaining| *remaining > 0)
@@ -706,8 +704,9 @@ impl NpcShop {
             .unwrap_or_default();
         let mut dialog = InputDialog::new(
             InputDialogConfig {
-                label: Some(label),
-                show_cancel: false,
+                layout: InputDialogLayout::ItemCount {
+                    item_name: name.to_string(),
+                },
                 escape_cancels: false,
                 default_value: default_qty,
                 max_len: 6,

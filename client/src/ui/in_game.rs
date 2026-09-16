@@ -240,7 +240,7 @@ pub fn build_in_game_ui(
                 .get_item(cancelled.item_index as u16)
             {
                 if item.count > 1 {
-                    let mut dialog = DropQuantityDialog::new(item.index, item.count);
+                    let mut dialog = DropQuantityDialog::new(item.index, item.count, &item.name);
                     dialog.has_grf_textures = windows.drop_dialog_has_grf_textures;
                     if dialog.has_grf_textures {
                         dialog.set_texture_sizes(texture_size_fn);

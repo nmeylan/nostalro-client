@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -17,8 +17,10 @@ pub struct GuildExpelDialog {
 impl GuildExpelDialog {
     pub fn new(aid: u32, gid: u32, name: String) -> Self {
         let config = InputDialogConfig {
-            label: Some(format!("Reason for expelling {name}:")),
-            show_cancel: true,
+            layout: InputDialogLayout::Text {
+                label: Some(format!("Reason for expelling {name}:")),
+                show_cancel: true,
+            },
             escape_cancels: true,
             default_value: String::new(),
             max_len: REASON_MAX_LEN,

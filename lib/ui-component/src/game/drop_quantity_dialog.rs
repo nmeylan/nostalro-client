@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::event::GameEvent;
 use ragnarok_ui::frame::{UiFrame, WidgetId};
@@ -11,10 +11,11 @@ pub struct DropQuantityDialog {
 }
 
 impl DropQuantityDialog {
-    pub fn new(item_index: u16, max_count: i16) -> Self {
+    pub fn new(item_index: u16, max_count: i16, item_name: &str) -> Self {
         let config = InputDialogConfig {
-            label: None,
-            show_cancel: false,
+            layout: InputDialogLayout::ItemCount {
+                item_name: item_name.to_string(),
+            },
             escape_cancels: true,
             default_value: max_count.to_string(),
             max_len: 6,
@@ -107,7 +108,7 @@ mod tests {
 
     #[test]
     fn enter_key_confirms_with_valid_quantity() {
-        let mut dialog = DropQuantityDialog::new(0, 10);
+        let mut dialog = DropQuantityDialog::new(0, 10, "Red Potion");
         dialog.inner.set_input_text("5");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -122,7 +123,7 @@ mod tests {
 
     #[test]
     fn enter_key_cancels_with_zero() {
-        let mut dialog = DropQuantityDialog::new(0, 10);
+        let mut dialog = DropQuantityDialog::new(0, 10, "Red Potion");
         dialog.inner.set_input_text("0");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -134,7 +135,7 @@ mod tests {
 
     #[test]
     fn enter_key_clamps_over_max_to_max() {
-        let mut dialog = DropQuantityDialog::new(0, 10);
+        let mut dialog = DropQuantityDialog::new(0, 10, "Red Potion");
         dialog.inner.set_input_text("11");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
@@ -152,7 +153,7 @@ mod tests {
 
     #[test]
     fn escape_key_cancels() {
-        let mut dialog = DropQuantityDialog::new(0, 10);
+        let mut dialog = DropQuantityDialog::new(0, 10, "Red Potion");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         ctx.key_escape = true;
@@ -163,7 +164,7 @@ mod tests {
 
     #[test]
     fn no_input_returns_none() {
-        let mut dialog = DropQuantityDialog::new(0, 10);
+        let mut dialog = DropQuantityDialog::new(0, 10, "Red Potion");
         let mut state = StateCache::new();
         let mut ctx = UiContext::new(800.0, 600.0);
         let events = build_dialog(&mut dialog, &mut ctx, &mut state);
@@ -172,7 +173,7 @@ mod tests {
 
     #[test]
     fn initial_text_is_max_count() {
-        let dialog = DropQuantityDialog::new(5, 42);
+        let dialog = DropQuantityDialog::new(5, 42, "Red Potion");
         assert_eq!(dialog.inner.value_str(), "42");
     }
 }

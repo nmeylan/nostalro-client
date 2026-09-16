@@ -23,6 +23,19 @@ const PADDING: f32 = 4.0;
 const PADDING_X: f32 = 12.0;
 const BTN_SPACING: f32 = 3.0;
 
+const COUNT_W: f32 = 182.0;
+const COUNT_H: f32 = 46.0;
+const COUNT_MARGIN: f32 = 15.0;
+const COUNT_NAME_Y: f32 = 6.0;
+const COUNT_INPUT_Y: f32 = 22.0;
+const COUNT_INPUT_W: f32 = 80.0;
+const COUNT_INPUT_H: f32 = 16.0;
+const COUNT_BTN_RIGHT: f32 = 55.0;
+const COUNT_BTN_BOTTOM: f32 = 32.0;
+/// The frame border; everything else starts below it, so a drag never lands on
+/// the input or the button.
+const COUNT_DRAG_H: f32 = 14.0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputDialogResult {
     None,
@@ -30,9 +43,18 @@ pub enum InputDialogResult {
     Cancel,
 }
 
+pub enum InputDialogLayout {
+    /// The quantity prompt every item move goes through: a fixed frame with the
+    /// item name above the field and an OK button as the only way out.
+    ItemCount { item_name: String },
+    Text {
+        label: Option<String>,
+        show_cancel: bool,
+    },
+}
+
 pub struct InputDialogConfig {
-    pub label: Option<String>,
-    pub show_cancel: bool,
+    pub layout: InputDialogLayout,
     pub escape_cancels: bool,
     pub default_value: String,
     pub max_len: usize,
@@ -44,6 +66,7 @@ pub struct InputDialog {
     pub has_grf_textures: bool,
     input: TextInput,
     btn_size: (f32, f32),
+    is_item_count: bool,
     show_cancel: bool,
     escape_cancels: bool,
     label: Option<String>,
@@ -63,13 +86,18 @@ impl InputDialog {
             TextInput::new(config.max_len, false).with_numeric_only(config.numeric_only);
         input.text = config.default_value;
         input.select_all();
+        let (is_item_count, label, show_cancel) = match config.layout {
+            InputDialogLayout::ItemCount { item_name } => (true, Some(item_name), false),
+            InputDialogLayout::Text { label, show_cancel } => (false, label, show_cancel),
+        };
         Self {
             has_grf_textures: false,
             input,
             btn_size: (FALLBACK_BTN_W, FALLBACK_BTN_H),
-            show_cancel: config.show_cancel,
+            is_item_count,
+            show_cancel,
             escape_cancels: config.escape_cancels,
-            label: config.label,
+            label,
             max_value: config.max_value,
             base_id,
             container: DialogContainer::new(),
@@ -108,6 +136,9 @@ impl InputDialog {
         WidgetId(self.base_id.0 + OFFSET_WINDOW)
     }
     pub fn window_size(&self) -> (f32, f32) {
+        if self.is_item_count {
+            return (COUNT_W, COUNT_H);
+        }
         let label_h = if self.label.is_some() { 18.0 } else { 0.0 };
         (DIALOG_W, DIALOG_H + label_h)
     }
@@ -140,14 +171,21 @@ impl InputDialog {
             return InputDialogResult::Cancel;
         }
 
-        let dw = DIALOG_W;
         let label_h = if self.label.is_some() {
             ui.atlas.line_height + PADDING
         } else {
             0.0
         };
-        let dh = DIALOG_H + label_h;
-        let title_bar_h = PADDING * 2.0 + ui.atlas.line_height;
+        let (dw, dh) = if self.is_item_count {
+            (COUNT_W, COUNT_H)
+        } else {
+            (DIALOG_W, DIALOG_H + label_h)
+        };
+        let title_bar_h = if self.is_item_count {
+            COUNT_DRAG_H
+        } else {
+            PADDING * 2.0 + ui.atlas.line_height
+        };
         let win = ui.window(self.win_id(), dw, dh, title_bar_h);
         ui.interact(self.win_id(), win);
         let dx = win.x;
@@ -158,20 +196,53 @@ impl InputDialog {
             .draw(&mut ui.draw_calls, dx, dy, dw, dh, [1.0, 1.0, 1.0, 1.0]);
 
         let text_color = self.container.text_color();
-
-        let mut content_y = dy + PADDING + ui.atlas.line_height;
-        if let Some(label) = &self.label {
-            ui.text(dx + PADDING_X, content_y, label, text_color);
-            content_y += label_h;
-        }
-
         let (btn_w, btn_h) = self.btn_size;
-        let cancel_space = if self.show_cancel {
-            btn_w + BTN_SPACING
+
+        let (input_rect, ok_rect, cancel_rect) = if self.is_item_count {
+            if let Some(name) = &self.label {
+                ui.text(
+                    dx + COUNT_MARGIN,
+                    dy + COUNT_NAME_Y + ui.atlas.line_height,
+                    name,
+                    text_color,
+                );
+            }
+            (
+                Rect::new(
+                    dx + COUNT_MARGIN,
+                    dy + COUNT_INPUT_Y,
+                    COUNT_INPUT_W,
+                    COUNT_INPUT_H,
+                ),
+                Rect::new(
+                    dx + dw - COUNT_BTN_RIGHT,
+                    dy + dh - COUNT_BTN_BOTTOM,
+                    btn_w,
+                    btn_h,
+                ),
+                None,
+            )
         } else {
-            0.0
+            let mut content_y = dy + PADDING + ui.atlas.line_height;
+            if let Some(label) = &self.label {
+                ui.text(dx + PADDING_X, content_y, label, text_color);
+                content_y += label_h;
+            }
+            let cancel_space = if self.show_cancel {
+                btn_w + BTN_SPACING
+            } else {
+                0.0
+            };
+            let input_w = dw - PADDING_X * 2.0 - btn_w - cancel_space - BTN_SPACING * 2.0;
+            let btn_x = PADDING_X + dx + input_w + BTN_SPACING * 2.0;
+            (
+                Rect::new(dx + PADDING_X, content_y, input_w, 16.0),
+                Rect::new(btn_x, content_y - 2.0, btn_w, btn_h),
+                self.show_cancel
+                    .then(|| Rect::new(btn_x + btn_w + BTN_SPACING, content_y - 2.0, btn_w, btn_h)),
+            )
         };
-        let input_w = dw - PADDING_X * 2.0 - btn_w - cancel_space - BTN_SPACING * 2.0;
+
         let input_bg = if self.has_grf_textures {
             TextInputBg::Gray
         } else {
@@ -185,15 +256,10 @@ impl InputDialog {
             ui.set_focus(input_id);
         }
 
-        let input_rect = Rect::new(dx + PADDING_X, content_y, input_w, 16.0);
         ui.text_input(input_id, input_rect, &mut self.input, input_bg);
-
-        let btn_x = PADDING_X + dx + input_w + BTN_SPACING * 2.0;
-        let ok_rect = Rect::new(btn_x, content_y - 2.0, btn_w, btn_h);
         let ok = ui.button(ok_id, ok_rect, &OK_BTN, "OK");
 
-        if self.show_cancel {
-            let cancel_rect = Rect::new(btn_x + btn_w + BTN_SPACING, content_y - 2.0, btn_w, btn_h);
+        if let Some(cancel_rect) = cancel_rect {
             let cancel = ui.button(self.cancel_id(), cancel_rect, &CANCEL_BTN, "Cancel");
             if cancel.clicked() {
                 return InputDialogResult::Cancel;
@@ -249,8 +315,10 @@ mod tests {
     fn make_dialog(default_value: &str, show_cancel: bool) -> InputDialog {
         InputDialog::new(
             InputDialogConfig {
-                label: Some("How many?".to_string()),
-                show_cancel,
+                layout: InputDialogLayout::Text {
+                    label: Some("How many?".to_string()),
+                    show_cancel,
+                },
                 escape_cancels: true,
                 default_value: default_value.to_string(),
                 max_len: 6,
@@ -324,6 +392,41 @@ mod tests {
         let mut ui = test_frame(&mut ctx, &mut state);
         assert_eq!(dialog.build(&mut ui), InputDialogResult::Submitted);
         assert_eq!(dialog.value_i16(), Some(50));
+    }
+
+    #[test]
+    fn item_count_layout_has_one_button_at_the_official_spot() {
+        let mut dialog = InputDialog::new(
+            InputDialogConfig {
+                layout: InputDialogLayout::ItemCount {
+                    item_name: "Red Potion".to_string(),
+                },
+                escape_cancels: true,
+                default_value: "10".to_string(),
+                max_len: 6,
+                numeric_only: true,
+                max_value: Some(10),
+            },
+            WidgetId(910),
+        );
+        assert_eq!(dialog.window_size(), (COUNT_W, COUNT_H));
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+        let win_x = ((800.0 - COUNT_W) / 2.0).floor();
+        let win_y = ((600.0 - COUNT_H) / 2.0).floor();
+
+        ctx.mouse_clicked = true;
+        ctx.mouse_x = win_x + COUNT_W - COUNT_BTN_RIGHT + 1.0;
+        ctx.mouse_y = win_y + COUNT_H - COUNT_BTN_BOTTOM + 1.0;
+        {
+            let mut ui = test_frame(&mut ctx, &mut state);
+            assert_eq!(dialog.build(&mut ui), InputDialogResult::Submitted);
+        }
+
+        ctx.mouse_x = win_x + COUNT_W - COUNT_BTN_RIGHT + FALLBACK_BTN_W + BTN_SPACING + 1.0;
+        let mut ui = test_frame(&mut ctx, &mut state);
+        assert_eq!(dialog.build(&mut ui), InputDialogResult::None);
     }
 
     #[test]

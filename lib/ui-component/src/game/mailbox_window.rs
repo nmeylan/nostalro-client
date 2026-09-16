@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use super::inventory_window::INV_WINDOW_ID;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::text_color;
@@ -513,8 +513,9 @@ impl MailboxWindow {
                 if count > 1 {
                     let mut dialog = InputDialog::new(
                         InputDialogConfig {
-                            label: None,
-                            show_cancel: true,
+                            layout: InputDialogLayout::ItemCount {
+                                item_name: item.name.clone(),
+                            },
                             escape_cancels: true,
                             default_value: count.to_string(),
                             max_len: 6,

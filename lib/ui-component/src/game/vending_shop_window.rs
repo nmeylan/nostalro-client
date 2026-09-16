@@ -1,4 +1,4 @@
-use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogResult};
+use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use crate::helper::colors::draw_price_right;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
@@ -370,16 +370,17 @@ impl VendingShopWindow {
         if let Some((source_id, row_idx)) = ui.drop_zone(slots_rect)
             && source_id == VENDING_SHOP_WINDOW_ID
         {
-            let stock = self
+            let (stock, stock_name) = self
                 .rows
                 .get(row_idx)
-                .map(|r| r.item.amount.max(0))
-                .unwrap_or(0);
+                .map(|r| (r.item.amount.max(0), r.name.clone()))
+                .unwrap_or((0, String::new()));
             if stock > 1 {
                 let mut dialog = InputDialog::new(
                     InputDialogConfig {
-                        label: None,
-                        show_cancel: true,
+                        layout: InputDialogLayout::ItemCount {
+                            item_name: stock_name,
+                        },
                         escape_cancels: true,
                         default_value: stock.to_string(),
                         max_len: 6,
