@@ -222,6 +222,9 @@ pub struct Config {
     pub show_skill_effects: bool,
     pub refuse_trade: bool,
     pub refuse_party_invite: bool,
+    /// NPC shop "Toggle Item Amount." checkbox: when set, dragging a stack in or
+    /// out of the sell basket moves all of it instead of asking for a count.
+    pub no_item_amount_question: bool,
     pub display: DisplayOptions,
     #[serde(default)]
     pub snap: MouseSnapPrefs,
@@ -254,6 +257,7 @@ pub struct Config {
     #[serde(default)]
     pub custom: CustomConfig,
 }
+
 
 fn default_account_backgrounds() -> Vec<String> {
     vec![
@@ -298,6 +302,7 @@ impl Default for Config {
             fullscreen: false,
             show_skill_effects: true,
             refuse_trade: false,
+            no_item_amount_question: false,
             refuse_party_invite: false,
             display: DisplayOptions::default(),
             snap: MouseSnapPrefs::default(),

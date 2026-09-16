@@ -1,5 +1,6 @@
 use super::input_dialog::{InputDialog, InputDialogConfig, InputDialogLayout, InputDialogResult};
 use super::item_info_window::ITEM_INFO_WINDOW_ID;
+use crate::helper::CHECKBOX;
 use crate::helper::dialog_container::DialogContainer;
 use crate::helper::format::format_thousands;
 use crate::helper::window_chrome::{
@@ -25,6 +26,7 @@ const OUT_SCROLL_UP_ID: WidgetId = WidgetId(711);
 const OUT_SCROLL_DOWN_ID: WidgetId = WidgetId(712);
 const OUT_SCROLL_THUMB_ID: WidgetId = WidgetId(713);
 const INPUT_RESIZE_ID: WidgetId = WidgetId(714);
+const DRAG_ALL_CHECK_ID: WidgetId = WidgetId(715);
 const ITEM_BASE_ID: u32 = 720;
 const BASKET_BASE_ID: u32 = 780;
 
@@ -59,17 +61,30 @@ const CANCEL_BTN_TEX: ButtonTextures = ButtonTextures {
 };
 
 const RESIZE_SIZE: f32 = 13.0;
+const CHECK_SIZE: f32 = 12.0;
+const CHECK_X: f32 = 12.0;
+const CHECK_BOTTOM: f32 = 20.0;
+const MSI_NOQUESTION_ITEMCOUNT: u16 = 295;
+const NOQUESTION_ITEMCOUNT_FALLBACK: &str = "Toggle Item Amount.";
+
+/// Which side of the basket the open quantity popup is answering.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum QtyTarget {
+    AddToBasket { item_index: usize },
+    RemoveFromBasket { basket_index: usize },
+}
 
 pub struct NpcShop {
     pub has_grf_textures: bool,
     pub shop: NpcShopData,
-    qty_popup: Option<(usize, InputDialog)>,
+    qty_popup: Option<(QtyTarget, InputDialog)>,
     btn_size: (f32, f32),
     scroll_offset: usize,
     output_scroll_offset: usize,
     input_visible_rows: usize,
     resize_start_rows: Option<usize>,
     container: DialogContainer,
+    drag_all: bool,
 }
 
 impl Default for NpcShop {
@@ -90,7 +105,16 @@ impl NpcShop {
             input_visible_rows: INPUT_DEFAULT_ROWS,
             resize_start_rows: None,
             container: DialogContainer::new(),
+            drag_all: true,
         }
+    }
+
+    pub fn drag_all(&self) -> bool {
+        self.drag_all
+    }
+
+    pub fn set_drag_all(&mut self, value: bool) {
+        self.drag_all = value;
     }
 }
 
@@ -125,6 +149,8 @@ impl Window for NpcShop {
             SYS_BASE_OFF_TEX,
             SYS_BASE_ON_TEX,
             RESIZE_HANDLE_TEX,
+            CHECKBOX.off,
+            CHECKBOX.on,
         ]);
         paths.extend(scrollbar::grf_texture_paths());
         paths
@@ -177,7 +203,7 @@ impl InGameWindow for NpcShop {
 
         let output_default_y = input_default_y + input_win_h - output_win_h;
 
-        self.build_input_window(
+        let input_rect = self.build_input_window(
             ui,
             &mut events,
             ctx,
@@ -185,6 +211,12 @@ impl InGameWindow for NpcShop {
             input_default_y,
             input_win_h,
         );
+        if let Some((source_id, basket_index)) = ui.drop_zone(input_rect)
+            && source_id == OUTPUT_WIN_ID
+        {
+            self.drop_on_input(basket_index, ctx);
+        }
+
         let output_rect = self.build_output_window(
             ui,
             &mut events,
@@ -197,12 +229,7 @@ impl InGameWindow for NpcShop {
         if let Some((source_id, item_idx)) = ui.drop_zone(output_rect)
             && source_id == INPUT_WIN_ID
         {
-            if self.shop.needs_quantity_prompt(item_idx) {
-                let name = self.item_display_name(item_idx, ctx);
-                self.open_qty_popup(item_idx, &name);
-            } else {
-                self.shop.add_to_basket(item_idx, 1);
-            }
+            self.drop_on_output(item_idx, ctx);
         }
 
         if self.qty_popup.is_some() {
@@ -390,11 +417,7 @@ impl NpcShop {
                 ui.drag_source(INPUT_WIN_ID, item_idx, drag_icon, (icon_size, icon_size));
             }
             if response.double_clicked() {
-                if self.shop.needs_quantity_prompt(item_idx) {
-                    self.open_qty_popup(item_idx, &name);
-                } else {
-                    self.shop.add_to_basket(item_idx, 1);
-                }
+                self.drop_on_output(item_idx, ctx);
             }
             if response.right_clicked()
                 && let Some(item) = self.shop.item_at(item_idx)
@@ -427,6 +450,36 @@ impl NpcShop {
 
         let footer_y = win.y + win_h - footer_h;
         draw_footer(ui, win.x, footer_y, win_w, footer_h, grf);
+
+        let check_rect = Rect::new(
+            win.x + CHECK_X,
+            win.y + win_h - CHECK_BOTTOM,
+            CHECK_SIZE,
+            CHECK_SIZE,
+        );
+        let label = ctx
+            .data
+            .msg_string
+            .as_ref()
+            .and_then(|table| table.get(MSI_NOQUESTION_ITEMCOUNT))
+            .unwrap_or(NOQUESTION_ITEMCOUNT_FALLBACK);
+        if self.shop.mode == Some(NpcShopMode::Sell) {
+            let mut checked = self.drag_all;
+            if ui
+                .checkbox(DRAG_ALL_CHECK_ID, check_rect, &mut checked, &CHECKBOX)
+                .clicked()
+            {
+                self.drag_all = checked;
+            }
+        } else {
+            ui.checkbox_display(check_rect, self.drag_all, &CHECKBOX);
+        }
+        ui.text(
+            check_rect.x + CHECK_SIZE + 4.0,
+            check_rect.y + CHECK_SIZE - 2.0,
+            label,
+            text_color,
+        );
 
         let resize_rect = Rect::new(
             win.x + win_w - RESIZE_SIZE,
@@ -497,6 +550,7 @@ impl NpcShop {
             win_w - pad_left - pad_right - if has_scrollbar { scrollbar_w } else { 0.0 };
 
         let max_scroll = basket_count.saturating_sub(visible);
+        let mut double_clicked_row = None;
 
         for i in 0..visible {
             let ci = self.output_scroll_offset + i;
@@ -589,9 +643,16 @@ impl NpcShop {
             }
 
             if response.clicked() {
-                self.shop.remove_from_basket(ci);
-                return win;
+                let drag_icon = self.shop.item_icon_path(basket_item.source_index);
+                ui.drag_source(OUTPUT_WIN_ID, ci, drag_icon, (icon_size, icon_size));
             }
+            if response.double_clicked() {
+                double_clicked_row = Some(ci);
+            }
+        }
+
+        if let Some(ci) = double_clicked_row {
+            self.drop_on_input(ci, ctx);
         }
 
         if has_scrollbar {
@@ -692,14 +753,19 @@ impl NpcShop {
             .item_display_name(index, ctx.data, &ctx.character.char_names)
     }
 
-    fn open_qty_popup(&mut self, item_idx: usize, name: &str) {
-        let sell_remaining = match self.shop.mode {
-            Some(NpcShopMode::Sell) => {
-                Some(self.shop.sell_item_remaining(item_idx)).filter(|remaining| *remaining > 0)
+    fn open_qty_popup(&mut self, target: QtyTarget, name: &str) {
+        let available = match target {
+            QtyTarget::AddToBasket { item_index } => match self.shop.mode {
+                Some(NpcShopMode::Sell) => {
+                    Some(self.shop.sell_item_remaining(item_index)).filter(|left| *left > 0)
+                }
+                _ => None,
+            },
+            QtyTarget::RemoveFromBasket { basket_index } => {
+                Some(self.shop.basket_quantity(basket_index)).filter(|left| *left > 0)
             }
-            _ => None,
         };
-        let default_qty = sell_remaining
+        let default_qty = available
             .map(|remaining| remaining.to_string())
             .unwrap_or_default();
         let mut dialog = InputDialog::new(
@@ -711,17 +777,54 @@ impl NpcShop {
                 default_value: default_qty,
                 max_len: 6,
                 numeric_only: true,
-                max_value: sell_remaining.map(|remaining| remaining as i32),
+                max_value: available.map(|remaining| remaining as i32),
             },
             WidgetId(QTY_INPUT_ID.0),
         );
         dialog.init_container(&self.container);
-        self.qty_popup = Some((item_idx, dialog));
+        self.qty_popup = Some((target, dialog));
+    }
+
+    /// An item-list row dropped on the basket. The drag-all box only short-circuits
+    /// the prompt while selling; buying always asks for a stackable.
+    fn drop_on_output(&mut self, item_index: usize, ctx: &BuildCtx) {
+        if !self.shop.needs_quantity_prompt(item_index) {
+            self.shop.add_to_basket(item_index, 1);
+            return;
+        }
+        if self.drag_all && self.shop.mode == Some(NpcShopMode::Sell) {
+            let remaining = self.shop.sell_item_remaining(item_index);
+            if remaining > 0 {
+                self.shop.add_to_basket(item_index, remaining);
+            }
+            return;
+        }
+        let name = self.item_display_name(item_index, ctx);
+        self.open_qty_popup(QtyTarget::AddToBasket { item_index }, &name);
+    }
+
+    /// A basket row dropped back on the item list: the original removes the whole
+    /// line when the drag-all box is ticked or only one is staged, and otherwise
+    /// asks how many to take out.
+    fn drop_on_input(&mut self, basket_index: usize, ctx: &BuildCtx) {
+        let staged = self.shop.basket_quantity(basket_index);
+        if staged <= 0 {
+            return;
+        }
+        if self.drag_all || staged == 1 {
+            self.shop.remove_from_basket(basket_index, staged);
+            return;
+        }
+        let Some(line) = self.shop.basket.get(basket_index) else {
+            return;
+        };
+        let name = self.item_display_name(line.source_index, ctx);
+        self.open_qty_popup(QtyTarget::RemoveFromBasket { basket_index }, &name);
     }
 
     fn build_quantity_popup(&mut self, ui: &mut UiFrame) {
-        let (item_idx, dialog) = self.qty_popup.as_mut().unwrap();
-        let item_idx = *item_idx;
+        let (target, dialog) = self.qty_popup.as_mut().unwrap();
+        let target = *target;
         dialog.init_container(&self.container);
         ui.ensure_in_z_order_with(dialog.win_id(), WindowOrder::Foreground);
 
@@ -729,7 +832,14 @@ impl NpcShop {
             InputDialogResult::Submitted => {
                 let qty: i16 = dialog.value_i16().unwrap_or(0);
                 if qty > 0 {
-                    self.shop.add_to_basket(item_idx, qty);
+                    match target {
+                        QtyTarget::AddToBasket { item_index } => {
+                            self.shop.add_to_basket(item_index, qty)
+                        }
+                        QtyTarget::RemoveFromBasket { basket_index } => {
+                            self.shop.remove_from_basket(basket_index, qty)
+                        }
+                    }
                 }
                 self.qty_popup = None;
             }
@@ -864,12 +974,12 @@ mod tests {
             }],
         );
 
-        shop_ui.open_qty_popup(0, "Red Potion");
+        shop_ui.open_qty_popup(QtyTarget::AddToBasket { item_index: 0 }, "Red Potion");
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_i16(), Some(16));
 
         shop_ui.qty_popup = None;
         shop_ui.shop.add_to_basket(0, 6);
-        shop_ui.open_qty_popup(0, "Red Potion");
+        shop_ui.open_qty_popup(QtyTarget::AddToBasket { item_index: 0 }, "Red Potion");
         assert_eq!(
             shop_ui.qty_popup.as_ref().unwrap().1.value_i16(),
             Some(10),
@@ -878,8 +988,113 @@ mod tests {
 
         shop_ui.qty_popup = None;
         shop_ui.shop.add_to_basket(0, 10);
-        shop_ui.open_qty_popup(0, "Red Potion");
+        shop_ui.open_qty_popup(QtyTarget::AddToBasket { item_index: 0 }, "Red Potion");
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_str(), "");
+    }
+
+    #[test]
+    fn basket_row_drag_or_double_click_asks_how_many_unless_drag_all() {
+        let mut shop_ui = NpcShop::new();
+        shop_ui.shop.open_sell(
+            100,
+            vec![ShopSellItem {
+                item: Item {
+                    index: 3,
+                    item_id: 501,
+                    item_type: ItemType::Healing,
+                    count: 16,
+                    is_identified: true,
+                    is_damaged: false,
+                    refining_level: 0,
+                    slot: [0; 4],
+                    location: 0,
+                    wear_state: 0,
+                    name: "Red Potion".into(),
+                    resource_name: None,
+                },
+                price: 25,
+                overcharge_price: 25,
+            }],
+        );
+        shop_ui.shop.add_to_basket(0, 10);
+
+        let mut state = StateCache::new();
+        let frame = |state: &mut StateCache, shop_ui: &mut NpcShop, mx: f32, my: f32, down: bool| {
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_x = mx;
+            ctx.mouse_y = my;
+            ctx.mouse_down = down;
+            let mut ui = test_frame(&mut ctx, state);
+            shop_ui.setup_modal(&mut ui);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+            ui.draw_drag_icon();
+        };
+
+        let (input_h, output_h) = shop_ui.window_heights();
+        let basket_row = (
+            100.0 + WIN_W + WIN_GAP + CONTAINER_PAD_LEFT + ICON_SIZE,
+            100.0 + input_h - output_h + TITLE_H + CONTAINER_PAD_Y + ICON_SIZE / 2.0,
+        );
+        let list_row = (150.0, 100.0 + TITLE_H + CONTAINER_PAD_Y + ICON_SIZE / 2.0);
+        let mut drag_basket_to_list = |state: &mut StateCache, shop_ui: &mut NpcShop| {
+            frame(state, shop_ui, basket_row.0, basket_row.1, false);
+            {
+                let mut character = Character::new();
+                let data = DataTable::new();
+                let mut ctx = UiContext::new(800.0, 600.0);
+                ctx.mouse_x = basket_row.0;
+                ctx.mouse_y = basket_row.1;
+                ctx.mouse_clicked = true;
+                ctx.mouse_down = true;
+                let mut ui = test_frame(&mut ctx, state);
+                shop_ui.setup_modal(&mut ui);
+                let z = ui.get_z_order();
+                ui.compute_hovered_window(&z);
+                shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+                ui.draw_drag_icon();
+            }
+            frame(state, shop_ui, list_row.0, list_row.1, true);
+            frame(state, shop_ui, list_row.0, list_row.1, false);
+        };
+
+        shop_ui.drag_all = false;
+        drag_basket_to_list(&mut state, &mut shop_ui);
+        let (target, dialog) = shop_ui.qty_popup.as_mut().unwrap();
+        assert_eq!(*target, QtyTarget::RemoveFromBasket { basket_index: 0 });
+        assert_eq!(dialog.value_str(), "10");
+        dialog.set_input_text("4");
+
+        let mut ui_ctx = UiContext::new(800.0, 600.0);
+        ui_ctx.key_enter = true;
+        {
+            let mut ui = test_frame(&mut ui_ctx, &mut state);
+            shop_ui.build_quantity_popup(&mut ui);
+        }
+        assert!(shop_ui.qty_popup.is_none());
+        assert_eq!(shop_ui.shop.basket_quantity(0), 6);
+
+        shop_ui.drag_all = true;
+        {
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_x = basket_row.0;
+            ctx.mouse_y = basket_row.1;
+            ctx.mouse_clicked = true;
+            ctx.mouse_double_clicked = true;
+            ctx.mouse_down = true;
+            let mut ui = test_frame(&mut ctx, &mut state);
+            shop_ui.setup_modal(&mut ui);
+            let z = ui.get_z_order();
+            ui.compute_hovered_window(&z);
+            shop_ui.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+        }
+        assert!(shop_ui.qty_popup.is_none());
+        assert!(shop_ui.shop.basket.is_empty());
     }
 
     #[test]
@@ -907,7 +1122,7 @@ mod tests {
             }],
         );
 
-        shop_ui.open_qty_popup(0, "Red Potion");
+        shop_ui.open_qty_popup(QtyTarget::AddToBasket { item_index: 0 }, "Red Potion");
         assert_eq!(shop_ui.qty_popup.as_ref().unwrap().1.value_str(), "");
     }
 
@@ -935,7 +1150,7 @@ mod tests {
                 discount_price: 50,
             }],
         );
-        shop_ui.open_qty_popup(0, "Red Potion");
+        shop_ui.open_qty_popup(QtyTarget::AddToBasket { item_index: 0 }, "Red Potion");
 
         let mut character = Character::new();
         let data = DataTable::new();

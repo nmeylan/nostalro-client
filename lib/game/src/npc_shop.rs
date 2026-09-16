@@ -103,10 +103,22 @@ impl NpcShopData {
         }
     }
 
-    pub fn remove_from_basket(&mut self, basket_index: usize) {
-        if basket_index < self.basket.len() {
+    pub fn remove_from_basket(&mut self, basket_index: usize, quantity: i16) {
+        let Some(line) = self.basket.get_mut(basket_index) else {
+            return;
+        };
+        if quantity >= line.quantity {
             self.basket.remove(basket_index);
+        } else if quantity > 0 {
+            line.quantity -= quantity;
         }
+    }
+
+    pub fn basket_quantity(&self, basket_index: usize) -> i16 {
+        self.basket
+            .get(basket_index)
+            .map(|line| line.quantity)
+            .unwrap_or(0)
     }
 
     pub fn basket_total(&self) -> i64 {
@@ -511,9 +523,13 @@ mod tests {
             shop.basket[2].quantity, 1,
             "equipment cannot be bought twice"
         );
-        shop.remove_from_basket(2);
+        shop.remove_from_basket(2, 1);
 
-        shop.remove_from_basket(0);
+        shop.remove_from_basket(0, 6);
+        assert_eq!(shop.basket_quantity(0), 9);
+        assert_eq!(shop.basket_total(), 9 * 50 + 5 * 200);
+
+        shop.remove_from_basket(0, 99);
         assert_eq!(shop.basket.len(), 1);
         assert_eq!(shop.basket_total(), 5 * 200);
 

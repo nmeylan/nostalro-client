@@ -394,6 +394,9 @@ impl App {
             .character
             .hotkeys
             .set_battle_mode(self.config.battle_mode);
+        self.windows
+            .npc_shop
+            .set_drag_all(self.config.no_item_amount_question);
 
         self.game.character.inventory.clear();
         self.channel

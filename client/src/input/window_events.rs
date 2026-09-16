@@ -58,6 +58,7 @@ impl App {
         merge_window_state(&mut self.config.window_state, &positions, &open_collapsed);
         self.config.hotkey_visible_rows = self.game.character.hotkeys.visible_rows();
         self.config.battle_mode = self.game.character.hotkeys.battle_mode();
+        self.config.no_item_amount_question = self.windows.npc_shop.drag_all();
         self.capture_window_size();
     }
 
