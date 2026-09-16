@@ -194,6 +194,21 @@ pub fn hover_cursor(
     }
 }
 
+/// Shift flips which actors a click engages: a supportive skill reaches a
+/// monster only while Shift is held, anything else reaches one only while it is
+/// not. `/noshift` drops the requirement.
+pub fn shift_allows_monster(
+    class: TargetClass,
+    target: &Entity,
+    shift: bool,
+    noshift: bool,
+) -> bool {
+    if noshift || target.entity_type != EntityType::Monster {
+        return true;
+    }
+    if class == TargetClass::Supportive { shift } else { !shift }
+}
+
 pub fn skill_target_allowed(
     class: TargetClass,
     target: &Entity,
@@ -292,6 +307,26 @@ mod tests {
             assert!(!skill_target_allowed(class, &target, &pvp, me));
             assert_eq!(hover_cursor(&target, &pvp, Some(class), me), None);
         }
+    }
+
+    #[test]
+    fn a_supportive_skill_reaches_a_monster_only_while_shift_is_held() {
+        let me = Some(1u32);
+        let town = MapProperties::from_kind(MapKind::Normal);
+        let mob = entity(10, EntityType::Monster, 1002);
+        let ally = entity(20, EntityType::Player, 0);
+
+        let support = skill_target_class(SkillTargetType::Friend);
+        assert!(skill_target_allowed(support, &mob, &town, me));
+        assert!(!shift_allows_monster(support, &mob, false, false));
+        assert!(shift_allows_monster(support, &mob, true, false));
+        assert!(shift_allows_monster(support, &mob, false, true));
+        assert!(shift_allows_monster(support, &ally, false, false));
+
+        let offensive = skill_target_class(SkillTargetType::Target);
+        assert!(shift_allows_monster(offensive, &mob, false, false));
+        assert!(!shift_allows_monster(offensive, &mob, true, false));
+        assert!(shift_allows_monster(offensive, &mob, true, true));
     }
 
     #[test]

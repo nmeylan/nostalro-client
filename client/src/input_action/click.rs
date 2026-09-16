@@ -7,7 +7,9 @@ use ragnarok_game::entity::{EntityCategory, EntityState, EntityType};
 use ragnarok_game::movement::direction_from_delta;
 use ragnarok_game::path::try_move_to;
 use ragnarok_game::sprite_path::hide_allows_skill;
-use ragnarok_game::targeting::{TargetClass, can_attack, skill_target_allowed, skill_target_class};
+use ragnarok_game::targeting::{
+    TargetClass, can_attack, shift_allows_monster, skill_target_allowed, skill_target_class,
+};
 use ragnarok_network::{
     build_change_direction_packet, build_contact_npc_packet, build_req_buy_frommc_packet,
     build_req_enter_room_packet, build_request_move_packet, build_use_skill_packet,
@@ -127,7 +129,8 @@ impl App {
                         .map(|(target_type, _)| skill_target_class(target_type))
                         .unwrap_or(TargetClass::Offensive);
                     let player_id = self.game.world.entities.player_id();
-                    let potion_pitcher = skill == SkillEnum::AmPotionpitcher;
+                    let shift = self.input.shift_pressed;
+                    let noshift = self.game.prefs.noshift_mode;
                     let valid_target = self.game.hover.hovered_entity_id.filter(|&id| {
                         self.game.world.entities.get(id).is_some_and(|e| {
                             skill_target_allowed(
@@ -135,11 +138,7 @@ impl App {
                                 e,
                                 &self.game.session.map_properties,
                                 player_id,
-                            ) || (potion_pitcher
-                                && matches!(
-                                    e.entity_type,
-                                    EntityType::Homunculus | EntityType::Mercenary
-                                ))
+                            ) && shift_allows_monster(class, e, shift, noshift)
                         })
                     });
                     if let Some(entity_id) = valid_target {
