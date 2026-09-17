@@ -209,7 +209,9 @@ pub fn build_in_game_ui(
 
     events.extend(windows.map_missing_window.build(ui));
 
-    match windows.levelup_notification.build(ui) {
+    let status_open = windows.status_window.is_visible();
+    let skill_open = ctx.character.skills.is_open();
+    match windows.levelup_notification.build(ui, status_open, skill_open) {
         LevelUpClick::Base => windows.status_window.open(),
         LevelUpClick::Job => ctx.character.skills.open(),
         LevelUpClick::None => {}
