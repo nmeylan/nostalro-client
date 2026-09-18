@@ -208,7 +208,7 @@ pub fn collect(
     }
 
     // -- actors -------------------------------------------------------------
-    let names = NameTable::load(grf);
+    let names = NameTable::load();
     for job in 0..MAX_JOB_ID {
         if let Some(base) = sp::entity_sprite_base_path(&names, job) {
             need!(base, Origin::Table("job/npc identity table"));

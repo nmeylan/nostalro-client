@@ -781,7 +781,7 @@ impl ApplicationHandler for App {
                     self.load_status_overlay_sprites(&grf);
                     self.load_damage_sprites(&grf);
                     self.game.data_table.accessory = Some(AccessoryTable::load_from_grf(&grf));
-                    self.game.data_table.name = Some(NameTable::load(&grf));
+                    self.game.data_table.name = Some(NameTable::load());
                     self.game.data_table.item_name = Some(ItemNameTable::load(&grf));
                     self.game.data_table.item_resource = Some(ItemResourceTable::load(&grf));
                     self.game.data_table.item_slot_count = Some(ItemSlotCountTable::load(&grf));
