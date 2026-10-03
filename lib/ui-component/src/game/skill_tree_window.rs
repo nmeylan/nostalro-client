@@ -1,5 +1,6 @@
+use ragnarok_game::data_table::DataTable;
 use ragnarok_game::event::GameEvent;
-use ragnarok_game::skill::{SkillEnum, SkillTargetType};
+use ragnarok_game::skill::{SkillData, SkillEnum, SkillTargetType};
 use ragnarok_ui::draw::{self, DrawCall, TextureRef};
 use ragnarok_ui::frame::{ButtonTextures, UiFrame, WidgetId};
 use ragnarok_ui::rect::Rect;
@@ -398,77 +399,14 @@ impl InGameWindow for SkillTreeWindow {
             }
 
             if row_resp.hovered() {
-                let mut tooltip_lines = vec![display_name.to_owned()];
-
-                let type_str = match skill.skill_target_type {
-                    SkillTargetType::Passive => "Passive",
-                    SkillTargetType::Target => "Target",
-                    SkillTargetType::Ground => "Ground",
-                    SkillTargetType::MySelf => "Self",
-                    SkillTargetType::Trap => "Trap",
-                    _ => "Unknown",
-                };
-                tooltip_lines.push(format!("Type: {type_str}"));
-
-                if skill.sp_cost > 0 {
-                    tooltip_lines.push(format!("SP Cost: {}", skill.sp_cost));
-                }
-
-                if let Some(desc_lines) = data
-                    .skill_description
-                    .as_ref()
-                    .and_then(|t| t.get_description(skill.skill))
-                {
-                    for line in desc_lines {
-                        tooltip_lines.push(line.clone());
-                    }
-                }
-
-                let tooltip_text = tooltip_lines.join("\n");
-                let tooltip_max_w: f32 = 220.0;
-                let wrapped = draw::colored_word_wrap(
-                    &tooltip_text,
-                    tooltip_max_w,
-                    |t| ui.atlas.measure_text(t),
-                    false,
+                draw_skill_tooltip(
+                    ui,
+                    &self.tooltip_container,
+                    data,
+                    skill,
+                    row_rect.x + row_rect.w + 4.0,
+                    row_y,
                 );
-
-                let line_h = ui.atlas.line_height;
-                let pad = 8.0;
-                let text_h = wrapped.len() as f32 * line_h;
-                let max_line_w = wrapped
-                    .iter()
-                    .map(|l| ui.atlas.measure_text(&draw::strip_color_codes(l)))
-                    .fold(0.0f32, f32::max);
-                let box_w = max_line_w + pad * 2.0;
-                let box_h = text_h + pad * 2.0;
-
-                let tx = row_rect.x + row_rect.w + 4.0;
-                let ty = row_y;
-
-                self.tooltip_container.draw(
-                    &mut ui.tooltip_draw_calls,
-                    tx,
-                    ty,
-                    box_w,
-                    box_h,
-                    [1.0; 4],
-                );
-
-                let text_color = self.tooltip_container.text_color();
-                let mut text_y = ty + pad + line_h;
-                for line in &wrapped {
-                    let (v, i) =
-                        draw::colored_text_vertices(line, tx + pad, text_y, text_color, ui.atlas);
-                    if !v.is_empty() {
-                        ui.tooltip_draw_calls.push(DrawCall {
-                            vertices: v,
-                            indices: i,
-                            texture: TextureRef::FontAtlas,
-                        });
-                    }
-                    text_y += line_h;
-                }
             }
         }
 
@@ -505,6 +443,79 @@ impl InGameWindow for SkillTreeWindow {
 
         events
     }
+}
+
+pub(crate) fn draw_skill_tooltip(
+    ui: &mut UiFrame,
+    container: &DialogContainer,
+    data: &DataTable,
+    skill: &SkillData,
+    tx: f32,
+    ty: f32,
+) -> Rect {
+    let display_name = format_skill_display_name(&skill.skill, data.skill_name.as_ref());
+    let mut tooltip_lines = vec![display_name.to_owned()];
+
+    let type_str = match skill.skill_target_type {
+        SkillTargetType::Passive => "Passive",
+        SkillTargetType::Target => "Target",
+        SkillTargetType::Ground => "Ground",
+        SkillTargetType::MySelf => "Self",
+        SkillTargetType::Trap => "Trap",
+        _ => "Unknown",
+    };
+    tooltip_lines.push(format!("Type: {type_str}"));
+
+    if skill.sp_cost > 0 {
+        tooltip_lines.push(format!("SP Cost: {}", skill.sp_cost));
+    }
+
+    if let Some(desc_lines) = data
+        .skill_description
+        .as_ref()
+        .and_then(|t| t.get_description(skill.skill))
+    {
+        for line in desc_lines {
+            tooltip_lines.push(line.clone());
+        }
+    }
+
+    let tooltip_text = tooltip_lines.join("\n");
+    let tooltip_max_w: f32 = 220.0;
+    let wrapped = draw::colored_word_wrap(
+        &tooltip_text,
+        tooltip_max_w,
+        |t| ui.atlas.measure_text(t),
+        false,
+    );
+
+    let line_h = ui.atlas.line_height;
+    let pad = 8.0;
+    let text_h = wrapped.len() as f32 * line_h;
+    let max_line_w = wrapped
+        .iter()
+        .map(|l| ui.atlas.measure_text(&draw::strip_color_codes(l)))
+        .fold(0.0f32, f32::max);
+    let box_w = max_line_w + pad * 2.0;
+    let box_h = text_h + pad * 2.0;
+
+    container.draw(&mut ui.tooltip_draw_calls, tx, ty, box_w, box_h, [1.0; 4]);
+
+    let text_color = container.text_color();
+    let mut text_y = ty + pad + line_h;
+    for line in &wrapped {
+        let (v, i) = draw::colored_text_vertices(line, tx + pad, text_y, text_color, ui.atlas);
+        if !v.is_empty() {
+            ui.tooltip_draw_calls.push(DrawCall {
+                vertices: v,
+                indices: i,
+                texture: TextureRef::FontAtlas,
+            });
+        }
+        text_y += line_h;
+    }
+
+    Rect::new(tx, ty, box_w, box_h)
 }
 
 #[cfg(test)]

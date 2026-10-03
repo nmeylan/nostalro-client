@@ -322,7 +322,7 @@ pub(crate) fn draw_companion_skill_tooltip(
     skill: &SkillInfo,
     anchor_x: f32,
     anchor_y: f32,
-) {
+) -> Rect {
     let display_name =
         format_skill_display_name(&skill.skill, data.skill_name.as_ref()).to_string();
     let mut lines = vec![display_name];
@@ -387,4 +387,6 @@ pub(crate) fn draw_companion_skill_tooltip(
         }
         text_y += line_h;
     }
+
+    Rect::new(anchor_x, anchor_y, box_w, box_h)
 }

@@ -1,9 +1,10 @@
-use super::homun_skill_window::HOMUN_SKILL_WINDOW_ID;
+use super::homun_skill_window::{HOMUN_SKILL_WINDOW_ID, draw_companion_skill_tooltip};
 use super::inventory_window::INV_WINDOW_ID;
 use super::mercenary_skill_window::MERCENARY_SKILL_WINDOW_ID;
-use super::skill_tree_window::SKILL_WINDOW_ID;
+use super::skill_tree_window::{SKILL_WINDOW_ID, draw_skill_tooltip};
 use crate::game::equipment_window::EQ_WINDOW_ID;
 use crate::helper::colors;
+use crate::helper::dialog_container::DialogContainer;
 use crate::helper::window_chrome::{draw_sys_button, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
@@ -24,6 +25,8 @@ pub const HOTKEY_BAR_WINDOW_ID: WidgetId = WidgetId(1300);
 const SLOT_BASE_ID: u32 = 1310;
 const CLOSE_BTN_ID: WidgetId = WidgetId(1350);
 const RESIZE_ID: WidgetId = WidgetId(1351);
+const DESCRIBE_ID: WidgetId = WidgetId(1352);
+const DESCRIBE_CLOSE_ID: WidgetId = WidgetId(1353);
 
 const BG_TEX: &str = ragnarok_resources::ui::basic::SHORTITEM_BG;
 const CLOSE_OFF_TEX: &str = ragnarok_resources::ui::basic::SYS_CLOSE_OFF;
@@ -126,6 +129,8 @@ pub struct HotkeyBarWindow {
     bg_size: (f32, f32),
     close_size: (f32, f32),
     resize_start: Option<u8>,
+    described_skill: Option<(SkillEnum, usize)>,
+    tooltip_container: DialogContainer,
 }
 
 impl Default for HotkeyBarWindow {
@@ -144,6 +149,8 @@ impl HotkeyBarWindow {
             bg_size: (0.0, 0.0),
             close_size: (0.0, 0.0),
             resize_start: None,
+            described_skill: None,
+            tooltip_container: DialogContainer::new(),
         }
     }
 
@@ -246,6 +253,39 @@ impl HotkeyBarWindow {
         }
     }
 
+    fn describe_close_clicked(
+        &self,
+        ui: &mut UiFrame,
+        rect: Rect,
+        has_grf: bool,
+        close_size: f32,
+    ) -> bool {
+        ui.begin_popup_layer(rect);
+        ui.interact(DESCRIBE_ID, rect);
+        let close_rect = Rect::new(
+            rect.x + rect.w - close_size - 3.0,
+            rect.y + 3.0,
+            close_size,
+            close_size,
+        );
+        let close_resp = ui.interact(DESCRIBE_CLOSE_ID, close_rect);
+        if close_resp.hovered() {
+            ui.any_interactive_hovered = true;
+        }
+        draw_sys_button(
+            ui,
+            close_rect,
+            (close_size, close_size),
+            close_resp.hovered(),
+            has_grf,
+            CLOSE_ON_TEX,
+            CLOSE_OFF_TEX,
+            Some('x'),
+        );
+        ui.end_popup_layer();
+        close_resp.clicked()
+    }
+
     fn handle_drop(
         &self,
         source_id: WidgetId,
@@ -343,9 +383,11 @@ impl Window for HotkeyBarWindow {
 
     fn set_has_grf_textures(&mut self, value: bool) {
         self.has_grf_textures = value;
+        self.tooltip_container.has_grf_textures = value;
     }
 
     fn set_texture_sizes(&mut self, size_fn: &dyn Fn(&str) -> Option<(u32, u32)>) {
+        self.tooltip_container.set_texture_sizes(size_fn);
         if let Some(size) = size_fn(BG_TEX) {
             self.bg_size = (size.0 as f32, size.1 as f32);
         }
@@ -355,7 +397,9 @@ impl Window for HotkeyBarWindow {
     }
 
     fn grf_texture_paths() -> Vec<&'static str> {
-        vec![BG_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX, CAT_PAW_TEX]
+        let mut paths = vec![BG_TEX, CLOSE_OFF_TEX, CLOSE_ON_TEX, CAT_PAW_TEX];
+        paths.extend(DialogContainer::grf_texture_paths());
+        paths
     }
 }
 
@@ -617,6 +661,23 @@ impl InGameWindow for HotkeyBarWindow {
                     }
                 }
 
+                if resp.right_clicked() {
+                    match content {
+                        HotkeySlotContent::Skill { skill, .. } => {
+                            self.described_skill = match self.described_skill {
+                                Some((shown, _)) if shown == skill => None,
+                                _ => Some((skill, slot_index)),
+                            };
+                        }
+                        HotkeySlotContent::Item { item_id } => {
+                            if let Some(item) = character.inventory.find_by_item_id(item_id) {
+                                events.push(GameEvent::ShowItemInfo { index: item.index });
+                            }
+                        }
+                        HotkeySlotContent::Empty => {}
+                    }
+                }
+
                 if let Some((source_id, source_item_index)) = ui.drop_zone(cell_rect) {
                     self.handle_drop(
                         source_id,
@@ -673,6 +734,52 @@ impl InGameWindow for HotkeyBarWindow {
                         ui.tooltip(cell_x, cell_y - 4.0, &text);
                     }
                 }
+            }
+        }
+
+        if let Some((skill, slot_index)) = self.described_skill {
+            let icon_x = win.x
+                + SLOT_MARGIN * 2.0
+                + (slot_index % HOTKEY_COLS) as f32 * SLOT_W
+                + (SLOT_W - ICON_SIZE) / 2.0
+                - SLOT_MARGIN;
+            let icon_y = win.y + (slot_index / HOTKEY_COLS) as f32 * ROW_H + SLOT_PAD_Y;
+            let anchor_x = icon_x + ICON_SIZE / 2.0;
+            let anchor_y = icon_y + ICON_SIZE / 2.0;
+            let first_tooltip_call = ui.tooltip_draw_calls.len();
+            let tooltip_rect = if let Some(learned) = character.skills.get_skill(skill) {
+                Some(draw_skill_tooltip(
+                    ui,
+                    &self.tooltip_container,
+                    data,
+                    learned,
+                    anchor_x,
+                    anchor_y,
+                ))
+            } else {
+                self.companion_skills
+                    .iter()
+                    .find(|s| s.skill == skill)
+                    .map(|learned| {
+                        draw_companion_skill_tooltip(
+                            ui,
+                            &self.tooltip_container,
+                            data,
+                            learned,
+                            anchor_x,
+                            anchor_y,
+                        )
+                    })
+            };
+            let pinned_calls = ui.tooltip_draw_calls.split_off(first_tooltip_call);
+            ui.draw_calls.extend(pinned_calls);
+            match tooltip_rect {
+                Some(rect) => {
+                    if self.describe_close_clicked(ui, rect, has_grf, close_size) {
+                        self.described_skill = None;
+                    }
+                }
+                None => self.described_skill = None,
             }
         }
 
@@ -847,6 +954,60 @@ mod tests {
             &mut crate::BuildCtx::test(&mut character, &DataTable::default()),
         );
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn right_clicking_a_slot_toggles_the_skill_tooltip_or_asks_for_item_info() {
+        let mut bar = HotkeyBarWindow::new();
+        let mut character = Character::new();
+        character.inventory.add_item(potion(9, 3));
+        learn(&mut character, SkillEnum::MgFirebolt, 5, 12);
+        character.hotkeys.set_visible_rows(1);
+        character.hotkeys.set_slot(
+            0,
+            HotkeySlotContent::Skill {
+                skill: SkillEnum::MgFirebolt,
+                level: 0,
+            },
+        );
+        character
+            .hotkeys
+            .set_slot(1, HotkeySlotContent::Item { item_id: 501 });
+
+        let mut state = StateCache::new();
+        let mut frame = |right_click_col: Option<usize>, character: &mut Character| {
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.mouse_y = 590.0;
+            if let Some(col) = right_click_col {
+                ctx.mouse_x =
+                    (800.0 - WIN_W) / 2.0 + 2.0 * SLOT_MARGIN + col as f32 * SLOT_W + 10.0;
+                ctx.mouse_y = SLOT_PAD_Y + 10.0;
+                ctx.mouse_right_clicked = true;
+            }
+            let mut ui = test_frame(&mut ctx, &mut state);
+            let events = bar.build(
+                &mut ui,
+                &mut crate::BuildCtx::test(character, &DataTable::default()),
+            );
+            (
+                events,
+                ui.draw_calls.len(),
+                ui.tooltip_draw_calls.is_empty(),
+            )
+        };
+
+        let (_, closed_calls, _) = frame(None, &mut character);
+        assert!(frame(Some(0), &mut character).0.is_empty());
+        let (_, pinned_calls, no_overlay) = frame(None, &mut character);
+        assert!(pinned_calls > closed_calls);
+        assert!(no_overlay, "the pinned tooltip must stay under the cursor");
+        frame(Some(0), &mut character);
+        assert_eq!(frame(None, &mut character).1, closed_calls);
+
+        assert!(matches!(
+            frame(Some(1), &mut character).0.as_slice(),
+            [GameEvent::ShowItemInfo { index: 9 }]
+        ));
     }
 
     #[test]
