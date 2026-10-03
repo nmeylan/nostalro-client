@@ -827,8 +827,15 @@ impl App {
                         let Some(anim) = self.account_anims.get(&ch.gid) else {
                             continue;
                         };
-                        let batches =
-                            sprite.build_batches(anim, None, 0, view.anchor, 0.0, 1.0, [0.0, 0.0]);
+                        let batches = sprite.build_batches(
+                            anim,
+                            None,
+                            0,
+                            view.anchor,
+                            0.0,
+                            ragnarok_game::sprite_path::baby_body_scale(ch.class),
+                            [0.0, 0.0],
+                        );
                         for batch in batches {
                             let idx = inline_textures.len();
                             inline_textures.push(batch.texture);
