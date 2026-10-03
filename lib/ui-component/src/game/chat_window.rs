@@ -881,7 +881,13 @@ impl InGameWindow for ChatWindow {
             ui.bring_to_front(CHAT_WINDOW_ID);
         }
 
-        if ui.enter_pressed() && !self.active {
+        let owns_keyboard = matches!(
+            ui.keyboard_owner(),
+            None | Some(INPUT_ID) | Some(WHISPER_INPUT_ID)
+        );
+        let enter = ui.enter_pressed() && owns_keyboard;
+
+        if enter && !self.active {
             self.active = true;
             let forced = if ui.ctx.ctrl_pressed {
                 Some(SendChannel::Party)
@@ -902,7 +908,7 @@ impl InGameWindow for ChatWindow {
         }
 
         if self.active {
-            if ui.enter_pressed() {
+            if enter {
                 if !self.input.text.trim().is_empty() {
                     let message = self.input.text.clone();
                     if self.sent_history.last() != Some(&message) {
@@ -1110,7 +1116,7 @@ impl InGameWindow for ChatWindow {
                 self.focused_input = INPUT_ID;
                 ui.set_focus(INPUT_ID);
             }
-            if ui.ctx.key_tab {
+            if ui.ctx.key_tab && owns_keyboard {
                 self.focused_input = if self.focused_input == INPUT_ID {
                     WHISPER_INPUT_ID
                 } else {
@@ -2112,5 +2118,66 @@ mod tests {
             .build(&mut ctx, &mut state);
         chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
         assert_eq!(ui.focused(), Some(INPUT_ID));
+    }
+
+    #[test]
+    fn enter_and_tab_leave_another_windows_text_input_alone() {
+        const OTHER_INPUT_ID: WidgetId = WidgetId(9000);
+
+        fn frame(
+            chat: &mut ChatWindow,
+            state: &mut StateCache,
+            other: Option<&mut TextInput>,
+            enter: bool,
+            tab: bool,
+        ) -> Option<WidgetId> {
+            let mut character = Character::new();
+            let data = DataTable::new();
+            let mut ctx = UiContext::new(800.0, 600.0);
+            ctx.key_enter = enter;
+            ctx.key_tab = tab;
+            let mut ui = test_frame(&mut ctx, state);
+            chat.build(&mut ui, &mut crate::BuildCtx::test(&mut character, &data));
+            if let Some(input) = other {
+                ui.text_input(
+                    OTHER_INPUT_ID,
+                    Rect::new(300.0, 100.0, 120.0, 16.0),
+                    input,
+                    TextInputBg::Default,
+                );
+            }
+            ui.focused()
+        }
+
+        let mut chat = ChatWindow::new();
+        let mut other = TextInput::new(20, false);
+        let mut state = StateCache::new();
+
+        {
+            let mut ctx = UiContext::new(800.0, 600.0);
+            let mut ui = test_frame(&mut ctx, &mut state);
+            ui.set_focus(OTHER_INPUT_ID);
+        }
+        frame(&mut chat, &mut state, Some(&mut other), false, false);
+        let focus = frame(&mut chat, &mut state, Some(&mut other), true, false);
+        assert!(!chat.active);
+        assert_eq!(focus, Some(OTHER_INPUT_ID));
+
+        frame(&mut chat, &mut state, None, false, false);
+        let focus = frame(&mut chat, &mut state, None, true, false);
+        assert!(chat.active);
+        assert_eq!(focus, Some(INPUT_ID));
+
+        {
+            let mut ctx = UiContext::new(800.0, 600.0);
+            let mut ui = test_frame(&mut ctx, &mut state);
+            ui.set_focus(OTHER_INPUT_ID);
+        }
+        frame(&mut chat, &mut state, Some(&mut other), false, false);
+        let focus = frame(&mut chat, &mut state, Some(&mut other), false, true);
+        assert_eq!(focus, Some(OTHER_INPUT_ID));
+        let focus = frame(&mut chat, &mut state, Some(&mut other), true, false);
+        assert!(chat.active);
+        assert_eq!(focus, Some(OTHER_INPUT_ID));
     }
 }

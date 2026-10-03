@@ -34,6 +34,7 @@ pub struct UiFrame<'a> {
     modal_layers: Vec<WidgetId>,
     in_popup_layer: bool,
     keyboard_blocked: bool,
+    keyboard_owner: Option<WidgetId>,
 }
 
 #[derive(Default)]
@@ -110,6 +111,7 @@ const WINDOW_RECTS_STATE_ID: WidgetId = WidgetId(u32::MAX - 2);
 const FOCUS_STATE_ID: WidgetId = WidgetId(u32::MAX - 3);
 const POPUP_BLOCKER_STATE_ID: WidgetId = WidgetId(u32::MAX - 4);
 const WINDOW_DRAG_STATE_ID: WidgetId = WidgetId(u32::MAX - 5);
+const KEYBOARD_OWNER_STATE_ID: WidgetId = WidgetId(u32::MAX - 6);
 const DRAG_THRESHOLD: f32 = 5.0;
 const SELECTION_COLOR: [f32; 4] = [0.6, 0.75, 0.95, 1.0];
 
@@ -131,6 +133,9 @@ fn release_window_drag_when_mouse_is_up(state: &mut StateCache, mouse_down: bool
 
 #[derive(Default, Clone, Copy)]
 struct FocusState(Option<WidgetId>);
+
+#[derive(Default, Clone, Copy)]
+struct KeyboardOwner(Option<WidgetId>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DragCancelledInfo {
@@ -266,6 +271,10 @@ impl<'a> UiFrame<'a> {
         let focus =
             initial_focus.or_else(|| state.get::<FocusState>(FOCUS_STATE_ID).and_then(|f| f.0));
         release_window_drag_when_mouse_is_up(state, ctx.mouse_down);
+        let keyboard_owner = state
+            .get_or_default::<KeyboardOwner>(KEYBOARD_OWNER_STATE_ID)
+            .0
+            .take();
         Self {
             ctx,
             atlas,
@@ -285,7 +294,14 @@ impl<'a> UiFrame<'a> {
             modal_layers: Vec::new(),
             in_popup_layer: false,
             keyboard_blocked: false,
+            keyboard_owner,
         }
+    }
+
+    /// The text input that was drawn with focus last frame, i.e. the one typing
+    /// goes to. A focused button or window body never owns the keyboard.
+    pub fn keyboard_owner(&self) -> Option<WidgetId> {
+        self.keyboard_owner
     }
 
     /// Suppresses keyboard-driven window actions this frame (e.g. an open modal
@@ -767,6 +783,9 @@ impl<'a> UiFrame<'a> {
 
         if response.has_focus {
             state.process_keys(self.ctx);
+            self.state
+                .get_or_default::<KeyboardOwner>(KEYBOARD_OWNER_STATE_ID)
+                .0 = Some(id);
         }
 
         if response.clicked {
@@ -819,8 +838,13 @@ impl<'a> UiFrame<'a> {
         let text = state.display_text();
         let padding = 4.0;
         let available_w = rect.w - padding * 2.0;
-        let text_y = rect.y - 2.0 + self.atlas.line_height;
         let is_multiline = rect.h > 2.0 * self.atlas.line_height;
+        let text_y = if is_multiline {
+            rect.y - 2.0 + self.atlas.line_height
+        } else {
+            let cap_height = -self.atlas.glyph('H').offset[1];
+            rect.y + (rect.h + cap_height) / 2.0
+        };
 
         let cursor_text = &text[..state.display_cursor_offset()];
         let cursor_px = self.atlas.measure_text(cursor_text);
