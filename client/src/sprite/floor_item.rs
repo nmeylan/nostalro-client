@@ -33,17 +33,7 @@ impl App {
             .and_then(|t| t.get_resource_name_for(item_id, is_identified))
             .map(|s| s.to_string());
 
-        let cell_x = x as f32 + sub_x as f32 / 16.0;
-        let cell_y = y as f32 + sub_y as f32 / 16.0;
-        let ground_y = self
-            .game
-            .session
-            .gat
-            .as_ref()
-            .map(|gat| gat.get_height(cell_x + 0.5, cell_y + 0.5))
-            .unwrap_or(0.0);
-
-        let floor_item = ragnarok_game::floor_item::FloorItem {
+        let mut floor_item = ragnarok_game::floor_item::FloorItem {
             id,
             item_id,
             is_identified,
@@ -56,8 +46,16 @@ impl App {
             resource_name: resource_name.clone(),
             drop_time: elapsed,
             is_falling,
-            initial_y: ground_y,
+            initial_y: 0.0,
         };
+        let (cell_x, cell_y) = floor_item.world_position();
+        floor_item.initial_y = self
+            .game
+            .session
+            .gat
+            .as_ref()
+            .map(|gat| gat.get_height(cell_x + 0.5, cell_y + 0.5))
+            .unwrap_or(0.0);
         self.game.world.floor_items.insert(id, floor_item);
 
         if self.game.assets.shadow_sprite.is_none()

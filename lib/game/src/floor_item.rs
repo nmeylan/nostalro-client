@@ -30,10 +30,12 @@ const MSI_ITEM_COUNT: u16 = 183;
 const TICK_MS: f32 = 24.0;
 
 impl FloorItem {
+    /// Sub-cell offsets count from the cell corner, while `cell_world_pos`
+    /// adds half a cell for actors standing at the centre.
     pub fn world_position(&self) -> (f32, f32) {
         (
-            self.x as f32 + self.sub_x as f32 / 16.0,
-            self.y as f32 + self.sub_y as f32 / 16.0,
+            self.x as f32 + self.sub_x as f32 / 16.0 - 0.5,
+            self.y as f32 + self.sub_y as f32 / 16.0 - 0.5,
         )
     }
 
@@ -85,8 +87,8 @@ mod tests {
             initial_y: 0.0,
         };
         let (wx, wy) = item.world_position();
-        assert!((wx - 100.375).abs() < 0.001);
-        assert!((wy - 200.1875).abs() < 0.001);
+        assert!((wx - 99.875).abs() < 0.001);
+        assert!((wy - 199.6875).abs() < 0.001);
     }
 
     fn dropped(drop_time: f32, ground_y: f32) -> FloorItem {
@@ -159,7 +161,7 @@ mod tests {
             initial_y: 0.0,
         };
         let (wx, wy) = item.world_position();
-        assert!((wx - 50.0).abs() < 0.001);
-        assert!((wy - 75.0).abs() < 0.001);
+        assert!((wx - 49.5).abs() < 0.001);
+        assert!((wy - 74.5).abs() < 0.001);
     }
 }
