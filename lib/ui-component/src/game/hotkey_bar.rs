@@ -8,11 +8,12 @@ use crate::helper::window_chrome::{draw_sys_button, text_color};
 use crate::{BuildCtx, InGameWindow, Window};
 use ragnarok_game::character::Character;
 use ragnarok_game::data_table::skill_name_table::format_skill_display_name;
+use ragnarok_game::data_table::skill_use_level_table::SkillUseLevelTable;
 use ragnarok_game::display_name::format_equipment_display_name;
 use ragnarok_game::event::{GameEvent, SkillInfo};
 use ragnarok_game::hotkey::{HOTKEY_COLS, HOTKEY_ROWS, HotkeySlotContent};
 use ragnarok_game::item::InventoryTab;
-use ragnarok_game::skill::SkillEnum;
+use ragnarok_game::skill::{SkillEnum, skill_icon_path};
 use ragnarok_game::skill_action::{SkillCaster, skill_caster};
 use ragnarok_ui::context::PhysicalKeyCode as KeyCode;
 use ragnarok_ui::draw::{self, DrawCall, TextOutline, TextureRef};
@@ -99,6 +100,11 @@ fn slot_key(slot: usize) -> Option<KeyCode> {
     row.get(slot % HOTKEY_COLS).copied()
 }
 
+/// Passive skills cost no SP, so they never fit.
+fn fits_hotkey_bar(level: i16, sp_cost: i16) -> bool {
+    level > 0 && sp_cost > 0
+}
+
 /// The key is shown for rows 2-4 only in battle mode: outside it, they trigger
 /// nothing.
 fn slot_tooltip(key: Option<String>, body: Option<String>) -> Option<String> {
@@ -144,21 +150,30 @@ impl HotkeyBarWindow {
     fn slot_icon_path(&self, content: HotkeySlotContent, character: &Character) -> Option<String> {
         match content {
             HotkeySlotContent::Empty => None,
-            HotkeySlotContent::Skill { skill, .. } => character
-                .skills
-                .get_skill(skill)
-                .map(|s| s.icon_path())
-                .or_else(|| {
-                    self.companion_skills
-                        .iter()
-                        .find(|s| s.skill == skill)
-                        .map(|s| s.icon_path())
-                }),
+            HotkeySlotContent::Skill { skill, .. } => self
+                .learned_skill(skill, character)
+                .map(|_| skill_icon_path(skill)),
             HotkeySlotContent::Item { item_id } => character
                 .inventory
                 .find_by_item_id(item_id)
                 .and_then(|item| item.icon_path()),
         }
+    }
+
+    /// Learned level and SP cost of a player or companion skill; `None` when it
+    /// cannot sit on the bar.
+    fn learned_skill(&self, skill: SkillEnum, character: &Character) -> Option<(i16, i16)> {
+        character
+            .skills
+            .get_skill(skill)
+            .map(|s| (s.level, s.sp_cost))
+            .or_else(|| {
+                self.companion_skills
+                    .iter()
+                    .find(|s| s.skill == skill)
+                    .map(|s| (s.level, s.sp_cost))
+            })
+            .filter(|&(level, sp_cost)| fits_hotkey_bar(level, sp_cost))
     }
 
     fn slot_count_text(&self, content: HotkeySlotContent, character: &Character) -> Option<String> {
@@ -180,16 +195,28 @@ impl HotkeyBarWindow {
         }
     }
 
-    fn execute_slot(&self, index: usize, character: &Character, events: &mut Vec<GameEvent>) {
+    fn execute_slot(
+        &self,
+        index: usize,
+        character: &Character,
+        use_levels: Option<&SkillUseLevelTable>,
+        events: &mut Vec<GameEvent>,
+    ) {
         let content = character.hotkeys.get_slot(index);
         match content {
             HotkeySlotContent::Empty => {}
             HotkeySlotContent::Skill { skill, level } => {
+                let Some((learned, _)) = self.learned_skill(skill, character) else {
+                    return;
+                };
+                let level = if use_levels.is_some_and(|t| t.supports_level_select(skill)) {
+                    level
+                } else {
+                    learned
+                };
                 // Always request the skill, even on cooldown: targeting skills
                 // still enter cursor mode (the skill-level ring), and the cast
-                // itself is gated when the packet would be sent. The caster is
-                // decided from the skill alone, so a hotkey restored at login
-                // resolves correctly before any companion exists.
+                // itself is gated when the packet would be sent.
                 match skill_caster(skill) {
                     SkillCaster::Mercenary => events.push(GameEvent::RequestCompanionUseSkill {
                         is_mercenary: true,
@@ -225,8 +252,16 @@ impl HotkeyBarWindow {
         item_index: usize,
         slot_index: usize,
         character: &mut Character,
+        use_levels: Option<&SkillUseLevelTable>,
         events: &mut Vec<GameEvent>,
     ) {
+        let saved_level = |skill: SkillEnum, level: i16| {
+            if use_levels.is_some_and(|t| t.supports_level_select(skill)) {
+                level
+            } else {
+                0
+            }
+        };
         if source_id == INV_WINDOW_ID || source_id == EQ_WINDOW_ID {
             if let Some(item) = character.inventory.get_item(item_index as u16) {
                 if item.tab() == InventoryTab::Etc && !item.is_ammunition() {
@@ -244,8 +279,12 @@ impl HotkeyBarWindow {
             }
         } else if source_id == SKILL_WINDOW_ID {
             let skill = SkillEnum::from_id(item_index as u32);
-            if let Some(learned) = character.skills.get_skill(skill) {
-                let level = learned.use_level();
+            if let Some(learned) = character
+                .skills
+                .get_skill(skill)
+                .filter(|s| fits_hotkey_bar(s.level, s.sp_cost))
+            {
+                let level = saved_level(skill, learned.use_level());
                 character
                     .hotkeys
                     .set_slot(slot_index, HotkeySlotContent::Skill { skill, level });
@@ -258,8 +297,12 @@ impl HotkeyBarWindow {
             }
         } else if source_id == MERCENARY_SKILL_WINDOW_ID || source_id == HOMUN_SKILL_WINDOW_ID {
             let skill = SkillEnum::from_id(item_index as u32);
-            if let Some(known) = self.companion_skills.iter().find(|s| s.skill == skill) {
-                let level = known.level;
+            if let Some(known) = self
+                .companion_skills
+                .iter()
+                .find(|s| s.skill == skill && fits_hotkey_bar(s.level, s.sp_cost))
+            {
+                let level = saved_level(skill, known.level);
                 character
                     .hotkeys
                     .set_slot(slot_index, HotkeySlotContent::Skill { skill, level });
@@ -557,7 +600,12 @@ impl InGameWindow for HotkeyBarWindow {
                     }
 
                     if resp.double_clicked() {
-                        self.execute_slot(slot_index, character, &mut events);
+                        self.execute_slot(
+                            slot_index,
+                            character,
+                            data.skill_use_level.as_ref(),
+                            &mut events,
+                        );
                     } else if resp.clicked() {
                         ui.drag_source(
                             HOTKEY_BAR_WINDOW_ID,
@@ -575,6 +623,7 @@ impl InGameWindow for HotkeyBarWindow {
                         source_item_index,
                         slot_index,
                         character,
+                        data.skill_use_level.as_ref(),
                         &mut events,
                     );
                 }
@@ -582,12 +631,19 @@ impl InGameWindow for HotkeyBarWindow {
                 if resp.hovered() {
                     let tooltip = match content {
                         HotkeySlotContent::Skill { skill, level } => {
-                            (character.skills.get_skill(skill).is_some()
-                                || self.companion_skills.iter().any(|s| s.skill == skill))
-                            .then(|| {
+                            self.learned_skill(skill, character).map(|(_, sp_cost)| {
                                 let display =
                                     format_skill_display_name(&skill, data.skill_name.as_ref());
-                                format!("{display} Lv.{level}")
+                                if level > 0 {
+                                    let sp = data
+                                        .skill_use_level
+                                        .as_ref()
+                                        .and_then(|t| t.sp_at_level(skill, level))
+                                        .unwrap_or(0);
+                                    format!("{display} Use Lv {level} (Sp : {sp})")
+                                } else {
+                                    format!("{display} (Sp : {sp_cost})")
+                                }
                             })
                         }
                         HotkeySlotContent::Item { item_id } => {
@@ -633,7 +689,7 @@ impl InGameWindow for HotkeyBarWindow {
         ];
         for (i, &pressed) in f_keys.iter().enumerate() {
             if pressed {
-                self.execute_slot(i, character, &mut events);
+                self.execute_slot(i, character, data.skill_use_level.as_ref(), &mut events);
             }
         }
 
@@ -642,16 +698,31 @@ impl InGameWindow for HotkeyBarWindow {
             for &code in &ui.ctx.pressed_codes {
                 if let Some(col) = ROW2_KEYS.iter().position(|&c| c == code) {
                     if visible_rows > 1 {
-                        self.execute_slot(HOTKEY_COLS + col, character, &mut events);
+                        self.execute_slot(
+                            HOTKEY_COLS + col,
+                            character,
+                            data.skill_use_level.as_ref(),
+                            &mut events,
+                        );
                     }
                 } else if let Some(col) = ROW3_KEYS.iter().position(|&c| c == code) {
                     if visible_rows > 2 {
-                        self.execute_slot(HOTKEY_COLS * 2 + col, character, &mut events);
+                        self.execute_slot(
+                            HOTKEY_COLS * 2 + col,
+                            character,
+                            data.skill_use_level.as_ref(),
+                            &mut events,
+                        );
                     }
                 } else if let Some(col) = ROW4_KEYS.iter().position(|&c| c == code)
                     && visible_rows > 3
                 {
-                    self.execute_slot(HOTKEY_COLS * 3 + col, character, &mut events);
+                    self.execute_slot(
+                        HOTKEY_COLS * 3 + col,
+                        character,
+                        data.skill_use_level.as_ref(),
+                        &mut events,
+                    );
                 }
             }
         }
@@ -699,6 +770,18 @@ mod tests {
             upgradable: false,
             skill_target_type: SkillTargetType::Target,
         }
+    }
+
+    fn learn(character: &mut Character, skill: SkillEnum, level: i16, sp_cost: i16) {
+        character.skills.add_skill(SkillData {
+            skill,
+            level,
+            selected_level: level,
+            sp_cost,
+            attack_range: 9,
+            upgradable: false,
+            skill_target_type: SkillTargetType::Target,
+        });
     }
 
     #[test]
@@ -778,6 +861,7 @@ mod tests {
             SkillEnum::MsBash.id() as usize,
             3,
             &mut character,
+            None,
             &mut events,
         );
 
@@ -785,7 +869,7 @@ mod tests {
             character.hotkeys.get_slot(3),
             HotkeySlotContent::Skill {
                 skill: SkillEnum::MsBash,
-                level: 5,
+                level: 0,
             }
         );
         assert!(matches!(
@@ -794,17 +878,117 @@ mod tests {
                 index: 3,
                 is_skill: true,
                 id: 8201,
-                count: 5,
+                count: 0,
             }]
         ));
     }
 
     #[test]
-    fn executing_a_companion_skill_hotkey_commands_the_companion() {
-        // Empty companion list: the caster is resolved from the skill id alone,
-        // as it must be for a hotkey restored at login before a companion exists.
+    fn a_fixed_level_skill_keeps_its_saved_level_but_casts_at_the_learned_one() {
+        let bar = HotkeyBarWindow::new();
+        let use_levels = SkillUseLevelTable::from_entries(std::collections::HashMap::from([(
+            "SM_BASH".to_string(),
+            vec![8; 10],
+        )]));
+        let mut character = Character::new();
+        learn(&mut character, SkillEnum::AmAcidterror, 5, 15);
+        learn(&mut character, SkillEnum::SmBash, 10, 8);
+        character.hotkeys.set_from_server(&[
+            (1, SkillEnum::AmAcidterror.id(), 1),
+            (1, SkillEnum::SmBash.id(), 3),
+        ]);
+
+        assert_eq!(
+            bar.slot_count_text(character.hotkeys.get_slot(0), &character),
+            Some("1".to_string())
+        );
+
+        let mut events = Vec::new();
+        bar.execute_slot(0, &character, Some(&use_levels), &mut events);
+        bar.execute_slot(1, &character, Some(&use_levels), &mut events);
+        assert!(matches!(
+            events.as_slice(),
+            [
+                GameEvent::RequestUseSkill {
+                    skill: SkillEnum::AmAcidterror,
+                    level: 5,
+                },
+                GameEvent::RequestUseSkill {
+                    skill: SkillEnum::SmBash,
+                    level: 3,
+                },
+            ]
+        ));
+
+        let mut events = Vec::new();
+        bar.handle_drop(
+            SKILL_WINDOW_ID,
+            SkillEnum::AmAcidterror.id() as usize,
+            2,
+            &mut character,
+            Some(&use_levels),
+            &mut events,
+        );
+        assert_eq!(
+            bar.slot_count_text(character.hotkeys.get_slot(2), &character),
+            None
+        );
+        assert!(matches!(
+            events.as_slice(),
+            [GameEvent::RequestHotkeyChange {
+                index: 2,
+                count: 0,
+                ..
+            }]
+        ));
+    }
+
+    #[test]
+    fn an_unlearned_or_passive_skill_stays_saved_but_off_the_bar() {
         let bar = HotkeyBarWindow::new();
         let mut character = Character::new();
+        learn(&mut character, SkillEnum::AmAcidterror, 0, 0);
+        learn(&mut character, SkillEnum::SmSword, 10, 0);
+        character
+            .hotkeys
+            .set_from_server(&[(1, SkillEnum::AmAcidterror.id(), 1)]);
+
+        assert_eq!(
+            bar.slot_icon_path(character.hotkeys.get_slot(0), &character),
+            None
+        );
+        let mut events = Vec::new();
+        bar.execute_slot(0, &character, None, &mut events);
+        assert!(events.is_empty());
+
+        bar.handle_drop(
+            SKILL_WINDOW_ID,
+            SkillEnum::SmSword.id() as usize,
+            1,
+            &mut character,
+            None,
+            &mut events,
+        );
+        assert!(events.is_empty());
+        assert_eq!(character.hotkeys.get_slot(1), HotkeySlotContent::Empty);
+
+        learn(&mut character, SkillEnum::AmAcidterror, 1, 15);
+        assert!(
+            bar.slot_icon_path(character.hotkeys.get_slot(0), &character)
+                .is_some()
+        );
+        assert_eq!(
+            bar.slot_count_text(character.hotkeys.get_slot(0), &character),
+            Some("1".to_string())
+        );
+    }
+
+    #[test]
+    fn executing_a_companion_skill_hotkey_commands_the_companion() {
+        let mut bar = HotkeyBarWindow::new();
+        bar.companion_skills = vec![merc_skill(SkillEnum::MsBash, 5)];
+        let mut character = Character::new();
+        learn(&mut character, SkillEnum::SmBash, 10, 8);
         character.hotkeys.set_slot(
             0,
             HotkeySlotContent::Skill {
@@ -821,7 +1005,7 @@ mod tests {
         );
 
         let mut events = Vec::new();
-        bar.execute_slot(0, &character, &mut events);
+        bar.execute_slot(0, &character, None, &mut events);
         assert!(matches!(
             events.as_slice(),
             [GameEvent::RequestCompanionUseSkill {
@@ -833,7 +1017,7 @@ mod tests {
 
         // A player skill on a hotkey still casts from the main character.
         let mut events = Vec::new();
-        bar.execute_slot(1, &character, &mut events);
+        bar.execute_slot(1, &character, None, &mut events);
         assert!(matches!(
             events.as_slice(),
             [GameEvent::RequestUseSkill {
@@ -850,7 +1034,7 @@ mod tests {
         character.inventory.add_item(potion(12, 25));
 
         let mut events = Vec::new();
-        bar.handle_drop(INV_WINDOW_ID, 12, 4, &mut character, &mut events);
+        bar.handle_drop(INV_WINDOW_ID, 12, 4, &mut character, None, &mut events);
         assert!(matches!(
             events.as_slice(),
             [GameEvent::RequestHotkeyChange {
@@ -869,7 +1053,7 @@ mod tests {
             .set_from_server(&[(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), persisted]);
 
         let mut events = Vec::new();
-        bar.execute_slot(4, &relogged, &mut events);
+        bar.execute_slot(4, &relogged, None, &mut events);
         assert!(matches!(
             events.as_slice(),
             [GameEvent::RequestUseItem { index: 3 }]
