@@ -11,8 +11,7 @@
 //!
 //! Each streak is a real world-space quad (not a
 //! camera-facing billboard), so we build it with `WorldQuad` — the burst
-//! then reads correctly from any camera. The base distances are in units
-//! ~6× the on-screen silhouette; [`WORLD_SCALE`] maps them to the gif.
+//! then reads correctly from any camera.
 //!
 //! `EF_TEIHIT2` / `EF_BACKSTAP` use the *different* directional
 //! spray and have no reference gif in the library; they are deferred.
@@ -22,15 +21,12 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-/// Unit → world-unit factor. Unlike some effects, the streak's raw
-/// distance (grows to ~140) is already near world scale: the burst fills
-/// almost the whole screen in the original, so the streaks travel out tens of
-/// world units. Tuned so the bright burst spans most of the camera frame.
+/// Unit → world-unit factor for the directional spray darts.
 const WORLD_SCALE: f32 = 0.6;
 
 /// Burst centre sits above the actor's feet — lifted 9 (native
 /// RO coordinates use `-Y = up`).
-const CENTER_RISE: f32 = 9.0 * WORLD_SCALE;
+const CENTER_RISE: f32 = 9.0;
 
 /// Alpha ramps in units of 15/255 over frames 11-20, so it
 /// peaks near `150/255`.
@@ -40,8 +36,8 @@ const ALPHA_FALL: f32 = 5.0 / 255.0;
 #[derive(Clone, Copy)]
 pub struct TeihitParams {
     pub texture: &'static str,
-    /// RGB tint applied to the (greyscale) streak texture under additive blend.
     pub tint: [f32; 3],
+    pub no_depth: bool,
     /// Emitter count; streaks = `prim_count * 4`.
     pub prim_count: usize,
     /// Distance gained per frame once the streak is live.
@@ -57,7 +53,8 @@ pub struct TeihitParams {
 
 pub const TEIHIT1: TeihitParams = TeihitParams {
     texture: "alpha_center.tga",
-    tint: [1.0, 0.85, 0.35], // yellow
+    tint: [225.0 / 255.0, 225.0 / 255.0, 80.0 / 255.0],
+    no_depth: false,
     prim_count: 20,
     distance_speed: 3.0,
     half_len: 0.7 * 24.0,
@@ -68,6 +65,7 @@ pub const TEIHIT1: TeihitParams = TeihitParams {
 pub const TEIHIT1X: TeihitParams = TeihitParams {
     texture: "lens1.tga",
     tint: [1.0, 1.0, 1.0], // neutral
+    no_depth: false,
     prim_count: 24,
     distance_speed: 3.0,
     half_len: 0.7 * 24.0,
@@ -77,7 +75,10 @@ pub const TEIHIT1X: TeihitParams = TeihitParams {
 };
 pub const TEIHIT3: TeihitParams = TeihitParams {
     texture: "lens2.tga",
-    tint: [0.55, 0.75, 1.0], // a bit blue
+    tint: [55.0 / 255.0, 55.0 / 255.0, 1.0],
+    // Older clients: lavender, alpha-blended, depth-tested.
+    // tint: [200.0 / 255.0, 200.0 / 255.0, 1.0],
+    no_depth: true,
     prim_count: 20,
     distance_speed: 2.0,
     half_len: 1.0 * 16.0,
@@ -206,9 +207,9 @@ impl TeihitEffect {
     /// World-space corners of one streak: a local
     /// `(Rx along axis, Ry across)` quad rotated by `angle_xy` then `angle_xz`.
     fn corners(&self, s: &Streak) -> [[f32; 3]; 4] {
-        let d = s.distance * WORLD_SCALE;
-        let l = self.params.half_len * WORLD_SCALE;
-        let w = self.params.width * WORLD_SCALE;
+        let d = s.distance;
+        let l = self.params.half_len;
+        let w = self.params.width;
         let (sin_xy, cos_xy) = s.angle_xy.sin_cos();
         let (sin_xz, cos_xz) = s.angle_xz.sin_cos();
         let place = |rx: f32, ry: f32| {
@@ -256,11 +257,11 @@ impl Effect for TeihitEffect {
             let [r, g, b] = self.params.tint;
             out.push(EffectPrimitiveDraw::WorldQuad {
                 corners: self.corners(s),
-                uv: [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+                uv: [[1.0, 1.0], [1.0, 0.0], [0.0, 0.0], [0.0, 1.0]],
                 texture: self.params.texture,
                 color: [r, g, b, s.alpha],
                 blend: BlendKind::Additive,
-                no_depth: false,
+                no_depth: self.params.no_depth,
             });
         }
     }
