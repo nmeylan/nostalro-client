@@ -78,6 +78,7 @@ pub mod glasswall;
 pub mod glasswall2;
 pub mod grandcross;
 pub mod gravitation;
+pub mod grimtooth;
 pub mod grimtooth_atk;
 pub mod ground_sample;
 pub mod guard;

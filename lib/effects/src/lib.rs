@@ -169,6 +169,7 @@ pub fn effect_texture_paths() -> Vec<String> {
         effects::bottom_box::TEXTURES,
         effects::flowercast::TEXTURES,
         effects::fireivy::TEXTURES,
+        effects::grimtooth::TEXTURES,
         effects::grimtooth_atk::TEXTURES,
         effects::icewall::TEXTURES,
         effects::party::TEXTURES,

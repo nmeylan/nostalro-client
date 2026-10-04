@@ -519,7 +519,7 @@ impl App {
     }
 
     fn spawn_hit_effect(&mut self, entity_id: u32, hit: &ScheduledHit) {
-        if hit.damage <= 0 {
+        if hit.damage <= 0 || !hit.hit_effect {
             return;
         }
         let skill = hit.skill;

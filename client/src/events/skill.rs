@@ -113,6 +113,15 @@ impl App {
             action,
             ActionType::AttackCritical | ActionType::AttackMultipleCritical
         );
+        let splash_victim = matches!(action, ActionType::Splash)
+            && self.game.world.entities.get(target_gid).is_some()
+            && !matches!(
+                skill,
+                SkillEnum::MgNapalmbeat
+                    | SkillEnum::AcShower
+                    | SkillEnum::MoCombofinish
+                    | SkillEnum::TkStormkick
+            );
         tracing::info!(
             "SkillDamage: skill={skill:?}, src_gid={src_gid}, count={count}, action={action:?}, effective_count={effective_count}"
         );
@@ -242,6 +251,7 @@ impl App {
                     is_critical,
                     hit_index: i,
                     attacked_mt_secs: attacked_mt as f32 / 1000.0,
+                    hit_effect: !splash_victim,
                 });
             }
         }
@@ -250,7 +260,16 @@ impl App {
         // `ZC_USESKILL_ACK` for every skill use (even instant ones), so it
         // already fired from `spawn_skill_begin_cast` at cast start. Firing it
         // again at the damage moment would double the cast circle.
-        self.spawn_skill_attack_effect(skill, src_gid, target_gid, effective_count, level, damage);
+        if !splash_victim {
+            self.spawn_skill_attack_effect(
+                skill,
+                src_gid,
+                target_gid,
+                effective_count,
+                level,
+                damage,
+            );
+        }
 
         // The hit spark is NOT spawned here: it must land with the damage, one
         // per hit, at each scheduled hit's fire time (a ranged skill's spark

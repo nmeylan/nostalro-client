@@ -21,6 +21,7 @@ pub struct ScheduledHit {
     pub is_critical: bool,
     pub hit_index: u16,
     pub attacked_mt_secs: f32,
+    pub hit_effect: bool,
 }
 
 impl ScheduledHit {
@@ -35,6 +36,7 @@ impl ScheduledHit {
             is_critical,
             hit_index: 0,
             attacked_mt_secs: 0.288,
+            hit_effect: true,
         }
     }
 
@@ -55,6 +57,7 @@ impl ScheduledHit {
             is_critical: false,
             hit_index,
             attacked_mt_secs: 0.288,
+            hit_effect: true,
         }
     }
 }
@@ -107,6 +110,7 @@ impl Swing {
             is_critical: self.is_critical,
             hit_index,
             attacked_mt_secs: self.attacked_mt_secs,
+            hit_effect: true,
         };
 
         let mut hits: Vec<ScheduledHit> = (0..count)
@@ -239,6 +243,7 @@ mod tests {
             is_critical: false,
             hit_index: 0,
             attacked_mt_secs: 0.288,
+            hit_effect: true,
         });
         queue.push(ScheduledHit {
             message: DamageMessage::Attacked,
@@ -250,6 +255,7 @@ mod tests {
             is_critical: false,
             hit_index: 0,
             attacked_mt_secs: 0.288,
+            hit_effect: true,
         });
         queue.push(ScheduledHit {
             message: DamageMessage::Attacked,
@@ -261,6 +267,7 @@ mod tests {
             is_critical: false,
             hit_index: 0,
             attacked_mt_secs: 0.288,
+            hit_effect: true,
         });
 
         let ready = queue.drain_ready(1.0);
@@ -293,6 +300,7 @@ mod tests {
                 is_critical: false,
                 hit_index: i,
                 attacked_mt_secs: 0.288,
+                hit_effect: true,
             });
         }
 

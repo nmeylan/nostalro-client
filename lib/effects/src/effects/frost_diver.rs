@@ -48,19 +48,6 @@ pub const FROSTDIVER: FrostDiverParams = FrostDiverParams {
     spawn_radius_range: (3.0, 8.0),
 };
 
-pub const GRIMTOOTH: FrostDiverParams = FrostDiverParams {
-    texture: STONE_TEXTURE,
-    blend: BlendKind::Alpha,
-    spike_count_range: (3, 6),
-    burst_over_frames: 18.0,
-    trail_cadence_frames: 3.0,
-    trail_initial_offset: 2.0,
-    spike_duration_frames: 40.0,
-    base_half_width_range: (0.18, 0.3),
-    height_range: (2.5, 4.0),
-    spawn_radius_range: (2.0, 5.0),
-};
-
 const SPIKE_TILT_MIN_DEG: f32 = 80.0;
 const SPIKE_TILT_MAX_DEG: f32 = 100.0;
 const SPIKE_SPEED_PER_FRAME: f32 = 0.18;

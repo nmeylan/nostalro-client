@@ -44,6 +44,19 @@ pub fn rise_step(base: &mut [f32; 3], velocity: [f32; 3], age: f32, dt: f32, spe
     base[2] += velocity[2] * effective_dt;
 }
 
+/// Distance travelled along the apex after `age_frames` ticks of
+/// `speed += accel; pos += speed`. The tick at `last_moving_frame` still moves,
+/// so the spike freezes after `last_moving_frame + 1` steps.
+pub fn speed_limited_travel(
+    age_frames: f32,
+    speed: f32,
+    accel: f32,
+    last_moving_frame: f32,
+) -> f32 {
+    let steps = age_frames.clamp(0.0, last_moving_frame + 1.0);
+    steps * speed + accel * steps * (steps + 1.0) / 2.0
+}
+
 /// Damped-spring height envelope for a spike that erupts, overshoots, and
 /// vibrates down to its rest height — the central
 /// spike shoots up, then at a change point

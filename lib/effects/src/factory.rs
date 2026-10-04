@@ -788,11 +788,7 @@ pub fn make_effect(
         }
         EffectId::Grimtooth => {
             let (from, to) = anchor.trail();
-            Box::new(effects::frost_diver::FrostDiverEffect::new(
-                from,
-                to,
-                effects::frost_diver::GRIMTOOTH,
-            ))
+            Box::new(effects::grimtooth::GrimToothEffect::new(from, to))
         }
         EffectId::Grimtoothatk => Box::new(effects::grimtooth_atk::GrimToothAtkEffect::new(
             anchor.point(),
