@@ -5,7 +5,7 @@ use crate::effect_trait::{Effect, EffectRenderCtx, EffectUpdateCtx};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
-const WORLD_SCALE: f32 = 0.2;
+const WORLD_SCALE: f32 = 1.0;
 
 const INITIAL_DISTANCE: f32 = 12.0;
 
@@ -41,7 +41,6 @@ pub struct RgCoinParams {
     pub center_lift: f32,
     pub delay_base: u32,
     pub alpha_max_255: f32,
-    pub str_overlay: Option<&'static str>,
 }
 
 impl RgCoinParams {
@@ -82,10 +81,9 @@ pub const RG_COIN: RgCoinParams = RgCoinParams {
     growth: 1.5,
     spin_deg_per_frame: 5.0,
     style: CoinStyle::FlipY,
-    center_lift: 12.0,
+    center_lift: 0.0,
     delay_base: 18,
     alpha_max_255: 250.0,
-    str_overlay: Some("steal_coin"),
 };
 
 pub const RG_COIN2: RgCoinParams = RgCoinParams {
@@ -108,7 +106,6 @@ pub const RG_COIN2: RgCoinParams = RgCoinParams {
     center_lift: 12.0,
     delay_base: 18,
     alpha_max_255: 250.0,
-    str_overlay: None,
 };
 
 pub const RG_COIN3: RgCoinParams = RgCoinParams {
@@ -141,7 +138,6 @@ pub const RG_COIN3: RgCoinParams = RgCoinParams {
     center_lift: 12.0,
     delay_base: 18,
     alpha_max_255: 250.0,
-    str_overlay: None,
 };
 
 pub const INTIMIDATE: RgCoinParams = RgCoinParams {
@@ -157,7 +153,6 @@ pub const INTIMIDATE: RgCoinParams = RgCoinParams {
     center_lift: 9.0,
     delay_base: 70,
     alpha_max_255: 150.0,
-    str_overlay: None,
 };
 
 fn lcg_next(state: &mut u32) -> u32 {
@@ -298,10 +293,6 @@ impl Effect for RgCoinEffect {
             }
         }
     }
-
-    fn str_overlay(&self) -> Option<&'static str> {
-        self.params.str_overlay
-    }
 }
 
 #[cfg(test)]
@@ -363,13 +354,7 @@ mod tests {
 
     #[test]
     fn steal_coin_emits_flipping_world_quads_after_their_delay() {
-        let e = RgCoinEffect::new([0.0; 3], RG_COIN);
-        assert_eq!(
-            e.str_overlay(),
-            Some("steal_coin"),
-            "money-bag STR plays alongside"
-        );
-        let mut e = e;
+        let mut e = RgCoinEffect::new([0.0; 3], RG_COIN);
         step(&mut e, 1);
         assert!(quads(&e).is_empty(), "coins wait out their ejection delay");
         step(&mut e, RG_COIN.delay_base + DELAY_RANGE + 5);
