@@ -2,7 +2,7 @@
 
 use crate::draw::{EffectDrawList, EffectStatus};
 use crate::effect_trait::{
-    BodyCopy, BodyVertical, Effect, EffectRenderCtx, EffectUpdateCtx, WeaponLight,
+    BodyCopy, BodyGlow, BodyVertical, Effect, EffectRenderCtx, EffectUpdateCtx, WeaponLight,
 };
 
 const FPS: f32 = 60.0;
@@ -21,7 +21,6 @@ struct Ripple {
 struct DoublePulse {
     base_px: f32,
     amp_px: f32,
-    period_frames: f32,
     tint: [u8; 3],
 }
 
@@ -97,7 +96,6 @@ pub const ASSUMPTIO: Params = Params {
     pulse: Some(DoublePulse {
         base_px: 5.0,
         amp_px: 1.5,
-        period_frames: 90.0,
         tint: [255, 255, 255],
     }),
     weapon_light: WeaponLight::None,
@@ -229,6 +227,7 @@ impl Effect for MultiBodyEffect {
                 additive: self.params.additive,
                 behind: self.params.behind,
                 body_layers_only: false,
+                glow: None,
             });
         }
         (!copies.is_empty()).then_some(copies)
@@ -249,23 +248,26 @@ impl MultiBodyEffect {
                 additive: true,
                 behind: false,
                 body_layers_only: false,
+                glow: None,
             })
             .collect()
     }
 
     fn pulse_copy(&self, pulse: DoublePulse) -> BodyCopy {
-        let phase = self.age_frames % pulse.period_frames;
-        let margin = pulse.base_px
-            + pulse.amp_px * (phase / pulse.period_frames * std::f32::consts::PI).sin();
         BodyCopy {
             offset_px: [0.0, 0.0],
-            margin_px: margin,
+            margin_px: 0.0,
             scale: [1.0, 1.0],
             tint: pulse.tint,
             alpha: 1.0,
             additive: true,
             behind: true,
             body_layers_only: true,
+            glow: Some(BodyGlow {
+                age_frames: self.age_frames,
+                base_px: pulse.base_px,
+                amp_px: pulse.amp_px,
+            }),
         }
     }
 
@@ -288,6 +290,7 @@ impl MultiBodyEffect {
                     additive: false,
                     behind: true,
                     body_layers_only: false,
+                    glow: None,
                 })
             })
             .collect()
@@ -330,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn assumptio_is_one_glow_behind_whose_margin_pulses_cyclically() {
+    fn assumptio_glow_pulses_faster_the_more_body_layers_are_drawn() {
         let mut assumptio = MultiBodyEffect::new(ASSUMPTIO);
         let a = assumptio.body_copies().expect("halo");
         assert_eq!(a.len(), 1);
@@ -338,16 +341,27 @@ mod tests {
             a[0].additive && a[0].behind && a[0].scale == [1.0, 1.0] && a[0].body_layers_only,
             "additive margin glow behind, sparing the weapon"
         );
-        assert!((a[0].margin_px - 5.0).abs() < 1e-4, "5px at the trough");
+        let glow = |e: &MultiBodyEffect| e.body_copies().unwrap()[0].glow.expect("glow");
+        assert!(
+            (glow(&assumptio).margin_px(2) - 5.0).abs() < 1e-4,
+            "5px at the trough"
+        );
 
         step(&mut assumptio, 45.0);
-        let peak = assumptio.body_copies().unwrap()[0].margin_px;
-        assert!((peak - 6.5).abs() < 1e-3, "6.5px at the crest");
-        step(&mut assumptio, 45.0);
-        let back = assumptio.body_copies().unwrap()[0].margin_px;
+        let g = glow(&assumptio);
         assert!(
-            (back - 5.0).abs() < 0.1,
-            "margin returns to base over a cycle"
+            (g.margin_px(2) - 6.5).abs() < 1e-3,
+            "body + head crest at 45 frames"
+        );
+        assert!(g.margin_px(1) < 6.5, "a lone body layer is still rising");
+        assert!(
+            g.margin_px(4) < 5.1,
+            "four layers already finished the cycle"
+        );
+        step(&mut assumptio, 45.0);
+        assert!(
+            (glow(&assumptio).margin_px(2) - 5.0).abs() < 0.1,
+            "body + head return to base after 90 frames"
         );
     }
 

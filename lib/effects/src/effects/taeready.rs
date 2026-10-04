@@ -58,6 +58,7 @@ impl Effect for TaeReadyEffect {
             additive: true,
             behind: false,
             body_layers_only: false,
+            glow: None,
         };
         // Rendered twice for the additive blue overlay.
         Some(vec![flash, flash])

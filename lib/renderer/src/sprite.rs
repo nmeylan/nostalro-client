@@ -1367,6 +1367,18 @@ impl EntitySprite {
         self.taekwon_sex = sex;
         self
     }
+
+    fn body_layer_count(&self) -> u8 {
+        1 + [
+            self.head_act.is_some(),
+            self.headgear_top_act.is_some(),
+            self.headgear_mid_act.is_some(),
+            self.headgear_bottom_act.is_some(),
+        ]
+        .into_iter()
+        .filter(|&present| present)
+        .count() as u8
+    }
 }
 
 fn upload_optional(
@@ -2112,10 +2124,13 @@ pub fn compose_actor_batches<'a>(
             ragnarok_effects::WeaponLight::None,
             copy.body_layers_only,
         );
-        if copy.margin_px != 0.0 {
+        let margin_px = copy
+            .glow
+            .map_or(copy.margin_px, |g| g.margin_px(sprite.body_layer_count()));
+        if margin_px != 0.0 {
             grow_clips(
                 &mut batches,
-                copy.margin_px * channels.copy_margin_scale,
+                margin_px * channels.copy_margin_scale,
                 depth_gradient,
             );
         } else {
@@ -2143,6 +2158,9 @@ pub fn compose_actor_batches<'a>(
                     v.position[2] += offset_dz;
                 }
             }
+        }
+        if copy.glow.is_some() {
+            apply_tint_alpha(&mut batches, channels.tint, channels.alpha);
         }
         apply_tint_alpha(&mut batches, Some(copy.tint), copy.alpha);
         for b in &mut batches {

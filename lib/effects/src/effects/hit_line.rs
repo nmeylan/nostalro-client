@@ -506,6 +506,7 @@ impl Effect for HitLineBounceEffect {
             additive: false,
             behind: true,
             body_layers_only: false,
+            glow: None,
         }])
     }
 }

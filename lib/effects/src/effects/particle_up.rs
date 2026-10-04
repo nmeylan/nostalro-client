@@ -260,6 +260,7 @@ impl Effect for ParticleUpEffect {
             additive: true,
             behind: false,
             body_layers_only: false,
+            glow: None,
         };
         Some(vec![copy, copy])
     }

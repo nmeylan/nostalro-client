@@ -66,6 +66,25 @@ pub struct BodyCopy {
     pub behind: bool,
     /// Skip the weapon and shield layers, so only the actor itself glows.
     pub body_layers_only: bool,
+    /// When set, replaces `margin_px`, and the copy also takes the actor's own
+    /// tint and alpha.
+    pub glow: Option<BodyGlow>,
+}
+
+/// A margin whose sine steps once per drawn body layer, so an actor wearing
+/// more headgears pulses faster.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BodyGlow {
+    pub age_frames: f32,
+    pub base_px: f32,
+    pub amp_px: f32,
+}
+
+impl BodyGlow {
+    pub fn margin_px(&self, body_layers: u8) -> f32 {
+        let deg = (self.age_frames * body_layers as f32) % 181.0;
+        self.base_px + self.amp_px * deg.to_radians().sin()
+    }
 }
 
 /// How an effect lights the weapon layer.

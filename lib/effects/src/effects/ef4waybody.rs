@@ -50,6 +50,7 @@ impl Effect for Ef4wayBodyEffect {
                     additive: false,
                     behind: true,
                     body_layers_only: false,
+                    glow: None,
                 })
                 .collect(),
         )
