@@ -26,6 +26,8 @@ pub struct LevelUpNotificationWindow {
     show_base: bool,
     show_job: bool,
     icon_size: (f32, f32),
+    status_was_open: bool,
+    skill_was_open: bool,
 }
 
 impl Default for LevelUpNotificationWindow {
@@ -41,6 +43,8 @@ impl LevelUpNotificationWindow {
             show_base: false,
             show_job: false,
             icon_size: DEFAULT_SIZE,
+            status_was_open: false,
+            skill_was_open: false,
         }
     }
 
@@ -62,7 +66,20 @@ impl LevelUpNotificationWindow {
         });
     }
 
-    pub fn build(&mut self, ui: &mut UiFrame) -> LevelUpClick {
+    fn dismiss_answered_icons(&mut self, status_open: bool, skill_open: bool) {
+        if status_open && !self.status_was_open {
+            self.show_base = false;
+        }
+        if skill_open && !self.skill_was_open {
+            self.show_job = false;
+        }
+        self.status_was_open = status_open;
+        self.skill_was_open = skill_open;
+    }
+
+    pub fn build(&mut self, ui: &mut UiFrame, status_open: bool, skill_open: bool) -> LevelUpClick {
+        self.dismiss_answered_icons(status_open, skill_open);
+
         let (icon_w, icon_h) = self.icon_size;
         let y = ui.ctx.screen_height - icon_h - BOTTOM_MARGIN;
         let mut result = LevelUpClick::None;
@@ -125,6 +142,17 @@ mod tests {
     use ragnarok_ui::state::StateCache;
     use ragnarok_ui::test_support::test_frame;
 
+    /// How many level up icons the frame actually drew.
+    fn drawn_icons(ui: &UiFrame) -> usize {
+        ui.draw_calls
+            .iter()
+            .filter(|call| match &call.texture {
+                TextureRef::Named(path) => path == LV_UP_OFF || path == LV_UP_ON,
+                _ => false,
+            })
+            .count()
+    }
+
     #[test]
     fn clicking_base_icon_returns_base_and_dismisses() {
         let mut win = LevelUpNotificationWindow::new();
@@ -138,8 +166,8 @@ mod tests {
         ctx.mouse_clicked = true;
 
         let mut ui = test_frame(&mut ctx, &mut state);
-        assert_eq!(win.build(&mut ui), LevelUpClick::Base);
-        assert_eq!(win.build(&mut ui), LevelUpClick::None);
+        assert_eq!(win.build(&mut ui, false, false), LevelUpClick::Base);
+        assert_eq!(win.build(&mut ui, false, false), LevelUpClick::None);
     }
 
     #[test]
@@ -164,7 +192,7 @@ mod tests {
             ui.compute_hovered_window(&z_order);
             ui.enter_window(CHAT_ID, chat_rect);
             ui.enter_window(MINIMAP_ID, minimap_rect);
-            win.build(&mut ui);
+            win.build(&mut ui, false, false);
         }
 
         ctx.mouse_clicked = true;
@@ -173,6 +201,69 @@ mod tests {
         assert_eq!(ui.hovered_window(), Some(CHAT_ID));
         ui.enter_window(CHAT_ID, chat_rect);
         ui.enter_window(MINIMAP_ID, minimap_rect);
-        assert_eq!(win.build(&mut ui), LevelUpClick::Job);
+        assert_eq!(win.build(&mut ui, false, false), LevelUpClick::Job);
+    }
+
+    #[test]
+    fn each_window_only_dismisses_its_own_icon() {
+        let mut win = LevelUpNotificationWindow::new();
+        win.notify_base_level_up();
+        win.notify_job_level_up();
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+
+        {
+            let mut ui = test_frame(&mut ctx, &mut state);
+            win.build(&mut ui, false, false);
+            assert_eq!(drawn_icons(&ui), 2);
+        }
+
+        // Attributes window answers the base icon; the job icon is untouched.
+        {
+            let mut ui = test_frame(&mut ctx, &mut state);
+            win.build(&mut ui, true, false);
+            assert_eq!(drawn_icons(&ui), 1);
+        }
+
+        let mut ui = test_frame(&mut ctx, &mut state);
+        win.build(&mut ui, true, true);
+        assert_eq!(drawn_icons(&ui), 0);
+    }
+
+    #[test]
+    fn window_kept_open_across_frames_does_not_dismiss_a_later_level_up() {
+        let mut win = LevelUpNotificationWindow::new();
+
+        let mut state = StateCache::new();
+        let mut ctx = UiContext::new(800.0, 600.0);
+
+        // Window opened before the level up, and left open.
+        {
+            let mut ui = test_frame(&mut ctx, &mut state);
+            win.build(&mut ui, true, false);
+            assert_eq!(drawn_icons(&ui), 0);
+        }
+
+        win.notify_base_level_up();
+
+        // Still open, but there was no closed -> open transition, so the icon
+        // stays up: the player never answered it, they were already there.
+        {
+            let mut ui = test_frame(&mut ctx, &mut state);
+            win.build(&mut ui, true, false);
+            assert_eq!(drawn_icons(&ui), 1);
+        }
+
+        // Closing and reopening answers it.
+        {
+            let mut ui = test_frame(&mut ctx, &mut state);
+            win.build(&mut ui, false, false);
+            assert_eq!(drawn_icons(&ui), 1);
+        }
+
+        let mut ui = test_frame(&mut ctx, &mut state);
+        win.build(&mut ui, true, false);
+        assert_eq!(drawn_icons(&ui), 0);
     }
 }
